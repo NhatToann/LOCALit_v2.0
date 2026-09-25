@@ -197,6 +197,33 @@
   border: 1px solid var(--border-color);
 }
 
+.buddy-share-toggle {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 600;
+  background: var(--bg-white);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-fast);
+}
+
+.buddy-share-toggle:hover {
+  border-color: var(--primary);
+}
+
+.buddy-share-toggle.on {
+  background: var(--primary);
+  color: var(--text-light);
+  border-color: var(--primary);
+}
+
 .buddy-map-popup {
   position: absolute;
   top: 12px;

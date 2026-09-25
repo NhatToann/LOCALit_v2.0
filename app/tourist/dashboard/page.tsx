@@ -5,6 +5,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/utils/supabase/auth'
 import type { Profile, Trip, Connection } from '@/lib/types'
+import { useLiveUserLocations } from '@/hooks/useLiveUserLocations'
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
 
@@ -18,6 +19,11 @@ export default function TouristDashboardPage() {
   const [reviewsCount, setReviewsCount] = useState(0)
   const [userLocation, setUserLocation] = useState(DEFAULT_LOCATION)
   const [loading, setLoading] = useState(true)
+  const [shareLocation, setShareLocation] = useState(false)
+
+  const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
+    enabled: shareLocation,
+  })
 
   useEffect(() => {
     load()
@@ -240,11 +246,35 @@ export default function TouristDashboardPage() {
         <section className="card dashboard-map-card">
           <div className="card-header flex-between">
             <h2 className="text-xl font-semibold">Buddies nearby</h2>
-            <Link href="/map" className="text-primary text-sm">Open full map →</Link>
+            <div className="flex gap-sm">
+              <button
+                type="button"
+                className={`btn btn-sm ${shareLocation ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setShareLocation(v => !v)}
+                title="Share your live location (no data is saved)"
+              >
+                {shareLocation ? '📍 Sharing live' : '📍 Share my location'}
+              </button>
+              <Link href="/map" className="text-primary text-sm">Open full map →</Link>
+            </div>
           </div>
           <div style={{ height: 300 }}>
-            <MapView userLocation={userLocation} height={300} />
+            <MapView
+              userLocation={userLocation}
+              height={300}
+              liveLocations={liveLocations}
+              selfLiveOverride={selfGranted}
+            />
           </div>
+          {shareLocation && (
+            <p className="text-xs text-muted mt-sm">
+              {selfGranted
+                ? `📍 Sharing your live location${liveLocations.length > 0 ? ` · ${liveLocations.length} tourist${liveLocations.length === 1 ? '' : 's'} nearby` : ''}`
+                : selfDenied
+                  ? '⚠️ Location permission denied — your position is not shared.'
+                  : 'Requesting location permission…'}
+            </p>
+          )}
         </section>
 
         {/* Quick actions */}

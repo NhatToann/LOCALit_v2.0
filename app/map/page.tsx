@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import Link from 'next/link'
 import { useLocationWatcher } from '@/hooks/useLocationWatcher'
+import { useLiveUserLocations } from '@/hooks/useLiveUserLocations'
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
 
@@ -22,12 +23,17 @@ interface BuddyMarker {
 export default function MapPage() {
   const [buddies, setBuddies] = useState<BuddyMarker[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [locationGranted, setLocationGranted] = useState(false)
   const [error, setError] = useState('')
+  const [shareLocation, setShareLocation] = useState(false)
+  const [signedIn, setSignedIn] = useState(false)
 
   const userLocation = useLocationWatcher({
-    onGranted: () => setLocationGranted(true),
-    onDenied: () => setLocationGranted(false),
+    onGranted: () => setSignedIn(true),
+    onDenied: () => setSignedIn(false),
+  })
+
+  const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
+    enabled: shareLocation,
   })
 
   useEffect(() => {
@@ -68,26 +74,30 @@ export default function MapPage() {
           <h1 className="text-3xl">Buddy Map — Da Nang</h1>
           <p className="text-muted mt-sm">
             {buddies.length} buddies shown on the map
-            {locationGranted ? ' · 📍 Your location is on' : ' · ⚠️ Location not enabled'}
+            {selfGranted
+              ? ' · 📍 Sharing your live location'
+              : selfDenied
+                ? ' · ⚠️ Location permission denied'
+                : ' · Location sharing off'}
+            {liveLocations.length > 0 && ` · ${liveLocations.length} live tourist${liveLocations.length === 1 ? '' : 's'}`}
           </p>
         </div>
         <div className="flex gap-sm">
-          {!locationGranted && (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                if (typeof navigator !== 'undefined' && navigator.geolocation) {
-                  navigator.geolocation.getCurrentPosition(
-                    () => setLocationGranted(true),
-                    (err) => setError('Could not access location: ' + err.message)
-                  )
-                }
-              }}
-            >
-              📍 Enable location
-            </button>
-          )}
+          <button
+            type="button"
+            className={`btn ${shareLocation ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => {
+              if (!signedIn) {
+                setError('Please sign in to share your live location.')
+                return
+              }
+              setError('')
+              setShareLocation(v => !v)
+            }}
+            title="Opt-in: share your location with other tourists on this map"
+          >
+            {shareLocation ? '📍 Sharing live' : '📍 Share my location'}
+          </button>
           <Link href="/tourist/browse" className="btn btn-outline">List view</Link>
         </div>
       </div>
@@ -108,6 +118,8 @@ export default function MapPage() {
           userLocation={userLocation}
           height="100%"
           onSelectBuddy={(id) => setSelectedId(id)}
+          liveLocations={liveLocations}
+          selfLiveOverride={selfGranted}
         />
 
         {/* Legend */}
@@ -122,7 +134,11 @@ export default function MapPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#17A2B8', display: 'inline-block' }} />
-            <span>Tourist</span>
+            <span>Tourist (saved)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+            <span>Live tourist (no DB)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#4dd0e1', display: 'inline-block' }} />

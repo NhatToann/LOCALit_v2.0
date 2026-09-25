@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/utils/supabase/auth'
+import { useLiveUserLocations } from '@/hooks/useLiveUserLocations'
 import './browse.css'
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
@@ -60,6 +61,11 @@ function BrowseContent() {
   const [savedBuddies, setSavedBuddies] = useState<string[]>([])
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>({ lat: 16.0544, lng: 108.2023 })
+  const [shareLocation, setShareLocation] = useState(false)
+
+  const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
+    enabled: shareLocation,
+  })
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
@@ -234,10 +240,20 @@ function BrowseContent() {
             <p>Hover a marker or click a buddy below to see their location in Da Nang.</p>
           </div>
           <div className="buddy-leaflet-map">
+            <button
+              type="button"
+              className={`buddy-share-toggle ${shareLocation ? 'on' : ''}`}
+              onClick={() => setShareLocation(v => !v)}
+              title="Share your live location with other tourists (no data is saved)"
+            >
+              {shareLocation ? '📍 Sharing live' : '📍 Share my location'}
+            </button>
             <MapView
               userLocation={userLocation}
               height={340}
               onSelectBuddy={(id) => { setSelectedMapId(id); setExpandedBuddyId(id) }}
+              liveLocations={liveLocations}
+              selfLiveOverride={selfGranted}
             />
             {selectedBuddy && (
               <div className="buddy-map-popup">

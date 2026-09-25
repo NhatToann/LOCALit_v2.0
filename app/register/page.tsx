@@ -209,13 +209,13 @@ function RegisterForm() {
             </div>
 
             {/* Progress */}
-            <div className="auth-progress" style={{ display: 'flex', justifyContent: 'center', marginBottom: 32, gap: 8 }}>
+            <div className="auth-progress" style={{ display: 'flex', justifyContent: 'center', marginBottom: 16, gap: 6 }}>
               <div className={`progress-step ${step >= 1 ? 'active' : ''}`}>
-                <div className="step-circle">1</div>
+                <div className="step-circle" style={{ width: 24, height: 24, fontSize: 12 }}>1</div>
               </div>
-              <div className={`progress-line ${step >= 2 ? 'active' : ''}`} style={{ width: 60, height: 3, background: step >= 2 ? 'var(--primary)' : 'var(--border-color)', marginBottom: 18 }} />
+              <div className={`progress-line ${step >= 2 ? 'active' : ''}`} style={{ width: 48, height: 2, background: step >= 2 ? 'var(--primary)' : 'var(--border-color)', marginBottom: 11 }} />
               <div className={`progress-step ${step >= 2 ? 'active' : ''}`}>
-                <div className="step-circle">2</div>
+                <div className="step-circle" style={{ width: 24, height: 24, fontSize: 12 }}>2</div>
               </div>
             </div>
 

@@ -6,6 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/auth'
+import type { LiveLocation } from '@/hooks/useLiveUserLocations'
 
 interface BuddyPin {
   id: string
@@ -25,11 +26,16 @@ interface Props {
   height?: string | number
   showSelfMarker?: boolean
   onSelectBuddy?: (id: string) => void
+  /** Other signed-in users sharing their live position (no DB). */
+  liveLocations?: LiveLocation[]
+  /** Hide the static "You are here" marker even when granted — useful when
+   *  we want to use the broadcaster's own marker instead. */
+  selfLiveOverride?: boolean
 }
 
 const DEFAULT_LOCATION = { lat: 16.0544, lng: 108.2023 } // Da Nang
 
-export default function MapView({ userLocation, height = '100%', showSelfMarker = true, onSelectBuddy }: Props) {
+export default function MapView({ userLocation, height = '100%', showSelfMarker = true, onSelectBuddy, liveLocations = [], selfLiveOverride = false }: Props) {
   const [buddies, setBuddies] = useState<BuddyPin[]>([])
   const [tourists, setTourists] = useState<BuddyPin[]>([])
   const [loading, setLoading] = useState(true)
@@ -126,6 +132,11 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
     iconSize: [26, 26],
     className: '',
   })
+  const liveIcon = L.divIcon({
+    html: '<div style="position:relative;width:18px;height:18px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div><div style="position:absolute;top:-4px;left:-4px;width:26px;height:26px;background:#3b82f6;border-radius:50%;opacity:0.25;animation:livePulse 2s ease-out infinite;"></div>',
+    iconSize: [26, 26],
+    className: '',
+  })
 
   return (
     <div style={{ position: 'relative', height, width: '100%' }}>
@@ -141,7 +152,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         />
         <FlyToUser />
 
-        {showSelfMarker && (
+        {showSelfMarker && !selfLiveOverride && (
           <Marker position={[userLocation.lat, userLocation.lng]} icon={userIcon}>
             <Popup><strong>You are here</strong></Popup>
           </Marker>
@@ -173,6 +184,15 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
             <Popup>
               <strong>{t.name}</strong>
               <div style={{ fontSize: 12, color: '#666' }}>🧳 Du khách</div>
+            </Popup>
+          </Marker>
+        ))}
+
+        {liveLocations.map((l) => (
+          <Marker key={`live-${l.userId}`} position={[l.lat, l.lng]} icon={liveIcon}>
+            <Popup>
+              <strong>{l.name}</strong>
+              <div style={{ fontSize: 12, color: '#666' }}>📍 Live now</div>
             </Popup>
           </Marker>
         ))}
