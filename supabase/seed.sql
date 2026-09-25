@@ -2,17 +2,58 @@
 -- LOCALit Seed Data — v2.0 (with explicit UUID casts)
 -- ============================================================
 
-INSERT INTO auth.users (id, email, encrypted_password, raw_user_meta_data) VALUES
-  ('11111111-1111-1111-1111-111111111111'::uuid, 'lan.pham@localit.dev', crypt('password123', gen_salt('bf')), '{"full_name": "Lan Pham", "role": "buddy"}'::jsonb),
-  ('22222222-2222-2222-2222-222222222222'::uuid, 'minh.nguyen@localit.dev', crypt('password123', gen_salt('bf')), '{"full_name": "Minh Nguyen", "role": "buddy"}'::jsonb),
-  ('33333333-3333-3333-3333-333333333333'::uuid, 'huy.nguyen@localit.dev', crypt('password123', gen_salt('bf')), '{"full_name": "Huy Nguyen", "role": "buddy"}'::jsonb),
-  ('44444444-4444-4444-4444-444444444444'::uuid, 'linh.tran@localit.dev', crypt('password123', gen_salt('bf')), '{"full_name": "Linh Tran", "role": "buddy"}'::jsonb),
-  ('55555555-5555-5555-5555-555555555555'::uuid, 'mai.le@localit.dev', crypt('password123', gen_salt('bf')), '{"full_name": "Mai Le", "role": "buddy"}'::jsonb),
-  ('66666666-6666-6666-6666-666666666666'::uuid, 'tuan.vu@localit.dev', crypt('password123', gen_salt('bf')), '{"full_name": "Tuan Vu", "role": "buddy"}'::jsonb),
-  ('aaaa1111-1111-1111-1111-111111111111'::uuid, 'john.doe@example.com', crypt('password123', gen_salt('bf')), '{"full_name": "John Doe", "role": "tourist"}'::jsonb),
-  ('aaaa2222-2222-2222-2222-222222222222'::uuid, 'sarah.m@example.com', crypt('password123', gen_salt('bf')), '{"full_name": "Sarah Miller", "role": "tourist"}'::jsonb),
-  ('aaaa3333-3333-3333-3333-333333333333'::uuid, 'mike.j@example.com', crypt('password123', gen_salt('bf')), '{"full_name": "Mike Johnson", "role": "tourist"}'::jsonb)
+-- IMPORTANT: GoTrue (Supabase Auth) requires many NOT-NULL-ish columns on
+-- auth.users that other PostgreSQL schemas don't. If you only populate the
+-- "obvious" columns (id, email, encrypted_password) the user exists but
+-- password sign-in returns 500 "Database error querying schema". The columns
+-- below are the full set you need.
+--
+-- If you ever re-run seed.sql against a fresh project, also run:
+--   node scripts/fix-seed-users.mjs   (idempotent backfill)
+
+INSERT INTO auth.users (
+  instance_id, id, aud, role, email,
+  encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at,
+  confirmation_token, email_change, email_change_token_new, recovery_token,
+  email_change_token_current, reauthentication_token,
+  phone_change, phone_change_token,
+  is_anonymous, is_sso_user, email_change_confirm_status
+) VALUES
+  ('00000000-0000-0000-0000-000000000000'::uuid, '11111111-1111-1111-1111-111111111111'::uuid, 'authenticated', 'authenticated', 'lan.pham@localit.dev',   crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name": "Lan Pham", "role": "buddy"}'::jsonb,    now(), now(), '', '', '', '', '', '', '', '', false, false, 0),
+  ('00000000-0000-0000-0000-000000000000'::uuid, '22222222-2222-2222-2222-222222222222'::uuid, 'authenticated', 'authenticated', 'minh.nguyen@localit.dev', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name": "Minh Nguyen", "role": "buddy"}'::jsonb, now(), now(), '', '', '', '', '', '', '', '', false, false, 0),
+  ('00000000-0000-0000-0000-000000000000'::uuid, '33333333-3333-3333-3333-333333333333'::uuid, 'authenticated', 'authenticated', 'huy.nguyen@localit.dev',  crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name": "Huy Nguyen", "role": "buddy"}'::jsonb,  now(), now(), '', '', '', '', '', '', '', '', false, false, 0),
+  ('00000000-0000-0000-0000-000000000000'::uuid, '44444444-4444-4444-4444-444444444444'::uuid, 'authenticated', 'authenticated', 'linh.tran@localit.dev',   crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name": "Linh Tran", "role": "buddy"}'::jsonb,   now(), now(), '', '', '', '', '', '', '', '', false, false, 0),
+  ('00000000-0000-0000-0000-000000000000'::uuid, '55555555-5555-5555-5555-555555555555'::uuid, 'authenticated', 'authenticated', 'mai.le@localit.dev',      crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name": "Mai Le", "role": "buddy"}'::jsonb,      now(), now(), '', '', '', '', '', '', '', '', false, false, 0),
+  ('00000000-0000-0000-0000-000000000000'::uuid, '66666666-6666-6666-6666-666666666666'::uuid, 'authenticated', 'authenticated', 'tuan.vu@localit.dev',     crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name": "Tuan Vu", "role": "buddy"}'::jsonb,     now(), now(), '', '', '', '', '', '', '', '', false, false, 0),
+  ('00000000-0000-0000-0000-000000000000'::uuid, 'aaaa1111-1111-1111-1111-111111111111'::uuid, 'authenticated', 'authenticated', 'john.doe@example.com',    crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name": "John Doe", "role": "tourist"}'::jsonb,  now(), now(), '', '', '', '', '', '', '', '', false, false, 0),
+  ('00000000-0000-0000-0000-000000000000'::uuid, 'aaaa2222-2222-2222-2222-222222222222'::uuid, 'authenticated', 'authenticated', 'sarah.m@example.com',     crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name": "Sarah Miller", "role": "tourist"}'::jsonb, now(), now(), '', '', '', '', '', '', '', '', false, false, 0),
+  ('00000000-0000-0000-0000-000000000000'::uuid, 'aaaa3333-3333-3333-3333-333333333333'::uuid, 'authenticated', 'authenticated', 'mike.j@example.com',      crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name": "Mike Johnson", "role": "tourist"}'::jsonb, now(), now(), '', '', '', '', '', '', '', '', false, false, 0)
 ON CONFLICT (id) DO NOTHING;
+
+-- Ensure each user has a matching auth.identities row (GoTrue requires this
+-- for sign-in; the auth.users trigger does NOT create identities).
+INSERT INTO auth.identities (
+  id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at
+)
+SELECT gen_random_uuid(),
+       u.id,
+       jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true, 'phone_verified', false),
+       'email',
+       u.email,
+       now(),
+       now(),
+       now()
+FROM auth.users u
+WHERE u.id IN (
+  '11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222',
+  '33333333-3333-3333-3333-333333333333','44444444-4444-4444-4444-444444444444',
+  '55555555-5555-5555-5555-555555555555','66666666-6666-6666-6666-666666666666',
+  'aaaa1111-1111-1111-1111-111111111111','aaaa2222-2222-2222-2222-222222222222',
+  'aaaa3333-3333-3333-3333-333333333333'
+)
+ON CONFLICT (provider, provider_id) DO NOTHING;
 
 -- Ensure profiles exist for all users (in case trigger didn't fire)
 INSERT INTO public.profiles (id, email, full_name, role, is_online)

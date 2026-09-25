@@ -228,11 +228,11 @@ function LoginForm() {
             </div>
 
             <div className="demo-accounts">
-              <strong>💡 Demo accounts:</strong>
+              <strong>Demo accounts (from seed data):</strong>
               <br />
-              lan.pham.buddy@gmail.com / password123 (buddy)
+              lan.pham@localit.dev / password123 (buddy)
               <br />
-              john.doe.tourist@gmail.com / password123 (tourist)
+              john.doe@example.com / password123 (tourist)
             </div>
           </div>
         </div>

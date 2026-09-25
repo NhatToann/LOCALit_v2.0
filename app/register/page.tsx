@@ -204,74 +204,99 @@ function RegisterForm() {
         return
       }
 
-      // The auth trigger inserts a public.profiles row; now write the role-specific table.
-      const supabase = createClient()
+      // The auth trigger inserts a public.profiles row. Now ask the server to
+      // upsert the role-specific row (tourists/buddies) using the service-role
+      // key. The route handler also auto-confirms the email if needed, so the
+      // user can sign in immediately even if "Confirm email" is enabled in
+      // Supabase.
       const userId = data.user.id
+      const hadSession = !!data.session
 
-      if (form.role === 'tourist') {
-        const { error: touristError } = await supabase
-          .from('tourists')
-          .insert({
-            id: userId,
-            nationality: form.nationality || null,
-            date_of_birth: form.dateOfBirth || null,
-            travel_style: form.travelStyle || null,
-            interests: form.interests,
-            languages: form.languages,
-            budget_range: form.budgetRange,
-            arrival_date: form.arrivalDate || null,
-            destination: form.destination,
-            is_visible: true,
-          })
+      const payload =
+        form.role === 'tourist'
+          ? {
+              nationality: form.nationality || null,
+              date_of_birth: form.dateOfBirth || null,
+              travel_style: form.travelStyle || null,
+              interests: form.interests,
+              languages: form.languages,
+              budget_range: form.budgetRange,
+              arrival_date: form.arrivalDate || null,
+              destination: form.destination,
+              is_visible: true,
+            }
+          : {
+              location_city: form.locationCity,
+              languages: form.languages,
+              specialties: form.specialties,
+              hourly_rate: Number(form.hourlyRate),
+              bio: form.bio,
+              is_available: true,
+            }
 
-        if (touristError) {
-          setError('Could not save tourist info: ' + touristError.message)
-          setLoading(false)
-          return
-        }
-      } else {
-        const { error: buddyError } = await supabase
-          .from('buddies')
-          .insert({
-            id: userId,
-            location_city: form.locationCity,
-            languages: form.languages,
-            specialties: form.specialties,
-            hourly_rate: Number(form.hourlyRate),
-            bio: form.bio,
-            is_available: true,
-          })
+      const profileRes = await fetch('/api/auth/create-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          userId,
+          role: form.role,
+          payload,
+          // Ask the server to confirm the email only when signUp didn't already
+          // issue a session (i.e., the project has "Confirm email" ON).
+          autoConfirm: !hadSession,
+        }),
+      })
 
-        if (buddyError) {
-          setError('Could not save buddy info: ' + buddyError.message)
-          setLoading(false)
-          return
-        }
+      if (!profileRes.ok) {
+        const body = await profileRes
+          .json()
+          .catch(() => ({ error: 'Unknown error' }))
+        setError(
+          `Could not save ${form.role} profile: ${body.error ?? profileRes.statusText}`,
+        )
+        setLoading(false)
+        return
       }
 
       // Mirror phone + bio onto profiles so dashboard/profile pages see them.
-      const profileUpdate: Record<string, any> = {}
-      if (form.phone) profileUpdate.phone = form.phone
-      if (form.bio) profileUpdate.bio = form.bio
-      if (Object.keys(profileUpdate).length > 0) {
-        await supabase.from('profiles').update(profileUpdate).eq('id', userId)
+      // If the user has no session yet (auto-confirm path), this will run with
+      // the just-confirmed session — but the trigger has already populated the
+      // row, so a simple client-side update is safe and additive.
+      try {
+        const supabase = createClient()
+        const profileUpdate: Record<string, unknown> = {}
+        if (form.phone) profileUpdate.phone = form.phone
+        if (form.bio) profileUpdate.bio = form.bio
+        if (Object.keys(profileUpdate).length > 0) {
+          await supabase.from('profiles').update(profileUpdate).eq('id', userId)
+        }
+      } catch {
+        // Non-fatal: profile extras are best-effort.
       }
 
-      // Try to auto-login. If email confirmation is required, supabase won't issue
-      // a session here — fall back to /login with a friendly flag.
-      let session = data.session
-      if (!session) {
-        const { data: signInData, error: signInError } = await signIn(form.email, form.password)
-        if (signInError) {
-          router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
-          return
-        }
-        session = signInData.session
+      // If we already have a session from signUp, route straight to dashboard.
+      // Otherwise ask the user to sign in with their new credentials — the
+      // server has just confirmed their email, so the next signIn will succeed.
+      if (hadSession) {
+        const dest = form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'
+        router.push(dest)
+        return
+      }
+
+      // No session yet: try a fresh sign-in (the server just confirmed the
+      // email, so this should succeed). If it still fails, send the user to
+      // /login with the registered flag so the UI can show a friendly message.
+      const { error: signInError } = await signIn(form.email, form.password)
+      if (signInError) {
+        router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
+        return
       }
 
       const dest = form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'
       router.push(dest)
     } catch (err) {
+      console.error('Sign-up error:', err)
       setError('Something went wrong. Please try again.')
       setLoading(false)
     }
