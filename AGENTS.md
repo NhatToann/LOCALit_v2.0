@@ -24,7 +24,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Live Endpoints
 
 - **Current Production** (check `vercel ls --prod` — URL changes per deploy):
-  `https://localit-7860e6b8u-nhattoann.vercel.app/` (deploy 2026-09-25)
+  `https://localit-5bg28iqrf-nhattoann.vercel.app/` (deploy 2026-09-26 — register step reorder)
 - **Supabase URL**: https://pqvnjgyqbxlylawwogjv.supabase.co
 - **Supabase Dashboard**: https://supabase.com/dashboard/project/pqvnjgyqbxlylawwogjv
 
@@ -139,6 +139,13 @@ If a preview URL returns 200 but client-side data fetch fails, the env vars in P
 - Direct `POST /auth/v1/signup` from the Node/pg layer returns `500: Database error saving new user`. This is GoTrue's internal error and happens because the INSERT path to `auth.users` and `auth.identities` goes through Supabase's own gateway, not the postgres role we have access to.
 - **Workaround**: Sign-ups via the client-side Supabase JS SDK (`signUp()` in `utils/supabase/auth.ts`) work fine because the SDK calls the GoTrue API directly. Do NOT simulate sign-up via direct pg inserts unless you also insert `auth.identities` and handle the full row schema.
 - The `scripts/diag-db-flows.mjs` test inserts into `auth.users` directly (bypassing GoTrue) ONLY for testing FK/trigger integrity. Never use this pattern in production code.
+
+### Register Page Step Order (2026-09-26)
+- `/register` flow now: **Step 0 = Personal info (name/phone/email/password/terms)** → **Step 1 = Role (Tourist/Buddy)** → **Step 2 = Tags & bio (role-specific)**.
+- Step 0 uses `stepReady` for name length + email regex + password ≥ 6 chars + match + terms. Step 2 validates nationality+style+interests+languages for tourists, or city+languages+specialties+bio(≥30) for buddies.
+- `?role=tourist|buddy` query param still skips Step 1 (defaulting the role). Useful for marketing links.
+- "Change" link on Step 2 returns the user to Step 1 (role); the back button on Step 2 also returns to Step 1; Step 1 has a topbar back button returning to Step 0.
+- Stepper is shown on every step now (previously only after step 0).
 
 ### Postgres / Node `pg` quirks (Windows PowerShell)
 - **PowerShell does NOT support inline env prefix**: `VAR=value node script` is invalid. Use `$env:VAR="value"` before the command, or chain: `cmd /c "set VAR=value&& node script"`.
