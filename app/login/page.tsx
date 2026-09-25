@@ -132,8 +132,8 @@ function LoginForm() {
           <div className="mt-lg" style={{ padding: 12, background: 'var(--info-light)', borderRadius: 8 }}>
             <p className="text-xs text-secondary" style={{ textAlign: 'center' }}>
               💡 <strong>Demo accounts:</strong><br />
-              lan.pham@localit.dev / password123 (buddy)<br />
-              john.doe@example.com / password123 (tourist)
+              lan.pham.buddy@gmail.com / password123 (buddy)<br />
+              john.doe.tourist@gmail.com / password123 (tourist)
             </p>
           </div>
         </div>

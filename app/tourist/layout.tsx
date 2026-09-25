@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/utils/supabase/auth'
-import type { Profile } from '@/lib/types'
+import { createClient } from '@/utils/supabase/server'
 import Header from '@/components/layout/Header'
 
 export default async function TouristLayout({
@@ -15,9 +14,9 @@ export default async function TouristLayout({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*')
+    .select('full_name, role')
     .eq('id', user.id)
-    .single<Profile>()
+    .single()
 
   if (profile?.role !== 'tourist') {
     redirect('/buddy/dashboard')
@@ -25,7 +24,7 @@ export default async function TouristLayout({
 
   return (
     <>
-      <Header userRole="tourist" userName={profile?.full_name} />
+      <Header userRole="tourist" userName={profile?.full_name ?? undefined} />
       <main className="page-wrapper">{children}</main>
     </>
   )

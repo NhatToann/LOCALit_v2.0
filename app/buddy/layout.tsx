@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/utils/supabase/auth'
+import { createClient } from '@/utils/supabase/server'
 import Header from '@/components/layout/Header'
 
 export default async function BuddyLayout({
