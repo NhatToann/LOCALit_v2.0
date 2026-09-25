@@ -55,6 +55,7 @@ export default function TouristDashboardPage() {
         supabase
           .from('buddies')
           .select('id, location_city, latitude, longitude, is_available, profile:profiles(full_name, is_online)')
+          .eq('location_city', 'Da Nang')
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
           .limit(20),
@@ -88,22 +89,22 @@ export default function TouristDashboardPage() {
   const pending = connections.filter((c) => c.status === 'pending')
 
   const stats = [
-    { label: 'Chuyến đi', value: trips.length, icon: '🧳', color: '#FF6B35' },
-    { label: 'Buddy đã kết nối', value: accepted.length, icon: '👥', color: '#28A745' },
-    { label: 'Đang chờ', value: pending.length, icon: '⏳', color: '#FFC107' },
-    { label: 'Đánh giá đã gửi', value: reviewsCount, icon: '⭐', color: '#FFB347' },
+    { label: 'Trips', value: trips.length, icon: '🧳', color: '#FF6B35' },
+    { label: 'Buddies connected', value: accepted.length, icon: '👥', color: '#28A745' },
+    { label: 'Pending', value: pending.length, icon: '⏳', color: '#FFC107' },
+    { label: 'Reviews sent', value: reviewsCount, icon: '⭐', color: '#FFB347' },
   ]
 
   return (
     <div className="container py-xl">
       <div className="flex-between mb-xl" style={{ flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 className="text-3xl">Xin chào, {profile?.full_name?.split(' ')[0] || 'bạn'}! 👋</h1>
-          <p className="text-muted">Sẵn sàng cho cuộc phiêu lưu tiếp theo?</p>
+          <h1 className="text-3xl">Welcome back, {profile?.full_name?.split(' ')[0] || 'traveler'}! 👋</h1>
+          <p className="text-muted">Ready for your next Da Nang adventure?</p>
         </div>
         <div className="flex gap-sm">
           <Link href="/tourist/browse" className="btn btn-primary">
-            🔍 Tìm buddy
+            🔍 Find buddies
           </Link>
         </div>
       </div>
@@ -140,15 +141,15 @@ export default function TouristDashboardPage() {
         {/* Trips */}
         <section className="card">
           <div className="card-header flex-between">
-            <h2 className="text-xl font-semibold">Chuyến đi của bạn</h2>
-            <Link href="/tourist/browse" className="text-primary text-sm">Tìm thêm buddy →</Link>
+            <h2 className="text-xl font-semibold">Your trips</h2>
+            <Link href="/tourist/browse" className="text-primary text-sm">Find more buddies →</Link>
           </div>
           <div className="card-body">
             {trips.length === 0 ? (
               <div className="empty-state">
-                <p>📭 Bạn chưa có chuyến đi nào.</p>
+                <p>📭 You don&apos;t have any trips yet.</p>
                 <Link href="/tourist/browse" className="btn btn-primary mt-md">
-                  Tìm buddy để bắt đầu
+                  Find a buddy to get started
                 </Link>
               </div>
             ) : (
@@ -161,7 +162,7 @@ export default function TouristDashboardPage() {
                         <p className="font-medium">{trip.title}</p>
                         <p className="text-sm text-muted">
                           📍 {trip.destination}
-                          {trip.start_date && ` · 📅 ${new Date(trip.start_date).toLocaleDateString('vi-VN')}`}
+                          {trip.start_date && ` · 📅 ${new Date(trip.start_date).toLocaleDateString('en-US')}`}
                         </p>
                         {buddy?.profile?.full_name && (
                           <p className="text-xs text-muted mt-xs">
@@ -176,14 +177,14 @@ export default function TouristDashboardPage() {
                           : trip.status === 'cancelled' ? 'danger'
                           : 'primary'
                         }`}>
-                          {trip.status === 'completed' ? '✓ Hoàn thành'
-                           : trip.status === 'confirmed' ? '✓ Đã xác nhận'
-                           : trip.status === 'cancelled' ? '✕ Đã hủy'
-                           : '⏳ Lên kế hoạch'}
+                          {trip.status === 'completed' ? '✓ Completed'
+                           : trip.status === 'confirmed' ? '✓ Confirmed'
+                           : trip.status === 'cancelled' ? '✕ Cancelled'
+                           : '⏳ Planning'}
                         </span>
                         {trip.status === 'completed' && buddy?.id && (
                           <Link href={`/review/${trip.id}`} className="btn btn-sm btn-outline">
-                            ⭐ Đánh giá
+                            ⭐ Review
                           </Link>
                         )}
                       </div>
@@ -197,14 +198,14 @@ export default function TouristDashboardPage() {
 
         <section className="card">
           <div className="card-header">
-            <h2 className="text-xl font-semibold">Buddy của tôi</h2>
+            <h2 className="text-xl font-semibold">My buddies</h2>
           </div>
           <div className="card-body">
             {connections.length === 0 ? (
               <div className="empty-state">
-                <p>Bạn chưa kết nối với buddy nào.</p>
+                <p>You haven&apos;t connected with any buddies yet.</p>
                 <Link href="/tourist/browse" className="btn btn-primary btn-sm mt-md">
-                  Khám phá ngay
+                  Browse now
                 </Link>
               </div>
             ) : (
@@ -217,7 +218,7 @@ export default function TouristDashboardPage() {
                       <div className="avatar avatar-md">{name.charAt(0)}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p className="text-sm font-medium">{name}</p>
-                        <p className="text-xs text-muted">{buddy?.location_city ?? '—'}</p>
+                        <p className="text-xs text-muted">{buddy?.location_city ?? 'Da Nang'}</p>
                       </div>
                       <div className="flex flex-col items-end gap-xs">
                         <span className={`badge badge-${c.status === 'accepted' ? 'success' : c.status === 'declined' ? 'danger' : 'primary'}`}>
@@ -238,8 +239,8 @@ export default function TouristDashboardPage() {
         {/* Mini map */}
         <section className="card dashboard-map-card">
           <div className="card-header flex-between">
-            <h2 className="text-xl font-semibold">Buddy xung quanh</h2>
-            <Link href="/map" className="text-primary text-sm">Mở bản đồ lớn →</Link>
+            <h2 className="text-xl font-semibold">Buddies nearby</h2>
+            <Link href="/map" className="text-primary text-sm">Open full map →</Link>
           </div>
           <div style={{ height: 300 }}>
             <MapView userLocation={userLocation} height={300} />
@@ -249,13 +250,13 @@ export default function TouristDashboardPage() {
         {/* Quick actions */}
         <section className="card">
           <div className="card-header">
-            <h2 className="text-xl font-semibold">Thao tác nhanh</h2>
+            <h2 className="text-xl font-semibold">Quick actions</h2>
           </div>
           <div className="card-body flex flex-col gap-md">
-            <Link href="/tourist/browse" className="btn btn-outline btn-block">🔍 Tìm Buddy</Link>
-            <Link href="/map" className="btn btn-outline btn-block">🗺️ Bản đồ Buddy</Link>
-            <Link href="/chat" className="btn btn-outline btn-block">💬 Tin nhắn</Link>
-            <Link href="/tourist/profile" className="btn btn-outline btn-block">👤 Hồ sơ của tôi</Link>
+            <Link href="/tourist/browse" className="btn btn-outline btn-block">🔍 Find buddies</Link>
+            <Link href="/map" className="btn btn-outline btn-block">🗺️ Buddy map</Link>
+            <Link href="/chat" className="btn btn-outline btn-block">💬 Messages</Link>
+            <Link href="/tourist/profile" className="btn btn-outline btn-block">👤 My profile</Link>
           </div>
         </section>
       </div>

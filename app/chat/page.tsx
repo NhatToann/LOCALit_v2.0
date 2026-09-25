@@ -49,7 +49,6 @@ function ChatInner() {
 
   useEffect(() => {
     if (convParam && myId) {
-      // Just select this conversation from existing list
       const exists = conversations.some((c) => c.id === convParam)
       if (exists) setActiveId(convParam)
       router.replace('/chat')
@@ -111,7 +110,6 @@ function ChatInner() {
     const me = await getCurrentUser()
     if (!me) return
 
-    // Try to find existing
     const { data: existing } = await supabase
       .from('conversations')
       .select('id')
@@ -126,14 +124,13 @@ function ChatInner() {
         .select('id')
         .single()
       if (error) {
-        setError('Không thể mở cuộc trò chuyện: ' + error.message)
+        setError('Could not open conversation: ' + error.message)
         return
       }
       convId = created.id
     }
     await loadConversations(me.id)
     setActiveId(convId)
-    // Clean up the query param so refresh doesn't reopen
     router.replace('/chat')
   }
 
@@ -151,7 +148,6 @@ function ChatInner() {
     }
     setMessages((data as Message[]) ?? [])
 
-    // Mark unread messages as read
     if (myId) {
       await supabase
         .from('messages')
@@ -161,7 +157,6 @@ function ChatInner() {
     }
   }
 
-  // Realtime subscription
   useEffect(() => {
     if (!activeId) return
     const supabase = createClient()
@@ -176,7 +171,6 @@ function ChatInner() {
             if (prev.some((m) => m.id === next.id)) return prev
             return [...prev, next]
           })
-          // Mark as read if it's from partner
           if (myId && payload.new.sender_id !== myId) {
             supabase.from('messages').update({ is_read: true }).eq('id', payload.new.id).then()
           }
@@ -195,10 +189,9 @@ function ChatInner() {
     if (!content || !activeId || !myId) return
     if (content.length > 1000) return
 
-    // Rate limit: 1 message per second to avoid spam
     const now = Date.now()
     if (now - lastSentRef.current < 1000) {
-      setError('Vui lòng chờ một chút trước khi gửi tiếp.')
+      setError('Please wait a moment before sending another message.')
       return
     }
     lastSentRef.current = now
@@ -218,7 +211,7 @@ function ChatInner() {
       .single()
 
     if (sendErr) {
-      setError('Không thể gửi: ' + sendErr.message)
+      setError('Could not send: ' + sendErr.message)
       setSending(false)
       return
     }
@@ -245,12 +238,12 @@ function ChatInner() {
   if (conversations.length === 0 && !buddyParam) {
     return (
       <div className="container py-xl">
-        <h1 className="text-3xl font-bold mb-lg">💬 Tin nhắn</h1>
+        <h1 className="text-3xl font-bold mb-lg">💬 Messages</h1>
         <div className="empty-state">
           <p style={{ fontSize: 48 }}>💬</p>
-          <h3>Chưa có cuộc trò chuyện</h3>
-          <p className="text-muted mt-sm">Kết nối với buddy để bắt đầu chat</p>
-          <Link href="/tourist/browse" className="btn btn-primary mt-md">Tìm buddy</Link>
+          <h3>No conversations yet</h3>
+          <p className="text-muted mt-sm">Connect with a buddy to start chatting.</p>
+          <Link href="/tourist/browse" className="btn btn-primary mt-md">Find buddies</Link>
         </div>
       </div>
     )
@@ -258,7 +251,7 @@ function ChatInner() {
 
   return (
     <div className="container py-xl">
-      <h1 className="text-3xl font-bold mb-lg">💬 Tin nhắn</h1>
+      <h1 className="text-3xl font-bold mb-lg">💬 Messages</h1>
 
       <div
         className="card chat-shell"
@@ -273,7 +266,7 @@ function ChatInner() {
         <aside className="chat-sidebar">
           {conversations.length === 0 ? (
             <div className="empty-state" style={{ padding: 'var(--space-lg)' }}>
-              <p className="text-sm text-muted">Đang tạo cuộc trò chuyện...</p>
+              <p className="text-sm text-muted">Creating conversation...</p>
             </div>
           ) : (
             conversations.map((c) => {
@@ -289,7 +282,7 @@ function ChatInner() {
                   <span className="chat-sidebar-info">
                     <span className="chat-sidebar-name">{c.partner_name}</span>
                     <span className="chat-sidebar-sub">
-                      {c.partner_city ? `📍 ${c.partner_city}` : 'Bắt đầu cuộc trò chuyện'}
+                      {c.partner_city ? `📍 ${c.partner_city}` : 'Start a conversation'}
                     </span>
                   </span>
                   {c.is_partner_online && <span className="online-dot" />}
@@ -307,7 +300,7 @@ function ChatInner() {
                 <div style={{ flex: 1 }}>
                   <p className="font-semibold">{activeConv.partner_name}</p>
                   <p className="text-xs text-muted">
-                    {activeConv.is_partner_online ? '🟢 Đang hoạt động' : '⚪ Không hoạt động'}
+                    {activeConv.is_partner_online ? '🟢 Active' : '⚪ Offline'}
                   </p>
                 </div>
               </div>
@@ -315,7 +308,7 @@ function ChatInner() {
               <div className="chat-messages">
                 {messages.length === 0 ? (
                   <div className="empty-state">
-                    <p className="text-muted">Bắt đầu cuộc trò chuyện với {activeConv.partner_name}!</p>
+                    <p className="text-muted">Start a conversation with {activeConv.partner_name}!</p>
                   </div>
                 ) : (
                   messages.map((m) => (
@@ -328,13 +321,13 @@ function ChatInner() {
               <form onSubmit={handleSend} className="chat-input-row">
                 <input
                   className="form-input"
-                  placeholder="Nhập tin nhắn..."
+                  placeholder="Type a message..."
                   value={draft}
                   onChange={(e) => { setDraft(e.target.value); setError('') }}
                   maxLength={1000}
                   disabled={sending}
                   autoFocus
-                  aria-label="Tin nhắn"
+                  aria-label="Message"
                 />
                 <span className="text-xs text-muted" style={{ alignSelf: 'center', minWidth: 50, textAlign: 'right' }}>
                   {draft.length}/1000
@@ -343,9 +336,9 @@ function ChatInner() {
                   type="submit"
                   className="btn btn-primary"
                   disabled={sending || !draft.trim()}
-                  aria-label="Gửi tin nhắn"
+                  aria-label="Send message"
                 >
-                  ➤ Gửi
+                  ➤ Send
                 </button>
               </form>
               {error && (
@@ -355,7 +348,7 @@ function ChatInner() {
           ) : (
             <div className="empty-state">
               <p style={{ fontSize: 48 }}>👈</p>
-              <p className="text-muted">Chọn một cuộc trò chuyện để bắt đầu</p>
+              <p className="text-muted">Choose a conversation to start chatting</p>
             </div>
           )}
         </main>
@@ -378,7 +371,7 @@ function MessageBubble({ message, myId, partnerInitial }: { message: Message; my
       <div className={`bubble ${isOwn ? 'bubble-own' : 'bubble-partner'}`}>
         <p style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{message.content}</p>
         <small className="bubble-time">
-          {new Date(message.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+          {new Date(message.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
         </small>
       </div>
     </div>

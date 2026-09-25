@@ -56,25 +56,25 @@ export default function BuddyDashboardPage() {
 
   const pendingCount = requests.filter(r => r.status === 'pending').length
   const stats = [
-    { label: 'Yêu cầu chờ', value: pendingCount, icon: '⏳', color: '#FFC107' },
-    { label: 'Đã kết nối', value: requests.filter(r => r.status === 'accepted').length, icon: '✓', color: '#28A745' },
-    { label: 'Chuyến đi', value: trips.length, icon: '🧳', color: '#FF6B35' },
-    { label: 'Đánh giá TB', value: '—', icon: '⭐', color: '#FFB347' },
+    { label: 'Pending requests', value: pendingCount, icon: '⏳', color: '#FFC107' },
+    { label: 'Connections', value: requests.filter(r => r.status === 'accepted').length, icon: '✓', color: '#28A745' },
+    { label: 'Trips', value: trips.length, icon: '🧳', color: '#FF6B35' },
+    { label: 'Avg rating', value: '—', icon: '⭐', color: '#FFB347' },
   ]
 
   return (
     <div className="container py-xl">
       <div className="flex-between mb-xl">
         <div>
-          <h1 className="text-3xl">Chào {profile?.full_name?.split(' ')[0]}! 👋</h1>
-          <p className="text-muted">Quản lý yêu cầu và lịch trình của bạn</p>
+          <h1 className="text-3xl">Hi {profile?.full_name?.split(' ')[0]}! 👋</h1>
+          <p className="text-muted">Manage your connection requests and upcoming trips</p>
         </div>
         <button
           onClick={toggleAvailability}
           disabled={toggling}
           className={`btn ${profile?.is_online ? 'btn-primary' : 'btn-outline'}`}
         >
-          {profile?.is_online ? '🟢 Đang hoạt động' : '⚪ Offline'}
+          {profile?.is_online ? '🟢 Active' : '⚪ Offline'}
         </button>
       </div>
 
@@ -101,13 +101,13 @@ export default function BuddyDashboardPage() {
         {/* Pending requests */}
         <div className="card">
           <div className="card-header flex-between">
-            <h3>Yêu cầu kết nối</h3>
-            <Link href="/buddy/requests" className="text-primary text-sm">Xem tất cả →</Link>
+            <h3>Connection requests</h3>
+            <Link href="/buddy/requests" className="text-primary text-sm">See all →</Link>
           </div>
           <div className="card-body">
             {requests.filter(r => r.status === 'pending').length === 0 ? (
               <div className="empty-state">
-                <p>📭 Không có yêu cầu nào đang chờ</p>
+                <p>📭 No pending requests right now</p>
               </div>
             ) : (
               <ul className="flex flex-col">
@@ -119,11 +119,11 @@ export default function BuddyDashboardPage() {
                         <div className="avatar avatar-md">{t?.profile?.full_name?.charAt(0) || '?'}</div>
                         <div>
                           <p className="font-medium">{t?.profile?.full_name}</p>
-                          <p className="text-xs text-muted">{t?.nationality || '—'} • {t?.destination || ''}</p>
-                          {r.message && <p className="text-sm mt-xs" style={{ fontStyle: 'italic' }}>"{r.message}"</p>}
+                          <p className="text-xs text-muted">{t?.nationality || '—'} • {t?.destination || 'Da Nang'}</p>
+                          {r.message && <p className="text-sm mt-xs" style={{ fontStyle: 'italic' }}>&ldquo;{r.message}&rdquo;</p>}
                         </div>
                       </div>
-                      <Link href="/buddy/requests" className="btn btn-primary btn-sm">Duyệt</Link>
+                      <Link href="/buddy/requests" className="btn btn-primary btn-sm">Review</Link>
                     </li>
                   )
                 })}
@@ -135,17 +135,17 @@ export default function BuddyDashboardPage() {
         {/* Quick actions */}
         <div className="card">
           <div className="card-header">
-            <h3>Thao tác nhanh</h3>
+            <h3>Quick actions</h3>
           </div>
           <div className="card-body flex flex-col gap-md">
             <Link href="/buddy/profile" className="btn btn-outline btn-block">
-              ✏️ Cập nhật hồ sơ
+              ✏️ Update profile
             </Link>
             <Link href="/chat" className="btn btn-outline btn-block">
-              💬 Tin nhắn
+              💬 Messages
             </Link>
             <Link href="/map" className="btn btn-outline btn-block">
-              📍 Vị trí của tôi
+              📍 My location
             </Link>
           </div>
         </div>

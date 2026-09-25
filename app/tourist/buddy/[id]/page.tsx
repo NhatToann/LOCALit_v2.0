@@ -61,7 +61,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
 
       if (cancelled) return
       if (!b) {
-        setError('Không tìm thấy buddy.')
+        setError('Buddy not found.')
         setLoading(false)
         return
       }
@@ -139,9 +139,9 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
     setActionLoading(false)
     if (insertErr) {
       if (insertErr.code === '23505') {
-        setError('Bạn đã gửi yêu cầu cho buddy này rồi.')
+        setError('You already sent a request to this buddy.')
       } else {
-        setError('Không thể gửi yêu cầu: ' + insertErr.message)
+        setError('Could not send request: ' + insertErr.message)
       }
       return
     }
@@ -173,7 +173,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
       .select('id')
       .single()
     if (createErr) {
-      setError('Không thể mở cuộc trò chuyện: ' + createErr.message)
+      setError('Could not open conversation: ' + createErr.message)
       return
     }
     router.push(`/chat/${created.id}`)
@@ -186,7 +186,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
     return (
       <div className="container py-xl">
         <div className="alert alert-error"><span>⚠️</span><span>{error}</span></div>
-        <Link href="/tourist/browse" className="btn btn-primary mt-md">← Quay lại danh sách</Link>
+        <Link href="/tourist/browse" className="btn btn-primary mt-md">← Back to list</Link>
       </div>
     )
   }
@@ -194,7 +194,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="container py-xl">
-      <Link href="/tourist/browse" className="text-sm text-muted">← Quay lại danh sách</Link>
+      <Link href="/tourist/browse" className="text-sm text-muted">← Back to list</Link>
 
       <div className="buddy-profile-grid mt-md">
         <main>
@@ -214,7 +214,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
                       ⭐ {buddy.rating_avg ? buddy.rating_avg.toFixed(1) : '—'}
                     </span>
                     <span className="text-sm text-muted ml-sm">
-                      ({reviews.length} đánh giá · {buddy.trips_completed} chuyến)
+                      ({reviews.length} reviews · {buddy.trips_completed} trips)
                     </span>
                   </div>
                   {buddy.bio && <p className="mt-md">{buddy.bio}</p>}
@@ -226,27 +226,27 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
               {/* Tags */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-md)' }}>
                 <div>
-                  <span className="detail-label">Ngôn ngữ</span>
+                  <span className="detail-label">Languages</span>
                   <div className="lang-list">
                     {buddy.languages.length === 0
-                      ? <span className="text-muted text-sm">Chưa cập nhật</span>
+                      ? <span className="text-muted text-sm">Not set yet</span>
                       : buddy.languages.map((l) => <span key={l} className="lang-chip">{l}</span>)}
                   </div>
                 </div>
                 <div>
-                  <span className="detail-label">Chuyên môn</span>
+                  <span className="detail-label">Specialties</span>
                   <div className="lang-list">
                     {buddy.specialties.length === 0
-                      ? <span className="text-muted text-sm">Chưa cập nhật</span>
+                      ? <span className="text-muted text-sm">Not set yet</span>
                       : buddy.specialties.map((s) => <span key={s} className="lang-chip">{s}</span>)}
                   </div>
                 </div>
                 <div>
-                  <span className="detail-label">Phí</span>
+                  <span className="detail-label">Rate</span>
                   <strong>
                     {buddy.hourly_rate && buddy.hourly_rate > 0
-                      ? `$${Number(buddy.hourly_rate).toFixed(0)}/giờ`
-                      : 'Thỏa thuận'}
+                      ? `$${Number(buddy.hourly_rate).toFixed(0)}/hour`
+                      : 'Negotiable'}
                   </strong>
                 </div>
               </div>
@@ -256,12 +256,12 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
           {/* Reviews */}
           <div className="card mt-lg">
             <div className="card-header">
-              <h3>Đánh giá ({reviews.length})</h3>
+              <h3>Reviews ({reviews.length})</h3>
             </div>
             <div className="card-body">
               {reviews.length === 0 ? (
                 <div className="empty-state">
-                  <p>Chưa có đánh giá nào.</p>
+                  <p>No reviews yet.</p>
                 </div>
               ) : (
                 <ul className="flex flex-col" style={{ gap: 'var(--space-md)' }}>
@@ -269,9 +269,9 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
                     <li key={r.id} style={{ paddingBottom: 'var(--space-md)', borderBottom: '1px solid var(--border-color)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
                         <span className="avatar avatar-sm">{r.reviewer_name?.charAt(0) ?? '?'}</span>
-                        <strong>{r.reviewer_name ?? 'Người dùng'}</strong>
+                        <strong>{r.reviewer_name ?? 'Traveler'}</strong>
                         <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{'⭐'.repeat(r.rating)}</span>
-                        <span className="text-xs text-muted">{new Date(r.created_at).toLocaleDateString('vi-VN')}</span>
+                        <span className="text-xs text-muted">{new Date(r.created_at).toLocaleDateString('en-US')}</span>
                       </div>
                       {r.comment && <p className="text-sm">{r.comment}</p>}
                     </li>
@@ -286,17 +286,17 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
           {/* Action card */}
           <div className="card">
             <div className="card-body">
-              <h3 className="mb-md">Bắt đầu trò chuyện</h3>
+              <h3 className="mb-md">Start a conversation</h3>
 
               {!connection && (
                 <>
                   <div className="form-group">
-                    <label className="form-label" htmlFor="msg">Lời nhắn (tùy chọn)</label>
+                    <label className="form-label" htmlFor="msg">Message (optional)</label>
                     <textarea
                       id="msg"
                       className="form-input form-textarea"
                       rows={3}
-                      placeholder="Xin chào! Mình muốn tìm hiểu thêm về bạn..."
+                      placeholder="Hi! I'd love to learn more about your tours in Da Nang..."
                       value={message}
                       onChange={(e) => setMessage(e.target.value.slice(0, 280))}
                       maxLength={280}
@@ -309,7 +309,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
                     onClick={sendRequest}
                     disabled={actionLoading}
                   >
-                    {actionLoading ? 'Đang gửi...' : '🤝 Gửi yêu cầu kết nối'}
+                    {actionLoading ? 'Sending...' : '🤝 Send connection request'}
                   </button>
                 </>
               )}
@@ -318,8 +318,8 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
                 <div className="alert alert-info">
                   <span>⏳</span>
                   <div>
-                    <p className="font-semibold">Đã gửi yêu cầu</p>
-                    <p className="text-sm">Buddy sẽ phản hồi sớm nhất có thể.</p>
+                    <p className="font-semibold">Request sent</p>
+                    <p className="text-sm">The buddy will respond as soon as possible.</p>
                   </div>
                 </div>
               )}
@@ -327,7 +327,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
               {connection?.status === 'declined' && (
                 <div className="alert alert-error">
                   <span>✕</span>
-                  <span>Buddy đã từ chối yêu cầu của bạn.</span>
+                  <span>The buddy declined your request.</span>
                 </div>
               )}
 
@@ -337,7 +337,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
                   className="btn btn-primary btn-block"
                   onClick={openChat}
                 >
-                  💬 Mở cuộc trò chuyện
+                  💬 Open conversation
                 </button>
               )}
 
@@ -350,7 +350,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
           {/* Map */}
           <div className="card mt-lg" style={{ overflow: 'hidden' }}>
             <div className="card-header">
-              <h3 className="text-base">Vị trí</h3>
+              <h3 className="text-base">Location</h3>
             </div>
             <MapView
               userLocation={{ lat: buddy.latitude, lng: buddy.longitude }}
@@ -362,7 +362,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
           {buddy.phone && (
             <div className="card mt-lg">
               <div className="card-body text-sm">
-                <span className="detail-label">Liên hệ</span>
+                <span className="detail-label">Contact</span>
                 <p>📞 {buddy.phone}</p>
               </div>
             </div>

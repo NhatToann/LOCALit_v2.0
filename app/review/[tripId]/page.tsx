@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 
-const LABELS = ['', 'Tệ', 'Chưa tốt', 'Bình thường', 'Tốt', 'Tuyệt vời']
+const LABELS = ['', 'Poor', 'Below average', 'Average', 'Great', 'Excellent']
 
 export default function ReviewPage() {
   const params = useParams()
@@ -39,22 +39,20 @@ export default function ReviewPage() {
       .single()
 
     if (tripErr || !tripData) {
-      setError('Không tìm thấy chuyến đi.')
+      setError('Trip not found.')
       return
     }
 
-    // Only allow the tourist of this trip to review the buddy
     if (tripData.tourist_id !== user.id) {
-      setError('Bạn không có quyền đánh giá chuyến đi này.')
+      setError('You don&apos;t have permission to review this trip.')
       return
     }
 
     if (!tripData.buddy_id) {
-      setError('Chuyến đi này chưa có buddy để đánh giá.')
+      setError('This trip does not have a buddy to review yet.')
       return
     }
 
-    // Check if already reviewed
     const { data: existing } = await supabase
       .from('reviews')
       .select('id')
@@ -76,11 +74,11 @@ export default function ReviewPage() {
     setError('')
 
     if (rating < 1 || rating > 5) {
-      setError('Vui lòng chọn số sao (1-5).')
+      setError('Please choose a rating (1-5 stars).')
       return
     }
     if (comment.length > 1000) {
-      setError('Nhận xét tối đa 1000 ký tự.')
+      setError('Comment must be 1000 characters or fewer.')
       return
     }
 
@@ -90,7 +88,6 @@ export default function ReviewPage() {
     setSubmitting(true)
     const supabase = createClient()
 
-    // Block double-submit
     const { data: dup } = await supabase
       .from('reviews')
       .select('id')
@@ -99,7 +96,7 @@ export default function ReviewPage() {
       .eq('reviewee_id', reviewing.id)
       .maybeSingle()
     if (dup) {
-      setError('Bạn đã đánh giá chuyến này rồi.')
+      setError('You have already reviewed this trip.')
       setSubmitting(false)
       return
     }
@@ -129,7 +126,7 @@ export default function ReviewPage() {
             <div style={{ fontSize: 48 }}>⚠️</div>
             <h3>{error}</h3>
             <button onClick={() => router.push('/tourist/dashboard')} className="btn btn-primary mt-md">
-              ← Quay lại Dashboard
+              ← Back to Dashboard
             </button>
           </div>
         </div>
@@ -143,39 +140,39 @@ export default function ReviewPage() {
     <div className="container py-xl">
       <div className="card" style={{ maxWidth: 560, margin: '0 auto' }}>
         <div className="card-body">
-          <h1 className="text-2xl font-bold mb-md">Đánh giá chuyến đi</h1>
+          <h1 className="text-2xl font-bold mb-md">Review your trip</h1>
           <p className="text-muted mb-lg">
-            Chuyến: <strong>{trip.title}</strong>
+            Trip: <strong>{trip.title}</strong>
           </p>
 
           {submitted ? (
             <div className="alert alert-success">
               <span>✓</span>
               <div>
-                <p className="font-semibold">Cảm ơn bạn đã đánh giá!</p>
-                <p className="text-sm mt-xs">Đang chuyển về dashboard...</p>
+                <p className="font-semibold">Thanks for leaving a review!</p>
+                <p className="text-sm mt-xs">Redirecting to your dashboard...</p>
               </div>
             </div>
           ) : existingReview ? (
             <div className="alert alert-info">
               <span>ℹ️</span>
-              <span>Bạn đã đánh giá chuyến này rồi.</span>
+              <span>You have already reviewed this trip.</span>
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
               <div style={{ textAlign: 'center', marginBottom: 'var(--space-lg)' }}>
-                <p className="text-sm text-muted mb-sm">Đánh giá về</p>
+                <p className="text-sm text-muted mb-sm">Reviewing</p>
                 <div className="flex items-center gap-md" style={{ justifyContent: 'center' }}>
                   <span className="avatar avatar-lg">{reviewing.profile?.full_name?.charAt(0) ?? 'B'}</span>
                   <div style={{ textAlign: 'left' }}>
                     <strong>{reviewing.profile?.full_name}</strong>
-                    <p className="text-sm text-muted">Local Buddy của bạn</p>
+                    <p className="text-sm text-muted">Your Local Buddy</p>
                   </div>
                 </div>
               </div>
 
               <div className="form-group text-center">
-                <label className="form-label">Đánh giá sao</label>
+                <label className="form-label">Star rating</label>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 4, fontSize: 36, margin: '12px 0' }}>
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
@@ -184,7 +181,7 @@ export default function ReviewPage() {
                       onClick={() => setRating(n)}
                       onMouseEnter={() => setHover(n)}
                       onMouseLeave={() => setHover(0)}
-                      aria-label={`Đánh giá ${n} sao`}
+                      aria-label={`Rate ${n} stars`}
                       style={{
                         background: 'none',
                         color: n <= (hover || rating) ? '#FFB347' : '#ddd',
@@ -200,19 +197,19 @@ export default function ReviewPage() {
                   ))}
                 </div>
                 <p className="text-sm font-medium" style={{ color: 'var(--accent)' }}>
-                  {(hover || rating) ? LABELS[hover || rating] : 'Chọn số sao'}
+                  {(hover || rating) ? LABELS[hover || rating] : 'Choose a rating'}
                 </p>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Nhận xét (tùy chọn)</label>
+                <label className="form-label">Comment (optional)</label>
                 <textarea
                   className="form-input form-textarea"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   rows={4}
                   maxLength={1000}
-                  placeholder="Chia sẻ trải nghiệm của bạn..."
+                  placeholder="Share your experience..."
                 />
                 <p className="text-xs text-muted mt-xs">{comment.length}/1000</p>
               </div>
@@ -222,7 +219,7 @@ export default function ReviewPage() {
               )}
 
               <button type="submit" disabled={submitting || rating === 0} className="btn btn-primary btn-block">
-                {submitting ? 'Đang gửi...' : 'Gửi đánh giá'}
+                {submitting ? 'Submitting...' : 'Submit review'}
               </button>
             </form>
           )}

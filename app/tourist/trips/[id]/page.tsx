@@ -28,20 +28,20 @@ export default function TripDetailPage() {
   }, [tripId])
 
   if (loading) return <div className="container py-xl text-center"><div className="loading-spinner mx-auto" /></div>
-  if (!trip) return <div className="container py-xl"><p>Không tìm thấy chuyến đi</p></div>
+  if (!trip) return <div className="container py-xl"><p>Trip not found.</p></div>
 
   const buddy = trip.buddy as any
 
   return (
     <div className="container py-xl">
-      <Link href="/tourist/trips" className="text-primary text-sm">← Danh sách chuyến đi</Link>
+      <Link href="/tourist/trips" className="text-primary text-sm">← All trips</Link>
 
       <div className="flex-between mt-md mb-lg">
         <div>
           <span className={`badge badge-${trip.status === 'confirmed' ? 'success' : 'primary'}`}>{trip.status}</span>
           <h1 className="text-3xl font-bold mt-sm">{trip.title}</h1>
           <p className="text-muted mt-xs">
-            📍 {trip.destination} • 📅 {trip.start_date && new Date(trip.start_date).toLocaleDateString('vi-VN')} - {trip.end_date && new Date(trip.end_date).toLocaleDateString('vi-VN')}
+            📍 {trip.destination || 'Da Nang'} • 📅 {trip.start_date && new Date(trip.start_date).toLocaleDateString('en-US')} - {trip.end_date && new Date(trip.end_date).toLocaleDateString('en-US')}
           </p>
         </div>
         {buddy && (
@@ -49,7 +49,7 @@ export default function TripDetailPage() {
             <div className="card-body flex items-center gap-sm">
               <div className="avatar avatar-md">{buddy.profile.full_name.charAt(0)}</div>
               <div>
-                <p className="text-sm text-muted">Buddy của bạn</p>
+                <p className="text-sm text-muted">Your buddy</p>
                 <p className="font-semibold">{buddy.profile.full_name}</p>
               </div>
             </div>
@@ -60,17 +60,17 @@ export default function TripDetailPage() {
       {trip.notes && (
         <div className="card mb-lg">
           <div className="card-body">
-            <h4 className="font-semibold mb-sm">Ghi chú</h4>
+            <h4 className="font-semibold mb-sm">Notes</h4>
             <p className="text-secondary">{trip.notes}</p>
           </div>
         </div>
       )}
 
-      <h2 className="text-xl font-bold mb-md">🗺️ Lộ trình ({stops.length} điểm)</h2>
+      <h2 className="text-xl font-bold mb-md">🗺️ Itinerary ({stops.length} stops)</h2>
 
       {stops.length === 0 ? (
         <div className="empty-state">
-          <p>Chuyến đi chưa có điểm dừng nào.</p>
+          <p>No stops planned yet.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-md">

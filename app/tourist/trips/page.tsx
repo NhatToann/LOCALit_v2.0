@@ -32,14 +32,14 @@ export default function TripsPage() {
   return (
     <div className="container py-xl">
       <div className="flex-between mb-lg">
-        <h1 className="text-3xl font-bold">Chuyến đi của tôi</h1>
-        <Link href="/tourist/trips/create" className="btn btn-primary">➕ Tạo chuyến đi</Link>
+        <h1 className="text-3xl font-bold">My Trips</h1>
+        <Link href="/tourist/trips/create" className="btn btn-primary">➕ Plan a trip</Link>
       </div>
 
       {trips.length === 0 ? (
         <div className="empty-state">
-          <p>Bạn chưa có chuyến đi nào.</p>
-          <Link href="/tourist/trips/create" className="btn btn-primary mt-md">Tạo chuyến đi đầu tiên</Link>
+          <p>You don&apos;t have any trips yet.</p>
+          <Link href="/tourist/trips/create" className="btn btn-primary mt-md">Plan your first trip</Link>
         </div>
       ) : (
         <div className="grid grid-auto">
@@ -54,11 +54,11 @@ export default function TripsPage() {
                       {trip.status}
                     </span>
                     <span className="text-sm text-muted">
-                      {trip.start_date ? new Date(trip.start_date).toLocaleDateString('vi-VN') : ''}
+                      {trip.start_date ? new Date(trip.start_date).toLocaleDateString('en-US') : ''}
                     </span>
                   </div>
                   <h3 className="mt-md font-semibold">{trip.title}</h3>
-                  <p className="text-sm text-muted mt-xs">📍 {trip.destination}</p>
+                  <p className="text-sm text-muted mt-xs">📍 {trip.destination || 'Da Nang'}</p>
                   {buddy && (
                     <p className="text-sm text-secondary mt-sm">
                       👤 Buddy: {buddy.profile.full_name}

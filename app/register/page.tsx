@@ -18,10 +18,10 @@ const INTERESTS = [
 ]
 
 const TRAVEL_STYLES = [
-  { id: 'solo', label: 'Solo', desc: 'Một mình khám phá' },
-  { id: 'couple', label: 'Couple', desc: 'Cùng người yêu' },
-  { id: 'friends', label: 'With Friends', desc: 'Cùng bạn bè' },
-  { id: 'family', label: 'Family', desc: 'Cùng gia đình' },
+  { id: 'solo', label: 'Solo', desc: 'Exploring on your own' },
+  { id: 'couple', label: 'Couple', desc: 'Traveling with a partner' },
+  { id: 'friends', label: 'With Friends', desc: 'Traveling with friends' },
+  { id: 'family', label: 'Family', desc: 'Traveling with family' },
 ]
 
 const LANGUAGES = ['English', 'Vietnamese', 'Japanese', 'Korean', 'French', 'Mandarin', 'Russian']
@@ -85,7 +85,7 @@ function RegisterForm() {
       )
 
       if (signUpError || !data.user) {
-        setError(signUpError?.message || 'Đăng ký thất bại.')
+        setError(signUpError?.message || 'Sign up failed.')
         setLoading(false)
         return
       }
@@ -112,7 +112,7 @@ function RegisterForm() {
           })
 
         if (touristError) {
-          setError('Không thể lưu thông tin tourist: ' + touristError.message)
+          setError('Could not save tourist info: ' + touristError.message)
           setLoading(false)
           return
         }
@@ -129,16 +129,15 @@ function RegisterForm() {
           })
 
         if (buddyError) {
-          setError('Không thể lưu thông tin buddy: ' + buddyError.message)
+          setError('Could not save buddy info: ' + buddyError.message)
           setLoading(false)
           return
         }
       }
 
-      // Redirect to login (Supabase requires email confirm or immediate login)
       router.push(`/login?registered=1`)
     } catch (err) {
-      setError('Có lỗi xảy ra. Vui lòng thử lại.')
+      setError('Something went wrong. Please try again.')
       setLoading(false)
     }
   }
@@ -155,11 +154,11 @@ function RegisterForm() {
       : (formData.locationCity && formData.bio.length >= 10))
 
   const brandingTitle = formData.role === 'buddy'
-    ? 'Trở thành Local Buddy!'
-    : 'Bắt đầu hành trình!'
+    ? 'Become a Local Buddy!'
+    : 'Start Your Journey!'
   const brandingSubtitle = formData.role === 'buddy'
-    ? 'Chia sẻ văn hóa Việt Nam của bạn và kết nối với du khách toàn cầu'
-    : 'Khám phá Việt Nam cùng local buddy địa phương'
+    ? 'Share the best of Da Nang and connect with travelers from around the world'
+    : 'Discover Da Nang alongside trusted local buddies'
 
   return (
     <div className="auth-page">
@@ -180,22 +179,22 @@ function RegisterForm() {
             <div className="branding-features">
               <div className="feature-item">
                 <div className="feature-icon">✓</div>
-                <span>{formData.role === 'buddy' ? 'Nhận yêu cầu từ du khách' : 'Tìm buddy phù hợp sở thích'}</span>
+                <span>{formData.role === 'buddy' ? 'Receive trip requests from travelers' : 'Find buddies that match your interests'}</span>
               </div>
               <div className="feature-item">
                 <div className="feature-icon">✓</div>
-                <span>{formData.role === 'buddy' ? 'Kiếm thu nhập linh hoạt' : 'Chat real-time với buddy'}</span>
+                <span>{formData.role === 'buddy' ? 'Earn flexible income sharing your city' : 'Chat in real time with your buddy'}</span>
               </div>
               <div className="feature-item">
                 <div className="feature-icon">✓</div>
-                <span>{formData.role === 'buddy' ? 'Đánh giá minh bạch' : 'Đánh giá sau mỗi chuyến đi'}</span>
+                <span>{formData.role === 'buddy' ? 'Transparent reviews and ratings' : 'Leave reviews after each trip'}</span>
               </div>
             </div>
 
             <div className="branding-image">
               <img
                 src="https://images.unsplash.com/photo-1528127269322-539801943592?w=900&h=400&fit=crop"
-                alt="Travel Vietnam"
+                alt="Da Nang coastline"
               />
             </div>
           </div>
@@ -205,8 +204,8 @@ function RegisterForm() {
         <div className="auth-form-section">
           <div className="auth-form-container">
             <div className="auth-header">
-              <h2>Tạo tài khoản</h2>
-              <p>Bước {step} / 2: {step === 1 ? 'Tài khoản' : 'Thông tin bổ sung'}</p>
+              <h2>Create Account</h2>
+              <p>Step {step} / 2: {step === 1 ? 'Account details' : 'Additional information'}</p>
             </div>
 
             {/* Progress */}
@@ -224,14 +223,14 @@ function RegisterForm() {
             {step === 1 && (
               <form className="auth-form" onSubmit={(e) => { e.preventDefault(); if (stepOneReady) setStep(2) }}>
                 <div className="form-group">
-                  <label>Bạn là</label>
+                  <label>I am a</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
                     <button
                       type="button"
                       className={`btn ${formData.role === 'tourist' ? 'btn-primary' : 'btn-outline'}`}
                       onClick={() => setFormData(p => ({ ...p, role: 'tourist' }))}
                     >
-                      🧳 Du khách
+                      🧳 Tourist
                     </button>
                     <button
                       type="button"
@@ -244,12 +243,12 @@ function RegisterForm() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="fullName">Họ tên</label>
+                  <label htmlFor="fullName">Full name</label>
                   <input
                     id="fullName"
                     type="text"
                     className="form-input"
-                    placeholder="Nguyễn Văn A"
+                    placeholder="Alex Johnson"
                     value={formData.fullName}
                     onChange={(e) => setFormData(p => ({ ...p, fullName: e.target.value }))}
                     required
@@ -271,12 +270,12 @@ function RegisterForm() {
                     autoComplete="email"
                   />
                   {formData.email && !validateEmail(formData.email) && (
-                    <p className="form-hint error" style={{ marginTop: 4 }}>Email không hợp lệ</p>
+                    <p className="form-hint error" style={{ marginTop: 4 }}>Invalid email address</p>
                   )}
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="phone">Số điện thoại</label>
+                  <label htmlFor="phone">Phone number</label>
                   <input
                     id="phone"
                     type="tel"
@@ -289,12 +288,12 @@ function RegisterForm() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="password">Mật khẩu</label>
+                  <label htmlFor="password">Password</label>
                   <input
                     id="password"
                     type="password"
                     className="form-input"
-                    placeholder="Tối thiểu 6 ký tự"
+                    placeholder="At least 6 characters"
                     value={formData.password}
                     onChange={(e) => setFormData(p => ({ ...p, password: e.target.value }))}
                     required
@@ -304,19 +303,19 @@ function RegisterForm() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="confirmPassword">Xác nhận mật khẩu</label>
+                  <label htmlFor="confirmPassword">Confirm password</label>
                   <input
                     id="confirmPassword"
                     type="password"
                     className={`form-input ${formData.confirmPassword && formData.password !== formData.confirmPassword ? 'error' : ''}`}
-                    placeholder="Nhập lại mật khẩu"
+                    placeholder="Re-enter your password"
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData(p => ({ ...p, confirmPassword: e.target.value }))}
                     required
                     autoComplete="new-password"
                   />
                   {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                    <p className="form-hint error" style={{ marginTop: 4 }}>Mật khẩu không khớp</p>
+                    <p className="form-hint error" style={{ marginTop: 4 }}>Passwords do not match</p>
                   )}
                 </div>
 
@@ -325,7 +324,7 @@ function RegisterForm() {
                   className="btn btn-primary btn-block"
                   disabled={!stepOneReady}
                 >
-                  Tiếp tục →
+                  Continue →
                 </button>
               </form>
             )}
@@ -336,24 +335,18 @@ function RegisterForm() {
                 {formData.role === 'tourist' ? (
                   <>
                     <div className="form-group">
-                      <label>Bạn đi đâu?</label>
-                      <select
-                        className="form-input form-select"
+                      <label>Destination</label>
+                      <input
+                        type="text"
+                        className="form-input"
                         value={formData.destination}
-                        onChange={(e) => setFormData(p => ({ ...p, destination: e.target.value }))}
-                      >
-                        <option value="Da Nang">Da Nang</option>
-                        <option value="Hoi An">Hoi An</option>
-                        <option value="Hanoi">Hanoi</option>
-                        <option value="Ho Chi Minh City">Ho Chi Minh City</option>
-                        <option value="Nha Trang">Nha Trang</option>
-                        <option value="Sapa">Sapa</option>
-                        <option value="Ha Long Bay">Ha Long Bay</option>
-                      </select>
+                        readOnly
+                      />
+                      <p className="form-hint">LOCALit currently focuses on Da Nang.</p>
                     </div>
 
                     <div className="form-group">
-                      <label>Ngày đến (dự kiến)</label>
+                      <label>Arrival date (estimated)</label>
                       <input
                         type="date"
                         className="form-input"
@@ -364,7 +357,7 @@ function RegisterForm() {
                     </div>
 
                     <div className="form-group">
-                      <label>Phong cách du lịch</label>
+                      <label>Travel style</label>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)' }}>
                         {TRAVEL_STYLES.map(style => (
                           <button
@@ -389,7 +382,7 @@ function RegisterForm() {
                     </div>
 
                     <div className="form-group">
-                      <label>Sở thích (chọn nhiều)</label>
+                      <label>Interests (select multiple)</label>
                       <div className="interests-grid">
                         {INTERESTS.map(i => (
                           <button
@@ -406,7 +399,7 @@ function RegisterForm() {
                     </div>
 
                     <div className="form-group">
-                      <label>Ngôn ngữ bạn nói</label>
+                      <label>Languages you speak</label>
                       <div className="languages-grid">
                         {LANGUAGES.map(lang => (
                           <button
@@ -424,7 +417,7 @@ function RegisterForm() {
                 ) : (
                   <>
                     <div className="form-group">
-                      <label>Thành phố của bạn</label>
+                      <label>Your city</label>
                       <input
                         type="text"
                         className="form-input"
@@ -432,10 +425,11 @@ function RegisterForm() {
                         onChange={(e) => setFormData(p => ({ ...p, locationCity: e.target.value }))}
                         maxLength={50}
                       />
+                      <p className="form-hint">LOCALit currently only features Da Nang-based buddies.</p>
                     </div>
 
                     <div className="form-group">
-                      <label>Chuyên môn</label>
+                      <label>Specialties</label>
                       <div className="interests-grid">
                         {INTERESTS.map(i => (
                           <button
@@ -452,7 +446,7 @@ function RegisterForm() {
                     </div>
 
                     <div className="form-group">
-                      <label>Ngôn ngữ bạn nói</label>
+                      <label>Languages you speak</label>
                       <div className="languages-grid">
                         {LANGUAGES.map(lang => (
                           <button
@@ -468,14 +462,14 @@ function RegisterForm() {
                     </div>
 
                     <div className="form-group">
-                      <label>Giới thiệu bản thân (tối thiểu 10 ký tự)</label>
+                      <label>About you (minimum 10 characters)</label>
                       <textarea
                         className="form-input form-textarea"
                         value={formData.bio}
                         onChange={(e) => setFormData(p => ({ ...p, bio: e.target.value }))}
                         maxLength={500}
                         rows={4}
-                        placeholder="Kể về bản thân và điều bạn có thể chia sẻ..."
+                        placeholder="Tell travelers about yourself and what you can show them in Da Nang..."
                       />
                       <p className="form-hint">{formData.bio.length}/500</p>
                     </div>
@@ -496,21 +490,21 @@ function RegisterForm() {
                     onClick={() => setStep(1)}
                     disabled={loading}
                   >
-                    ← Quay lại
+                    ← Back
                   </button>
                   <button
                     type="submit"
                     className="btn btn-primary"
                     disabled={!stepTwoReady || loading}
                   >
-                    {loading ? 'Đang tạo...' : 'Hoàn tất đăng ký'}
+                    {loading ? 'Creating...' : 'Complete Sign Up'}
                   </button>
                 </div>
               </form>
             )}
 
             <div className="auth-footer">
-              Đã có tài khoản? <Link href="/login">Đăng nhập</Link>
+              Already have an account? <Link href="/login">Sign in</Link>
             </div>
           </div>
         </div>

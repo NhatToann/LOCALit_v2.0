@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import './profile.css'
 
-const CITIES = ['Da Nang', 'Hoi An', 'Hanoi', 'Ho Chi Minh City', 'Nha Trang', 'Sapa', 'Phu Quoc', 'Da Lat', 'Hue']
 const LANGS = ['English', 'Vietnamese', 'Japanese', 'Korean', 'French', 'Mandarin', 'Russian', 'Spanish']
 const SPECIALTIES = ['Beach', 'Food', 'Photography', 'History', 'Culture', 'Nature', 'Adventure', 'Diving', 'Trekking', 'Nightlife', 'Shopping', 'Coffee', 'Cooking', 'Art']
 
@@ -81,7 +80,7 @@ export default function BuddyProfileEditPage() {
         rating: row.rating,
         comment: row.comment,
         created_at: row.created_at,
-        reviewer_name: row.reviewer?.full_name ?? 'Người dùng',
+        reviewer_name: row.reviewer?.full_name ?? 'Traveler',
       })))
     } catch (err) {
       console.error('Buddy profile load failed:', err)
@@ -110,27 +109,27 @@ export default function BuddyProfileEditPage() {
     setError('')
 
     if (buddy.profile.full_name.trim().length < 2) {
-      setError('Họ tên phải có ít nhất 2 ký tự.')
+      setError('Full name must be at least 2 characters.')
       return
     }
     if (buddy.profile.phone && !PHONE_REGEX.test(buddy.profile.phone)) {
-      setError('Số điện thoại không hợp lệ.')
+      setError('Please enter a valid phone number.')
       return
     }
     if (buddy.languages.length === 0) {
-      setError('Chọn ít nhất một ngôn ngữ.')
+      setError('Please select at least one language.')
       return
     }
     if (buddy.specialties.length === 0) {
-      setError('Chọn ít nhất một chuyên môn.')
+      setError('Please select at least one specialty.')
       return
     }
     if (buddy.hourly_rate < 0 || buddy.hourly_rate > 500) {
-      setError('Giá theo giờ phải nằm trong khoảng 0 - 500.')
+      setError('Hourly rate must be between 0 and 500.')
       return
     }
     if (buddy.bio && buddy.bio.length > 500) {
-      setError('Giới thiệu tối đa 500 ký tự.')
+      setError('Bio must be 500 characters or fewer.')
       return
     }
 
@@ -151,7 +150,7 @@ export default function BuddyProfileEditPage() {
     const { error: bErr } = await supabase
       .from('buddies')
       .update({
-        location_city: buddy.location_city,
+        location_city: 'Da Nang',
         hourly_rate: buddy.hourly_rate,
         bio: buddy.bio || null,
         languages: buddy.languages,
@@ -177,22 +176,22 @@ export default function BuddyProfileEditPage() {
     const confirm = (form.elements.namedItem('confirm') as HTMLInputElement).value
 
     if (!oldPw || !newPw || !confirm) {
-      setPwMsg('Vui lòng nhập đầy đủ các trường.')
+      setPwMsg('Please fill in all fields.')
       return
     }
     if (newPw !== confirm) {
-      setPwMsg('Mật khẩu xác nhận không khớp.')
+      setPwMsg('The new password and confirmation do not match.')
       return
     }
     if (newPw.length < 8 || !/[A-Za-z]/.test(newPw) || !/\d/.test(newPw)) {
-      setPwMsg('Mật khẩu mới phải có ít nhất 8 ký tự, gồm chữ và số.')
+      setPwMsg('New password must be at least 8 characters and include letters and numbers.')
       return
     }
     setPwSaving(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user?.email) {
-      setPwMsg('Không tìm thấy email tài khoản.')
+      setPwMsg('Account email not found.')
       setPwSaving(false)
       return
     }
@@ -201,28 +200,28 @@ export default function BuddyProfileEditPage() {
       password: oldPw,
     })
     if (reauthErr) {
-      setPwMsg('Mật khẩu hiện tại không đúng.')
+      setPwMsg('Current password is incorrect.')
       setPwSaving(false)
       return
     }
     const { error: updateErr } = await supabase.auth.updateUser({ password: newPw })
     setPwSaving(false)
     if (updateErr) {
-      setPwMsg('Đổi mật khẩu thất bại: ' + updateErr.message)
+      setPwMsg('Password update failed: ' + updateErr.message)
       return
     }
-    setPwMsg('✓ Đã đổi mật khẩu.')
+    setPwMsg('✓ Password updated successfully.')
     form.reset()
   }
 
   async function handleDeleteAccount() {
-    if (!confirm('Xóa tài khoản sẽ xóa toàn bộ dữ liệu. Hành động này không thể hoàn tác. Tiếp tục?')) return
+    if (!confirm('Deleting your account will permanently remove your profile, requests and reviews. Continue?')) return
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { error: delErr } = await supabase.from('profiles').delete().eq('id', user.id)
     if (delErr) {
-      alert('Không thể xóa: ' + delErr.message)
+      alert('Could not delete: ' + delErr.message)
       return
     }
     await supabase.auth.signOut()
@@ -237,7 +236,7 @@ export default function BuddyProfileEditPage() {
     <div className="profile-page">
       <section className="page-header">
         <div className="container">
-          <h1 className="page-title">Hồ sơ Buddy</h1>
+          <h1 className="page-title">Buddy Profile</h1>
         </div>
       </section>
 
@@ -256,17 +255,17 @@ export default function BuddyProfileEditPage() {
                 {activeTab === 'profile' && (
                   <div className="tab-panel">
                     <div className="panel-header">
-                      <h2>Thông tin Buddy</h2>
+                      <h2>Buddy Information</h2>
                       <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                        {saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}
+                        {saving ? 'Saving...' : '💾 Save changes'}
                       </button>
                     </div>
-                    {savedAt && <div className="alert alert-success">✓ Đã lưu thành công</div>}
+                    {savedAt && <div className="alert alert-success">✓ Saved successfully</div>}
 
                     <form className="profile-form">
                       <div className="form-row">
                         <div className="form-group">
-                          <label className="form-label">Họ tên *</label>
+                          <label className="form-label">Full name *</label>
                           <input
                             className="form-input"
                             value={buddy.profile.full_name}
@@ -275,7 +274,7 @@ export default function BuddyProfileEditPage() {
                           />
                         </div>
                         <div className="form-group">
-                          <label className="form-label">Số điện thoại</label>
+                          <label className="form-label">Phone number</label>
                           <input
                             type="tel"
                             className="form-input"
@@ -289,17 +288,16 @@ export default function BuddyProfileEditPage() {
 
                       <div className="form-row">
                         <div className="form-group">
-                          <label className="form-label">Thành phố *</label>
-                          <select
-                            className="form-input form-select"
-                            value={buddy.location_city}
-                            onChange={(e) => setBuddy({ ...buddy, location_city: e.target.value })}
-                          >
-                            {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                          </select>
+                          <label className="form-label">City *</label>
+                          <input
+                            className="form-input"
+                            value="Da Nang"
+                            readOnly
+                          />
+                          <p className="form-hint">LOCALit currently only features Da Nang-based buddies.</p>
                         </div>
                         <div className="form-group">
-                          <label className="form-label">Phí theo giờ (USD)</label>
+                          <label className="form-label">Hourly rate (USD)</label>
                           <input
                             type="number"
                             className="form-input"
@@ -313,27 +311,27 @@ export default function BuddyProfileEditPage() {
                       </div>
 
                       <div className="form-group">
-                        <label className="form-label">Giới thiệu về bạn</label>
+                        <label className="form-label">About me</label>
                         <textarea
                           className="form-input form-textarea"
                           value={buddy.bio || ''}
                           onChange={(e) => setBuddy({ ...buddy, bio: e.target.value })}
                           rows={4}
                           maxLength={500}
-                          placeholder="Kể về bản thân và điều bạn có thể chia sẻ với du khách..."
+                          placeholder="Tell travelers about yourself and what you can show them in Da Nang..."
                         />
                         <p className="form-hint">{(buddy.bio ?? '').length}/500</p>
                       </div>
 
                       <div className="form-group">
-                        <label className="form-label">Trạng thái nhận khách</label>
+                        <label className="form-label">Availability</label>
                         <select
                           className="form-input form-select"
                           value={buddy.is_available ? 'true' : 'false'}
                           onChange={(e) => setBuddy({ ...buddy, is_available: e.target.value === 'true' })}
                         >
-                          <option value="true">🟢 Sẵn sàng nhận khách</option>
-                          <option value="false">⚪ Tạm ẩn</option>
+                          <option value="true">🟢 Accepting new travelers</option>
+                          <option value="false">⚪ Hidden</option>
                         </select>
                       </div>
                     </form>
@@ -343,14 +341,14 @@ export default function BuddyProfileEditPage() {
                 {activeTab === 'interests' && (
                   <div className="tab-panel">
                     <div className="panel-header">
-                      <h2>Chuyên môn và ngôn ngữ</h2>
+                      <h2>Specialties & Languages</h2>
                       <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                        {saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}
+                        {saving ? 'Saving...' : '💾 Save changes'}
                       </button>
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Ngôn ngữ bạn nói *</label>
+                      <label className="form-label">Languages you speak *</label>
                       <div className="languages-grid">
                         {LANGS.map((l) => (
                           <button
@@ -366,7 +364,7 @@ export default function BuddyProfileEditPage() {
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Chuyên môn *</label>
+                      <label className="form-label">Specialties *</label>
                       <div className="languages-grid">
                         {SPECIALTIES.map((s) => (
                           <button
@@ -386,13 +384,13 @@ export default function BuddyProfileEditPage() {
                 {activeTab === 'reviews' && (
                   <div className="tab-panel">
                     <div className="panel-header">
-                      <h2>Đánh giá từ khách ({reviews.length})</h2>
+                      <h2>Reviews from travelers ({reviews.length})</h2>
                     </div>
                     {reviews.length === 0 ? (
                       <div className="empty-state">
                         <div style={{ fontSize: 48 }}>⭐</div>
-                        <h3>Chưa có đánh giá nào</h3>
-                        <p>Hoàn thành chuyến đi đầu tiên để nhận đánh giá từ du khách.</p>
+                        <h3>No reviews yet</h3>
+                        <p>Complete your first trip to start collecting reviews from travelers.</p>
                       </div>
                     ) : (
                       <div className="reviews-list">
@@ -403,10 +401,10 @@ export default function BuddyProfileEditPage() {
                                 <div className="reviewer-avatar-small">{r.reviewer_name.charAt(0)}</div>
                                 <div>
                                   <h3>{r.reviewer_name}</h3>
-                                  <span className="review-trip">Đánh giá bạn</span>
+                                  <span className="review-trip">Reviewed you</span>
                                 </div>
                               </div>
-                              <span className="review-date">{new Date(r.created_at).toLocaleDateString('vi-VN')}</span>
+                              <span className="review-date">{new Date(r.created_at).toLocaleDateString('en-US')}</span>
                             </div>
                             <div className="review-rating">
                               {[1, 2, 3, 4, 5].map((s) => (
@@ -424,22 +422,22 @@ export default function BuddyProfileEditPage() {
                 {activeTab === 'account' && (
                   <div className="tab-panel">
                     <div className="panel-header">
-                      <h2>Tài khoản</h2>
+                      <h2>Account</h2>
                     </div>
 
                     <div className="settings-section">
-                      <h3>🔒 Đổi mật khẩu</h3>
+                      <h3>🔒 Change password</h3>
                       <form onSubmit={handleChangePassword}>
                         <div className="form-group">
-                          <label className="form-label">Mật khẩu hiện tại</label>
+                          <label className="form-label">Current password</label>
                           <input type="password" name="old" className="form-input" autoComplete="current-password" />
                         </div>
                         <div className="form-group">
-                          <label className="form-label">Mật khẩu mới</label>
+                          <label className="form-label">New password</label>
                           <input type="password" name="new" className="form-input" autoComplete="new-password" maxLength={128} />
                         </div>
                         <div className="form-group">
-                          <label className="form-label">Xác nhận mật khẩu mới</label>
+                          <label className="form-label">Confirm new password</label>
                           <input type="password" name="confirm" className="form-input" autoComplete="new-password" maxLength={128} />
                         </div>
                         {pwMsg && (
@@ -449,18 +447,18 @@ export default function BuddyProfileEditPage() {
                           </div>
                         )}
                         <button type="submit" className="btn btn-primary" disabled={pwSaving}>
-                          {pwSaving ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
+                          {pwSaving ? 'Updating...' : 'Update password'}
                         </button>
                       </form>
                     </div>
 
                     <div className="settings-section danger">
-                      <h3>⚠️ Xóa tài khoản</h3>
+                      <h3>⚠️ Delete account</h3>
                       <p className="setting-desc">
-                        Hành động này sẽ xóa vĩnh viễn hồ sơ, yêu cầu và đánh giá của bạn.
+                        This will permanently delete your profile, requests and reviews.
                       </p>
                       <button type="button" onClick={handleDeleteAccount} className="btn btn-danger mt-md">
-                        Xóa tài khoản
+                        Delete account
                       </button>
                     </div>
                   </div>
@@ -479,30 +477,30 @@ export default function BuddyProfileEditPage() {
                 <p className="text-xs text-muted mt-sm">{buddy.location_city}</p>
                 <div className="mt-md">
                   <span className={`badge ${buddy.is_available ? 'badge-success' : 'badge-danger'}`}>
-                    {buddy.is_available ? '🟢 Đang nhận khách' : '⚪ Tạm ẩn'}
+                    {buddy.is_available ? '🟢 Accepting travelers' : '⚪ Hidden'}
                   </span>
                 </div>
 
                 <Link href="/buddy/dashboard" className="btn btn-outline edit-btn">
-                  ← Về Dashboard
+                  ← Back to Dashboard
                 </Link>
 
                 <nav className="profile-nav">
                   <button className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    Hồ sơ
+                    Profile
                   </button>
                   <button className={`nav-item ${activeTab === 'interests' ? 'active' : ''}`} onClick={() => setActiveTab('interests')}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    Chuyên môn
+                    Specialties
                   </button>
                   <button className={`nav-item ${activeTab === 'reviews' ? 'active' : ''}`} onClick={() => setActiveTab('reviews')}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                    Đánh giá ({reviews.length})
+                    Reviews ({reviews.length})
                   </button>
                   <button className={`nav-item ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    Tài khoản
+                    Account
                   </button>
                 </nav>
 
@@ -510,15 +508,15 @@ export default function BuddyProfileEditPage() {
 
                 <div className="text-sm">
                   <div className="flex-between py-xs">
-                    <span className="text-muted">⭐ Đánh giá TB</span>
+                    <span className="text-muted">⭐ Average rating</span>
                     <strong>{buddy.rating_avg ? buddy.rating_avg.toFixed(1) : '—'}</strong>
                   </div>
                   <div className="flex-between py-xs">
-                    <span className="text-muted">🧳 Chuyến hoàn thành</span>
+                    <span className="text-muted">🧳 Trips completed</span>
                     <strong>{buddy.trips_completed}</strong>
                   </div>
                   <div className="flex-between py-xs">
-                    <span className="text-muted">💵 Phí/giờ</span>
+                    <span className="text-muted">💵 Hourly rate</span>
                     <strong>${buddy.hourly_rate}</strong>
                   </div>
                 </div>

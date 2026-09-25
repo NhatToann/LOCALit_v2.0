@@ -37,18 +37,16 @@ export default function BuddyRequestsPage() {
       .eq('id', id)
 
     if (updateErr) {
-      setToast({ type: 'error', msg: 'Không thể cập nhật: ' + updateErr.message })
+      setToast({ type: 'error', msg: 'Could not update: ' + updateErr.message })
       return
     }
 
-    // When accepted, ensure a conversation exists between the two parties
     if (status === 'accepted') {
       const conn = requests.find((r) => r.id === id)
       if (conn) {
         const { error: convErr } = await supabase
           .from('conversations')
           .insert({ tourist_id: conn.tourist_id, buddy_id: conn.buddy_id })
-        // 23505 = unique violation, already exists, that's fine
         if (convErr && convErr.code !== '23505') {
           console.error('Conversation create error', convErr)
         }
@@ -58,7 +56,7 @@ export default function BuddyRequestsPage() {
     setRequests(requests.map((r) => (r.id === id ? { ...r, status } : r)))
     setToast({
       type: 'success',
-      msg: status === 'accepted' ? '✓ Đã chấp nhận yêu cầu. Cuộc trò chuyện đã sẵn sàng.' : 'Đã từ chối yêu cầu.',
+      msg: status === 'accepted' ? '✓ Request accepted. A conversation is ready.' : 'Request declined.',
     })
     setTimeout(() => setToast(null), 3500)
   }
@@ -79,10 +77,10 @@ export default function BuddyRequestsPage() {
       )}
       <div className="flex-between mb-lg">
         <div>
-          <h1 className="text-3xl font-bold">Yêu cầu kết nối</h1>
-          <p className="text-muted mt-sm">{requests.length} yêu cầu tổng cộng</p>
+          <h1 className="text-3xl font-bold">Connection Requests</h1>
+          <p className="text-muted mt-sm">{requests.length} requests in total</p>
         </div>
-        <Link href="/buddy/dashboard" className="text-primary">← Quay lại</Link>
+        <Link href="/buddy/dashboard" className="text-primary">← Back</Link>
       </div>
 
       <div className="flex gap-sm mb-lg">
@@ -92,14 +90,14 @@ export default function BuddyRequestsPage() {
             onClick={() => setFilter(f)}
             className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-outline'}`}
           >
-            {f === 'all' ? 'Tất cả' : f === 'pending' ? '⏳ Chờ' : f === 'accepted' ? '✓ Đồng ý' : '✕ Từ chối'}
+            {f === 'all' ? 'All' : f === 'pending' ? '⏳ Pending' : f === 'accepted' ? '✓ Accepted' : '✕ Declined'}
           </button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
         <div className="empty-state">
-          <p>Không có yêu cầu nào trong mục này</p>
+          <p>No requests in this section.</p>
         </div>
       ) : (
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 'var(--space-lg)' }}>
@@ -112,13 +110,13 @@ export default function BuddyRequestsPage() {
                     <div className="avatar avatar-lg">{t?.profile?.full_name?.charAt(0) || '?'}</div>
                     <div>
                       <p className="font-semibold">{t?.profile?.full_name}</p>
-                      <p className="text-sm text-muted">{t?.nationality} • {t?.destination}</p>
+                      <p className="text-sm text-muted">{t?.nationality} • {t?.destination || 'Da Nang'}</p>
                     </div>
                   </div>
 
                   {r.message && (
                     <p className="text-sm text-secondary mb-md" style={{ fontStyle: 'italic', padding: '12px', background: 'var(--bg-light)', borderRadius: 8 }}>
-                      "{r.message}"
+                      &ldquo;{r.message}&rdquo;
                     </p>
                   )}
 
@@ -128,21 +126,21 @@ export default function BuddyRequestsPage() {
                   </div>
 
                   <div className="text-xs text-muted mb-md">
-                    Arrival: {t?.arrival_date ? new Date(t.arrival_date).toLocaleDateString('vi-VN') : 'Chưa rõ'}
+                    Arrival: {t?.arrival_date ? new Date(t.arrival_date).toLocaleDateString('en-US') : 'Not specified'}
                   </div>
 
                   {r.status === 'pending' ? (
                     <div className="flex gap-sm">
                       <button onClick={() => updateStatus(r.id, 'accepted')} className="btn btn-primary flex-1">
-                        ✓ Đồng ý
+                        ✓ Accept
                       </button>
                       <button onClick={() => updateStatus(r.id, 'declined')} className="btn btn-outline flex-1">
-                        ✕ Từ chối
+                        ✕ Decline
                       </button>
                     </div>
                   ) : (
                     <span className={`badge badge-${r.status === 'accepted' ? 'success' : 'danger'} w-full text-center`} style={{ display: 'block', padding: '8px' }}>
-                      {r.status === 'accepted' ? '✓ Đã chấp nhận' : r.status === 'declined' ? '✕ Đã từ chối' : r.status}
+                      {r.status === 'accepted' ? '✓ Accepted' : r.status === 'declined' ? '✕ Declined' : r.status}
                     </span>
                   )}
                 </div>

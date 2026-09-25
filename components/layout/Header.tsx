@@ -15,21 +15,21 @@ interface HeaderProps {
 const NAV_LINKS: Record<string, { path: string; label: string }[]> = {
   buddy: [
     { path: '/buddy/dashboard', label: 'Dashboard' },
-    { path: '/buddy/requests', label: 'Yêu cầu' },
-    { path: '/map', label: 'Bản đồ' },
-    { path: '/buddy/profile', label: 'Hồ sơ' },
+    { path: '/buddy/requests', label: 'Requests' },
+    { path: '/map', label: 'Map' },
+    { path: '/buddy/profile', label: 'Profile' },
   ],
   tourist: [
     { path: '/tourist/dashboard', label: 'Dashboard' },
     { path: '/tourist/browse', label: 'Buddies' },
-    { path: '/map', label: 'Bản đồ' },
-    { path: '/tourist/trips', label: 'Chuyến đi' },
-    { path: '/chat', label: 'Tin nhắn' },
+    { path: '/map', label: 'Map' },
+    { path: '/tourist/trips', label: 'Trips' },
+    { path: '/chat', label: 'Messages' },
   ],
   guest: [
-    { path: '/', label: 'Trang chủ' },
+    { path: '/', label: 'Home' },
     { path: '/tourist/browse', label: 'Buddies' },
-    { path: '/map', label: 'Bản đồ' },
+    { path: '/map', label: 'Map' },
   ],
 }
 
@@ -103,7 +103,7 @@ export default function Header({ userRole, userName }: HeaderProps) {
               <button
                 onClick={() => setMenuOpen((s) => !s)}
                 className="user-avatar-btn"
-                aria-label="Mở menu tài khoản"
+                aria-label="Open account menu"
                 aria-expanded={menuOpen}
               >
                 <span className="avatar avatar-md">
@@ -113,20 +113,20 @@ export default function Header({ userRole, userName }: HeaderProps) {
               {menuOpen && (
                 <div className="user-menu">
                   <div className="user-menu-info">
-                    <p>{userName ?? 'Tài khoản'}</p>
-                    <p>{userRole === 'buddy' ? 'Local Buddy' : 'Du khách'}</p>
+                    <p>{userName ?? 'Account'}</p>
+                    <p>{userRole === 'buddy' ? 'Local Buddy' : 'Tourist'}</p>
                   </div>
                   <Link href={profilePath} onClick={() => setMenuOpen(false)}>
-                    <span>👤</span> Hồ sơ của tôi
+                    <span>👤</span> My Profile
                   </Link>
                   {userRole === 'tourist' && (
                     <Link href="/tourist/browse" onClick={() => setMenuOpen(false)}>
-                      <span>🔍</span> Tìm Buddy
+                      <span>🔍</span> Find a Buddy
                     </Link>
                   )}
                   <div className="menu-divider" />
                   <button onClick={handleSignOut} className="logout">
-                    <span>🚪</span> Đăng xuất
+                    <span>🚪</span> Sign out
                   </button>
                 </div>
               )}
@@ -134,10 +134,10 @@ export default function Header({ userRole, userName }: HeaderProps) {
           ) : (
             <>
               <Link href="/login" className="btn btn-outline btn-sm">
-                Đăng nhập
+                Sign in
               </Link>
               <Link href="/register" className="btn btn-primary btn-sm">
-                Đăng ký
+                Sign up
               </Link>
             </>
           )}
@@ -145,7 +145,7 @@ export default function Header({ userRole, userName }: HeaderProps) {
           <button
             className="mobile-menu-btn"
             onClick={() => setMobileOpen((s) => !s)}
-            aria-label="Mở menu"
+            aria-label="Open menu"
             aria-expanded={mobileOpen}
           >
             <span></span>

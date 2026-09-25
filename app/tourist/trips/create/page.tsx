@@ -40,14 +40,14 @@ export default function CreateTripPage() {
     setError('')
 
     if (!form.title.trim()) {
-      setError('Vui lòng nhập tên chuyến đi')
+      setError('Please enter a trip name.')
       return
     }
 
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      setError('Bạn cần đăng nhập')
+      setError('You must be signed in.')
       return
     }
 
@@ -63,12 +63,11 @@ export default function CreateTripPage() {
     }).select().single()
 
     if (tripError || !trip) {
-      setError('Không thể tạo chuyến đi: ' + (tripError?.message || ''))
+      setError('Could not create trip: ' + (tripError?.message || ''))
       setSubmitting(false)
       return
     }
 
-    // Insert non-empty stops
     const validStops = stops.filter(s => s.name.trim())
     if (validStops.length > 0) {
       await supabase.from('trip_stops').insert(
@@ -87,42 +86,35 @@ export default function CreateTripPage() {
 
   return (
     <div className="container py-xl">
-      <h1 className="text-3xl font-bold mb-lg">Tạo chuyến đi mới</h1>
+      <h1 className="text-3xl font-bold mb-lg">Plan a new trip</h1>
 
       <form onSubmit={handleSubmit} className="card" style={{ maxWidth: 720, margin: '0 auto' }}>
         <div className="card-body">
           <div className="form-group">
-            <label className="form-label">Tên chuyến đi *</label>
+            <label className="form-label">Trip name *</label>
             <input
               className="form-input"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               required
               maxLength={200}
-              placeholder="VD: Da Nang Beach Adventure"
+              placeholder="e.g. Da Nang Beach Adventure"
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label">Điểm đến</label>
-            <select
-              className="form-input form-select"
-              value={form.destination}
-              onChange={(e) => setForm({ ...form, destination: e.target.value })}
-            >
-              <option>Da Nang</option>
-              <option>Hoi An</option>
-              <option>Hanoi</option>
-              <option>Ho Chi Minh City</option>
-              <option>Nha Trang</option>
-              <option>Sapa</option>
-              <option>Ha Long Bay</option>
-            </select>
+            <label className="form-label">Destination</label>
+            <input
+              className="form-input"
+              value="Da Nang"
+              readOnly
+            />
+            <p className="form-hint">LOCALit currently focuses on Da Nang.</p>
           </div>
 
           <div className="grid grid-2">
             <div className="form-group">
-              <label className="form-label">Ngày đi</label>
+              <label className="form-label">Start date</label>
               <input
                 type="date"
                 className="form-input"
@@ -131,7 +123,7 @@ export default function CreateTripPage() {
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Ngày về</label>
+              <label className="form-label">End date</label>
               <input
                 type="date"
                 className="form-input"
@@ -143,46 +135,46 @@ export default function CreateTripPage() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Ghi chú</label>
+            <label className="form-label">Notes</label>
             <textarea
               className="form-input form-textarea"
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               rows={3}
               maxLength={1000}
-              placeholder="Yêu cầu đặc biệt, mong muốn..."
+              placeholder="Special requests or things you want to do..."
             />
           </div>
 
           <hr style={{ margin: 'var(--space-lg) 0' }} />
 
-          <h3 className="mb-md">📍 Điểm dừng chân</h3>
+          <h3 className="mb-md">📍 Stops</h3>
           {stops.map((stop, idx) => (
             <div key={idx} className="card mb-sm" style={{ background: 'var(--bg-light)' }}>
               <div className="card-body">
                 <div className="flex-between mb-sm">
-                  <strong>Điểm #{idx + 1}</strong>
+                  <strong>Stop #{idx + 1}</strong>
                   {stops.length > 1 && (
-                    <button type="button" onClick={() => removeStop(idx)} className="btn btn-ghost btn-sm">✕ Bỏ</button>
+                    <button type="button" onClick={() => removeStop(idx)} className="btn btn-ghost btn-sm">✕ Remove</button>
                   )}
                 </div>
                 <input
                   className="form-input mb-sm"
-                  placeholder="Tên địa điểm"
+                  placeholder="Place name"
                   value={stop.name}
                   onChange={(e) => updateStop(idx, 'name', e.target.value)}
                   maxLength={200}
                 />
                 <input
                   className="form-input mb-sm"
-                  placeholder="Địa chỉ"
+                  placeholder="Address"
                   value={stop.address}
                   onChange={(e) => updateStop(idx, 'address', e.target.value)}
                   maxLength={300}
                 />
                 <textarea
                   className="form-input"
-                  placeholder="Ghi chú cho điểm này"
+                  placeholder="Notes for this stop"
                   value={stop.notes}
                   onChange={(e) => updateStop(idx, 'notes', e.target.value)}
                   rows={2}
@@ -192,14 +184,14 @@ export default function CreateTripPage() {
             </div>
           ))}
           <button type="button" onClick={addStop} className="btn btn-outline btn-block mb-lg">
-            ➕ Thêm điểm dừng
+            ➕ Add stop
           </button>
 
           {error && <div className="alert alert-error mb-md">{error}</div>}
 
           <div className="flex gap-md">
             <button type="submit" disabled={submitting} className="btn btn-primary flex-1">
-              {submitting ? 'Đang tạo...' : '✓ Tạo chuyến đi'}
+              {submitting ? 'Creating...' : '✓ Create trip'}
             </button>
           </div>
         </div>

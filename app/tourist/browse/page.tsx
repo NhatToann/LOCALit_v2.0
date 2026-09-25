@@ -26,13 +26,13 @@ interface BuddyItem {
 }
 
 const FILTERS = [
-  { id: 'all', label: 'Tất cả' },
-  { id: 'top-rated', label: 'Đánh giá cao' },
-  { id: 'near-me', label: 'Gần tôi' },
-  { id: 'available', label: 'Đang nhận khách' },
+  { id: 'all', label: 'All' },
+  { id: 'top-rated', label: 'Top Rated' },
+  { id: 'near-me', label: 'Near Me' },
+  { id: 'available', label: 'Available Now' },
 ] as const
 
-const LANGUAGES = ['Tiếng Anh', 'Tiếng Việt', 'Tiếng Nhật', 'Tiếng Hàn', 'Tiếng Pháp', 'Tiếng Trung', 'Tiếng Nga']
+const LANGUAGES = ['English', 'Vietnamese', 'Japanese', 'Korean', 'French', 'Mandarin', 'Russian']
 
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371
@@ -78,6 +78,7 @@ function BrowseContent() {
         const { data } = await supabase
           .from('buddies')
           .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, profile:profiles(full_name, is_online, avatar_url)')
+          .eq('location_city', 'Da Nang')
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
 
@@ -171,13 +172,13 @@ function BrowseContent() {
       {/* Header */}
       <div className="buddies-header">
         <div className="header-left">
-          <h1>{hasSearch ? 'Kết quả tìm kiếm' : 'Tìm Local Buddy'}</h1>
+          <h1>{hasSearch ? 'Search Results' : 'Find Local Buddies in Da Nang'}</h1>
           <p>
-            {loading ? 'Đang tải...' : `${filtered.length} buddy${filtered.length !== 1 ? 's' : ''}${destinationFilter ? ` cho "${destinationFilter}"` : ''}`}
+            {loading ? 'Loading...' : `${filtered.length} ${filtered.length === 1 ? 'buddy' : 'buddies'}${destinationFilter ? ` for "${destinationFilter}"` : ''}`}
           </p>
         </div>
         <div className="header-actions-inline">
-          <Link href="/map" className="btn btn-outline btn-sm">🗺️ Mở bản đồ</Link>
+          <Link href="/map" className="btn btn-outline btn-sm">🗺️ Open Map</Link>
         </div>
       </div>
 
@@ -187,17 +188,17 @@ function BrowseContent() {
           {hasSearch && (
             <div className="search-results-note">
               <div>
-                <span className="search-results-label">Đang hiển thị kết quả</span>
-                <strong>{destinationFilter || 'Tất cả điểm đến'}</strong>
-                {languageFilter && <span>Ngôn ngữ: {languageFilter}</span>}
+                <span className="search-results-label">Showing results for</span>
+                <strong>{destinationFilter || 'Da Nang'}</strong>
+                {languageFilter && <span>Language: {languageFilter}</span>}
               </div>
-              <Link href="/tourist/browse" className="clear-search-link">Xóa tìm kiếm</Link>
+              <Link href="/tourist/browse" className="clear-search-link">Clear search</Link>
             </div>
           )}
           <div className="filter-row">
             <input
               className="form-input search-input"
-              placeholder="Điểm đến / từ khóa (Da Nang, Hoi An, food...)"
+              placeholder="Search Da Nang buddies by name, area, or interest"
               value={destinationFilter}
               onChange={(e) => setDestinationFilter(e.target.value)}
             />
@@ -206,7 +207,7 @@ function BrowseContent() {
               value={languageFilter}
               onChange={(e) => setLanguageFilter(e.target.value)}
             >
-              <option value="">Tất cả ngôn ngữ</option>
+              <option value="">All languages</option>
               {LANGUAGES.map((l) => (
                 <option key={l} value={l}>{l}</option>
               ))}
@@ -228,9 +229,9 @@ function BrowseContent() {
         {/* Map section */}
         <section className="find-buddies-map">
           <div className="buddy-map-copy">
-            <span>Bản đồ Buddy</span>
-            <h2>Tìm local buddy quanh bạn</h2>
-            <p>Hover vào marker hoặc click vào buddy bên dưới để xem vị trí của họ.</p>
+            <span>Buddy Map</span>
+            <h2>Find buddies around you</h2>
+            <p>Hover a marker or click a buddy below to see their location in Da Nang.</p>
           </div>
           <div className="buddy-leaflet-map">
             <MapView
@@ -240,11 +241,11 @@ function BrowseContent() {
             />
             {selectedBuddy && (
               <div className="buddy-map-popup">
-                <button type="button" onClick={() => setSelectedMapId(null)} aria-label="Đóng">✕</button>
+                <button type="button" onClick={() => setSelectedMapId(null)} aria-label="Close">✕</button>
                 <h3>{selectedBuddy.full_name}</h3>
                 <p>📍 {selectedBuddy.location_city}</p>
                 <span>⭐ {selectedBuddy.rating_avg ? selectedBuddy.rating_avg.toFixed(1) : '—'} · {selectedBuddy.languages.slice(0, 2).join(', ')}</span>
-                <Link href={`/tourist/buddy/${selectedBuddy.id}`} className="btn btn-primary btn-sm btn-block mt-sm">Xem hồ sơ</Link>
+                <Link href={`/tourist/buddy/${selectedBuddy.id}`} className="btn btn-primary btn-sm btn-block mt-sm">View profile</Link>
               </div>
             )}
           </div>
@@ -255,9 +256,9 @@ function BrowseContent() {
           <div className="text-center py-xl"><div className="loading-spinner mx-auto" /></div>
         ) : filtered.length === 0 ? (
           <div className="empty-results">
-            <h3>Không tìm thấy buddy</h3>
-            <p>Thử bỏ bộ lọc hoặc đổi từ khóa khác như Da Nang, Hoi An, food, beach.</p>
-            <Link href="/tourist/browse" className="grid-btn">Xem tất cả buddy</Link>
+            <h3>No buddies found</h3>
+            <p>Try removing filters or searching for Da Nang areas like My Khe Beach, Han River, or Son Tra.</p>
+            <Link href="/tourist/browse" className="grid-btn">See all buddies</Link>
           </div>
         ) : (
           <div className="buddy-accordion-list">
@@ -291,7 +292,7 @@ function BrowseContent() {
                     </span>
                     <span className="list-meta">
                       <span>⭐ {b.rating_avg ? b.rating_avg.toFixed(1) : '—'}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{b.rating_count} đánh giá</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{b.rating_count} reviews</span>
                     </span>
                     <span className="list-chevron">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -304,7 +305,7 @@ function BrowseContent() {
                     {b.bio && <p className="list-bio">{b.bio}</p>}
                     <div className="list-detail-grid">
                       <div>
-                        <span className="detail-label">Ngôn ngữ</span>
+                        <span className="detail-label">Languages</span>
                         <div className="lang-list">
                           {b.languages.map((l) => (
                             <span key={l} className="lang-chip">{l}</span>
@@ -312,7 +313,7 @@ function BrowseContent() {
                         </div>
                       </div>
                       <div>
-                        <span className="detail-label">Chuyên môn</span>
+                        <span className="detail-label">Specialties</span>
                         <div className="buddy-interests">
                           {b.specialties.map((s) => (
                             <span key={s} className="interest-chip">{s}</span>
@@ -321,11 +322,11 @@ function BrowseContent() {
                       </div>
                       {b.hourly_rate !== null && (
                         <div>
-                          <span className="detail-label">Phí</span>
-                          <strong>${Number(b.hourly_rate).toFixed(0)}/giờ</strong>
+                          <span className="detail-label">Rate</span>
+                          <strong>${Number(b.hourly_rate).toFixed(0)}/hour</strong>
                           {b.is_online && (
                             <div style={{ marginTop: 6 }}>
-                              <span className="badge badge-success">Đang hoạt động</span>
+                              <span className="badge badge-success">Active now</span>
                             </div>
                           )}
                         </div>
@@ -337,13 +338,13 @@ function BrowseContent() {
                         className={`save-buddy-btn ${saved ? 'saved' : ''}`}
                         onClick={() => toggleSave(b.id)}
                       >
-                        {saved ? '✓ Đã lưu' : '♡ Lưu'}
+                        {saved ? '✓ Saved' : '♡ Save'}
                       </button>
                       <Link href={`/tourist/buddy/${b.id}`} className="grid-btn">
-                        Xem hồ sơ
+                        View profile
                       </Link>
                       <Link href={`/chat?buddy=${b.id}`} className="connect-list-btn">
-                        💬 Nhắn tin
+                        💬 Message
                       </Link>
                     </div>
                   </div>

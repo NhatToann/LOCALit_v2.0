@@ -36,6 +36,7 @@ export default function MapPage() {
       const { data } = await supabase
         .from('buddies')
         .select('id, location_city, latitude, longitude, languages, hourly_rate, profile:profiles(full_name, is_online)')
+        .eq('location_city', 'Da Nang')
         .not('latitude', 'is', null)
         .not('longitude', 'is', null)
 
@@ -64,10 +65,10 @@ export default function MapPage() {
     <div className="container py-xl">
       <div className="flex-between mb-lg" style={{ flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 className="text-3xl">Bản đồ Buddy</h1>
+          <h1 className="text-3xl">Buddy Map — Da Nang</h1>
           <p className="text-muted mt-sm">
-            {buddies.length} buddy đang hiển thị trên bản đồ
-            {locationGranted ? ' · 📍 Vị trí của bạn đã bật' : ' · ⚠️ Chưa bật vị trí'}
+            {buddies.length} buddies shown on the map
+            {locationGranted ? ' · 📍 Your location is on' : ' · ⚠️ Location not enabled'}
           </p>
         </div>
         <div className="flex gap-sm">
@@ -79,15 +80,15 @@ export default function MapPage() {
                 if (typeof navigator !== 'undefined' && navigator.geolocation) {
                   navigator.geolocation.getCurrentPosition(
                     () => setLocationGranted(true),
-                    (err) => setError('Không thể truy cập vị trí: ' + err.message)
+                    (err) => setError('Could not access location: ' + err.message)
                   )
                 }
               }}
             >
-              📍 Bật chia sẻ vị trí
+              📍 Enable location
             </button>
           )}
-          <Link href="/tourist/browse" className="btn btn-outline">Danh sách</Link>
+          <Link href="/tourist/browse" className="btn btn-outline">List view</Link>
         </div>
       </div>
 
@@ -125,7 +126,7 @@ export default function MapPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#4dd0e1', display: 'inline-block' }} />
-            <span>Bạn</span>
+            <span>You</span>
           </div>
         </div>
 
@@ -139,7 +140,7 @@ export default function MapPage() {
             <button
               type="button"
               onClick={() => setSelectedId(null)}
-              aria-label="Đóng"
+              aria-label="Close"
               style={{ position: 'absolute', top: 8, right: 8, background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 18, width: 28, height: 28, borderRadius: '50%' }}
             >✕</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
@@ -154,10 +155,10 @@ export default function MapPage() {
             </div>
             <div className="flex gap-sm">
               <Link href={`/tourist/buddy/${selected.id}`} className="btn btn-primary btn-sm flex-1" style={{ flex: 1 }}>
-                Hồ sơ
+                Profile
               </Link>
               <Link href={`/chat?buddy=${selected.id}`} className="btn btn-outline btn-sm" style={{ flex: 1 }}>
-                💬 Nhắn
+                💬 Message
               </Link>
             </div>
           </div>

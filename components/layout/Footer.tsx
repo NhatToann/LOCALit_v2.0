@@ -12,7 +12,7 @@ export default function Footer() {
               <span className="logo-text">LOCALit</span>
             </Link>
             <p className="footer-tagline">
-              Kết nối với local buddy và tạo nên những trải nghiệm du lịch khó quên tại Việt Nam.
+              Connect with local guides and create unforgettable travel experiences in Da Nang.
             </p>
             <div className="footer-social">
               <a href="https://twitter.com" className="social-link" aria-label="LOCALit on X">
@@ -35,31 +35,31 @@ export default function Footer() {
 
           <div className="footer-links">
             <div className="footer-column">
-              <h4>Khám phá</h4>
-              <Link href="/">Trang chủ</Link>
+              <h4>Explore</h4>
+              <Link href="/">Home</Link>
               <Link href="/tourist/browse">Buddies</Link>
-              <Link href="/map">Bản đồ</Link>
-              <Link href="/tourist/trips">Chuyến đi</Link>
+              <Link href="/map">Map</Link>
+              <Link href="/tourist/trips">My Trips</Link>
             </div>
             <div className="footer-column">
-              <h4>Dành cho Buddy</h4>
+              <h4>For Buddies</h4>
               <Link href="/buddy/dashboard">Dashboard</Link>
-              <Link href="/buddy/requests">Yêu cầu</Link>
-              <Link href="/buddy/profile">Hồ sơ</Link>
-              <Link href="/register">Trở thành Buddy</Link>
+              <Link href="/buddy/requests">Requests</Link>
+              <Link href="/buddy/profile">Profile</Link>
+              <Link href="/register">Become a Buddy</Link>
             </div>
             <div className="footer-column">
-              <h4>Hỗ trợ</h4>
-              <Link href="/forgot-password">Quên mật khẩu</Link>
-              <Link href="/reset-password">Đặt lại mật khẩu</Link>
-              <Link href="#">Điều khoản</Link>
-              <Link href="#">Bảo mật</Link>
+              <h4>Support</h4>
+              <Link href="/forgot-password">Forgot Password</Link>
+              <Link href="/reset-password">Reset Password</Link>
+              <Link href="#">Terms of Service</Link>
+              <Link href="#">Privacy Policy</Link>
             </div>
           </div>
         </div>
 
         <div className="footer-bottom">
-          <p>&copy; 2026 LOCALit. All rights reserved. Đồ án Kỳ 8.</p>
+          <p>&copy; 2026 LOCALit. All rights reserved. Kỳ 8 Capstone Project.</p>
         </div>
       </div>
     </footer>

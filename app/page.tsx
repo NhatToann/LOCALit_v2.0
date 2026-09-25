@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 
 const FEATURED_DESTINATIONS = [
-  { id: 'da-nang', name: 'Da Nang', country: 'Miền Trung', tours: 45, rating: 4.9, image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&h=400&fit=crop', popular: true },
-  { id: 'hoi-an', name: 'Hoi An', country: 'Di sản UNESCO', tours: 38, rating: 4.8, image: 'https://images.unsplash.com/photo-1528127269322-539801943592?w=600&h=400&fit=crop', popular: true },
-  { id: 'ha-noi', name: 'Hà Nội', country: 'Thủ đô', tours: 52, rating: 4.9, image: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=600&h=400&fit=crop', popular: false },
-  { id: 'nha-trang', name: 'Nha Trang', country: 'Biển đảo', tours: 28, rating: 4.7, image: 'https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=600&h=400&fit=crop', popular: false },
+  { id: 'da-nang', name: 'Da Nang', area: 'My Khe Beach', tours: 45, rating: 4.9, image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&h=400&fit=crop', popular: true },
+  { id: 'son-tra', name: 'Son Tra Peninsula', area: 'Linh Ung Pagoda', tours: 32, rating: 4.8, image: 'https://images.unsplash.com/photo-1573270689103-d7a4e42b609a?w=600&h=400&fit=crop', popular: true },
+  { id: 'marble', name: 'Marble Mountains', area: 'Ngu Hanh Son', tours: 28, rating: 4.7, image: 'https://images.unsplash.com/photo-1591287083773-9a5e21d50c30?w=600&h=400&fit=crop', popular: false },
+  { id: 'hai-van', name: 'Hai Van Pass', area: 'Cloud Hunting', tours: 21, rating: 4.9, image: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=600&h=400&fit=crop', popular: false },
 ]
 
 interface BuddyPreview {
@@ -25,7 +25,7 @@ interface BuddyPreview {
 export default function HomePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [searchDestination, setSearchDestination] = useState('')
+  const [searchDestination, setSearchDestination] = useState('Da Nang')
   const [searchDates, setSearchDates] = useState('')
   const [buddies, setBuddies] = useState<BuddyPreview[]>([])
 
@@ -49,6 +49,7 @@ export default function HomePage() {
         .from('buddies')
         .select('id, location_city, languages, specialties, rating_avg, hourly_rate, profile:profiles(full_name)')
         .eq('is_available', true)
+        .eq('location_city', 'Da Nang')
         .order('rating_avg', { ascending: false })
         .limit(3)
 
@@ -70,9 +71,9 @@ export default function HomePage() {
   }, [router])
 
   const heroStats = useMemo(() => [
-    { number: `${buddies.length || 6}+`, label: 'Local Buddy' },
-    { number: '50+', label: 'Thành phố' },
-    { number: '4.9', label: 'Đánh giá TB' },
+    { number: `${buddies.length || 6}+`, label: 'Da Nang Buddies' },
+    { number: '4.9', label: 'Average rating' },
+    { number: '24/7', label: 'Support' },
   ], [buddies.length])
 
   function handleSearch(e: React.FormEvent) {
@@ -100,14 +101,13 @@ export default function HomePage() {
         <div className="hero-content container">
           <div className="hero-badge">
             <span className="dot" />
-            <span>6+ Local Buddy sẵn sàng đón tiếp</span>
+            <span>Local buddies ready to welcome you</span>
           </div>
           <h1 className="hero-title">
-            Khám phá Việt Nam cùng <span>Local Buddy</span>
+            Explore <span>Da Nang</span> with Local Buddies
           </h1>
           <p className="hero-subtitle">
-            Kết nối với những người bạn bản địa nhiệt tình. Trải nghiệm chân thực,
-            hành trình đáng nhớ.
+            Connect with welcoming locals for authentic experiences and unforgettable journeys.
           </p>
 
           <div className="hero-stats">
@@ -122,19 +122,18 @@ export default function HomePage() {
           <form className="search-box" onSubmit={handleSearch}>
             <div className="search-input-group">
               <span className="search-icon">📍</span>
-              <label htmlFor="dest">Bạn muốn đi đâu?</label>
+              <label htmlFor="dest">Where do you want to go?</label>
               <input
                 id="dest"
                 type="text"
-                placeholder="Da Nang, Hoi An, Ha Noi..."
+                placeholder="Da Nang"
                 value={searchDestination}
-                onChange={(e) => setSearchDestination(e.target.value)}
-                maxLength={80}
+                readOnly
               />
             </div>
             <div className="search-input-group">
               <span className="search-icon">📅</span>
-              <label htmlFor="dates">Ngày khởi hành</label>
+              <label htmlFor="dates">Start date</label>
               <input
                 id="dates"
                 type="date"
@@ -143,21 +142,21 @@ export default function HomePage() {
               />
             </div>
             <button type="submit" className="search-btn">
-              🔍 Tìm Buddy
+              🔍 Find Buddy
             </button>
           </form>
 
           <div className="hero-cta">
             <Link href="/register?role=tourist" className="btn btn-primary btn-lg">
-              🧳 Tôi là du khách
+              🧳 I&apos;m a tourist
             </Link>
             <Link href="/register?role=buddy" className="btn btn-outline btn-lg btn-on-dark">
-              🌍 Tôi là local buddy
+              🌍 I&apos;m a local buddy
             </Link>
           </div>
           <div className="hero-signin">
             <Link href="/login" className="hero-signin-link">
-              Đã có tài khoản? Đăng nhập →
+              Already have an account? Sign in →
             </Link>
           </div>
         </div>
@@ -167,8 +166,8 @@ export default function HomePage() {
       <section className="section">
         <div className="container">
           <div className="section-header">
-            <h2 className="section-title">Điểm đến nổi bật</h2>
-            <Link href="/tourist/browse" className="section-link">Xem tất cả →</Link>
+            <h2 className="section-title">Top Spots in Da Nang</h2>
+            <Link href="/tourist/browse" className="section-link">See all buddies →</Link>
           </div>
           <div className="dest-grid">
             {FEATURED_DESTINATIONS.map((d) => (
@@ -179,14 +178,14 @@ export default function HomePage() {
               >
                 <div className="dest-image">
                   <img src={d.image} alt={d.name} loading="lazy" />
-                  {d.popular && <span className="dest-badge">Phổ biến</span>}
+                  {d.popular && <span className="dest-badge">Popular</span>}
                 </div>
                 <div className="dest-info">
                   <div className="dest-row">
                     <h3>{d.name}</h3>
                     <span className="dest-rating">⭐ {d.rating}</span>
                   </div>
-                  <p className="text-muted text-sm">{d.country} · {d.tours}+ tour</p>
+                  <p className="text-muted text-sm">{d.area} · {d.tours}+ tours</p>
                 </div>
               </Link>
             ))}
@@ -198,18 +197,18 @@ export default function HomePage() {
       <section className="section section-alt">
         <div className="container">
           <div className="section-header">
-            <h2 className="section-title">Buddy đang online</h2>
-            <Link href="/tourist/browse" className="section-link">Xem tất cả →</Link>
+            <h2 className="section-title">Buddies online now</h2>
+            <Link href="/tourist/browse" className="section-link">See all →</Link>
           </div>
           {buddies.length === 0 ? (
-            <p className="text-center text-muted">Chưa có buddy nào.</p>
+            <p className="text-center text-muted">No buddies available right now.</p>
           ) : (
             <div className="buddy-grid">
               {buddies.map((b) => (
                 <Link key={b.id} href={`/tourist/buddy/${b.id}`} className="buddy-card">
                   <div className="buddy-avatar-lg">{b.full_name.charAt(0)}</div>
                   <h3 className="buddy-name">{b.full_name}</h3>
-                  <p className="buddy-loc">📍 {b.location_city || 'Việt Nam'}</p>
+                  <p className="buddy-loc">📍 {b.location_city || 'Da Nang'}</p>
                   <div className="buddy-tags">
                     {(b.specialties ?? []).slice(0, 2).map((t) => (
                       <span key={t} className="tag">{t}</span>
@@ -218,7 +217,7 @@ export default function HomePage() {
                   <div className="buddy-meta">
                     <span className="buddy-rating">⭐ {Number(b.rating_avg).toFixed(1)}</span>
                     {b.hourly_rate && b.hourly_rate > 0 && (
-                      <span className="buddy-price">${Number(b.hourly_rate).toFixed(0)}/giờ</span>
+                      <span className="buddy-price">${Number(b.hourly_rate).toFixed(0)}/hour</span>
                     )}
                   </div>
                 </Link>
@@ -232,24 +231,24 @@ export default function HomePage() {
       <section className="section">
         <div className="container">
           <div className="text-center">
-            <h2 className="section-title">Cách hoạt động</h2>
-            <p className="text-muted mb-xl">3 bước đơn giản để bắt đầu hành trình</p>
+            <h2 className="section-title">How it works</h2>
+            <p className="text-muted mb-xl">Three simple steps to start your journey</p>
           </div>
           <div className="steps-grid">
             <div className="step-card">
               <div className="step-num">1</div>
-              <h3>Tạo hồ sơ</h3>
-              <p>Đăng ký miễn phí, kể về sở thích và phong cách du lịch của bạn.</p>
+              <h3>Create your profile</h3>
+              <p>Sign up free and tell us about your interests and travel style.</p>
             </div>
             <div className="step-card">
               <div className="step-num">2</div>
-              <h3>Tìm Buddy phù hợp</h3>
-              <p>Duyệt qua các local buddy có chuyên môn và ngôn ngữ phù hợp.</p>
+              <h3>Find the right buddy</h3>
+              <p>Browse local Da Nang buddies by specialty, language, or rating.</p>
             </div>
             <div className="step-card">
               <div className="step-num">3</div>
-              <h3>Kết nối & trải nghiệm</h3>
-              <p>Nhắn tin, lên kế hoạch và tận hưởng chuyến đi cùng buddy.</p>
+              <h3>Connect & explore</h3>
+              <p>Chat, plan your itinerary, and enjoy the trip together.</p>
             </div>
           </div>
         </div>
@@ -259,11 +258,11 @@ export default function HomePage() {
       <section className="section">
         <div className="container">
           <div className="cta-card">
-            <h2>Sẵn sàng cho cuộc phiêu lưu tiếp theo?</h2>
-            <p>Tham gia cùng hàng nghìn du khách đang khám phá Việt Nam cùng LOCALit.</p>
+            <h2>Ready for your next Da Nang adventure?</h2>
+            <p>Join travelers who are discovering Da Nang with LOCALit every day.</p>
             <div className="flex gap-md" style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
-              <Link href="/register?role=tourist" className="btn btn-primary btn-lg">Bắt đầu miễn phí</Link>
-              <Link href="/tourist/browse" className="btn btn-outline btn-lg">Khám phá Buddy</Link>
+              <Link href="/register?role=tourist" className="btn btn-primary btn-lg">Get started free</Link>
+              <Link href="/tourist/browse" className="btn btn-outline btn-lg">Browse buddies</Link>
             </div>
           </div>
         </div>
