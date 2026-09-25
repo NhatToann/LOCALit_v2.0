@@ -31,6 +31,8 @@ function ChatInner() {
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+  const lastSentRef = useRef<number>(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -124,7 +126,7 @@ function ChatInner() {
         .select('id')
         .single()
       if (error) {
-        alert('Không thể mở cuộc trò chuyện: ' + error.message)
+        setError('Không thể mở cuộc trò chuyện: ' + error.message)
         return
       }
       convId = created.id
@@ -192,10 +194,20 @@ function ChatInner() {
     const content = draft.trim()
     if (!content || !activeId || !myId) return
     if (content.length > 1000) return
+
+    // Rate limit: 1 message per second to avoid spam
+    const now = Date.now()
+    if (now - lastSentRef.current < 1000) {
+      setError('Vui lòng chờ một chút trước khi gửi tiếp.')
+      return
+    }
+    lastSentRef.current = now
+
     setSending(true)
+    setError('')
     const supabase = createClient()
 
-    const { data, error } = await supabase
+    const { data, error: sendErr } = await supabase
       .from('messages')
       .insert({
         conversation_id: activeId,
@@ -205,12 +217,17 @@ function ChatInner() {
       .select('*')
       .single()
 
-    if (error) {
-      alert('Không thể gửi: ' + error.message)
+    if (sendErr) {
+      setError('Không thể gửi: ' + sendErr.message)
       setSending(false)
       return
     }
-    if (data) setMessages((prev) => [...prev, data as Message])
+    if (data) {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === data.id)) return prev
+        return [...prev, data as Message]
+      })
+    }
     await supabase
       .from('conversations')
       .update({ updated_at: new Date().toISOString() })
@@ -313,10 +330,11 @@ function ChatInner() {
                   className="form-input"
                   placeholder="Nhập tin nhắn..."
                   value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
+                  onChange={(e) => { setDraft(e.target.value); setError('') }}
                   maxLength={1000}
                   disabled={sending}
                   autoFocus
+                  aria-label="Tin nhắn"
                 />
                 <span className="text-xs text-muted" style={{ alignSelf: 'center', minWidth: 50, textAlign: 'right' }}>
                   {draft.length}/1000
@@ -325,11 +343,14 @@ function ChatInner() {
                   type="submit"
                   className="btn btn-primary"
                   disabled={sending || !draft.trim()}
-                  aria-label="Gửi"
+                  aria-label="Gửi tin nhắn"
                 >
                   ➤ Gửi
                 </button>
               </form>
+              {error && (
+                <p className="text-xs text-danger" style={{ padding: '0 var(--space-md) var(--space-sm)' }}>{error}</p>
+              )}
             </>
           ) : (
             <div className="empty-state">

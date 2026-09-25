@@ -9,6 +9,7 @@ export default function BuddyRequestsPage() {
   const [requests, setRequests] = useState<Connection[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'declined'>('all')
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -30,16 +31,13 @@ export default function BuddyRequestsPage() {
 
   async function updateStatus(id: string, status: 'accepted' | 'declined') {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
     const { error: updateErr } = await supabase
       .from('connections')
       .update({ status })
       .eq('id', id)
 
     if (updateErr) {
-      alert('Không thể cập nhật: ' + updateErr.message)
+      setToast({ type: 'error', msg: 'Không thể cập nhật: ' + updateErr.message })
       return
     }
 
@@ -58,6 +56,11 @@ export default function BuddyRequestsPage() {
     }
 
     setRequests(requests.map((r) => (r.id === id ? { ...r, status } : r)))
+    setToast({
+      type: 'success',
+      msg: status === 'accepted' ? '✓ Đã chấp nhận yêu cầu. Cuộc trò chuyện đã sẵn sàng.' : 'Đã từ chối yêu cầu.',
+    })
+    setTimeout(() => setToast(null), 3500)
   }
 
   const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter)
@@ -68,6 +71,12 @@ export default function BuddyRequestsPage() {
 
   return (
     <div className="container py-xl">
+      {toast && (
+        <div className={`alert ${toast.type === 'success' ? 'alert-success' : 'alert-error'} mb-md`}>
+          <span>{toast.type === 'success' ? '✓' : '⚠️'}</span>
+          <span>{toast.msg}</span>
+        </div>
+      )}
       <div className="flex-between mb-lg">
         <div>
           <h1 className="text-3xl font-bold">Yêu cầu kết nối</h1>
