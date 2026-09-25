@@ -114,7 +114,9 @@ function RegisterForm() {
   const initialRole: Role | null = roleParam === 'buddy' || roleParam === 'tourist' ? roleParam : null
   const skipRoleStep = initialRole !== null
 
-  const [step, setStep] = useState(skipRoleStep ? 1 : 0)
+  // New order: 0=Personal info, 1=Role, 2=Tags & bio
+  // When ?role= is passed (e.g. from /register?role=buddy), skip step 1.
+  const [step, setStep] = useState(skipRoleStep ? 2 : 0)
   const [form, setForm] = useState<FormState>(() => ({
     ...INITIAL_FORM,
     role: initialRole ?? 'tourist',
@@ -127,7 +129,7 @@ function RegisterForm() {
 
   function pickRole(role: Role) {
     setForm(p => ({ ...p, role }))
-    setStep(1)
+    setStep(2)
   }
 
   function toggleInterest(id: string) {
@@ -158,7 +160,8 @@ function RegisterForm() {
   }
 
   const stepReady = useMemo(() => {
-    if (step === 1) {
+    if (step === 0) {
+      // Personal info step
       return (
         form.fullName.trim().length >= 2 &&
         validateEmail(form.email) &&
@@ -168,6 +171,7 @@ function RegisterForm() {
       )
     }
     if (step === 2) {
+      // Tags & bio step (role-specific)
       if (form.role === 'tourist') {
         return (
           form.nationality !== '' &&
@@ -301,7 +305,7 @@ function RegisterForm() {
     }
   }
 
-  const stepLabels = ['Choose role', 'Account', 'Your profile']
+  const stepLabels = ['Personal info', 'Choose role', 'Tags & bio']
   const totalSteps = 3
 
   return (
@@ -314,7 +318,7 @@ function RegisterForm() {
             <span className="register-logo-text">LOCALit</span>
           </Link>
           <div className="register-topbar-meta">
-            {step >= 1 && (
+            {step > 0 && (
               <button
                 type="button"
                 className="link-back"
@@ -330,8 +334,8 @@ function RegisterForm() {
           </div>
         </div>
 
-        {/* Stepper (only when past step 0) */}
-        {step > 0 && (
+        {/* Stepper (shown on all steps so users see progress) */}
+        {step >= 0 && (
           <div className="register-stepper" aria-label="Sign-up progress">
             {stepLabels.map((label, i) => (
               <div key={label} className={`stepper-item ${step >= i ? 'active' : ''} ${step === i ? 'current' : ''}`}>
@@ -343,69 +347,13 @@ function RegisterForm() {
           </div>
         )}
 
-        {/* STEP 0 — Role selection hero */}
+        {/* STEP 0 — Personal info (name, phone, email, password, terms) */}
         {step === 0 && (
-          <div className="role-hero">
-            <div className="role-hero-intro">
-              <span className="role-hero-eyebrow">Join LOCALit</span>
-              <h1 className="role-hero-title">How will you use LOCALit?</h1>
-              <p className="role-hero-subtitle">
-                Pick the experience that fits you — you can always switch later from your profile settings.
-              </p>
-            </div>
-
-            <div className="role-grid">
-              <button
-                type="button"
-                className="role-card role-card-tourist"
-                onClick={() => pickRole('tourist')}
-              >
-                <div className="role-card-icon" aria-hidden="true">🧳</div>
-                <h2 className="role-card-title">I&apos;m a Tourist</h2>
-                <p className="role-card-desc">
-                  Discover Da Nang alongside trusted local buddies who share your interests and language.
-                </p>
-                <ul className="role-card-features">
-                  <li>Browse verified local buddies</li>
-                  <li>Plan trips together in chat</li>
-                  <li>Get hand-picked recommendations</li>
-                </ul>
-                <span className="role-card-cta">Continue as Tourist →</span>
-              </button>
-
-              <button
-                type="button"
-                className="role-card role-card-buddy"
-                onClick={() => pickRole('buddy')}
-              >
-                <div className="role-card-icon" aria-hidden="true">🌍</div>
-                <h2 className="role-card-title">I&apos;m a Local Buddy</h2>
-                <p className="role-card-desc">
-                  Share the best of your city, meet travelers from around the world, and earn on your schedule.
-                </p>
-                <ul className="role-card-features">
-                  <li>Receive trip requests from travelers</li>
-                  <li>Set your own hourly rate</li>
-                  <li>Build reviews and a trusted profile</li>
-                </ul>
-                <span className="role-card-cta">Continue as Buddy →</span>
-              </button>
-            </div>
-
-            <p className="role-hero-foot">
-              🔒 We never share your contact details without your permission.
-            </p>
-          </div>
-        )}
-
-        {/* STEP 1 — Account (common to both roles) */}
-        {step === 1 && (
           <div className="register-pane">
             <div className="register-pane-head">
               <h2>Create your account</h2>
               <p className="register-pane-sub">
-                Signing up as <strong>{form.role === 'buddy' ? 'a Local Buddy' : 'a Tourist'}</strong>.{' '}
-                <button type="button" className="link-inline" onClick={() => setStep(0)}>Change</button>
+                Tell us who you are. You&apos;ll pick your role and interests on the next steps.
               </p>
             </div>
 
@@ -413,7 +361,7 @@ function RegisterForm() {
               className="register-form"
               onSubmit={(e) => {
                 e.preventDefault()
-                if (stepReady) setStep(2)
+                if (stepReady) setStep(1)
               }}
             >
               <div className="reg-row reg-row-2">
@@ -527,6 +475,61 @@ function RegisterForm() {
           </div>
         )}
 
+        {/* STEP 1 — Role selection hero */}
+        {step === 1 && (
+          <div className="role-hero">
+            <div className="role-hero-intro">
+              <span className="role-hero-eyebrow">Almost there</span>
+              <h1 className="role-hero-title">How will you use LOCALit?</h1>
+              <p className="role-hero-subtitle">
+                Pick the experience that fits you — you can always switch later from your profile settings.
+              </p>
+            </div>
+
+            <div className="role-grid">
+              <button
+                type="button"
+                className="role-card role-card-tourist"
+                onClick={() => pickRole('tourist')}
+              >
+                <div className="role-card-icon" aria-hidden="true">🧳</div>
+                <h2 className="role-card-title">I&apos;m a Tourist</h2>
+                <p className="role-card-desc">
+                  Discover Da Nang alongside trusted local buddies who share your interests and language.
+                </p>
+                <ul className="role-card-features">
+                  <li>Browse verified local buddies</li>
+                  <li>Plan trips together in chat</li>
+                  <li>Get hand-picked recommendations</li>
+                </ul>
+                <span className="role-card-cta">Continue as Tourist →</span>
+              </button>
+
+              <button
+                type="button"
+                className="role-card role-card-buddy"
+                onClick={() => pickRole('buddy')}
+              >
+                <div className="role-card-icon" aria-hidden="true">🌍</div>
+                <h2 className="role-card-title">I&apos;m a Local Buddy</h2>
+                <p className="role-card-desc">
+                  Share the best of your city, meet travelers from around the world, and earn on your schedule.
+                </p>
+                <ul className="role-card-features">
+                  <li>Receive trip requests from travelers</li>
+                  <li>Set your own hourly rate</li>
+                  <li>Build reviews and a trusted profile</li>
+                </ul>
+                <span className="role-card-cta">Continue as Buddy →</span>
+              </button>
+            </div>
+
+            <p className="role-hero-foot">
+              🔒 We never share your contact details without your permission.
+            </p>
+          </div>
+        )}
+
         {/* STEP 2 — Role-specific profile */}
         {step === 2 && (
           <div className="register-pane">
@@ -534,6 +537,10 @@ function RegisterForm() {
               <h2>
                 {form.role === 'buddy' ? 'Tell travelers about you' : 'Tell us about your trip'}
               </h2>
+              <p className="register-pane-sub">
+                Signing up as <strong>{form.role === 'buddy' ? 'a Local Buddy' : 'a Tourist'}</strong>.{' '}
+                <button type="button" className="link-inline" onClick={() => setStep(1)}>Change</button>
+              </p>
               <p className="register-pane-sub">
                 We&apos;ll use this to match you with the right {form.role === 'buddy' ? 'travelers' : 'buddies'}. You can edit everything later.
               </p>
