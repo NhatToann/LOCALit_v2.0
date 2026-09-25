@@ -26,6 +26,7 @@ export default async function TouristLayout({
     <>
       <Header userRole="tourist" userName={profile?.full_name ?? undefined} />
       <main className="page-wrapper">{children}</main>
+      {/* Footer is rendered by root layout */}
     </>
   )
 }

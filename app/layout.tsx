@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import AppShell from '@/components/layout/AppShell'
 
 export const metadata: Metadata = {
   title: 'LOCALit — Connect with Local Buddies',
@@ -16,7 +17,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi">
-      <body>{children}</body>
+      <body>
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   )
 }

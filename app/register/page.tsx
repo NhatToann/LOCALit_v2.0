@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { signUp, createClient } from '@/utils/supabase/auth'
+import '../auth.css'
 
 const INTERESTS = [
   { id: 'food', label: 'Food', emoji: '🍜' },
@@ -17,10 +18,10 @@ const INTERESTS = [
 ]
 
 const TRAVEL_STYLES = [
-  { id: 'solo', label: 'Solo' },
-  { id: 'couple', label: 'Couple' },
-  { id: 'friends', label: 'With Friends' },
-  { id: 'family', label: 'Family' },
+  { id: 'solo', label: 'Solo', desc: 'Một mình khám phá' },
+  { id: 'couple', label: 'Couple', desc: 'Cùng người yêu' },
+  { id: 'friends', label: 'With Friends', desc: 'Cùng bạn bè' },
+  { id: 'family', label: 'Family', desc: 'Cùng gia đình' },
 ]
 
 const LANGUAGES = ['English', 'Vietnamese', 'Japanese', 'Korean', 'French', 'Mandarin', 'Russian']
@@ -76,7 +77,6 @@ function RegisterForm() {
     setLoading(true)
 
     try {
-      // 1. Sign up
       const { data, error: signUpError } = await signUp(
         formData.email,
         formData.password,
@@ -90,7 +90,6 @@ function RegisterForm() {
         return
       }
 
-      // 2. Create profile details (tourist or buddy)
       const supabase = createClient()
       const profileData = {
         phone: formData.phone || null,
@@ -136,9 +135,8 @@ function RegisterForm() {
         }
       }
 
-      // 3. Redirect to dashboard
-      const dashboardPath = formData.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'
-      router.push(dashboardPath)
+      // Redirect to login (Supabase requires email confirm or immediate login)
+      router.push(`/login?registered=1`)
     } catch (err) {
       setError('Có lỗi xảy ra. Vui lòng thử lại.')
       setLoading(false)
@@ -156,28 +154,67 @@ function RegisterForm() {
       ? (formData.travelStyle && formData.destination && formData.interests.length > 0)
       : (formData.locationCity && formData.bio.length >= 10))
 
+  const brandingTitle = formData.role === 'buddy'
+    ? 'Trở thành Local Buddy!'
+    : 'Bắt đầu hành trình!'
+  const brandingSubtitle = formData.role === 'buddy'
+    ? 'Chia sẻ văn hóa Việt Nam của bạn và kết nối với du khách toàn cầu'
+    : 'Khám phá Việt Nam cùng local buddy địa phương'
+
   return (
-    <main className="min-h-screen" style={{ background: 'var(--bg-light)' }}>
-      <div className="container" style={{ paddingTop: 40, paddingBottom: 40 }}>
-        <div className="text-center mb-lg">
-          <Link href="/" className="text-2xl font-bold">
-            <span style={{ color: 'var(--primary)' }}>LOCAL</span>it
-          </Link>
+    <div className="auth-page">
+      <div className="auth-container">
+        {/* Left Side - Branding */}
+        <div className="auth-branding">
+          <div className="branding-content">
+            <Link href="/" className="auth-logo">
+              <span className="auth-logo-icon">L</span>
+              <span>LOCALit</span>
+            </Link>
+
+            <div className="branding-text">
+              <h1>{brandingTitle}</h1>
+              <p>{brandingSubtitle}</p>
+            </div>
+
+            <div className="branding-features">
+              <div className="feature-item">
+                <div className="feature-icon">✓</div>
+                <span>{formData.role === 'buddy' ? 'Nhận yêu cầu từ du khách' : 'Tìm buddy phù hợp sở thích'}</span>
+              </div>
+              <div className="feature-item">
+                <div className="feature-icon">✓</div>
+                <span>{formData.role === 'buddy' ? 'Kiếm thu nhập linh hoạt' : 'Chat real-time với buddy'}</span>
+              </div>
+              <div className="feature-item">
+                <div className="feature-icon">✓</div>
+                <span>{formData.role === 'buddy' ? 'Đánh giá minh bạch' : 'Đánh giá sau mỗi chuyến đi'}</span>
+              </div>
+            </div>
+
+            <div className="branding-image">
+              <img
+                src="https://images.unsplash.com/photo-1528127269322-539801943592?w=900&h=400&fit=crop"
+                alt="Travel Vietnam"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="card mx-auto" style={{ maxWidth: 560 }}>
-          <div className="card-body">
-            <h2 className="text-center mb-sm">Đăng ký</h2>
-            <p className="text-center text-sm text-muted mb-lg">
-              Bước {step} / 2: {step === 1 ? 'Tài khoản' : 'Thông tin bổ sung'}
-            </p>
+        {/* Right Side - Form */}
+        <div className="auth-form-section">
+          <div className="auth-form-container">
+            <div className="auth-header">
+              <h2>Tạo tài khoản</h2>
+              <p>Bước {step} / 2: {step === 1 ? 'Tài khoản' : 'Thông tin bổ sung'}</p>
+            </div>
 
             {/* Progress */}
-            <div className="progress-steps">
+            <div className="auth-progress" style={{ display: 'flex', justifyContent: 'center', marginBottom: 32, gap: 8 }}>
               <div className={`progress-step ${step >= 1 ? 'active' : ''}`}>
                 <div className="step-circle">1</div>
               </div>
-              <div className={`progress-line ${step >= 2 ? 'active' : ''}`} />
+              <div className={`progress-line ${step >= 2 ? 'active' : ''}`} style={{ width: 60, height: 3, background: step >= 2 ? 'var(--primary)' : 'var(--border-color)', marginBottom: 18 }} />
               <div className={`progress-step ${step >= 2 ? 'active' : ''}`}>
                 <div className="step-circle">2</div>
               </div>
@@ -185,10 +222,10 @@ function RegisterForm() {
 
             {/* Step 1: Account */}
             {step === 1 && (
-              <>
+              <form className="auth-form" onSubmit={(e) => { e.preventDefault(); if (stepOneReady) setStep(2) }}>
                 <div className="form-group">
-                  <label className="form-label">Bạn là</label>
-                  <div className="grid grid-2">
+                  <label>Bạn là</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
                     <button
                       type="button"
                       className={`btn ${formData.role === 'tourist' ? 'btn-primary' : 'btn-outline'}`}
@@ -207,7 +244,7 @@ function RegisterForm() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="fullName">Họ tên</label>
+                  <label htmlFor="fullName">Họ tên</label>
                   <input
                     id="fullName"
                     type="text"
@@ -222,7 +259,7 @@ function RegisterForm() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="email">Email</label>
+                  <label htmlFor="email">Email</label>
                   <input
                     id="email"
                     type="email"
@@ -234,12 +271,12 @@ function RegisterForm() {
                     autoComplete="email"
                   />
                   {formData.email && !validateEmail(formData.email) && (
-                    <p className="form-hint error">Email không hợp lệ</p>
+                    <p className="form-hint error" style={{ marginTop: 4 }}>Email không hợp lệ</p>
                   )}
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="phone">Số điện thoại</label>
+                  <label htmlFor="phone">Số điện thoại</label>
                   <input
                     id="phone"
                     type="tel"
@@ -252,7 +289,7 @@ function RegisterForm() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="password">Mật khẩu</label>
+                  <label htmlFor="password">Mật khẩu</label>
                   <input
                     id="password"
                     type="password"
@@ -267,7 +304,7 @@ function RegisterForm() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="confirmPassword">Xác nhận mật khẩu</label>
+                  <label htmlFor="confirmPassword">Xác nhận mật khẩu</label>
                   <input
                     id="confirmPassword"
                     type="password"
@@ -279,28 +316,27 @@ function RegisterForm() {
                     autoComplete="new-password"
                   />
                   {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                    <p className="form-hint error">Mật khẩu không khớp</p>
+                    <p className="form-hint error" style={{ marginTop: 4 }}>Mật khẩu không khớp</p>
                   )}
                 </div>
 
                 <button
-                  type="button"
-                  className="btn btn-primary btn-block mt-lg"
+                  type="submit"
+                  className="btn btn-primary btn-block"
                   disabled={!stepOneReady}
-                  onClick={() => setStep(2)}
                 >
                   Tiếp tục →
                 </button>
-              </>
+              </form>
             )}
 
             {/* Step 2: Profile info */}
             {step === 2 && (
-              <>
+              <form className="auth-form" onSubmit={(e) => { e.preventDefault(); if (stepTwoReady) handleSubmit() }}>
                 {formData.role === 'tourist' ? (
                   <>
                     <div className="form-group">
-                      <label className="form-label">Bạn đi đâu?</label>
+                      <label>Bạn đi đâu?</label>
                       <select
                         className="form-input form-select"
                         value={formData.destination}
@@ -317,7 +353,7 @@ function RegisterForm() {
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Ngày đến (dự kiến)</label>
+                      <label>Ngày đến (dự kiến)</label>
                       <input
                         type="date"
                         className="form-input"
@@ -328,45 +364,55 @@ function RegisterForm() {
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Phong cách du lịch</label>
-                      <div className="grid grid-2">
+                      <label>Phong cách du lịch</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)' }}>
                         {TRAVEL_STYLES.map(style => (
                           <button
                             key={style.id}
                             type="button"
-                            className={`btn ${formData.travelStyle === style.id ? 'btn-primary' : 'btn-outline'}`}
+                            className={`style-card ${formData.travelStyle === style.id ? 'selected' : ''}`}
                             onClick={() => setFormData(p => ({ ...p, travelStyle: style.id }))}
+                            style={{
+                              padding: 'var(--space-md)',
+                              background: 'var(--bg-white)',
+                              border: `2px solid ${formData.travelStyle === style.id ? 'var(--primary)' : 'var(--border-color)'}`,
+                              borderRadius: 12,
+                              cursor: 'pointer',
+                              textAlign: 'center',
+                            }}
                           >
-                            {style.label}
+                            <strong style={{ display: 'block', fontSize: 'var(--font-size-sm)' }}>{style.label}</strong>
+                            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>{style.desc}</span>
                           </button>
                         ))}
                       </div>
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Sở thích</label>
-                      <div className="grid grid-4" style={{ gap: '8px' }}>
+                      <label>Sở thích (chọn nhiều)</label>
+                      <div className="interests-grid">
                         {INTERESTS.map(i => (
                           <button
                             key={i.id}
                             type="button"
-                            className={`btn btn-sm ${formData.interests.includes(i.id) ? 'btn-primary' : 'btn-outline'}`}
+                            className={`interest-card ${formData.interests.includes(i.id) ? 'selected' : ''}`}
                             onClick={() => toggleInterest(i.id)}
                           >
-                            {i.emoji} {i.label}
+                            <span className="interest-icon">{i.emoji}</span>
+                            <span className="interest-label">{i.label}</span>
                           </button>
                         ))}
                       </div>
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Ngôn ngữ</label>
-                      <div className="flex flex-wrap gap-sm">
+                      <label>Ngôn ngữ bạn nói</label>
+                      <div className="languages-grid">
                         {LANGUAGES.map(lang => (
                           <button
                             key={lang}
                             type="button"
-                            className={`btn btn-sm ${formData.languages.includes(lang) ? 'btn-primary' : 'btn-outline'}`}
+                            className={`language-btn ${formData.languages.includes(lang) ? 'selected' : ''}`}
                             onClick={() => toggleLanguage(lang)}
                           >
                             {lang}
@@ -378,7 +424,7 @@ function RegisterForm() {
                 ) : (
                   <>
                     <div className="form-group">
-                      <label className="form-label">Thành phố của bạn</label>
+                      <label>Thành phố của bạn</label>
                       <input
                         type="text"
                         className="form-input"
@@ -389,29 +435,30 @@ function RegisterForm() {
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Chuyên môn</label>
-                      <div className="grid grid-4" style={{ gap: '8px' }}>
+                      <label>Chuyên môn</label>
+                      <div className="interests-grid">
                         {INTERESTS.map(i => (
                           <button
                             key={i.id}
                             type="button"
-                            className={`btn btn-sm ${formData.interests.includes(i.id) ? 'btn-primary' : 'btn-outline'}`}
+                            className={`interest-card ${formData.interests.includes(i.id) ? 'selected' : ''}`}
                             onClick={() => toggleInterest(i.id)}
                           >
-                            {i.emoji} {i.label}
+                            <span className="interest-icon">{i.emoji}</span>
+                            <span className="interest-label">{i.label}</span>
                           </button>
                         ))}
                       </div>
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Ngôn ngữ bạn nói</label>
-                      <div className="flex flex-wrap gap-sm">
+                      <label>Ngôn ngữ bạn nói</label>
+                      <div className="languages-grid">
                         {LANGUAGES.map(lang => (
                           <button
                             key={lang}
                             type="button"
-                            className={`btn btn-sm ${formData.languages.includes(lang) ? 'btn-primary' : 'btn-outline'}`}
+                            className={`language-btn ${formData.languages.includes(lang) ? 'selected' : ''}`}
                             onClick={() => toggleLanguage(lang)}
                           >
                             {lang}
@@ -421,7 +468,7 @@ function RegisterForm() {
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Giới thiệu bản thân (tối thiểu 10 ký tự)</label>
+                      <label>Giới thiệu bản thân (tối thiểu 10 ký tự)</label>
                       <textarea
                         className="form-input form-textarea"
                         value={formData.bio}
@@ -436,13 +483,13 @@ function RegisterForm() {
                 )}
 
                 {error && (
-                  <div className="alert alert-error mb-md">
+                  <div className="alert alert-error">
                     <span>⚠️</span>
                     <span>{error}</span>
                   </div>
                 )}
 
-                <div className="flex gap-md mt-lg">
+                <div className="form-actions">
                   <button
                     type="button"
                     className="btn btn-outline"
@@ -452,24 +499,23 @@ function RegisterForm() {
                     ← Quay lại
                   </button>
                   <button
-                    type="button"
-                    className="btn btn-primary btn-block"
+                    type="submit"
+                    className="btn btn-primary"
                     disabled={!stepTwoReady || loading}
-                    onClick={handleSubmit}
                   >
-                    {loading ? 'Đang tạo tài khoản...' : 'Hoàn tất đăng ký'}
+                    {loading ? 'Đang tạo...' : 'Hoàn tất đăng ký'}
                   </button>
                 </div>
-              </>
+              </form>
             )}
 
-            <p className="text-center text-sm text-muted mt-lg">
-              Đã có tài khoản? <Link href="/login" className="text-primary">Đăng nhập</Link>
-            </p>
+            <div className="auth-footer">
+              Đã có tài khoản? <Link href="/login">Đăng nhập</Link>
+            </div>
           </div>
         </div>
       </div>
-    </main>
+    </div>
   )
 }
 

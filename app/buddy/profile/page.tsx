@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
+import './profile.css'
 
 const CITIES = ['Da Nang', 'Hoi An', 'Hanoi', 'Ho Chi Minh City', 'Nha Trang', 'Sapa', 'Phu Quoc', 'Da Lat', 'Hue']
 const LANGS = ['English', 'Vietnamese', 'Japanese', 'Korean', 'French', 'Mandarin', 'Russian', 'Spanish']
 const SPECIALTIES = ['Beach', 'Food', 'Photography', 'History', 'Culture', 'Nature', 'Adventure', 'Diving', 'Trekking', 'Nightlife', 'Shopping', 'Coffee', 'Cooking', 'Art']
 
-type Tab = 'profile' | 'account'
+type Tab = 'profile' | 'reviews' | 'interests' | 'account'
 
 const PHONE_REGEX = /^[+]?[\d\s\-()]{8,20}$/
 
@@ -26,6 +27,7 @@ interface BuddyData {
   rating_avg: number | null
   profile: {
     full_name: string
+    email: string
     avatar_url: string | null
     phone: string | null
     bio: string | null
@@ -48,39 +50,44 @@ export default function BuddyProfileEditPage() {
   }, [])
 
   async function load() {
-    const supabase = createClient()
-    const user = await getCurrentUser()
-    if (!user) return
+    setLoading(true)
+    try {
+      const supabase = createClient()
+      const user = await getCurrentUser()
+      if (!user) return
 
-    const [{ data: b }, { data: r }] = await Promise.all([
-      supabase
-        .from('buddies')
-        .select('*, profile:profiles(full_name, avatar_url, phone, bio)')
-        .eq('id', user.id)
-        .single<BuddyData>(),
-      supabase
-        .from('reviews')
-        .select('id, rating, comment, created_at, reviewer:profiles!reviewer_id(full_name)')
-        .eq('reviewee_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(20),
-    ])
+      const [{ data: b }, { data: r }] = await Promise.all([
+        supabase
+          .from('buddies')
+          .select('*, profile:profiles(full_name, email, avatar_url, phone, bio)')
+          .eq('id', user.id)
+          .maybeSingle<BuddyData>(),
+        supabase
+          .from('reviews')
+          .select('id, rating, comment, created_at, reviewer:profiles!reviewer_id(full_name)')
+          .eq('reviewee_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(20),
+      ])
 
-    if (b) {
-      // Default hourly_rate to 15 if 0 (avoid showing $0 in UI)
-      setBuddy({
-        ...b,
-        hourly_rate: b.hourly_rate || 15,
-      })
+      if (b) {
+        setBuddy({
+          ...b,
+          hourly_rate: b.hourly_rate || 15,
+        })
+      }
+      setReviews((r ?? []).map((row: any) => ({
+        id: row.id,
+        rating: row.rating,
+        comment: row.comment,
+        created_at: row.created_at,
+        reviewer_name: row.reviewer?.full_name ?? 'Người dùng',
+      })))
+    } catch (err) {
+      console.error('Buddy profile load failed:', err)
+    } finally {
+      setLoading(false)
     }
-    setReviews((r ?? []).map((row: any) => ({
-      id: row.id,
-      rating: row.rating,
-      comment: row.comment,
-      created_at: row.created_at,
-      reviewer_name: row.reviewer?.full_name ?? 'Người dùng',
-    })))
-    setLoading(false)
   }
 
   function toggleLanguage(l: string) {
@@ -183,22 +190,17 @@ export default function BuddyProfileEditPage() {
     }
     setPwSaving(true)
     const supabase = createClient()
-    const { error: reauthErr } = await supabase.auth.signInWithPassword({
-      email: buddy?.profile.full_name ? '' : '',
-      password: oldPw,
-    })
-    // We need the actual email - get it fresh
     const { data: { user } } = await supabase.auth.getUser()
     if (!user?.email) {
       setPwMsg('Không tìm thấy email tài khoản.')
       setPwSaving(false)
       return
     }
-    const { error: r2 } = await supabase.auth.signInWithPassword({
+    const { error: reauthErr } = await supabase.auth.signInWithPassword({
       email: user.email,
       password: oldPw,
     })
-    if (r2 || reauthErr) {
+    if (reauthErr) {
       setPwMsg('Mật khẩu hiện tại không đúng.')
       setPwSaving(false)
       return
@@ -229,282 +231,302 @@ export default function BuddyProfileEditPage() {
 
   if (loading || !buddy) return <div className="container py-xl text-center"><div className="loading-spinner mx-auto" /></div>
 
+  const firstName = buddy.profile.full_name.split(' ')[0]
+
   return (
-    <div className="container py-xl">
-      <div className="flex-between mb-lg" style={{ flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 className="text-3xl font-bold">Hồ sơ Buddy</h1>
-          <p className="text-muted mt-sm">Cập nhật thông tin để thu hút du khách</p>
+    <div className="profile-page">
+      <section className="page-header">
+        <div className="container">
+          <h1 className="page-title">Hồ sơ Buddy</h1>
         </div>
-        <Link href="/buddy/dashboard" className="text-primary">← Dashboard</Link>
-      </div>
+      </section>
 
-      <div className="buddy-profile-grid">
-        <main>
-          <div className="tab-bar">
-            <button className={`tab ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
-              ✏️ Thông tin Buddy
-            </button>
-            <button className={`tab ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')}>
-              ⚙️ Tài khoản
-            </button>
-          </div>
-
-          <div className="card mt-md">
-            <div className="card-body">
-              {error && <div className="alert alert-error mb-md"><span>⚠️</span><span>{error}</span></div>}
-
-              {activeTab === 'profile' && (
-                <>
-                  <div className="grid grid-2">
-                    <div className="form-group">
-                      <label className="form-label">Họ tên *</label>
-                      <input
-                        className="form-input"
-                        value={buddy.profile.full_name}
-                        onChange={(e) => setBuddy({ ...buddy, profile: { ...buddy.profile, full_name: e.target.value } })}
-                        maxLength={100}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Số điện thoại</label>
-                      <input
-                        type="tel"
-                        className="form-input"
-                        value={buddy.profile.phone || ''}
-                        onChange={(e) => setBuddy({ ...buddy, profile: { ...buddy.profile, phone: e.target.value } })}
-                        maxLength={20}
-                        placeholder="+84..."
-                      />
-                    </div>
+      <section className="profile-content">
+        <div className="container">
+          <div className="profile-layout">
+            {/* Main column */}
+            <div className="profile-main">
+              <div className="content-card">
+                {error && (
+                  <div className="alert alert-error m-md">
+                    <span>⚠️</span><span>{error}</span>
                   </div>
+                )}
 
-                  <div className="grid grid-2">
-                    <div className="form-group">
-                      <label className="form-label">Thành phố *</label>
-                      <select
-                        className="form-input form-select"
-                        value={buddy.location_city}
-                        onChange={(e) => setBuddy({ ...buddy, location_city: e.target.value })}
-                      >
-                        {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Phí theo giờ (USD)</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        value={buddy.hourly_rate}
-                        onChange={(e) => setBuddy({ ...buddy, hourly_rate: parseFloat(e.target.value) || 0 })}
-                        min={0}
-                        max={500}
-                        step={0.5}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Giới thiệu</label>
-                    <textarea
-                      className="form-input form-textarea"
-                      value={buddy.bio || ''}
-                      onChange={(e) => setBuddy({ ...buddy, bio: e.target.value })}
-                      rows={4}
-                      maxLength={500}
-                      placeholder="Kể về bản thân và điều bạn có thể chia sẻ..."
-                    />
-                    <p className="text-xs text-muted mt-xs">{(buddy.bio ?? '').length}/500</p>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Ngôn ngữ *</label>
-                    <div className="flex flex-wrap gap-sm">
-                      {LANGS.map((l) => (
-                        <button
-                          key={l}
-                          type="button"
-                          onClick={() => toggleLanguage(l)}
-                          className={`btn btn-sm ${buddy.languages.includes(l) ? 'btn-primary' : 'btn-outline'}`}
-                        >
-                          {l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Chuyên môn *</label>
-                    <div className="flex flex-wrap gap-sm">
-                      {SPECIALTIES.map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => toggleSpecialty(s)}
-                          className={`btn btn-sm ${buddy.specialties.includes(s) ? 'btn-primary' : 'btn-outline'}`}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Trạng thái nhận khách</label>
-                    <select
-                      className="form-input form-select"
-                      value={buddy.is_available ? 'true' : 'false'}
-                      onChange={(e) => setBuddy({ ...buddy, is_available: e.target.value === 'true' })}
-                    >
-                      <option value="true">🟢 Sẵn sàng nhận khách</option>
-                      <option value="false">⚪ Tạm ẩn</option>
-                    </select>
-                  </div>
-
-                  <div className="flex gap-md">
-                    <button onClick={handleSave} disabled={saving} className="btn btn-primary">
-                      {saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}
-                    </button>
-                    {savedAt && <span className="text-success flex items-center">✓ Đã lưu</span>}
-                  </div>
-                </>
-              )}
-
-              {activeTab === 'account' && (
-                <>
-                  <div className="account-section">
-                    <h4>🔒 Đổi mật khẩu</h4>
-                    <form onSubmit={handleChangePassword} className="mt-md">
-                      <div className="form-group">
-                        <label className="form-label">Mật khẩu hiện tại</label>
-                        <input type="password" name="old" className="form-input" autoComplete="current-password" />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Mật khẩu mới (≥8 ký tự, có chữ và số)</label>
-                        <input type="password" name="new" className="form-input" autoComplete="new-password" maxLength={128} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Xác nhận mật khẩu mới</label>
-                        <input type="password" name="confirm" className="form-input" autoComplete="new-password" maxLength={128} />
-                      </div>
-                      {pwMsg && (
-                        <p className="text-sm mb-md" style={{ color: pwMsg.startsWith('✓') ? 'var(--success)' : 'var(--danger)' }}>
-                          {pwMsg}
-                        </p>
-                      )}
-                      <button type="submit" className="btn btn-primary" disabled={pwSaving}>
-                        {pwSaving ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
+                {activeTab === 'profile' && (
+                  <div className="tab-panel">
+                    <div className="panel-header">
+                      <h2>Thông tin Buddy</h2>
+                      <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                        {saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}
                       </button>
+                    </div>
+                    {savedAt && <div className="alert alert-success">✓ Đã lưu thành công</div>}
+
+                    <form className="profile-form">
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Họ tên *</label>
+                          <input
+                            className="form-input"
+                            value={buddy.profile.full_name}
+                            onChange={(e) => setBuddy({ ...buddy, profile: { ...buddy.profile, full_name: e.target.value } })}
+                            maxLength={100}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Số điện thoại</label>
+                          <input
+                            type="tel"
+                            className="form-input"
+                            value={buddy.profile.phone || ''}
+                            onChange={(e) => setBuddy({ ...buddy, profile: { ...buddy.profile, phone: e.target.value } })}
+                            maxLength={20}
+                            placeholder="+84..."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Thành phố *</label>
+                          <select
+                            className="form-input form-select"
+                            value={buddy.location_city}
+                            onChange={(e) => setBuddy({ ...buddy, location_city: e.target.value })}
+                          >
+                            {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Phí theo giờ (USD)</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            value={buddy.hourly_rate}
+                            onChange={(e) => setBuddy({ ...buddy, hourly_rate: parseFloat(e.target.value) || 0 })}
+                            min={0}
+                            max={500}
+                            step={0.5}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Giới thiệu về bạn</label>
+                        <textarea
+                          className="form-input form-textarea"
+                          value={buddy.bio || ''}
+                          onChange={(e) => setBuddy({ ...buddy, bio: e.target.value })}
+                          rows={4}
+                          maxLength={500}
+                          placeholder="Kể về bản thân và điều bạn có thể chia sẻ với du khách..."
+                        />
+                        <p className="form-hint">{(buddy.bio ?? '').length}/500</p>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Trạng thái nhận khách</label>
+                        <select
+                          className="form-input form-select"
+                          value={buddy.is_available ? 'true' : 'false'}
+                          onChange={(e) => setBuddy({ ...buddy, is_available: e.target.value === 'true' })}
+                        >
+                          <option value="true">🟢 Sẵn sàng nhận khách</option>
+                          <option value="false">⚪ Tạm ẩn</option>
+                        </select>
+                      </div>
                     </form>
                   </div>
+                )}
 
-                  <hr style={{ margin: 'var(--space-xl) 0' }} />
+                {activeTab === 'interests' && (
+                  <div className="tab-panel">
+                    <div className="panel-header">
+                      <h2>Chuyên môn và ngôn ngữ</h2>
+                      <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                        {saving ? 'Đang lưu...' : '💾 Lưu thay đổi'}
+                      </button>
+                    </div>
 
-                  <div className="danger-zone">
-                    <h4 className="text-danger">⚠️ Xóa tài khoản</h4>
-                    <p className="text-sm text-muted mt-sm">
-                      Hành động này sẽ xóa vĩnh viễn hồ sơ, yêu cầu và đánh giá của bạn.
-                    </p>
-                    <button type="button" onClick={handleDeleteAccount} className="btn btn-danger mt-md">
-                      Xóa tài khoản
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Reviews section */}
-          <div className="card mt-lg">
-            <div className="card-header">
-              <h3>Đánh giá từ khách ({reviews.length})</h3>
-            </div>
-            <div className="card-body">
-              {reviews.length === 0 ? (
-                <div className="empty-state">
-                  <p>Chưa có đánh giá nào.</p>
-                </div>
-              ) : (
-                <ul className="flex flex-col" style={{ gap: 'var(--space-md)' }}>
-                  {reviews.map((r) => (
-                    <li key={r.id} style={{ paddingBottom: 'var(--space-md)', borderBottom: '1px solid var(--border-color)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                        <span className="avatar avatar-sm">{r.reviewer_name.charAt(0)}</span>
-                        <strong>{r.reviewer_name}</strong>
-                        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{'⭐'.repeat(r.rating)}</span>
-                        <span className="text-xs text-muted">{new Date(r.created_at).toLocaleDateString('vi-VN')}</span>
+                    <div className="form-group">
+                      <label className="form-label">Ngôn ngữ bạn nói *</label>
+                      <div className="languages-grid">
+                        {LANGS.map((l) => (
+                          <button
+                            key={l}
+                            type="button"
+                            className={`language-btn ${buddy.languages.includes(l) ? 'selected' : ''}`}
+                            onClick={() => toggleLanguage(l)}
+                          >
+                            {l}
+                          </button>
+                        ))}
                       </div>
-                      {r.comment && <p className="text-sm">{r.comment}</p>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </main>
+                    </div>
 
-        <aside>
-          <div className="card text-center">
-            <div className="card-body">
-              <span className="avatar avatar-2xl mx-auto">{buddy.profile.full_name.charAt(0)}</span>
-              <h3 className="mt-md">{buddy.profile.full_name}</h3>
-              <p className="text-sm text-muted">{buddy.location_city}</p>
-              <div className="mt-md">
-                <span className={`badge ${buddy.is_available ? 'badge-success' : 'badge-danger'}`}>
-                  {buddy.is_available ? '🟢 Đang nhận khách' : '⚪ Tạm ẩn'}
-                </span>
-              </div>
-              <hr style={{ margin: 'var(--space-md) 0' }} />
-              <div className="text-sm">
-                <div className="flex-between py-xs">
-                  <span className="text-muted">⭐ Đánh giá TB</span>
-                  <strong>{buddy.rating_avg ? buddy.rating_avg.toFixed(1) : '—'}</strong>
-                </div>
-                <div className="flex-between py-xs">
-                  <span className="text-muted">🧳 Chuyến hoàn thành</span>
-                  <strong>{buddy.trips_completed}</strong>
-                </div>
-                <div className="flex-between py-xs">
-                  <span className="text-muted">💵 Phí/giờ</span>
-                  <strong>${buddy.hourly_rate}</strong>
-                </div>
+                    <div className="form-group">
+                      <label className="form-label">Chuyên môn *</label>
+                      <div className="languages-grid">
+                        {SPECIALTIES.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            className={`language-btn ${buddy.specialties.includes(s) ? 'selected' : ''}`}
+                            onClick={() => toggleSpecialty(s)}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'reviews' && (
+                  <div className="tab-panel">
+                    <div className="panel-header">
+                      <h2>Đánh giá từ khách ({reviews.length})</h2>
+                    </div>
+                    {reviews.length === 0 ? (
+                      <div className="empty-state">
+                        <div style={{ fontSize: 48 }}>⭐</div>
+                        <h3>Chưa có đánh giá nào</h3>
+                        <p>Hoàn thành chuyến đi đầu tiên để nhận đánh giá từ du khách.</p>
+                      </div>
+                    ) : (
+                      <div className="reviews-list">
+                        {reviews.map((r) => (
+                          <div key={r.id} className="review-item">
+                            <div className="review-header">
+                              <div className="reviewer-info-inline">
+                                <div className="reviewer-avatar-small">{r.reviewer_name.charAt(0)}</div>
+                                <div>
+                                  <h3>{r.reviewer_name}</h3>
+                                  <span className="review-trip">Đánh giá bạn</span>
+                                </div>
+                              </div>
+                              <span className="review-date">{new Date(r.created_at).toLocaleDateString('vi-VN')}</span>
+                            </div>
+                            <div className="review-rating">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <span key={s} style={{ color: s <= r.rating ? 'var(--accent)' : 'var(--border-color)' }}>★</span>
+                              ))}
+                            </div>
+                            {r.comment && <p className="review-comment">{r.comment}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'account' && (
+                  <div className="tab-panel">
+                    <div className="panel-header">
+                      <h2>Tài khoản</h2>
+                    </div>
+
+                    <div className="settings-section">
+                      <h3>🔒 Đổi mật khẩu</h3>
+                      <form onSubmit={handleChangePassword}>
+                        <div className="form-group">
+                          <label className="form-label">Mật khẩu hiện tại</label>
+                          <input type="password" name="old" className="form-input" autoComplete="current-password" />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Mật khẩu mới</label>
+                          <input type="password" name="new" className="form-input" autoComplete="new-password" maxLength={128} />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Xác nhận mật khẩu mới</label>
+                          <input type="password" name="confirm" className="form-input" autoComplete="new-password" maxLength={128} />
+                        </div>
+                        {pwMsg && (
+                          <div className={`alert ${pwMsg.startsWith('✓') ? 'alert-success' : 'alert-error'}`}>
+                            <span>{pwMsg.startsWith('✓') ? '✓' : '⚠️'}</span>
+                            <span>{pwMsg}</span>
+                          </div>
+                        )}
+                        <button type="submit" className="btn btn-primary" disabled={pwSaving}>
+                          {pwSaving ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
+                        </button>
+                      </form>
+                    </div>
+
+                    <div className="settings-section danger">
+                      <h3>⚠️ Xóa tài khoản</h3>
+                      <p className="setting-desc">
+                        Hành động này sẽ xóa vĩnh viễn hồ sơ, yêu cầu và đánh giá của bạn.
+                      </p>
+                      <button type="button" onClick={handleDeleteAccount} className="btn btn-danger mt-md">
+                        Xóa tài khoản
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        </aside>
-      </div>
 
-      <style>{`
-        .buddy-profile-grid {
-          display: grid;
-          grid-template-columns: 2fr 1fr;
-          gap: var(--space-lg);
-        }
-        @media (max-width: 900px) {
-          .buddy-profile-grid { grid-template-columns: 1fr; }
-        }
-        .tab-bar {
-          display: flex;
-          gap: 4px;
-          border-bottom: 2px solid var(--border-color);
-        }
-        .tab {
-          padding: 10px 16px;
-          background: transparent;
-          border: none;
-          border-bottom: 3px solid transparent;
-          margin-bottom: -2px;
-          cursor: pointer;
-          font-size: var(--font-size-sm);
-          font-weight: 500;
-          color: var(--text-secondary);
-        }
-        .tab.active {
-          color: var(--primary);
-          border-bottom-color: var(--primary);
-          font-weight: 600;
-        }
-      `}</style>
+            {/* Sidebar */}
+            <aside className="profile-sidebar">
+              <div className="profile-card">
+                <div className="profile-avatar">
+                  <span className="avatar-placeholder">{firstName.charAt(0)}</span>
+                </div>
+                <h2 className="profile-name">{buddy.profile.full_name}</h2>
+                <span className="profile-role">Local Buddy</span>
+                <p className="text-xs text-muted mt-sm">{buddy.location_city}</p>
+                <div className="mt-md">
+                  <span className={`badge ${buddy.is_available ? 'badge-success' : 'badge-danger'}`}>
+                    {buddy.is_available ? '🟢 Đang nhận khách' : '⚪ Tạm ẩn'}
+                  </span>
+                </div>
+
+                <Link href="/buddy/dashboard" className="btn btn-outline edit-btn">
+                  ← Về Dashboard
+                </Link>
+
+                <nav className="profile-nav">
+                  <button className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Hồ sơ
+                  </button>
+                  <button className={`nav-item ${activeTab === 'interests' ? 'active' : ''}`} onClick={() => setActiveTab('interests')}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Chuyên môn
+                  </button>
+                  <button className={`nav-item ${activeTab === 'reviews' ? 'active' : ''}`} onClick={() => setActiveTab('reviews')}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    Đánh giá ({reviews.length})
+                  </button>
+                  <button className={`nav-item ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    Tài khoản
+                  </button>
+                </nav>
+
+                <hr style={{ margin: 'var(--space-md) 0' }} />
+
+                <div className="text-sm">
+                  <div className="flex-between py-xs">
+                    <span className="text-muted">⭐ Đánh giá TB</span>
+                    <strong>{buddy.rating_avg ? buddy.rating_avg.toFixed(1) : '—'}</strong>
+                  </div>
+                  <div className="flex-between py-xs">
+                    <span className="text-muted">🧳 Chuyến hoàn thành</span>
+                    <strong>{buddy.trips_completed}</strong>
+                  </div>
+                  <div className="flex-between py-xs">
+                    <span className="text-muted">💵 Phí/giờ</span>
+                    <strong>${buddy.hourly_rate}</strong>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
