@@ -3,7 +3,7 @@
 import { useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { signUp, signIn, createClient } from '@/utils/supabase/auth'
+import { signIn, createClient } from '@/utils/supabase/auth'
 import './register.css'
 
 type Role = 'tourist' | 'buddy'
@@ -191,27 +191,39 @@ function RegisterForm() {
     setLoading(true)
 
     try {
-      const { data, error: signUpError } = await signUp(
-        form.email,
-        form.password,
-        form.fullName,
-        form.role,
-      )
+      // Sign up via the server route (admin API → bypasses GoTrue email
+      // rate-limit and immediately confirms the email). The route also returns
+      // a userId we can use to populate the role-specific row below.
+      const signupRes = await fetch('/api/auth/signup-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          fullName: form.fullName,
+          role: form.role,
+        }),
+      })
 
-      if (signUpError || !data.user) {
-        setError(signUpError?.message || 'Sign up failed.')
+      if (!signupRes.ok) {
+        const body = await signupRes
+          .json()
+          .catch(() => ({ error: 'Unknown error' }))
+        setError(body.error ?? `Sign up failed (${signupRes.status}).`)
         setLoading(false)
         return
       }
 
-      // The auth trigger inserts a public.profiles row. Now ask the server to
-      // upsert the role-specific row (tourists/buddies) using the service-role
-      // key. The route handler also auto-confirms the email if needed, so the
-      // user can sign in immediately even if "Confirm email" is enabled in
-      // Supabase.
-      const userId = data.user.id
-      const hadSession = !!data.session
+      const { userId } = (await signupRes.json()) as { userId: string }
+      if (!userId) {
+        setError('Sign up did not return a user id.')
+        setLoading(false)
+        return
+      }
 
+      // The signup-admin route uses the admin API so the trigger on
+      // auth.users may or may not have populated public.profiles depending on
+      // whether it's enabled. /api/auth/create-profile defensively upserts.
       const payload =
         form.role === 'tourist'
           ? {
@@ -242,9 +254,10 @@ function RegisterForm() {
           userId,
           role: form.role,
           payload,
-          // Ask the server to confirm the email only when signUp didn't already
-          // issue a session (i.e., the project has "Confirm email" ON).
-          autoConfirm: !hadSession,
+          // autoConfirm=true because signup-admin already confirmed, but the
+          // flag here also handles the (rare) case where confirmation didn't
+          // stick.
+          autoConfirm: true,
         }),
       })
 
@@ -260,9 +273,6 @@ function RegisterForm() {
       }
 
       // Mirror phone + bio onto profiles so dashboard/profile pages see them.
-      // If the user has no session yet (auto-confirm path), this will run with
-      // the just-confirmed session — but the trigger has already populated the
-      // row, so a simple client-side update is safe and additive.
       try {
         const supabase = createClient()
         const profileUpdate: Record<string, unknown> = {}
@@ -275,18 +285,7 @@ function RegisterForm() {
         // Non-fatal: profile extras are best-effort.
       }
 
-      // If we already have a session from signUp, route straight to dashboard.
-      // Otherwise ask the user to sign in with their new credentials — the
-      // server has just confirmed their email, so the next signIn will succeed.
-      if (hadSession) {
-        const dest = form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'
-        router.push(dest)
-        return
-      }
-
-      // No session yet: try a fresh sign-in (the server just confirmed the
-      // email, so this should succeed). If it still fails, send the user to
-      // /login with the registered flag so the UI can show a friendly message.
+      // Sign in with the credentials so the cookie session is set client-side.
       const { error: signInError } = await signIn(form.email, form.password)
       if (signInError) {
         router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)

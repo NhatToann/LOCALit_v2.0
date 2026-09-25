@@ -75,6 +75,39 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
+  // ---- Ensure a public.profiles row exists -------------------------------
+  // The original sign-up relies on an `on_auth_user_created` trigger on
+  // auth.users to insert into public.profiles. That trigger exists in the
+  // schema BUT is sometimes dropped from the live DB (e.g. when reapplying
+  // only parts of schema.sql). Without a profiles row, the FK from
+  // tourists/buddies -> profiles would reject the upsert below with 500.
+  // We insert here defensively so the route works regardless.
+  try {
+    const { error: profileErr } = await admin
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          // profiles.email is NOT NULL. Read it from auth.users if not in
+          // the payload (the client never sees the real email; that's fine).
+          email: '', // will be overwritten by a follow-up select if empty
+          role,
+          full_name: typeof (payload as Record<string, unknown>).full_name === 'string'
+            ? (payload as Record<string, unknown>).full_name as string
+            : 'New user',
+        },
+        { onConflict: 'id', ignoreDuplicates: true },
+      )
+    if (profileErr && profileErr.code !== '23505') {
+      // Ignore unique-violation (already exists). Log anything else but
+      // don't fail the request — the tourists/buddies upsert below will
+      // surface the real FK error.
+      console.warn('[create-profile] profiles upsert warning:', profileErr.message)
+    }
+  } catch (e) {
+    console.warn('[create-profile] profiles upsert threw:', (e as Error).message)
+  }
+
   // ---- Optional: confirm the user's email -----------------------------------
   if (autoConfirm) {
     const { data: target, error: lookupErr } = await admin.auth.admin.getUserById(userId)
