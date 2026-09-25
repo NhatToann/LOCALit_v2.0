@@ -14,20 +14,28 @@ export default function BuddyDashboardPage() {
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setLoading(false)
+          return
+        }
 
-      const [{ data: p }, { data: c }, { data: t }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', user.id).single<Profile>(),
-        supabase.from('connections').select('*, tourist:tourists(*, profile:profiles(*))').eq('buddy_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('trips').select('*, tourist:tourists(*, profile:profiles(*))').eq('buddy_id', user.id),
-      ])
+        const [{ data: p }, { data: c }, { data: t }] = await Promise.all([
+          supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
+          supabase.from('connections').select('*, tourist:tourists(*, profile:profiles(*))').eq('buddy_id', user.id).order('created_at', { ascending: false }),
+          supabase.from('trips').select('*, tourist:tourists(*, profile:profiles(*))').eq('buddy_id', user.id),
+        ])
 
-      setProfile(p)
-      setRequests((c || []) as Connection[])
-      setTrips((t || []) as Trip[])
-      setLoading(false)
+        setProfile(p ?? null)
+        setRequests((c || []) as Connection[])
+        setTrips((t || []) as Trip[])
+      } catch (err) {
+        console.error('Buddy dashboard load failed:', err)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])

@@ -32,40 +32,48 @@ export default function TouristDashboardPage() {
   }, [])
 
   async function load() {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
 
-    const [{ data: p }, { data: t }, { data: c }, { data: buddyPins }, { count: rCount }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', user.id).single<Profile>(),
-      supabase
-        .from('trips')
-        .select('*, buddy:buddies(id, location_city, latitude, longitude, profile:profiles(full_name, is_online))')
-        .eq('tourist_id', user.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('connections')
-        .select('*, buddy:buddies(*, profile:profiles(full_name, is_online))')
-        .eq('tourist_id', user.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('buddies')
-        .select('id, location_city, latitude, longitude, is_available, profile:profiles(full_name, is_online)')
-        .not('latitude', 'is', null)
-        .not('longitude', 'is', null)
-        .limit(20),
-      supabase
-        .from('reviews')
-        .select('id', { count: 'exact', head: true })
-        .eq('reviewer_id', user.id),
-    ])
+      const [{ data: p }, { data: t }, { data: c }, { data: buddyPins }, { count: rCount }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
+        supabase
+          .from('trips')
+          .select('*, buddy:buddies(id, location_city, latitude, longitude, profile:profiles(full_name, is_online))')
+          .eq('tourist_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('connections')
+          .select('*, buddy:buddies(*, profile:profiles(full_name, is_online))')
+          .eq('tourist_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('buddies')
+          .select('id, location_city, latitude, longitude, is_available, profile:profiles(full_name, is_online)')
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .limit(20),
+        supabase
+          .from('reviews')
+          .select('id', { count: 'exact', head: true })
+          .eq('reviewer_id', user.id),
+      ])
 
-    setProfile(p)
-    setTrips((t || []) as Trip[])
-    setConnections((c || []) as Connection[])
-    setBuddies(buddyPins ?? [])
-    setReviewsCount(rCount ?? 0)
-    setLoading(false)
+      setProfile(p ?? null)
+      setTrips((t || []) as Trip[])
+      setConnections((c || []) as Connection[])
+      setBuddies(buddyPins ?? [])
+      setReviewsCount(rCount ?? 0)
+    } catch (err) {
+      console.error('Tourist dashboard load failed:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) {

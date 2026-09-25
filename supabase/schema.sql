@@ -470,3 +470,18 @@ BEGIN
   RETURN R * c;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
+
+-- ============================================================
+-- GRANTS: enable anon and authenticated roles to access tables
+-- (RLS still applies, but without these the roles cannot read at all)
+-- ============================================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+
+-- Future tables (e.g. test_items) get the same grants automatically
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO anon, authenticated;
