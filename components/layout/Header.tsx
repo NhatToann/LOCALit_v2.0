@@ -175,19 +175,19 @@ export default function Header({ userRole, userName }: HeaderProps) {
           {!userRole ? (
             <>
               <Link href="/login" className="btn btn-outline btn-block">
-                Đăng nhập
+                Sign in
               </Link>
               <Link href="/register" className="btn btn-primary btn-block">
-                Đăng ký
+                Sign up
               </Link>
             </>
           ) : (
             <>
               <Link href={profilePath} className="btn btn-outline btn-block">
-                👤 Hồ sơ của tôi
+                👤 My Profile
               </Link>
               <button onClick={handleSignOut} className="btn btn-danger btn-block">
-                🚪 Đăng xuất
+                🚪 Sign out
               </button>
             </>
           )}

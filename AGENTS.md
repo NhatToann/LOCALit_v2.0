@@ -116,12 +116,12 @@ When user returns, ask if they want to:
 5. Real-time chat (Supabase Realtime)
 6. Image uploads (Supabase Storage)
 7. Payments (Stripe)
-8. i18n (Vietnamese primary, English secondary — current strings are Vietnamese)
+8. i18n (English primary, Vietnamese secondary — current strings are English; legacy Vietnamese strings were removed in commit before the latest deploy)
 
 ## Session Etiquette
 
 - Always verify the production URL still works at session start (`vercel curl`)
-- Keep Vietnamese text in UI strings (target audience)
+- Keep UI strings in English (target audience for the current Da Nang scope); future i18n work may add Vietnamese as a toggle
 - Commit often with conventional commits (`feat:`, `fix:`, `chore:`)
 - Update this file as project evolves — single source of truth for cross-session context
 

@@ -18,7 +18,7 @@ function ResetPasswordForm() {
     async function check() {
       const user = await getCurrentUser()
       if (!user) {
-        setError('Liên kết đặt lại không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu lại.')
+        setError('This reset link is invalid or has expired. Please request a new one.')
       }
       setChecking(false)
     }
@@ -34,11 +34,11 @@ function ResetPasswordForm() {
     setError('')
 
     if (!passwordValid) {
-      setError('Mật khẩu phải có ít nhất 8 ký tự, gồm chữ và số.')
+      setError('Password must be at least 8 characters and include letters and numbers.')
       return
     }
     if (!passwordsMatch) {
-      setError('Mật khẩu xác nhận không khớp.')
+      setError('The confirmation password does not match.')
       return
     }
 
@@ -47,7 +47,7 @@ function ResetPasswordForm() {
     setLoading(false)
 
     if (updateError) {
-      setError(updateError.message || 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.')
+      setError(updateError.message || 'Could not reset your password. Please try again.')
       return
     }
 
@@ -76,8 +76,8 @@ function ResetPasswordForm() {
         <div className="card-body">
           <div className="text-center mb-lg">
             <div style={{ fontSize: 40 }}>🔒</div>
-            <h1 className="text-2xl mt-sm">Đặt lại mật khẩu</h1>
-            <p className="text-muted text-sm mt-xs">Nhập mật khẩu mới cho tài khoản của bạn.</p>
+            <h1 className="text-2xl mt-sm">Reset your password</h1>
+            <p className="text-muted text-sm mt-xs">Choose a new password for your account.</p>
           </div>
 
           {error ? (
@@ -89,12 +89,12 @@ function ResetPasswordForm() {
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="form-label" htmlFor="password">Mật khẩu mới</label>
+              <label className="form-label" htmlFor="password">New password</label>
               <input
                 id="password"
                 type="password"
                 className="form-input"
-                placeholder="Tối thiểu 8 ký tự, có chữ và số"
+                placeholder="At least 8 characters with letters and numbers"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
@@ -104,18 +104,18 @@ function ResetPasswordForm() {
               />
               {password && !passwordValid && (
                 <p className="text-xs text-danger mt-xs">
-                  Mật khẩu phải có ít nhất 8 ký tự, gồm chữ cái và số.
+                  Password must be at least 8 characters and include both letters and numbers.
                 </p>
               )}
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="confirm">Xác nhận mật khẩu</label>
+              <label className="form-label" htmlFor="confirm">Confirm password</label>
               <input
                 id="confirm"
                 type="password"
                 className="form-input"
-                placeholder="Nhập lại mật khẩu mới"
+                placeholder="Re-enter your new password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
@@ -123,17 +123,17 @@ function ResetPasswordForm() {
                 required
               />
               {confirmPassword && !passwordsMatch && (
-                <p className="text-xs text-danger mt-xs">Mật khẩu xác nhận không khớp.</p>
+                <p className="text-xs text-danger mt-xs">The confirmation password does not match.</p>
               )}
             </div>
 
             <button type="submit" className="btn btn-primary btn-block" disabled={!canSubmit}>
-              {loading ? 'Đang lưu...' : 'Đặt lại mật khẩu'}
+              {loading ? 'Saving...' : 'Reset password'}
             </button>
           </form>
 
           <div className="text-center mt-lg">
-            <Link href="/login" className="text-sm text-muted">← Quay lại đăng nhập</Link>
+            <Link href="/login" className="text-sm text-muted">← Back to sign in</Link>
           </div>
         </div>
       </div>

@@ -143,7 +143,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
 
         {showSelfMarker && (
           <Marker position={[userLocation.lat, userLocation.lng]} icon={userIcon}>
-            <Popup><strong>Bạn đang ở đây</strong></Popup>
+            <Popup><strong>You are here</strong></Popup>
           </Marker>
         )}
 
@@ -161,7 +161,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
                 <div style={{ fontSize: 12, marginTop: 4 }}>🗣️ {b.languages.slice(0, 2).join(', ')}</div>
                 <div style={{ fontSize: 12 }}>{b.is_online ? '🟢 Online' : '⚪ Offline'}</div>
                 <Link href={`/tourist/buddy/${b.id}`} style={{ display: 'inline-block', marginTop: 8, color: '#FF6B35', fontWeight: 600, fontSize: 12 }}>
-                  Xem hồ sơ →
+                  View profile →
                 </Link>
               </div>
             </Popup>
@@ -186,7 +186,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
           <div className="loading-spinner" style={{ width: 14, height: 14 }} />
-          Đang tải bản đồ...
+          Loading map...
         </div>
       )}
     </div>

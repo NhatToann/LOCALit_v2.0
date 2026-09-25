@@ -19,7 +19,7 @@ function ForgotPasswordForm() {
     setError('')
 
     if (!emailValid) {
-      setError('Vui lòng nhập email hợp lệ.')
+      setError('Please enter a valid email address.')
       return
     }
 
@@ -28,7 +28,7 @@ function ForgotPasswordForm() {
     setLoading(false)
 
     if (resetError) {
-      setError('Không thể gửi email. Vui lòng thử lại sau.')
+      setError('Could not send the email. Please try again later.')
       return
     }
     setSent(true)
@@ -38,12 +38,12 @@ function ForgotPasswordForm() {
     <main className="min-h-screen flex-center" style={{ background: 'var(--bg-light)' }}>
       <div className="card" style={{ width: '100%', maxWidth: 420 }}>
         <div className="card-body">
-          <Link href="/login" className="text-primary text-sm">← Quay lại đăng nhập</Link>
+          <Link href="/login" className="text-primary text-sm">← Back to sign in</Link>
           <div className="text-center mt-md mb-lg">
             <div style={{ fontSize: 40 }}>🔑</div>
-            <h1 className="text-2xl mt-sm">Quên mật khẩu?</h1>
+            <h1 className="text-2xl mt-sm">Forgot password?</h1>
             <p className="text-muted text-sm mt-xs">
-              Nhập email đã đăng ký, chúng tôi sẽ gửi link đặt lại mật khẩu.
+              Enter your registered email and we&apos;ll send you a reset link.
             </p>
           </div>
 
@@ -51,9 +51,9 @@ function ForgotPasswordForm() {
             <div className="alert alert-success">
               <span>✓</span>
               <div>
-                <p className="font-semibold">Đã gửi email đặt lại!</p>
+                <p className="font-semibold">Reset email sent!</p>
                 <p className="text-sm mt-xs">
-                  Kiểm tra hộp thư <strong>{email}</strong> và làm theo hướng dẫn.
+                  Check the inbox for <strong>{email}</strong> and follow the instructions.
                 </p>
               </div>
             </div>
@@ -73,7 +73,7 @@ function ForgotPasswordForm() {
                   required
                 />
                 {email && !emailValid && (
-                  <p className="text-xs text-danger mt-xs">Định dạng email chưa đúng.</p>
+                  <p className="text-xs text-danger mt-xs">That email address isn&apos;t valid.</p>
                 )}
               </div>
 
@@ -89,13 +89,13 @@ function ForgotPasswordForm() {
                 className="btn btn-primary btn-block"
                 disabled={loading || !emailValid}
               >
-                {loading ? 'Đang gửi...' : 'Gửi link đặt lại'}
+                {loading ? 'Sending...' : 'Send reset link'}
               </button>
             </form>
           )}
 
           <div className="text-center mt-lg">
-            <Link href="/login" className="text-sm text-muted">Quay lại đăng nhập</Link>
+            <Link href="/login" className="text-sm text-muted">Back to sign in</Link>
           </div>
         </div>
       </div>
