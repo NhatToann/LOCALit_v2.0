@@ -1,56 +1,167 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { createClient, getCurrentUser } from '@/utils/supabase/auth'
+import Link from 'next/link'
+import { useLocationWatcher } from '@/hooks/useLocationWatcher'
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
 
+interface BuddyMarker {
+  id: string
+  name: string
+  city: string | null
+  languages: string[]
+  rating_avg: number | null
+  lat: number
+  lng: number
+  is_online: boolean
+}
+
 export default function MapPage() {
-  const [locationAllowed, setLocationAllowed] = useState(false)
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [buddies, setBuddies] = useState<BuddyMarker[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [locationGranted, setLocationGranted] = useState(false)
+  const [error, setError] = useState('')
+
+  const userLocation = useLocationWatcher({
+    onGranted: () => setLocationGranted(true),
+    onDenied: () => setLocationGranted(false),
+  })
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !navigator.geolocation) return
+    async function load() {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('buddies')
+        .select('id, location_city, latitude, longitude, languages, hourly_rate, profile:profiles(full_name, is_online)')
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null)
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserLocation({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        })
-        setLocationAllowed(true)
-      },
-      () => {
-        // Fallback to Da Nang center
-        setUserLocation({ lat: 16.0544, lng: 108.2023 })
-        setLocationAllowed(true)
+      if (data) {
+        const mapped: BuddyMarker[] = (data as any[])
+          .filter((b) => b.latitude !== null && b.longitude !== null)
+          .map((b) => ({
+            id: b.id,
+            name: b.profile?.full_name ?? 'Buddy',
+            city: b.location_city,
+            languages: b.languages ?? [],
+            rating_avg: null,
+            lat: b.latitude,
+            lng: b.longitude,
+            is_online: b.profile?.is_online ?? false,
+          }))
+        setBuddies(mapped)
       }
-    )
+    }
+    load()
   }, [])
 
-  if (!locationAllowed || !userLocation) {
-    return (
-      <div className="container py-xl text-center">
-        <div className="loading-spinner mx-auto" />
-        <p className="text-muted mt-md">Đang xác định vị trí của bạn...</p>
-      </div>
-    )
-  }
+  const selected = buddies.find((b) => b.id === selectedId)
 
   return (
     <div className="container py-xl">
-      <div className="mb-lg">
-        <h1 className="text-3xl font-bold">📍 Bản đồ Buddy</h1>
-        <p className="text-muted mt-sm">Xem các buddy và tourist đang hoạt động gần bạn</p>
+      <div className="flex-between mb-lg" style={{ flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 className="text-3xl">Bản đồ Buddy</h1>
+          <p className="text-muted mt-sm">
+            {buddies.length} buddy đang hiển thị trên bản đồ
+            {locationGranted ? ' · 📍 Vị trí của bạn đã bật' : ' · ⚠️ Chưa bật vị trí'}
+          </p>
+        </div>
+        <div className="flex gap-sm">
+          {!locationGranted && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                if (typeof navigator !== 'undefined' && navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    () => setLocationGranted(true),
+                    (err) => setError('Không thể truy cập vị trí: ' + err.message)
+                  )
+                }
+              }}
+            >
+              📍 Bật chia sẻ vị trí
+            </button>
+          )}
+          <Link href="/tourist/browse" className="btn btn-outline">Danh sách</Link>
+        </div>
       </div>
 
-      <div className="card" style={{ height: '70vh', overflow: 'hidden' }}>
-        <MapView userLocation={userLocation} />
-      </div>
+      {error && (
+        <div className="alert alert-error mb-md"><span>⚠️</span><span>{error}</span></div>
+      )}
 
-      <div className="mt-lg flex gap-md">
-        <Link href="/tourist/browse" className="btn btn-primary">Tìm buddy</Link>
+      <div style={{
+        height: 'calc(100vh - var(--header-height) - 200px)',
+        minHeight: 500,
+        borderRadius: 'var(--border-radius-lg)',
+        overflow: 'hidden',
+        boxShadow: 'var(--shadow)',
+        position: 'relative',
+      }}>
+        <MapView
+          userLocation={userLocation}
+          height="100%"
+          onSelectBuddy={(id) => setSelectedId(id)}
+        />
+
+        {/* Legend */}
+        <div style={{
+          position: 'absolute', bottom: 16, left: 16, zIndex: 500,
+          background: 'white', padding: '10px 14px', borderRadius: 8,
+          boxShadow: 'var(--shadow-md)', fontSize: 13,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#FF6B35', display: 'inline-block' }} />
+            <span>Local Buddy</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#17A2B8', display: 'inline-block' }} />
+            <span>Tourist</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#4dd0e1', display: 'inline-block' }} />
+            <span>Bạn</span>
+          </div>
+        </div>
+
+        {/* Selected popup */}
+        {selected && (
+          <div style={{
+            position: 'absolute', top: 16, right: 16, zIndex: 500,
+            width: 280, background: 'white', borderRadius: 'var(--border-radius-lg)',
+            boxShadow: 'var(--shadow-lg)', padding: 'var(--space-md)',
+          }}>
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              aria-label="Đóng"
+              style={{ position: 'absolute', top: 8, right: 8, background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 18, width: 28, height: 28, borderRadius: '50%' }}
+            >✕</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <span className="avatar avatar-lg">{selected.name.charAt(0)}</span>
+              <div>
+                <h4>{selected.name}</h4>
+                <p className="text-sm text-muted">📍 {selected.city}</p>
+              </div>
+            </div>
+            <div style={{ marginBottom: 12, fontSize: 13 }}>
+              🗣️ {selected.languages.slice(0, 3).join(', ')}
+            </div>
+            <div className="flex gap-sm">
+              <Link href={`/tourist/buddy/${selected.id}`} className="btn btn-primary btn-sm flex-1" style={{ flex: 1 }}>
+                Hồ sơ
+              </Link>
+              <Link href={`/chat?buddy=${selected.id}`} className="btn btn-outline btn-sm" style={{ flex: 1 }}>
+                💬 Nhắn
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

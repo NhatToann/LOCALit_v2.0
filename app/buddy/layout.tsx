@@ -14,7 +14,7 @@ export default async function BuddyLayout({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('full_name, role')
     .eq('id', user.id)
     .single()
 
@@ -24,7 +24,7 @@ export default async function BuddyLayout({
 
   return (
     <>
-      <Header userRole="buddy" />
+      <Header userRole="buddy" userName={profile?.full_name ?? undefined} />
       <main className="page-wrapper">{children}</main>
     </>
   )

@@ -25,7 +25,7 @@ export default async function TouristLayout({
 
   return (
     <>
-      <Header userRole="tourist" />
+      <Header userRole="tourist" userName={profile?.full_name} />
       <main className="page-wrapper">{children}</main>
     </>
   )

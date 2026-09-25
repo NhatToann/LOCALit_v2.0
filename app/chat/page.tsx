@@ -1,21 +1,59 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/utils/supabase/auth'
-import type { Conversation, Message } from '@/lib/types'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { createClient, getCurrentUser } from '@/utils/supabase/auth'
+import type { Message } from '@/lib/types'
 
-export default function ChatPage() {
-  const [conversations, setConversations] = useState<any[]>([])
+interface ConvSummary {
+  id: string
+  tourist_id: string
+  buddy_id: string
+  tourist_name: string
+  buddy_name: string
+  partner_name: string
+  partner_city: string | null
+  is_partner_online: boolean
+  updated_at: string
+}
+
+function ChatInner() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const buddyParam = searchParams.get('buddy')
+  const convParam = searchParams.get('c')
+
+  const [myId, setMyId] = useState<string | null>(null)
+  const [conversations, setConversations] = useState<ConvSummary[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    loadConversations()
+    init()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (buddyParam && myId) {
+      openConversationWithBuddy(buddyParam)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buddyParam, myId])
+
+  useEffect(() => {
+    if (convParam && myId) {
+      // Just select this conversation from existing list
+      const exists = conversations.some((c) => c.id === convParam)
+      if (exists) setActiveId(convParam)
+      router.replace('/chat')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convParam, myId, conversations.length])
 
   useEffect(() => {
     if (activeId) loadMessages(activeId)
@@ -25,89 +63,172 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function loadConversations() {
+  async function init() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) {
+      router.push('/login')
+      return
+    }
+    setMyId(user.id)
+    await loadConversations(user.id)
+    setLoading(false)
+  }
 
+  async function loadConversations(uid: string) {
+    const supabase = createClient()
     const { data } = await supabase
       .from('conversations')
-      .select('*, tourist:tourists(*, profile:profiles(*)), buddy:buddies(*, profile:profiles(*))')
-      .or(`tourist_id.eq.${user.id},buddy_id.eq.${user.id}`)
+      .select('id, tourist_id, buddy_id, updated_at, tourist:tourists(profile:profiles(full_name)), buddy:buddies(location_city, profile:profiles(full_name, is_online))')
+      .or(`tourist_id.eq.${uid},buddy_id.eq.${uid}`)
       .order('updated_at', { ascending: false })
 
-    setConversations(data || [])
-    if (data && data.length > 0) setActiveId(data[0].id)
-    setLoading(false)
+    const mapped: ConvSummary[] = (data ?? []).map((c: any) => {
+      const isTouristSide = c.tourist_id === uid
+      const partner = isTouristSide ? c.buddy : c.tourist
+      const partnerName = partner?.profile?.full_name ?? 'Buddy'
+      return {
+        id: c.id,
+        tourist_id: c.tourist_id,
+        buddy_id: c.buddy_id,
+        tourist_name: c.tourist?.profile?.full_name ?? '',
+        buddy_name: partner?.profile?.full_name ?? '',
+        partner_name: partnerName,
+        partner_city: partner?.location_city ?? null,
+        is_partner_online: !!partner?.profile?.is_online,
+        updated_at: c.updated_at,
+      }
+    })
+    setConversations(mapped)
+    if (mapped.length > 0) setActiveId(mapped[0].id)
+  }
+
+  async function openConversationWithBuddy(otherBuddyId: string) {
+    if (!myId) return
+    const supabase = createClient()
+    const me = await getCurrentUser()
+    if (!me) return
+
+    // Try to find existing
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('id')
+      .or(`and(tourist_id.eq.${me.id},buddy_id.eq.${otherBuddyId}),and(tourist_id.eq.${otherBuddyId},buddy_id.eq.${me.id})`)
+      .maybeSingle()
+
+    let convId = existing?.id
+    if (!convId) {
+      const { data: created, error } = await supabase
+        .from('conversations')
+        .insert({ tourist_id: me.id, buddy_id: otherBuddyId })
+        .select('id')
+        .single()
+      if (error) {
+        alert('Không thể mở cuộc trò chuyện: ' + error.message)
+        return
+      }
+      convId = created.id
+    }
+    await loadConversations(me.id)
+    setActiveId(convId)
+    // Clean up the query param so refresh doesn't reopen
+    router.replace('/chat')
   }
 
   async function loadMessages(conversationId: string) {
     const supabase = createClient()
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .select('*')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
 
-    setMessages((data as Message[]) || [])
+    if (error) {
+      console.error(error)
+      return
+    }
+    setMessages((data as Message[]) ?? [])
 
-    // Mark as read
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      await supabase.from('messages')
+    // Mark unread messages as read
+    if (myId) {
+      await supabase
+        .from('messages')
         .update({ is_read: true })
         .eq('conversation_id', conversationId)
-        .neq('sender_id', user.id)
+        .neq('sender_id', myId)
     }
   }
 
-  // Subscribe to realtime
+  // Realtime subscription
   useEffect(() => {
     if (!activeId) return
-
     const supabase = createClient()
     const channel = supabase
       .channel(`conv-${activeId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${activeId}` },
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${activeId}` },
         (payload) => {
-          setMessages(prev => [...prev, payload.new as Message])
-        })
+          setMessages((prev) => {
+            const next = payload.new as Message
+            if (prev.some((m) => m.id === next.id)) return prev
+            return [...prev, next]
+          })
+          // Mark as read if it's from partner
+          if (myId && payload.new.sender_id !== myId) {
+            supabase.from('messages').update({ is_read: true }).eq('id', payload.new.id).then()
+          }
+        },
+      )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [activeId])
+  }, [activeId, myId])
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
-    if (!draft.trim() || !activeId) return
-
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
     const content = draft.trim()
+    if (!content || !activeId || !myId) return
+    if (content.length > 1000) return
+    setSending(true)
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: activeId,
+        sender_id: myId,
+        content,
+      })
+      .select('*')
+      .single()
+
+    if (error) {
+      alert('Không thể gửi: ' + error.message)
+      setSending(false)
+      return
+    }
+    if (data) setMessages((prev) => [...prev, data as Message])
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', activeId)
     setDraft('')
-
-    await supabase.from('messages').insert({
-      conversation_id: activeId,
-      sender_id: user.id,
-      content,
-    })
-
-    await supabase.from('conversations').update({
-      updated_at: new Date().toISOString(),
-    }).eq('id', activeId)
+    setSending(false)
   }
 
   if (loading) {
     return <div className="container py-xl text-center"><div className="loading-spinner mx-auto" /></div>
   }
 
-  if (conversations.length === 0) {
+  const activeConv = conversations.find((c) => c.id === activeId)
+
+  if (conversations.length === 0 && !buddyParam) {
     return (
       <div className="container py-xl">
+        <h1 className="text-3xl font-bold mb-lg">💬 Tin nhắn</h1>
         <div className="empty-state">
           <p style={{ fontSize: 48 }}>💬</p>
           <h3>Chưa có cuộc trò chuyện</h3>
@@ -118,143 +239,234 @@ export default function ChatPage() {
     )
   }
 
-  const activeConv = conversations.find(c => c.id === activeId)
-  const isTourist = activeConv?.tourist_id && activeConv.tourist.profile.full_name
-  const partner = activeConv?.tourist_id === activeConv?.buddy_id
-    ? activeConv?.buddy?.profile
-    : (isTourist ? activeConv?.buddy?.profile : activeConv?.tourist?.profile)
-
   return (
     <div className="container py-xl">
       <h1 className="text-3xl font-bold mb-lg">💬 Tin nhắn</h1>
 
-      <div className="card" style={{ height: '70vh', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
-        {/* Sidebar */}
-        <aside style={{ width: 280, borderRight: '1px solid var(--border-color)', overflow: 'auto', flexShrink: 0 }}>
-          {conversations.map((c: any) => {
-            const p = c.tourist_id === c.tourist?.profile?.id ? c.buddy?.profile : c.tourist?.profile
-            const pName = p?.full_name || 'Buddy'
-            return (
-              <button
-                key={c.id}
-                onClick={() => setActiveId(c.id)}
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: 12,
-                  borderBottom: '1px solid var(--border-color)',
-                  background: c.id === activeId ? 'var(--bg-gray)' : 'transparent',
-                  cursor: 'pointer',
-                }}
-              >
-                <div className="flex items-center gap-sm">
-                  <div className="avatar avatar-md">{pName.charAt(0)}</div>
-                  <div className="flex-1 overflow-hidden">
-                    <p className="font-medium text-sm" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pName}</p>
-                    <p className="text-xs text-muted">Bắt đầu cuộc trò chuyện</p>
-                  </div>
-                </div>
-              </button>
-            )
-          })}
+      <div
+        className="card chat-shell"
+        style={{
+          height: 'calc(100vh - var(--header-height) - 160px)',
+          minHeight: 480,
+          display: 'flex',
+          flexDirection: 'row',
+          overflow: 'hidden',
+        }}
+      >
+        <aside className="chat-sidebar">
+          {conversations.length === 0 ? (
+            <div className="empty-state" style={{ padding: 'var(--space-lg)' }}>
+              <p className="text-sm text-muted">Đang tạo cuộc trò chuyện...</p>
+            </div>
+          ) : (
+            conversations.map((c) => {
+              const isActive = c.id === activeId
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setActiveId(c.id)}
+                  className={`chat-sidebar-item ${isActive ? 'active' : ''}`}
+                >
+                  <span className="avatar avatar-md">{c.partner_name.charAt(0)}</span>
+                  <span className="chat-sidebar-info">
+                    <span className="chat-sidebar-name">{c.partner_name}</span>
+                    <span className="chat-sidebar-sub">
+                      {c.partner_city ? `📍 ${c.partner_city}` : 'Bắt đầu cuộc trò chuyện'}
+                    </span>
+                  </span>
+                  {c.is_partner_online && <span className="online-dot" />}
+                </button>
+              )
+            })
+          )}
         </aside>
 
-        {/* Chat area */}
-        <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          {activeConv && (
+        <main className="chat-main">
+          {activeConv ? (
             <>
-              <div style={{ padding: 'var(--space-md) var(--space-lg)', borderBottom: '1px solid var(--border-color)' }}>
-                <div className="flex items-center gap-sm">
-                  <div className="avatar avatar-md">{partner?.full_name?.charAt(0) || '?'}</div>
-                  <div>
-                    <p className="font-semibold">{partner?.full_name}</p>
-                    <p className="text-xs text-muted">
-                      {partner?.full_name ? 'Đang hoạt động' : ''}
-                    </p>
-                  </div>
+              <div className="chat-header">
+                <span className="avatar avatar-md">{activeConv.partner_name.charAt(0)}</span>
+                <div style={{ flex: 1 }}>
+                  <p className="font-semibold">{activeConv.partner_name}</p>
+                  <p className="text-xs text-muted">
+                    {activeConv.is_partner_online ? '🟢 Đang hoạt động' : '⚪ Không hoạt động'}
+                  </p>
                 </div>
               </div>
 
-              <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-lg)', background: 'var(--bg-light)' }}>
+              <div className="chat-messages">
                 {messages.length === 0 ? (
-                  <p className="text-center text-muted mt-xl">Bắt đầu cuộc trò chuyện với {partner?.full_name}!</p>
+                  <div className="empty-state">
+                    <p className="text-muted">Bắt đầu cuộc trò chuyện với {activeConv.partner_name}!</p>
+                  </div>
                 ) : (
-                  messages.map(m => (
-                    <MessageBubble key={m.id} message={m} partnerName={partner?.full_name || '?'} />
+                  messages.map((m) => (
+                    <MessageBubble key={m.id} message={m} myId={myId} partnerInitial={activeConv.partner_name.charAt(0)} />
                   ))
                 )}
                 <div ref={messagesEndRef} />
               </div>
 
-              <form
-                onSubmit={handleSend}
-                style={{ padding: 'var(--space-md)', borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8 }}
-              >
+              <form onSubmit={handleSend} className="chat-input-row">
                 <input
-                  className="form-input flex-1"
-                  placeholder="Aa"
+                  className="form-input"
+                  placeholder="Nhập tin nhắn..."
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   maxLength={1000}
+                  disabled={sending}
+                  autoFocus
                 />
+                <span className="text-xs text-muted" style={{ alignSelf: 'center', minWidth: 50, textAlign: 'right' }}>
+                  {draft.length}/1000
+                </span>
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={!draft.trim()}
+                  disabled={sending || !draft.trim()}
                   aria-label="Gửi"
                 >
-                  ➤
+                  ➤ Gửi
                 </button>
               </form>
             </>
+          ) : (
+            <div className="empty-state">
+              <p style={{ fontSize: 48 }}>👈</p>
+              <p className="text-muted">Chọn một cuộc trò chuyện để bắt đầu</p>
+            </div>
           )}
         </main>
+      </div>
+
+      <style>{chatStyles}</style>
+    </div>
+  )
+}
+
+function MessageBubble({ message, myId, partnerInitial }: { message: Message; myId: string | null; partnerInitial: string }) {
+  const isOwn = myId === message.sender_id
+  return (
+    <div style={{ display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
+      {!isOwn && (
+        <span className="avatar avatar-sm" style={{ marginRight: 8, alignSelf: 'flex-end' }}>
+          {partnerInitial}
+        </span>
+      )}
+      <div className={`bubble ${isOwn ? 'bubble-own' : 'bubble-partner'}`}>
+        <p style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{message.content}</p>
+        <small className="bubble-time">
+          {new Date(message.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+        </small>
       </div>
     </div>
   )
 }
 
-function MessageBubble({ message, partnerName }: { message: Message; partnerName: string }) {
-  // We can render based on whether current user is sender
-  const [isOwn, setIsOwn] = useState(false)
+const chatStyles = `
+.chat-shell { background: var(--bg-white); }
+.chat-sidebar {
+  width: 300px;
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.chat-sidebar-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+  position: relative;
+}
+.chat-sidebar-item:hover { background: var(--bg-gray); }
+.chat-sidebar-item.active { background: var(--primary-alpha); border-left: 3px solid var(--primary); }
+.chat-sidebar-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-sidebar-name {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-sidebar-sub {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.online-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--success);
+  border-radius: 50%;
+  border: 2px solid var(--bg-white);
+  flex-shrink: 0;
+}
+.chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg);
+  background: var(--bg-light);
+}
+.bubble {
+  max-width: 70%;
+  padding: 8px 14px;
+  border-radius: 18px;
+  box-shadow: var(--shadow-sm);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+.bubble-own {
+  background: var(--primary);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+.bubble-partner {
+  background: white;
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+}
+.bubble-time {
+  opacity: 0.7;
+  font-size: 10px;
+  display: block;
+  margin-top: 4px;
+}
+.chat-input-row {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-top: 1px solid var(--border-color);
+  background: white;
+}
+.chat-input-row .form-input { flex: 1; }
+@media (max-width: 768px) {
+  .chat-sidebar { width: 100%; max-width: 100%; }
+  .chat-shell { flex-direction: column; }
+}
+`
 
-  useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setIsOwn(user?.id === message.sender_id)
-    })
-  }, [message.sender_id])
-
+export default function ChatPage() {
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: isOwn ? 'flex-end' : 'flex-start',
-        marginBottom: 12,
-      }}
-    >
-      {!isOwn && (
-        <div className="avatar avatar-sm" style={{ marginRight: 8 }}>
-          {partnerName.charAt(0)}
-        </div>
-      )}
-      <div
-        style={{
-          maxWidth: '70%',
-          padding: '8px 12px',
-          background: isOwn ? 'var(--primary)' : 'white',
-          color: isOwn ? 'white' : 'var(--text-primary)',
-          borderRadius: 16,
-          borderTopLeftRadius: isOwn ? 16 : 4,
-          borderTopRightRadius: isOwn ? 4 : 16,
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
-        <p style={{ wordBreak: 'break-word' }}>{message.content}</p>
-        <small style={{ opacity: 0.7, fontSize: 11, display: 'block', marginTop: 4 }}>
-          {new Date(message.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-        </small>
-      </div>
-    </div>
+    <Suspense fallback={<div className="container py-xl text-center"><div className="loading-spinner mx-auto" /></div>}>
+      <ChatInner />
+    </Suspense>
   )
 }

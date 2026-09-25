@@ -30,8 +30,34 @@ export default function BuddyRequestsPage() {
 
   async function updateStatus(id: string, status: 'accepted' | 'declined') {
     const supabase = createClient()
-    await supabase.from('connections').update({ status }).eq('id', id)
-    setRequests(requests.map(r => r.id === id ? { ...r, status } : r))
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { error: updateErr } = await supabase
+      .from('connections')
+      .update({ status })
+      .eq('id', id)
+
+    if (updateErr) {
+      alert('Không thể cập nhật: ' + updateErr.message)
+      return
+    }
+
+    // When accepted, ensure a conversation exists between the two parties
+    if (status === 'accepted') {
+      const conn = requests.find((r) => r.id === id)
+      if (conn) {
+        const { error: convErr } = await supabase
+          .from('conversations')
+          .insert({ tourist_id: conn.tourist_id, buddy_id: conn.buddy_id })
+        // 23505 = unique violation, already exists, that's fine
+        if (convErr && convErr.code !== '23505') {
+          console.error('Conversation create error', convErr)
+        }
+      }
+    }
+
+    setRequests(requests.map((r) => (r.id === id ? { ...r, status } : r)))
   }
 
   const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter)
