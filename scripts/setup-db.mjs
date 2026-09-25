@@ -1,7 +1,8 @@
 import { Client } from 'pg'
 
+// Usage: DB_PW=that1arlecchino node scripts/setup-db.mjs
 const client = new Client({
-  connectionString: 'postgresql://postgres:that1arlecchino@db.pqvnjgyqbxlylawwogjv.supabase.co:5432/postgres',
+  connectionString: `postgresql://postgres:${process.env.DB_PW}@db.pqvnjgyqbxlylawwogjv.supabase.co:5432/postgres`,
   ssl: { rejectUnauthorized: false },
 })
 
@@ -28,6 +29,10 @@ const sql = `
 
 async function main() {
   try {
+    if (!process.env.DB_PW) {
+      console.error('❌ DB_PW env var not set. Example: $env:DB_PW="..." ; node scripts/setup-db.mjs')
+      process.exit(1)
+    }
     await client.connect()
     console.log('✅ Connected to Supabase Postgres')
     await client.query(sql)
