@@ -18,11 +18,13 @@ const DEFAULT_LOCATION = { lat: 16.0544, lng: 108.2023 } // Da Nang fallback
 
 /**
  * Returns the user's current geolocation, falling back to Da Nang if denied.
- * When `writeToDb` is true (default), it periodically writes to `location_updates`
- * so other users can see this one on the map.
+ *
+ * By default this hook is READ-ONLY — it does NOT write to the database.
+ * If you ever need to persist positions, pass `writeToDb: true` explicitly.
+ * For ephemeral real-time sharing use `useLiveUserLocations` instead.
  */
 export function useLocationWatcher(opts: Options = {}) {
-  const { onGranted, onDenied, writeToDb = true, minWriteIntervalMs = 60_000 } = opts
+  const { onGranted, onDenied, writeToDb = false, minWriteIntervalMs = 60_000 } = opts
   const [location, setLocation] = useState(DEFAULT_LOCATION)
   const lastWriteRef = useRef<number>(0)
   const userIdRef = useRef<string | null>(null)

@@ -30,6 +30,7 @@ export default function MapPage() {
   const userLocation = useLocationWatcher({
     onGranted: () => setSignedIn(true),
     onDenied: () => setSignedIn(false),
+    writeToDb: false,
   })
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
