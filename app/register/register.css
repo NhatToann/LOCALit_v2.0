@@ -1,0 +1,634 @@
+/* ============================================================
+   LOCALit /register page — modern split layout
+   Step 0: role selection hero
+   Step 1: account details
+   Step 2: role-specific profile fields
+   ============================================================ */
+
+.register-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 107, 53, 0.08), transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(255, 179, 71, 0.08), transparent 40%),
+    var(--bg-light);
+  display: flex;
+  flex-direction: column;
+}
+
+.register-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-lg) var(--space-2xl);
+  gap: var(--space-xl);
+}
+
+/* -------- Top bar with logo + sign-in link -------- */
+.register-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.register-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-decoration: none;
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+}
+
+.register-logo-mark {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  color: var(--text-light);
+  border-radius: var(--border-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.register-logo-text {
+  letter-spacing: -0.3px;
+}
+
+.register-topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.link-back {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: var(--border-radius);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.link-back:hover:not(:disabled) {
+  background-color: var(--bg-gray);
+  color: var(--text-primary);
+}
+
+.link-back:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.register-topbar-signin {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+}
+
+.register-topbar-signin strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.register-topbar-signin:hover strong {
+  text-decoration: underline;
+}
+
+/* -------- Stepper (3 steps) -------- */
+.register-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  padding: var(--space-md) 0;
+}
+
+.stepper-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.stepper-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-gray);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  border: 2px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+.stepper-item.active .stepper-dot {
+  background: var(--primary);
+  color: var(--text-light);
+}
+
+.stepper-item.current .stepper-dot {
+  box-shadow: 0 0 0 4px var(--primary-alpha);
+}
+
+.stepper-label {
+  white-space: nowrap;
+}
+
+.stepper-item.active .stepper-label {
+  color: var(--text-primary);
+}
+
+.stepper-bar {
+  width: 48px;
+  height: 2px;
+  background: var(--border-color);
+  border-radius: 2px;
+}
+
+.stepper-item.active + .stepper-item .stepper-bar,
+.stepper-item.active .stepper-bar {
+  background: var(--primary);
+}
+
+/* -------- Role-selection hero -------- */
+.role-hero {
+  background: var(--bg-white);
+  border-radius: var(--border-radius-xl);
+  box-shadow: var(--shadow);
+  padding: var(--space-2xl);
+  border: 1px solid var(--border-color);
+  animation: fadeInUp 0.35s ease forwards;
+}
+
+.role-hero-intro {
+  text-align: center;
+  max-width: 620px;
+  margin: 0 auto var(--space-xl);
+}
+
+.role-hero-eyebrow {
+  display: inline-block;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--primary-alpha);
+  padding: 6px 12px;
+  border-radius: var(--border-radius-full);
+  margin-bottom: var(--space-md);
+}
+
+.role-hero-title {
+  font-family: var(--font-family-alt);
+  font-size: clamp(1.75rem, 4vw, 2.4rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+  letter-spacing: -0.4px;
+}
+
+.role-hero-subtitle {
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+}
+
+.role-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.role-card {
+  position: relative;
+  text-align: left;
+  background: var(--bg-white);
+  border: 2px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-xl);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.role-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover);
+  border-color: var(--primary);
+}
+
+.role-card-tourist:hover {
+  border-color: #38BDF8;
+  box-shadow: 0 12px 32px rgba(56, 189, 248, 0.18);
+}
+
+.role-card-buddy:hover {
+  border-color: var(--primary);
+  box-shadow: 0 12px 32px rgba(255, 107, 53, 0.18);
+}
+
+.role-card-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--border-radius-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin-bottom: var(--space-sm);
+}
+
+.role-card-tourist .role-card-icon {
+  background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+}
+
+.role-card-buddy .role-card-icon {
+  background: linear-gradient(135deg, var(--primary-alpha) 0%, #FFE8DA 100%);
+}
+
+.role-card-title {
+  font-family: var(--font-family-alt);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.role-card-desc {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  margin-bottom: var(--space-sm);
+}
+
+.role-card-features {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--space-md);
+}
+
+.role-card-features li {
+  position: relative;
+  padding-left: 22px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.role-card-features li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  background: var(--success);
+  color: var(--text-light);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.role-card-cta {
+  margin-top: auto;
+  font-weight: 600;
+  color: var(--primary);
+  font-size: var(--font-size-sm);
+  transition: gap var(--transition-fast);
+}
+
+.role-card-tourist .role-card-cta { color: #0284C7; }
+
+.role-card:hover .role-card-cta {
+  text-decoration: underline;
+}
+
+.role-hero-foot {
+  text-align: center;
+  margin-top: var(--space-xl);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* -------- Step panes (1 + 2) -------- */
+.register-pane {
+  background: var(--bg-white);
+  border-radius: var(--border-radius-xl);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  padding: var(--space-2xl);
+  animation: fadeInUp 0.35s ease forwards;
+}
+
+.register-pane-head {
+  margin-bottom: var(--space-xl);
+}
+
+.register-pane-head h2 {
+  font-family: var(--font-family-alt);
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.register-pane-sub {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.link-inline {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.register-form {
+  display: flex;
+  flex-direction: column;
+}
+
+/* form rows / grid */
+.reg-row {
+  display: grid;
+  gap: var(--space-md);
+}
+.reg-row-2 { grid-template-columns: 1fr 1fr; }
+
+.reg-choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.reg-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: var(--space-md);
+  border: 2px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--bg-white);
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.reg-choice:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.reg-choice.selected {
+  border-color: var(--primary);
+  background: var(--primary-alpha);
+}
+
+.reg-choice strong {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.reg-choice span {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* chip grid for interests/languages */
+.reg-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.reg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--border-radius-full);
+  background: var(--bg-white);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.reg-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.reg-chip.selected {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--text-light);
+}
+
+.reg-chip .chip-emoji {
+  font-size: 16px;
+}
+
+/* hourly rate grid */
+.reg-rate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 6px;
+}
+
+.reg-rate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--bg-white);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.reg-rate strong {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.reg-rate span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.reg-rate:hover {
+  border-color: var(--primary);
+}
+
+.reg-rate.selected {
+  border-color: var(--primary);
+  background: var(--primary-alpha);
+}
+
+/* password meter */
+.pw-meter {
+  display: flex;
+  gap: 3px;
+  margin-top: 8px;
+}
+
+.pw-meter span {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-color);
+  transition: background-color var(--transition-fast);
+}
+
+.pw-meter-0 span { background: var(--border-color); }
+.pw-meter-1 span:nth-child(-n+1) { background: var(--danger); }
+.pw-meter-2 span:nth-child(-n+2) { background: var(--warning); }
+.pw-meter-3 span:nth-child(-n+3) { background: var(--accent); }
+.pw-meter-4 span:nth-child(-n+4) { background: var(--success); }
+
+/* field hint tweaks */
+.form-hint.inline {
+  display: inline;
+  margin-left: 6px;
+  font-size: var(--font-size-xs);
+}
+
+label .optional {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  margin-left: 4px;
+}
+
+/* checkbox row */
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: var(--space-sm) 0 var(--space-md);
+  cursor: pointer;
+}
+
+.checkbox-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.checkbox-row a {
+  color: var(--primary);
+  font-weight: 500;
+}
+.checkbox-row a:hover { text-decoration: underline; }
+
+/* alerts */
+.alert {
+  margin-bottom: var(--space-md);
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.register-foot {
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.register-foot a {
+  color: var(--primary);
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.register-foot a:hover { text-decoration: underline; }
+
+/* visually hidden — for a11y */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* -------- Responsive -------- */
+@media (max-width: 900px) {
+  .role-grid { grid-template-columns: 1fr; }
+  .role-hero { padding: var(--space-xl); }
+  .register-pane { padding: var(--space-xl); }
+}
+
+@media (max-width: 720px) {
+  .register-container { padding: var(--space-md) var(--space-md) var(--space-xl); }
+  .register-stepper {
+    gap: var(--space-sm);
+    padding: var(--space-sm) 0;
+  }
+  .stepper-label { display: none; }
+  .stepper-bar { width: 28px; }
+  .reg-row-2 { grid-template-columns: 1fr; }
+  .reg-choice-grid { grid-template-columns: 1fr; }
+  .reg-rate-grid { grid-template-columns: repeat(3, 1fr); }
+  .register-pane-head h2 { font-size: var(--font-size-xl); }
+  .role-hero { padding: var(--space-lg); }
+  .register-pane { padding: var(--space-lg); }
+  .form-actions { flex-direction: column-reverse; }
+  .form-actions .btn { width: 100%; }
+  .register-topbar-meta .link-back { display: none; }
+}
+
+@media (max-width: 480px) {
+  .register-topbar-signin { font-size: var(--font-size-xs); }
+  .reg-rate-grid { grid-template-columns: repeat(2, 1fr); }
+}
