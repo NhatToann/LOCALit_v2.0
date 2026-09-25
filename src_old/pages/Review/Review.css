@@ -1,0 +1,171 @@
+.review-page {
+  min-height: 100vh;
+  background: var(--bg-light);
+  padding-top: var(--header-height);
+}
+
+.review-content {
+  padding: var(--space-2xl) 0;
+}
+
+.review-container {
+  max-width: 700px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+/* Trip Info Card */
+.trip-info-card {
+  background: var(--bg-white);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.trip-info-card h3 {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-md);
+}
+
+.trip-details h4 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+}
+
+.trip-details p {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* Rating Section */
+.rating-section {
+  background: var(--bg-white);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.rating-section h3 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-lg);
+}
+
+.star-rating {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.star {
+  background: none;
+  transition: transform var(--transition-fast);
+}
+
+.star:hover {
+  transform: scale(1.1);
+}
+
+.star.active svg {
+  fill: #FFB347;
+}
+
+.rating-text {
+  font-size: var(--font-size-base);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Aspects Section */
+.aspects-section {
+  background: var(--bg-white);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow);
+}
+
+.aspects-section h3 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-lg);
+}
+
+.aspects-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.aspect-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md);
+  background: var(--bg-light);
+  border-radius: var(--border-radius);
+}
+
+.aspect-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.aspect-rating {
+  display: flex;
+  gap: 4px;
+}
+
+.aspect-star {
+  background: none;
+}
+
+.aspect-star.active svg {
+  fill: #FFB347;
+}
+
+/* Details Section */
+.details-section {
+  background: var(--bg-white);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow);
+}
+
+.details-section h3 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-lg);
+}
+
+.form-textarea {
+  height: auto;
+  padding: var(--space-md);
+  resize: vertical;
+}
+
+/* Review Actions */
+.review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-md);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .aspect-item {
+    flex-direction: column;
+    gap: var(--space-sm);
+    text-align: center;
+  }
+
+  .review-actions {
+    flex-direction: column;
+  }
+}

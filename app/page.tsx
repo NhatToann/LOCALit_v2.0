@@ -1,83 +1,107 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
+import Link from 'next/link'
+import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 
-interface TestItem {
-  id: number
-  name: string
-  created_at: string
-}
-
-export default function Home() {
-  const [items, setItems] = useState<TestItem[]>([])
+export default function HomePage() {
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    async function fetchData() {
-      try {
+    async function checkUser() {
+      const user = await getCurrentUser()
+      if (user) {
+        // Redirect to dashboard based on role
         const supabase = createClient()
-        const { data, error } = await supabase.from('test_items').select('*')
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
 
-        if (error) {
-          setError(error.message)
-        } else {
-          setItems(data || [])
+        if (profile?.role === 'buddy') {
+          window.location.href = '/buddy/dashboard'
+        } else if (profile?.role === 'tourist') {
+          window.location.href = '/tourist/dashboard'
         }
-      } catch (err: unknown) {
-        if (err instanceof Error) setError(err.message)
-        else setError('Lỗi kết nối')
-      } finally {
+        setLoading(false)
+      } else {
         setLoading(false)
       }
     }
-
-    fetchData()
+    checkUser()
   }, [])
 
+  if (loading) {
+    return (
+      <main className="min-h-screen flex-center">
+        <div className="loading-spinner" />
+      </main>
+    )
+  }
+
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen p-8 bg-gray-50 text-black">
-      <div className="w-full max-w-lg p-6 bg-white rounded-xl shadow-md border border-gray-200">
-        <h1 className="text-2xl font-bold mb-2 text-blue-600 text-center">
-          LOCALit x Supabase Test
-        </h1>
-        <p className="text-sm text-gray-500 mb-6 text-center">
-          Trang kiểm tra kết nối Next.js và Supabase Database
-        </p>
+    <main className="min-h-screen" style={{ background: 'linear-gradient(135deg, #FFE4DB, #FFD1B5)' }}>
+      {/* Hero Section */}
+      <section className="container" style={{ paddingTop: 80, paddingBottom: 80 }}>
+        <div className="text-center">
+          <h1 className="text-5xl font-bold mb-md">
+            <span style={{ color: 'var(--primary)' }}>LOCAL</span>it
+          </h1>
+          <p className="text-xl text-secondary mb-lg" style={{ maxWidth: 600, margin: '0 auto 24px' }}>
+            Kết nối du khách với những người bạn địa phương chân chính.
+            Trải nghiệm Việt Nam theo cách đích thực nhất.
+          </p>
 
-        {loading && (
-          <div className="text-center py-4 text-gray-600 font-medium">
-            ⏳ Đang truy vấn dữ liệu từ Supabase...
+          <div className="flex-center gap-md mb-xl" style={{ flexWrap: 'wrap' }}>
+            <Link href="/register?role=tourist" className="btn btn-primary btn-lg">
+              🧳 Tôi là du khách
+            </Link>
+            <Link href="/register?role=buddy" className="btn btn-outline btn-lg">
+              🌍 Tôi là local buddy
+            </Link>
           </div>
-        )}
 
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
-            ❌ <strong>Kết nối thất bại:</strong> {error}
-          </div>
-        )}
+          <Link href="/login" className="text-primary font-medium">
+            Đã có tài khoản? Đăng nhập →
+          </Link>
+        </div>
+      </section>
 
-        {!loading && !error && (
-          <div>
-            <div className="flex items-center gap-2 mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm font-medium">
-              ✅ Tích hợp thành công! Dữ liệu lấy từ Supabase:
+      {/* Features */}
+      <section className="container py-xl">
+        <div className="grid grid-3">
+          <div className="card">
+            <div className="card-body text-center">
+              <div style={{ fontSize: 48, marginBottom: 16 }}>📍</div>
+              <h3 className="mb-sm">Tìm Buddy gần bạn</h3>
+              <p className="text-sm text-muted">
+                Xem các local buddy hiện đang ở gần vị trí của bạn trên bản đồ thời gian thực.
+              </p>
             </div>
-
-            <h2 className="font-semibold text-gray-700 mb-2">Danh sách bản ghi:</h2>
-            <ul className="space-y-2">
-              {items.map((item) => (
-                <li key={item.id} className="p-3 bg-gray-50 border border-gray-200 rounded-md flex justify-between items-center">
-                  <span className="font-medium text-gray-800">#{item.id} - {item.name}</span>
-                  <span className="text-xs text-gray-400">
-                    {new Date(item.created_at).toLocaleTimeString('vi-VN')}
-                  </span>
-                </li>
-              ))}
-            </ul>
           </div>
-        )}
-      </div>
+
+          <div className="card">
+            <div className="card-body text-center">
+              <div style={{ fontSize: 48, marginBottom: 16 }}>💬</div>
+              <h3 className="mb-sm">Trò chuyện ngay</h3>
+              <p className="text-sm text-muted">
+                Nhắn tin với buddy trước chuyến đi. Lên kế hoạch lịch trình cùng nhau.
+              </p>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-body text-center">
+              <div style={{ fontSize: 48, marginBottom: 16 }}>⭐</div>
+              <h3 className="mb-sm">Đánh giá sau chuyến đi</h3>
+              <p className="text-sm text-muted">
+                Chia sẻ trải nghiệm để giúp cộng đồng ngày càng tốt hơn.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   )
 }
