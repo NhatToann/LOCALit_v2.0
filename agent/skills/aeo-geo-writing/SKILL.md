@@ -1,12 +1,8 @@
 ---
 name: aeo-geo-writing
-description: Structures web copy to be cited by AI search engines — ChatGPT,
-  Perplexity, Gemini, Google AI Overviews, Claude — instead of just ranked by
-  traditional search. Use whenever writing or editing website content, blog
-  posts, FAQ pages, product pages, or landing page copy where AI citation, AI
-  visibility, AEO, GEO, answer engine optimization, or being mentioned by name
-  in an AI-generated answer is a goal.
+description: "Structures web copy to be cited by AI search engines — ChatGPT, Perplexity, Gemini, Google AI Overviews, Claude — instead of just ranked by traditional search. Use whenever writing or editing website content, blog posts, FAQ pages, product pages, or landing page copy where AI citation, AI visibility, AEO, GEO, answer engine optimization, or being mentioned by name in an AI-generated answer is a goal."
 ---
+
 # AEO/GEO Writing — Structuring Content for AI Citation
 
 > [!NOTE]

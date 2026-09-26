@@ -1,12 +1,8 @@
 ---
 name: web-ai-slop
-description: Filters web output against a multi-discipline checklist of AI
-  default patterns. Use before shipping any design, copy, UI code,
-  infrastructure config, or documentation. Trigger when the user asks for
-  something 'premium' or 'not AI-looking', when you're about to reach for a
-  glowing gradient, bento grid, SaaS empowerment copy, a 3-tier pricing section,
-  a 3-stage CI/CD YAML, or a god component.
+description: "Filters web output against a multi-discipline checklist of AI default patterns. Use before shipping any design, copy, UI code, infrastructure config, or documentation. Trigger when the user asks for something 'premium' or 'not AI-looking', when you're about to reach for a glowing gradient, bento grid, SaaS empowerment copy, a 3-tier pricing section, a 3-stage CI/CD YAML, or a god component."
 ---
+
 # Web AI Slop — The Practitioner's Anti-Default Checklist
 
 > [!IMPORTANT]
