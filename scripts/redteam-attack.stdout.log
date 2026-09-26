@@ -1,75 +1,75 @@
 
 === ATTACK 1: Email enumeration ===
 EXISTING: 409 {"error":"Sign up could not be completed with these details. Try a different email or sign in."}
-FRESH:    200 {"userId":"2e86474f-3464-483a-a363-20b7f230baa9","email":"redteam-fresh-1790432927511@example.com"}
+FRESH:    200 {"userId":"48db3eff-8130-49ab-bd06-b04bd65d165a","email":"redteam-fresh-1790433415333@example.com"}
 
 === ATTACK 2: Rate limit /signup 30 reqs ===
-30 reqs in 4.23s; statuses: {
-  "200": 25,
-  "429": 5
+30 reqs in 4.21s; statuses: {
+  "200": 28,
+  "429": 2
 }
 first 3: [
   {
-    "s": 429,
-    "b": "{\"error\":\"Too many requests. Please slow down.\"}"
+    "s": 200,
+    "b": "{\"userId\":\"22eba7f7-97bb-481a-95fc-7be986c97c54\",\"email\":\"redteam-burst-1790433417093-0@example.com\"}"
   },
   {
     "s": 200,
-    "b": "{\"userId\":\"c2a87568-8022-4a6b-86ed-99d9d0dc97cc\",\"email\":\"redteam-burst-1790432929655-1@example.com\"}"
+    "b": "{\"userId\":\"5c0517bb-6274-4126-869d-e7e6a6064865\",\"email\":\"redteam-burst-1790433417094-1@example.com\"}"
   },
   {
     "s": 200,
-    "b": "{\"userId\":\"55ec9bd7-854a-44f9-a924-33750919bd0a\",\"email\":\"redteam-burst-1790432929656-2@example.com\"}"
+    "b": "{\"userId\":\"dd0acccf-7964-4bee-995b-ecdace0be8ac\",\"email\":\"redteam-burst-1790433417094-2@example.com\"}"
   }
 ]
 
 === ATTACK 3: Mass account creation ===
-acc 1: 200 {"userId":"ccec87d7-c283-4e97-adac-47f92b9d64d9","email":"redteam-test1-1790432933884@example.com"}
-acc 2: 200 {"userId":"51396324-9f3c-459e-ae74-29cd30a9a7c8","email":"redteam-test2-1790432936343@example.com"}
-acc 3: 200 {"userId":"776960a4-c933-4ab4-ae09-17b28c3e8a59","email":"redteam-test3-1790432937521@example.com"}
+acc 1: 200 {"userId":"47efe7d8-2979-4293-b326-679a142c6014","email":"redteam-test1-1790433421298@example.com"}
+acc 2: 200 {"userId":"034121ae-a01f-4fc2-83da-bf33ec403511","email":"redteam-test2-1790433422512@example.com"}
+acc 3: 200 {"userId":"d2dc5d9b-a9ba-485c-82c0-50bf4ce66f93","email":"redteam-test3-1790433424795@example.com"}
 
 === ATTACK 4: create-profile abuse ===
-fresh signup: 200 {"userId":"4cd29a1f-c023-41e1-a586-5be08b25357a","email":"redteam-ac-1790432938723@example.com"}
+fresh signup: 200 {"userId":"3e13593e-1651-45a8-9c38-30f46436d7aa","email":"redteam-ac-1790433426520@example.com"}
 attacker overwrites fresh user as buddy: 401 {"error":"Unauthorized: no active session and no valid signup token."}
 create-profile fakeId autoConfirm: 401 {"error":"Unauthorized: no active session and no valid signup token."}
 create-profile fakeId no autoConfirm: 401 {"error":"Unauthorized: no active session and no valid signup token."}
 
 === ATTACK 5: OTP brute force ===
-signup-admin: 200 {"userId":"19e3e905-aa34-4eeb-8c64-4fb850934879","email":"redteam-otp-1790432941050@example.com"}
+signup-admin: 200 {"userId":"13e713a1-9d16-41cb-95fe-7ad725daeeac","email":"redteam-otp-1790433430000@example.com"}
 25 OTP attempts, distinct statuses: [
   410,
   429
 ]
 first 5: [
   {
-    "code": "998525",
+    "code": "519654",
     "status": 410,
     "body": "{\"error\":\"No active verification code. Please request a new one.\",\"reason\":\"no_code\"}"
   },
   {
-    "code": "173523",
+    "code": "718455",
     "status": 410,
     "body": "{\"error\":\"No active verification code. Please request a new one.\",\"reason\":\"no_code\"}"
   },
   {
-    "code": "225371",
+    "code": "989849",
     "status": 410,
     "body": "{\"error\":\"No active verification code. Please request a new one.\",\"reason\":\"no_code\"}"
   },
   {
-    "code": "158385",
+    "code": "478287",
     "status": 410,
     "body": "{\"error\":\"No active verification code. Please request a new one.\",\"reason\":\"no_code\"}"
   },
   {
-    "code": "319559",
+    "code": "787179",
     "status": 410,
     "body": "{\"error\":\"No active verification code. Please request a new one.\",\"reason\":\"no_code\"}"
   }
 ]
 
 === ATTACK 6: XSS ===
-xss1: 200 {"userId":"c4af7460-3130-4c37-bbc0-bf3b19cb2683","email":"redteam-xss-1790432955009@example.com"}
+xss1: 429 {"error":"Too many requests. Please slow down."}
 xss2: 429 {"error":"Too many requests. Please slow down."}
 
 === ATTACK 7: CSRF newsletter ===
@@ -110,22 +110,22 @@ password tries: [
 ]
 
 === ATTACK 10: Supabase anon reads ===
-  profiles: 200 []
-  tourists: 200 [{"id":"8600582a-217f-496e-8ed9-820007d4fdd4","nationality":"United States","date_of_birth":"1995-05
-  buddies: 200 [{"id":"55555555-5555-5555-5555-555555555555","location_city":"Nha Trang","latitude":16.0933,"longit
+  profiles: 401 {"code":"42501","details":null,"hint":"Grant the required privileges to the current role with: GRANT
+  tourists: 401 {"code":"42501","details":null,"hint":"Grant the required privileges to the current role with: GRANT
+  buddies: 401 {"code":"42501","details":null,"hint":"Grant the required privileges to the current role with: GRANT
   connections: 200 []
   trips: 200 []
   conversations: 200 []
   messages: 401 {"code":"42501","details":null,"hint":"Grant the required privileges to the current role with: GRANT
-  reviews: 200 [{"id":"6a7163dc-30a0-412d-b1e0-c0d16129f5fc","trip_id":"2391e2e9-acdc-4237-a9ba-f34c63d98508","revi
-  location_updates: 200 []
+  reviews: 401 {"code":"42501","details":null,"hint":"Grant the required privileges to the current role with: GRANT
+  location_updates: 401 {"code":"42501","details":null,"hint":"Grant the required privileges to the current role with: GRANT
   email_verifications: 401 {"code":"42501","details":null,"hint":"Grant the required privileges to the current role with: GRANT
 
 === ATTACK 11: admin role signup ===
 admin role: 429 {"error":"Too many requests. Please slow down."}
 
 === ATTACK 12: OTP resend amplification ===
-signup-admin: 200 0792b5b9-8ba0-4b0a-a019-19ec53552096
+signup-admin: 200 8c6ef34f-78f8-4bb0-b506-7fc16721817b
 resend 15 attempts, distinct: [
   200,
   429
