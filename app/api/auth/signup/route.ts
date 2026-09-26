@@ -21,6 +21,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
+import { validatePassword } from '@/utils/password-validator'
 
 type Role = 'tourist' | 'buddy'
 
@@ -77,9 +78,8 @@ export async function POST(req: NextRequest) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr)) {
     return NextResponse.json({ error: 'Invalid email.' }, { status: 400 })
   }
-  if (passwordStr.length < 6) {
-    return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 })
-  }
+  const pwErr = validatePassword(passwordStr)
+  if (pwErr) return NextResponse.json({ error: pwErr }, { status: 400 })
   if (fullNameStr.length < 2) {
     return NextResponse.json({ error: 'Please provide your full name.' }, { status: 400 })
   }
@@ -104,16 +104,18 @@ export async function POST(req: NextRequest) {
 
   if (userError || !userData.user) {
     const msg = userError?.message ?? ''
-    // Generic message so we don't leak whether the email is taken.
-    if (msg.toLowerCase().includes('already')) {
-      return NextResponse.json(
-        { error: 'Sign up could not be completed with these details. Try a different email or sign in.' },
-        { status: 409 },
-      )
-    }
-    // Suppress internal error detail; log it but show generic message.
+    // CRITICAL: do NOT leak whether the email already exists. Always return
+    // the same generic message + status so an attacker can't enumerate
+    // registered emails by comparing responses.
+    //
+    // For "already registered" the client should be told "use sign in"
+    // but the status code MUST be the same as for other failures.
+    // We log the actual cause server-side so it remains debuggable.
     console.warn('[signup] createUser failed:', msg)
-    return NextResponse.json({ error: 'Sign up failed. Please try again.' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'Could not create account with these details. If you already have an account, please sign in.' },
+      { status: 400 },
+    )
   }
 
   const userId = userData.user.id

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
+import { validatePassword } from '@/utils/password-validator'
 
 type Role = 'tourist' | 'buddy'
 
@@ -48,11 +49,13 @@ export async function POST(req: NextRequest) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr)) {
     return NextResponse.json({ error: 'Invalid email.' }, { status: 400 })
   }
-  if (passwordStr.length < 6) {
-    return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 })
-  }
+  const pwErr = validatePassword(passwordStr)
+  if (pwErr) return NextResponse.json({ error: pwErr }, { status: 400 })
   if (fullNameStr.length < 2) {
     return NextResponse.json({ error: 'Please provide your full name.' }, { status: 400 })
+  }
+  if (fullNameStr.length > 100) {
+    return NextResponse.json({ error: 'Full name is too long (max 100 characters).' }, { status: 400 })
   }
   if (role !== 'tourist' && role !== 'buddy') {
     return NextResponse.json({ error: 'Invalid role.' }, { status: 400 })
@@ -71,19 +74,40 @@ export async function POST(req: NextRequest) {
   })
 
   if (error || !data.user) {
-    const msg = error?.message ?? 'Could not create user.'
-    if (msg.toLowerCase().includes('already')) {
-      return NextResponse.json(
-        { error: 'Sign up could not be completed with these details.' },
-        { status: 409 },
-      )
-    }
+    const msg = error?.message ?? ''
+    // CRITICAL: do NOT leak whether the email already exists. Always return
+    // the same generic message + status so an attacker can't enumerate
+    // registered emails via /signup-admin either.
     console.warn('[signup-admin] createUser failed:', msg)
-    return NextResponse.json({ error: 'Sign up failed. Please try again.' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'Could not create account with these details. If you already have an account, please sign in.' },
+      { status: 400 },
+    )
+  }
+
+  const userId = data.user.id
+
+  // ---- Defensive profiles upsert so the row exists even if the
+  // on_auth_user_created trigger is missing (the trigger can silently drop
+  // if Supabase re-provisions its internal auth schema; see AGENTS.md).
+  try {
+    await admin
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          email: emailStr,
+          full_name: sanitize(fullNameStr, 100),
+          role,
+        },
+        { onConflict: 'id', ignoreDuplicates: true },
+      )
+  } catch (e) {
+    console.warn('[signup-admin] profiles upsert warning:', (e as Error).message)
   }
 
   return NextResponse.json({
-    userId: data.user.id,
+    userId,
     email: emailStr,
   })
 }
