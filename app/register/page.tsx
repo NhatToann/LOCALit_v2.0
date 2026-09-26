@@ -3,7 +3,9 @@
 import { useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { signIn, createClient } from '@/utils/supabase/auth'
+// utils/supabase/auth exports createClient (re-export of the browser client).
+// Currently unused in this file; kept for potential future client-side updates.
+import '@/utils/supabase/auth'
 import './register.css'
 
 type Role = 'tourist' | 'buddy'
@@ -225,9 +227,10 @@ function RegisterForm() {
         return
       }
 
-      // The signup-admin route uses the admin API so the trigger on
-      // auth.users may or may not have populated public.profiles depending on
-      // whether it's enabled. /api/auth/create-profile defensively upserts.
+      // The signup-admin route uses the admin API to create the user (NOT
+      // confirmed yet). We don't write to tourists/buddies yet — that
+      // happens after the user verifies their email on /verify-email.
+      // The role-specific payload is stashed so /verify-email can pick it up.
       const payload =
         form.role === 'tourist'
           ? {
@@ -250,54 +253,23 @@ function RegisterForm() {
               is_available: true,
             }
 
-      const profileRes = await fetch('/api/auth/create-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          userId,
-          role: form.role,
-          payload,
-          // autoConfirm=true because signup-admin already confirmed, but the
-          // flag here also handles the (rare) case where confirmation didn't
-          // stick.
-          autoConfirm: true,
-        }),
-      })
-
-      if (!profileRes.ok) {
-        const body = await profileRes
-          .json()
-          .catch(() => ({ error: 'Unknown error' }))
-        setError(
-          `Could not save ${form.role} profile: ${body.error ?? profileRes.statusText}`,
-        )
-        setLoading(false)
-        return
+      // Stash everything /verify-email needs so the user doesn't have to
+      // re-enter anything after entering the 6-digit code.
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem('localit.pendingPw', form.password)
+          sessionStorage.setItem('localit.pendingRole', form.role)
+          sessionStorage.setItem(
+            'localit.pendingPayload',
+            JSON.stringify({ role: form.role, payload, userId }),
+          )
+        } catch {}
       }
 
-      // Mirror phone + bio onto profiles so dashboard/profile pages see them.
-      try {
-        const supabase = createClient()
-        const profileUpdate: Record<string, unknown> = {}
-        if (form.phone) profileUpdate.phone = form.phone
-        if (form.bio) profileUpdate.bio = form.bio
-        if (Object.keys(profileUpdate).length > 0) {
-          await supabase.from('profiles').update(profileUpdate).eq('id', userId)
-        }
-      } catch {
-        // Non-fatal: profile extras are best-effort.
-      }
-
-      // Sign in with the credentials so the cookie session is set client-side.
-      const { error: signInError } = await signIn(form.email, form.password)
-      if (signInError) {
-        router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
-        return
-      }
-
-      const dest = form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'
-      router.push(dest)
+      // Send the user to the verification page. The signup-admin route has
+      // already emailed them a 6-digit code (see utils/otp.ts).
+      router.push(`/verify-email?email=${encodeURIComponent(form.email)}&role=${form.role}`)
+      return
     } catch (err) {
       console.error('Sign-up error:', err)
       setError('Something went wrong. Please try again.')

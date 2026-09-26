@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { issueOtp } from '@/utils/otp'
 
 type Role = 'tourist' | 'buddy'
 
@@ -11,20 +12,23 @@ interface SignupAdminBody {
 }
 
 /**
- * Server-side sign-up that uses the Supabase admin API to create the user with
- * email already confirmed. This is the path the register page uses when the
- * project still has "Confirm email" enabled (the GoTrue REST /auth/v1/signup
- * endpoint both emails the user AND is rate-limited; for in-app Kỳ-8 demos we
- * skip the email step and confirm immediately).
+ * Server-side sign-up. Creates the user (NOT confirmed), then issues a 6-digit
+ * OTP code, emails it to the user via Resend, and returns the userId so the
+ * client can navigate to /verify-email?email=... to enter the code.
  *
- * Important: the on_auth_user_created trigger on auth.users currently inserts
- * into public.profiles with role='tourist' if raw_user_meta_data->>'role' is
- * missing. We pass the role here so the trigger writes the right role.
+ * This is the entry point of the new "email verification required" flow:
+ *   /register → /api/auth/signup-admin → /verify-email → /api/auth/verify-otp
+ *                                                 → /api/auth/signin (auto) → /dashboard
  *
- * After the user exists, the route's caller (register page) is expected to
- * follow up with POST /api/auth/create-profile to write the role-specific row
- * (tourists/buddies). That route already handles auto-confirming and
- * upserting defensively.
+ * Notes:
+ *   - Email is NOT auto-confirmed. The admin.auth.admin.updateUserById with
+ *     email_confirm: true happens in /api/auth/verify-otp AFTER the user
+ *     proves they own the email by submitting the code.
+ *   - The on_auth_user_created trigger on auth.users inserts into
+ *     public.profiles (best effort — defensive upsert lives in
+ *     /api/auth/create-profile). The role-specific row (tourists/buddies) is
+ *     written AFTER the user verifies their email, so we don't fill the DB
+ *     with unverified rows.
  */
 export async function POST(req: NextRequest) {
   let body: SignupAdminBody
@@ -54,7 +58,8 @@ export async function POST(req: NextRequest) {
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
-    email_confirm: true,
+    // IMPORTANT: do NOT confirm here. The user has to verify via OTP first.
+    email_confirm: false,
     user_metadata: {
       full_name: fullName.trim(),
       role,
@@ -62,13 +67,27 @@ export async function POST(req: NextRequest) {
   })
 
   if (error || !data.user) {
-    // Surface helpful, user-safe messages
     const msg = error?.message ?? 'Could not create user.'
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 
+  const userId = data.user.id
+
+  // Issue the verification code. Failures here are non-fatal — we still return
+  // the userId so the client can navigate to /verify-email where the user can
+  // request a resend. But we do surface the error so the UI can show a hint.
+  const otpResult = await issueOtp(userId, email)
+  if (!otpResult.ok) {
+    console.error('[signup-admin] OTP issue failed:', otpResult.error)
+    return NextResponse.json({
+      userId,
+      email,
+      warning: `Account created but we couldn't send the verification email: ${otpResult.error}. Use the resend button on the next screen.`,
+    })
+  }
+
   return NextResponse.json({
-    userId: data.user.id,
-    email: data.user.email,
+    userId,
+    email,
   })
 }
