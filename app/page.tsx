@@ -58,6 +58,14 @@ function HomePageInner() {
 
   useEffect(() => {
     async function init() {
+      // Bypass auto-redirect when ?home=1 is present (useful for sharing the
+      // marketing URL publicly or previewing the landing page in incognito).
+      if (searchParams.get('home') === '1') {
+        await loadBuddies()
+        setLoading(false)
+        return
+      }
+
       const user = await getCurrentUser()
       if (user) {
         const supabase = createClient()
@@ -71,6 +79,11 @@ function HomePageInner() {
         return
       }
 
+      await loadBuddies()
+      setLoading(false)
+    }
+
+    async function loadBuddies() {
       const supabase = createClient()
       const { data } = await supabase
         .from('buddies')
@@ -92,10 +105,10 @@ function HomePageInner() {
         }))
         setBuddies(mapped)
       }
-      setLoading(false)
     }
+
     init()
-  }, [router])
+  }, [router, searchParams])
 
   const heroStats = useMemo(() => [
     { number: `${buddies.length || 6}+`, label: 'Da Nang Buddies' },
