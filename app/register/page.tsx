@@ -201,40 +201,7 @@ function RegisterForm() {
     setLoading(true)
 
     try {
-      // Sign up via the server route (admin API → bypasses GoTrue email
-      // rate-limit and immediately confirms the email). The route also returns
-      // a userId we can use to populate the role-specific row below.
-      const signupRes = await fetch('/api/auth/signup-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-          fullName: form.fullName,
-          role: form.role,
-        }),
-      })
-
-      if (!signupRes.ok) {
-        const body = await signupRes
-          .json()
-          .catch(() => ({ error: 'Unknown error' }))
-        setError(body.error ?? `Sign up failed (${signupRes.status}).`)
-        setLoading(false)
-        return
-      }
-
-      const { userId } = (await signupRes.json()) as { userId: string }
-      if (!userId) {
-        setError('Sign up did not return a user id.')
-        setLoading(false)
-        return
-      }
-
-      // The signup-admin route uses the admin API to create the user (NOT
-      // confirmed yet). We don't write to tourists/buddies yet — that
-      // happens after the user verifies their email on /verify-email.
-      // The role-specific payload is stashed so /verify-email can pick it up.
+      // Build the profile payload (same as before, but simpler — no more OTP).
       const payload =
         form.role === 'tourist'
           ? {
@@ -257,22 +224,48 @@ function RegisterForm() {
               is_available: true,
             }
 
-      // Stash everything /verify-email needs so the user doesn't have to
-      // re-enter anything after entering the 6-digit code.
-      if (typeof window !== 'undefined') {
-        try {
-          sessionStorage.setItem('localit.pendingPw', form.password)
-          sessionStorage.setItem('localit.pendingRole', form.role)
-          sessionStorage.setItem(
-            'localit.pendingPayload',
-            JSON.stringify({ role: form.role, payload, userId }),
-          )
-        } catch {}
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          fullName: form.fullName,
+          role: form.role,
+          profilePayload: payload,
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: 'Unknown error' }))
+        setError(body.error ?? `Sign up failed (${res.status}).`)
+        setLoading(false)
+        return
       }
 
-      // Send the user to the verification page. The signup-admin route has
-      // already emailed them a 6-digit code (see utils/otp.ts).
-      router.push(`/verify-email?email=${encodeURIComponent(form.email)}&role=${form.role}`)
+      const data = (await res.json()) as {
+        userId: string
+        session: { access_token: string; refresh_token: string; expires_in: number; expires_at: number } | null
+      }
+
+      // If the server could not mint a session (edge case), fall back to /login.
+      if (!data.session) {
+        router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
+        return
+      }
+
+      // Inject the session into the browser Supabase client so the user lands
+      // on their dashboard without a second round-trip to sign in.
+      if (typeof window !== 'undefined') {
+        const { createClient } = await import('@/utils/supabase/auth')
+        const supabase = createClient()
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        })
+      }
+
+      router.push(form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard')
       return
     } catch (err) {
       console.error('Sign-up error:', err)
