@@ -85,9 +85,11 @@ function HomePageInner() {
 
     async function loadBuddies() {
       const supabase = createClient()
+      // SECURITY: use safe_profiles (no PII columns) for the public join.
+      // profiles itself is restricted to authenticated reads.
       const { data } = await supabase
         .from('buddies')
-        .select('id, location_city, languages, specialties, rating_avg, hourly_rate, profile:profiles(full_name)')
+        .select('id, location_city, languages, specialties, rating_avg, hourly_rate, profile:safe_profiles(full_name)')
         .eq('is_available', true)
         .eq('location_city', 'Da Nang')
         .order('rating_avg', { ascending: false })
