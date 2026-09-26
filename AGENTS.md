@@ -23,6 +23,26 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - `.claude/skills/web-ai-slop.md` — upstream anti-slop skill source (do not modify; copy lives at `.claude/skills/`)
 - `.claude/skills/aeo-geo-writing.md` — upstream AEO/GEO skill source (do not modify)
 
+## Skill locations and repair (read this if a skill is missing)
+
+The two web-ai skills (`web-ai-slop`, `aeo-geo-writing`) are mirrored in **four** paths so every agent runner picks them up:
+
+| Path | Read by |
+|---|---|
+| `.agents/skills/<name>/SKILL.md` | skills.sh canonical |
+| `.claude/skills/<name>/SKILL.md` | Claude Code, primary Cursor read path |
+| `.claude/skills/<name>.md` | legacy mirror (some Cursor versions) |
+| `agent/skills/<name>/SKILL.md` | secondary mirror |
+
+If any of these is missing, truncated, or you suspect drift between copies, run `node scripts/install-skills.mjs` — it copies the canonical `.agents/skills/<name>/SKILL.md` into the other three locations.
+
+To **update from upstream** (new anti-slop patterns, AEO platform tuning):
+
+1. Fetch `web-ai-slop/SKILL.md` and `aeo-geo-writing/SKILL.md` from <https://github.com/sahilkargutkar/web-ai-slop>
+2. Overwrite `.agents/skills/<name>/SKILL.md` (the canonical source)
+3. Run `node scripts/install-skills.mjs` to fan out to the three mirrors
+4. Commit with conventional `chore:` prefix
+
 ## Anchor for any UI work (per `web-ai-slop` Section 1a)
 
 LOCALit's design is triangulated from:
