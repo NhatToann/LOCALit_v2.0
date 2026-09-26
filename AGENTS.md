@@ -33,12 +33,24 @@ LOCALit's design is triangulated from:
 
 ## Current state (as of 2026-09-27)
 
-- **Phase 1 underway:** design tokens aligned to `design.md` Section 2, Lucide migration in progress (~80 emoji → Lucide), Header being unified to 1 component with 3 role variants
-- **Status of the 12 issues from `ui-ux-audit.md`:**
-  - ✅ Done: emoji → Lucide migration, color tokens aligned, border-radius 4px (no more 16px), single Header component
-  - ⏳ In progress: footer slim, hero photo (real Da Nang), AEO answer capsules, FAQPage schema, llms.txt
-  - 📋 Phase 2: DiceBear avatars, profile completeness, map clustering, buddy availability calendar
-  - 📋 Phase 3: /buddy/earnings with Chart.js, KYC verification badge, trip photos Storage bucket, auto-translate chat
+- **Phase 1 DONE** (all 26 routes migrated to the flat enterprise design):
+  - ✅ Header unified to 1 component with 3 role variants (guest / tourist / buddy)
+  - ✅ Footer slim with AEO answer capsule + 4 nav columns
+  - ✅ Homepage refactored: hero photo (real Da Nang), 3 declarative metric cards (6+ buddies, $15–$45, 0% commission), 6 action items, 4 FAQ entries with FAQPage JSON-LD
+  - ✅ Tourist dashboard: live map at top (per user requirement), BuddiesAvailableNow, flat trips/buddies list, role-aware quick actions
+  - ✅ Buddy dashboard: "Hi Lan" greeting, status toggle (Accepting requests), earnings card, request summary, upcoming trips
+  - ✅ /tourist/browse: flat accordion rows with map sidebar popup, real distance calc
+  - ✅ /chat: role-aware quick actions, formatted timestamps
+  - ✅ /buddy/requests: urgency badges (Waiting 24h+), filter chips, sort pending first
+  - ✅ /tourist/trips + /trips/create + /trips/[id]: flat rows, status pills, stop builder
+  - ✅ /tourist/profile + /buddy/profile: semantic `<fieldset>`/`<legend>` tabs, public preview link
+  - ✅ /map: flat map with legend card + selected-buddy popup, share-location button
+  - ✅ /login + /register + /forgot-password + /reset-password + /verify-email: single-column flat forms with Lucide icons
+  - ✅ All page-level CSS files deleted (5 files). Only `app/globals.css` remains.
+  - ✅ Build: 26 routes, 0 TypeScript errors, ~13s
+  - ✅ Deployed to `https://localit-nhattoann.vercel.app/` and `https://localit-vn.vercel.app/`
+- **📋 Phase 2 pending**: profile completeness score, DiceBear avatar fallback, react-leaflet-cluster
+- **📋 Phase 3 pending**: /buddy/earnings with Chart.js, KYC verification badge, trip photos Storage bucket, auto-translate chat
 
 ## Banned without explicit justification (paste into PR description)
 
