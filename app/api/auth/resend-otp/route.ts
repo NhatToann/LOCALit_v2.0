@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { issueOtp } from '@/utils/otp'
+import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 
 interface ResendOtpBody {
   userId?: string
@@ -18,6 +19,11 @@ interface ResendOtpBody {
  * usable.
  */
 export async function POST(req: NextRequest) {
+  // ---- Rate limit (3 req / 60s per IP) --------------------------------------
+  const ip = getClientIp(req)
+  const rl = rateLimit(ip, 'auth:resend-otp', { windowMs: 60_000, max: 3 })
+  if (!rl.ok) return rateLimitResponse(rl.resetAt)
+
   let body: ResendOtpBody
   try {
     body = await req.json()

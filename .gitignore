@@ -42,3 +42,9 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Red team / security audit artifacts (kept out of repo)
+/scripts/redteam-attack.mjs
+/scripts/redteam-results.json
+/scripts/redteam-*.json
+

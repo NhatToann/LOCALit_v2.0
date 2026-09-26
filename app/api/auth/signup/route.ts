@@ -10,13 +10,18 @@
  *   2. The profiles row (defensive upsert in case the trigger is missing).
  *   3. The role-specific row (tourists or buddies).
  *
+ * Defenses:
+ *   - Per-IP rate limit (5/min) to make brute force impractical.
+ *   - Generic error messages that do NOT leak whether the email exists.
+ *   - Input is size-limited and HTML-sanitized for free-text fields (full_name, bio).
+ *
  * On success the client is told to call signIn() to establish its own session
- * and then redirect to /tourist/dashboard or /buddy/dashboard. We don't mint
- * the session here because GoTrueAdminApi has no server-side session endpoint
- * we can use safely without leaking tokens.
+ * and then redirect to /tourist/dashboard or /buddy/dashboard.
  */
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
+
 type Role = 'tourist' | 'buddy'
 
 interface SignupBody {
@@ -27,7 +32,23 @@ interface SignupBody {
   profilePayload?: Record<string, unknown>
 }
 
+/** Strip control chars and HTML tags from free-text fields. Server-side last
+ *  line of defense; UI should also escape on render. */
+function sanitize(input: string, maxLen = 100): string {
+  return input
+    .replace(/[\u0000-\u001f\u007f]/g, '') // strip control chars
+    .replace(/<[^>]*>/g, '')                 // strip HTML tags
+    .trim()
+    .slice(0, maxLen)
+}
+
 export async function POST(req: NextRequest) {
+  // ---- Rate limit (5 requests / 60s per IP) ----------------------------------
+  const ip = getClientIp(req)
+  const rl = rateLimit(ip, 'auth:signup', { windowMs: 60_000, max: 5 })
+  if (!rl.ok) return rateLimitResponse(rl.resetAt)
+
+  // ---- Parse + validate body -------------------------------------------------
   let body: SignupBody
   try {
     body = await req.json()
@@ -37,59 +58,64 @@ export async function POST(req: NextRequest) {
 
   const { email, password, fullName, role, profilePayload } = body
 
-  // Validate inputs
-  if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  // Coerce + basic type checks. Don't trust client types.
+  const emailStr = typeof email === 'string' ? email.trim().toLowerCase() : ''
+  const passwordStr = typeof password === 'string' ? password : ''
+  const fullNameStr = typeof fullName === 'string' ? fullName.trim() : ''
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr)) {
     return NextResponse.json({ error: 'Invalid email.' }, { status: 400 })
   }
-  if (!password || typeof password !== 'string' || password.length < 6) {
+  if (passwordStr.length < 6) {
     return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 })
   }
-  if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 2) {
+  if (fullNameStr.length < 2) {
     return NextResponse.json({ error: 'Please provide your full name.' }, { status: 400 })
   }
   if (role !== 'tourist' && role !== 'buddy') {
     return NextResponse.json({ error: 'Invalid role.' }, { status: 400 })
   }
 
+  const cleanFullName = sanitize(fullNameStr, 100)
+
   const admin = createAdminClient()
 
-  // 1. Create the auth user with email confirmed.
+  // ---- 1. Create the auth user with email confirmed ------------------------
   const { data: userData, error: userError } = await admin.auth.admin.createUser({
-    email,
-    password,
+    email: emailStr,
+    password: passwordStr,
     email_confirm: true,
     user_metadata: {
-      full_name: fullName.trim(),
+      full_name: cleanFullName,
       role,
     },
   })
 
   if (userError || !userData.user) {
-    // If the email already exists, return a generic message so we don't leak
-    // whether the account exists.
-    if (userError?.message?.toLowerCase().includes('already')) {
+    const msg = userError?.message ?? ''
+    // Generic message so we don't leak whether the email is taken.
+    if (msg.toLowerCase().includes('already')) {
       return NextResponse.json(
-        { error: 'An account with this email already exists. Try signing in.' },
+        { error: 'Sign up could not be completed with these details. Try a different email or sign in.' },
         { status: 409 },
       )
     }
-    return NextResponse.json(
-      { error: userError?.message ?? 'Could not create user.' },
-      { status: 400 },
-    )
+    // Suppress internal error detail; log it but show generic message.
+    console.warn('[signup] createUser failed:', msg)
+    return NextResponse.json({ error: 'Sign up failed. Please try again.' }, { status: 400 })
   }
 
   const userId = userData.user.id
 
-  // 2. Defensive profiles upsert (trigger may or may not have fired).
+  // ---- 2. Defensive profiles upsert ----------------------------------------
   try {
     await admin
       .from('profiles')
       .upsert(
         {
           id: userId,
-          email,
-          full_name: fullName.trim(),
+          email: emailStr,
+          full_name: cleanFullName,
           role,
         },
         { onConflict: 'id', ignoreDuplicates: true },
@@ -98,35 +124,44 @@ export async function POST(req: NextRequest) {
     console.warn('[signup] profiles upsert warning:', (e as Error).message)
   }
 
-  // 3. Create the role-specific row.
+  // ---- 3. Create the role-specific row -------------------------------------
+  // Sanitize free-text fields in the profilePayload too.
+  const cleanPayload = sanitizePayload(role, profilePayload ?? {})
+
   if (role === 'tourist') {
-    const tPayload = profilePayload ?? {}
     try {
       await admin.from('tourists').insert({
         id: userId,
-        nationality: tPayload.nationality ?? null,
-        date_of_birth: tPayload.date_of_birth ?? null,
-        travel_style: tPayload.travel_style ?? null,
-        interests: tPayload.interests ?? [],
-        languages: tPayload.languages ?? [],
-        budget_range: tPayload.budget_range ?? '50-100',
-        destination: tPayload.destination ?? 'Da Nang',
-        arrival_date: tPayload.arrival_date ?? null,
+        nationality: cleanPayload.nationality ?? null,
+        date_of_birth: cleanPayload.date_of_birth ?? null,
+        travel_style: cleanPayload.travel_style ?? null,
+        interests: Array.isArray(cleanPayload.interests)
+          ? (cleanPayload.interests as string[]).filter(i => typeof i === 'string').slice(0, 32)
+          : [],
+        languages: Array.isArray(cleanPayload.languages)
+          ? (cleanPayload.languages as string[]).filter(l => typeof l === 'string').slice(0, 16)
+          : [],
+        budget_range: typeof cleanPayload.budget_range === 'string' ? cleanPayload.budget_range : '50-100',
+        destination: typeof cleanPayload.destination === 'string' ? sanitize(String(cleanPayload.destination), 100) : 'Da Nang',
+        arrival_date: cleanPayload.arrival_date ?? null,
         is_visible: true,
       })
     } catch (e) {
       console.warn('[signup] tourists insert warning:', (e as Error).message)
     }
   } else {
-    const bPayload = profilePayload ?? {}
     try {
       await admin.from('buddies').insert({
         id: userId,
-        location_city: bPayload.location_city ?? 'Da Nang',
-        languages: bPayload.languages ?? [],
-        specialties: bPayload.specialties ?? [],
-        hourly_rate: Number(bPayload.hourly_rate) || 15,
-        bio: bPayload.bio ?? '',
+        location_city: typeof cleanPayload.location_city === 'string' ? sanitize(String(cleanPayload.location_city), 100) : 'Da Nang',
+        languages: Array.isArray(cleanPayload.languages)
+          ? (cleanPayload.languages as string[]).filter(l => typeof l === 'string').slice(0, 16)
+          : [],
+        specialties: Array.isArray(cleanPayload.specialties)
+          ? (cleanPayload.specialties as string[]).filter(s => typeof s === 'string').slice(0, 32)
+          : [],
+        hourly_rate: Number(cleanPayload.hourly_rate) || 15,
+        bio: typeof cleanPayload.bio === 'string' ? sanitize(String(cleanPayload.bio), 500) : '',
         is_available: true,
       })
     } catch (e) {
@@ -134,5 +169,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ userId, email })
+  return NextResponse.json({ userId, email: emailStr })
+}
+
+/** Sanitize free-text fields in the profile payload before inserting. */
+function sanitizePayload(role: Role, payload: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...payload }
+  if (typeof out.full_name === 'string') out.full_name = sanitize(out.full_name, 100)
+  if (typeof out.destination === 'string') out.destination = sanitize(out.destination, 100)
+  if (typeof out.location_city === 'string') out.location_city = sanitize(out.location_city, 100)
+  if (typeof out.bio === 'string') out.bio = sanitize(out.bio, 500)
+  return out
 }
