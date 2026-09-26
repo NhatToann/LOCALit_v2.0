@@ -24,7 +24,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Live Endpoints
 
 - **Current Production** (check `vercel ls --prod` — URL changes per deploy):
-  `https://localit-5bg28iqrf-nhattoann.vercel.app/` (deploy 2026-09-26 — register step reorder)
+ `https://localit-o6qwiv0ka-nhattoann.vercel.app/` (deploy 2026-09-26 — OTP verification + RLS grants fix)
 - **Supabase URL**: https://pqvnjgyqbxlylawwogjv.supabase.co
 - **Supabase Dashboard**: https://supabase.com/dashboard/project/pqvnjgyqbxlylawwogjv
 
@@ -66,10 +66,24 @@ SUPABASE_DB_PORT=5432
 - `profiles_updated_at` trigger on `public.profiles` → auto-updates `updated_at`
 - Same pattern on `tourists`, `buddies`, `connections`, `trips`, `conversations`
 - ⚠️ **The trigger can silently disappear** if `schema.sql` is partially re-applied or if Supabase re-provisions its internal auth schema. **Always verify** with:
+ ```
+ node -e "const{Client}=require('pg');new Client({...}).query(\"SELECT tgname FROM pg_trigger WHERE tgrelid='auth.users'::regclass AND NOT tgisinternal\").then(r=>console.log(JSON.stringify(r.rows)))"
+ ```
+ If empty, re-run `scripts/install-missing-trigger.mjs`.
+
+### RLS Grants for `service_role` (CRITICAL)
+- ⚠️ **Supabase Cloud does NOT auto-grant table-level privileges to `service_role`.** If you re-run `schema.sql` or apply migrations that re-`GRANT TO authenticated`, you can silently strip grants from `service_role`. Symptom: `permission denied for table <name>` on every admin route.
+- **Fix**: `node scripts/fix-grants.mjs` (idempotent — adds INSERT/UPDATE/SELECT/DELETE on every public table to `service_role`).
+- **Verify**:
+  ```bash
+  node -e "..." # see scripts/diag-tourists-grants.mjs
   ```
-  node -e "const{Client}=require('pg');new Client({...}).query(\"SELECT tgname FROM pg_trigger WHERE tgrelid='auth.users'::regclass AND NOT tgisinternal\").then(r=>console.log(JSON.stringify(r.rows)))"
-  ```
-  If empty, re-run `scripts/install-missing-trigger.mjs`.
+
+### Email Verification (Custom 6-digit OTP)
+- Flow: `/register` → `POST /api/auth/signup-admin` (no auto-confirm, returns userId) → email sent → user lands on `/verify-email?email=...` → enters 6-digit code → `POST /api/auth/verify-otp` → confirms email + upserts profile.
+- Codes are bcrypt-hashed in `public.email_verifications` (15 min TTL, 5 attempts, then forced resend via `POST /api/auth/resend-otp`).
+- Email delivery: `utils/email.ts` → Resend (`RESEND_API_KEY` + `EMAIL_FROM` env vars). **Without `RESEND_API_KEY`** the sender logs to console / Vercel runtime logs as a stub — useful for local dev or testing without a paid Resend account.
+- See `utils/otp.ts`, `app/api/auth/verify-otp/route.ts`, `app/api/auth/resend-otp/route.ts`, `app/verify-email/page.tsx`.
 
 ### Data Types (column types differ from what you might assume)
 - `tourists.interests`: `TEXT[]` (PostgreSQL array), NOT `jsonb`. Insert with `ARRAY['food','photo']::text[]`
