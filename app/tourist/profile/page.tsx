@@ -232,15 +232,13 @@ export default function TouristProfilePage() {
                     <form className="profile-form">
                       <div className="form-row">
                         <div className="form-group">
-                          <label className="form-label">First name</label>
-                          <input className="form-input" value={profile.full_name.split(' ')[0] ?? ''} disabled />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Last name</label>
+                          <label className="form-label">Full name</label>
                           <input
                             className="form-input"
-                            value={profile.full_name.split(' ').slice(1).join(' ') || ''}
-                            onChange={(e) => setProfile({ ...profile, full_name: `${profile.full_name.split(' ')[0] ?? ''} ${e.target.value}`.trim() })}
+                            value={profile.full_name}
+                            onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
+                            maxLength={100}
+                            placeholder="Your full name"
                           />
                         </div>
                       </div>

@@ -161,16 +161,26 @@ export default function TouristDashboardPage() {
                 <h2 className="dashboard-card-title">Your trips</h2>
                 <p className="dashboard-card-sub">Itineraries you&apos;re planning with local buddies.</p>
               </div>
-              <Link href="/tourist/trips" className="dashboard-card-link">See all →</Link>
+              <div className="dashboard-card-actions">
+                <Link href="/tourist/trips/create" className="btn btn-primary btn-sm">
+                  ＋ Plan a trip
+                </Link>
+                <Link href="/tourist/trips" className="dashboard-card-link">See all →</Link>
+              </div>
             </div>
             <div className="dashboard-card-body">
               {trips.length === 0 ? (
                 <div className="dashboard-empty">
                   <div className="dashboard-empty-icon">🧳</div>
                   <p>You don&apos;t have any trips yet.</p>
-                  <Link href="/tourist/browse" className="btn btn-primary mt-md">
-                    Find a buddy to get started
-                  </Link>
+                  <div className="dashboard-empty-actions">
+                    <Link href="/tourist/trips/create" className="btn btn-primary mt-md">
+                      Plan your first trip
+                    </Link>
+                    <Link href="/tourist/browse" className="btn btn-outline mt-md">
+                      Find a buddy to get started
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <ul className="dashboard-list">

@@ -49,7 +49,7 @@ function HomePageInner() {
 
   useEffect(() => {
     if (justSubscribed) {
-      const t = setTimeout(() => setShowSubscribedToast(false), 5000)
+      const t = setTimeout(() => setShowSubscribedToast(false), 10000)
       // Strip the query so refresh doesn't re-trigger
       router.replace('/')
       return () => clearTimeout(t)

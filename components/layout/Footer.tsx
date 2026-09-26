@@ -70,9 +70,8 @@ export default function Footer() {
               <h4>Support</h4>
               <Link href="/forgot-password">Forgot Password</Link>
               <Link href="/reset-password">Reset Password</Link>
-              <Link href="#">Terms of Service</Link>
-              <Link href="#">Privacy Policy</Link>
-              <Link href="#">Contact Us</Link>
+              <a href="mailto:support@localit.dev">Contact Us</a>
+              <a href="mailto:support@localit.dev?subject=LOCALit%20feedback">Feedback</a>
             </div>
           </div>
         </div>
@@ -81,8 +80,8 @@ export default function Footer() {
           <p>&copy; 2026 LOCALit. All rights reserved. Kỳ 8 Capstone Project.</p>
           <div className="footer-meta">
             <span>Made with ♥ in Da Nang</span>
-            <Link href="#">Status</Link>
-            <Link href="#">Sitemap</Link>
+            <Link href="/map">Status</Link>
+            <Link href="/tourist/browse">Sitemap</Link>
           </div>
         </div>
       </div>

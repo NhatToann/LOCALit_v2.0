@@ -97,6 +97,18 @@ export default function TripDetailPage() {
           ))}
         </div>
       )}
+
+      {trip.status === 'completed' && buddy && (
+        <div className="card mt-lg">
+          <div className="card-body text-center">
+            <h3 className="text-lg font-semibold mb-sm">How was your trip?</h3>
+            <p className="text-muted mb-md">Leave a review for {buddy.profile.full_name} so other travelers can benefit.</p>
+            <Link href={`/review/${trip.id}`} className="btn btn-primary">
+              ⭐ Review {buddy.profile.full_name.split(' ')[0]}
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

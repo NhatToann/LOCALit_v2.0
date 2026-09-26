@@ -55,7 +55,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
 
       const { data: b } = await supabase
         .from('buddies')
-        .select('*, profile:profiles(full_name, bio, avatar_url, phone, is_online)')
+        .select('*, profile:profiles(full_name, avatar_url, phone, is_online)')
         .eq('id', id)
         .single()
 
@@ -68,7 +68,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
       setBuddy({
         id: b.id,
         full_name: (b.profile as any)?.full_name ?? 'Buddy',
-        bio: (b.profile as any)?.bio ?? null,
+        bio: b.bio ?? null,
         avatar_url: (b.profile as any)?.avatar_url ?? null,
         phone: (b.profile as any)?.phone ?? null,
         is_online: (b.profile as any)?.is_online ?? false,
