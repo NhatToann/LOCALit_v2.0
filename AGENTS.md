@@ -248,3 +248,35 @@ When user returns, ask if they want to:
 - Commit often with conventional commits (`feat:`, `fix:`, `chore:`)
 - Update this file as project evolves — single source of truth for cross-session context
 
+## Security Hardening Log (2026-09-26)
+
+A red-team audit ran `scripts/redteam-attack.mjs` against the current production and found (then fixed) the following:
+
+### Critical — fixed
+- **🚨 PII leak via anon reads**: tourists/buddies/reviews were publicly readable. Fixed via
+  `supabase/migrations/2026-09-26_tighten_rls.sql` (RLS row-level filter on `is_visible=true`/`is_available=true` or `auth.uid()=id`)
+  AND `supabase/migrations/2026-09-26_revoke_pii_columns.sql` (column-level grants: anon gets only the
+  non-PII columns of tourists/buddies/reviews, and ZERO columns of profiles).
+  Anon SELECT on `date_of_birth`, `email`, `phone`, `bio` is now blocked.
+- **🚨 verify-otp user enumeration**: 404 vs 410 responses leaked which userIds were real.
+  Fixed by collapsing both to a generic `400 {error: "Invalid or expired code.", reason: "invalid"}`
+  for unknown userIds, and `410 {error: "No active verification code.", reason: "no_code"}` for
+  already-confirmed users. Added IP rate limit (10/min).
+- **⚠️ Signup oversized payload**: 50KB `fullName` was silently truncated to 100 chars but the
+  request still returned 200. Now returns 400 with explicit message.
+- **⚠️ Public pages joining `profiles` directly**: `/map` and `/tourist/browse` used
+  `profile:profiles(...)` joins — broken under the new "authenticated only" RLS for anonymous
+  viewers. Switched to `profile:safe_profiles(...)` which is a view with only id/full_name/role/avatar_url.
+
+### Already fixed before this session
+- `autoConfirm` IDOR in `create-profile` — deprecated in favour of one-shot `signupToken` issued by `/api/auth/signup` (5-min TTL, scoped to userId). Cookie-session path still accepted.
+- OTP brute force — 5 wrong attempts invalidate the code (`utils/otp.ts`).
+
+### Residual (won't fix in scope — note for future)
+- **Per-IP rate limiting is in-memory**: Vercel serverless can spawn multiple lambda instances
+  for the same route; each gets its own bucket. An attacker rotating IPs / forcing cold starts
+  could bypass the 5/min cap. The current cap stops casual abuse; for real defense-in-depth,
+  move to Upstash Redis / Vercel KV (deferred until launch). Documented in the rate-limit util.
+- **No CSRF token on `/api/newsletter/subscribe`** — relies on origin/referer check. Acceptable
+  for a low-impact endpoint but worth revisiting if newsletter ever sends privileged data.
+
