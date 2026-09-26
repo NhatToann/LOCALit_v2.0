@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/utils/supabase/auth'
-import { Clock, Check, Briefcase, Star, Inbox, Pencil, MessageCircle, MapPin, Compass, DollarSign, Eye, Sparkles } from 'lucide-react'
+import { Clock, Check, Briefcase, Star, Inbox, Pencil, MessageCircle, MapPin, Compass, DollarSign, Eye, ClipboardList } from 'lucide-react'
 import type { Profile, Connection, Trip } from '@/lib/types'
 import { Avatar } from '@/components/ui/Avatar'
 import { EmptyState } from '@/components/ui/Avatar'
@@ -359,7 +359,7 @@ export default function BuddyDashboardPage() {
               className="flex items-start gap-3 p-4 border border-border rounded-sm bg-surface hover:border-border-strong transition-colors duration-150"
             >
               <span className="text-muted mt-0.5">
-                <Sparkles size={20} aria-hidden="true" />
+                <ClipboardList size={20} aria-hidden="true" />
               </span>
               <span>
                 <strong className="block text-sm font-semibold">Complete your profile</strong>

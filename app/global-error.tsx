@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { LifeBuoy } from 'lucide-react'
 
 export default function GlobalError({
   error,
@@ -26,17 +27,23 @@ export default function GlobalError({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#F8F9FA',
-          color: '#1A1A2E',
+          background: '#FAFAF7',
+          color: '#0F0F0F',
           padding: 24,
         }}
       >
         <div style={{ maxWidth: 520, textAlign: 'center' }}>
-          <div style={{ fontSize: 64, marginBottom: 12 }}>🛟</div>
-          <h1 style={{ fontSize: 28, margin: '0 0 12px', fontWeight: 700 }}>
+          <LifeBuoy
+            size={64}
+            strokeWidth={1.5}
+            color="#FF6B35"
+            style={{ marginBottom: 12 }}
+            aria-hidden="true"
+          />
+          <h1 style={{ fontSize: 28, margin: '0 0 12px', fontWeight: 600, letterSpacing: '-0.02em' }}>
             Something went wrong
           </h1>
-          <p style={{ color: '#666', margin: '0 0 24px', lineHeight: 1.6 }}>
+          <p style={{ color: '#737373', margin: '0 0 24px', lineHeight: 1.6 }}>
             We hit an unexpected error loading this page. The team has been notified.
             Try again, or head back home.
           </p>
@@ -46,11 +53,12 @@ export default function GlobalError({
               style={{
                 padding: '12px 22px',
                 background: '#FF6B35',
-                color: '#FFF',
-                border: 0,
-                borderRadius: 8,
-                fontWeight: 600,
+                color: '#FAFAF7',
+                border: '1px solid #FF6B35',
+                borderRadius: 4,
+                fontWeight: 500,
                 cursor: 'pointer',
+                fontFamily: 'inherit',
               }}
             >
               Try again
@@ -59,12 +67,13 @@ export default function GlobalError({
               href="/"
               style={{
                 padding: '12px 22px',
-                background: '#FFF',
-                color: '#1A1A2E',
-                border: '1px solid #E0E0E0',
-                borderRadius: 8,
-                fontWeight: 600,
+                background: '#FFFFFF',
+                color: '#0F0F0F',
+                border: '1px solid #D4D4D0',
+                borderRadius: 4,
+                fontWeight: 500,
                 textDecoration: 'none',
+                fontFamily: 'inherit',
               }}
             >
               Go home
@@ -75,7 +84,7 @@ export default function GlobalError({
               style={{
                 marginTop: 24,
                 fontSize: 12,
-                color: '#999',
+                color: '#A3A3A3',
                 fontFamily: 'ui-monospace, monospace',
               }}
             >

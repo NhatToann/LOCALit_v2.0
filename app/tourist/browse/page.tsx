@@ -295,7 +295,7 @@ function BrowseContent() {
             selfLiveOverride={selfGranted}
           />
           {selectedBuddy ? (
-            <div className="absolute bottom-3 left-3 right-3 md:left-auto md:right-3 md:w-80 bg-surface border border-border rounded-sm p-4 shadow-lg">
+            <div className="absolute bottom-3 left-3 right-3 md:left-auto md:right-3 md:w-80 bg-surface border border-border rounded-sm p-4">
               <button
                 type="button"
                 onClick={() => setSelectedMapId(null)}
