@@ -2,15 +2,26 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { createClient } from '@/utils/supabase/auth'
 import type { Profile, Connection, Trip } from '@/lib/types'
+import '../../dashboard.css'
+
+const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
+
+const DEFAULT_LOCATION = { lat: 16.0544, lng: 108.2023 }
 
 export default function BuddyDashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [buddyProfile, setBuddyProfile] = useState<any | null>(null)
   const [requests, setRequests] = useState<Connection[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
+  const [reviewsCount, setReviewsCount] = useState(0)
+  const [avgRating, setAvgRating] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState(false)
+  const [userLocation, setUserLocation] = useState(DEFAULT_LOCATION)
+  const [shareLocation, setShareLocation] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -22,15 +33,45 @@ export default function BuddyDashboardPage() {
           return
         }
 
-        const [{ data: p }, { data: c }, { data: t }] = await Promise.all([
+        const [
+          { data: p },
+          { data: c },
+          { data: t },
+          { data: b },
+          { data: myReviews },
+        ] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
-          supabase.from('connections').select('*, tourist:tourists(*, profile:profiles(*))').eq('buddy_id', user.id).order('created_at', { ascending: false }),
-          supabase.from('trips').select('*, tourist:tourists(*, profile:profiles(*))').eq('buddy_id', user.id),
+          supabase
+            .from('connections')
+            .select('*, tourist:tourists(*, profile:profiles(*))')
+            .eq('buddy_id', user.id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('trips')
+            .select('*, tourist:tourists(*, profile:profiles(*))')
+            .eq('buddy_id', user.id),
+          supabase
+            .from('buddies')
+            .select('*')
+            .eq('id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('reviews')
+            .select('rating')
+            .eq('reviewee_id', user.id),
         ])
 
         setProfile(p ?? null)
+        setBuddyProfile(b ?? null)
         setRequests((c || []) as Connection[])
         setTrips((t || []) as Trip[])
+        setReviewsCount((myReviews || []).length)
+        if (myReviews && myReviews.length > 0) {
+          const sum = myReviews.reduce((acc, r) => acc + (r.rating || 0), 0)
+          setAvgRating(Math.round((sum / myReviews.length) * 10) / 10)
+        } else {
+          setAvgRating(null)
+        }
       } catch (err) {
         console.error('Buddy dashboard load failed:', err)
       } finally {
@@ -38,6 +79,16 @@ export default function BuddyDashboardPage() {
       }
     }
     load()
+  }, [])
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => {},
+        { enableHighAccuracy: false, timeout: 4000 },
+      )
+    }
   }, [])
 
   async function toggleAvailability() {
@@ -55,101 +106,254 @@ export default function BuddyDashboardPage() {
   }
 
   const pendingCount = requests.filter(r => r.status === 'pending').length
+  const acceptedCount = requests.filter(r => r.status === 'accepted').length
+  const upcomingTrips = trips.filter(t => t.status === 'confirmed' || t.status === 'planning').length
+
   const stats = [
     { label: 'Pending requests', value: pendingCount, icon: '⏳', color: '#FFC107' },
-    { label: 'Connections', value: requests.filter(r => r.status === 'accepted').length, icon: '✓', color: '#28A745' },
-    { label: 'Trips', value: trips.length, icon: '🧳', color: '#FF6B35' },
-    { label: 'Avg rating', value: '—', icon: '⭐', color: '#FFB347' },
+    { label: 'Active connections', value: acceptedCount, icon: '✓', color: '#28A745' },
+    { label: 'Upcoming trips', value: upcomingTrips, icon: '🧳', color: '#FF6B35' },
+    {
+      label: 'Avg rating',
+      value: avgRating !== null ? `${avgRating.toFixed(1)}★` : '—',
+      icon: '⭐',
+      color: '#FFB347',
+    },
   ]
 
-  return (
-    <div className="container py-xl">
-      <div className="flex-between mb-xl">
-        <div>
-          <h1 className="text-3xl">Hi {profile?.full_name?.split(' ')[0]}! 👋</h1>
-          <p className="text-muted">Manage your connection requests and upcoming trips</p>
-        </div>
-        <button
-          onClick={toggleAvailability}
-          disabled={toggling}
-          className={`btn ${profile?.is_online ? 'btn-primary' : 'btn-outline'}`}
-        >
-          {profile?.is_online ? '🟢 Active' : '⚪ Offline'}
-        </button>
-      </div>
+  const firstName = profile?.full_name?.split(' ')[0] || 'buddy'
+  const city = buddyProfile?.location_city || 'Da Nang'
 
-      <div className="grid grid-4 mb-xl">
-        {stats.map((s, i) => (
-          <div key={i} className="card">
-            <div className="card-body flex items-center gap-md">
-              <div style={{
-                width: 56, height: 56, borderRadius: 16,
-                background: `${s.color}20`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 28,
-              }}>{s.icon}</div>
-              <div>
-                <p className="text-2xl font-bold">{s.value}</p>
-                <p className="text-sm text-muted">{s.label}</p>
+  return (
+    <div className="dashboard-root">
+      {/* Hero */}
+      <section className="dashboard-hero dashboard-hero-buddy">
+        <div className="dashboard-hero-bg" aria-hidden="true">
+          <span className="dashboard-hero-blob blob-1" />
+          <span className="dashboard-hero-blob blob-2" />
+        </div>
+        <div className="dashboard-hero-content">
+          <div>
+            <span className="dashboard-hero-eyebrow">🌍 Local buddy dashboard</span>
+            <h1 className="dashboard-hero-title">
+              Hi <span className="dashboard-hero-name">{firstName}</span>! 👋
+            </h1>
+            <p className="dashboard-hero-sub">
+              {pendingCount > 0
+                ? <>You have <strong>{pendingCount}</strong> pending {pendingCount === 1 ? 'request' : 'requests'} waiting for your reply.</>
+                : <>You&apos;re all caught up. Time to plan something fun in <strong>{city}</strong>!</>}
+            </p>
+          </div>
+          <div className="dashboard-hero-cta">
+            <button
+              onClick={toggleAvailability}
+              disabled={toggling}
+              className={`btn btn-lg ${profile?.is_online ? 'btn-primary' : 'btn-outline btn-on-dark'}`}
+            >
+              {profile?.is_online ? '🟢 Accepting requests' : '⚪ Currently offline'}
+            </button>
+            <Link href="/buddy/profile" className="btn btn-outline btn-lg btn-on-dark">
+              ✏️ Edit profile
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <div className="container py-xl">
+        {/* Stats */}
+        <div className="dashboard-stats-grid">
+          {stats.map((s, i) => (
+            <div key={i} className="dashboard-stat-card">
+              <div
+                className="dashboard-stat-icon"
+                style={{ background: `${s.color}1A`, color: s.color }}
+              >
+                {s.icon}
+              </div>
+              <div className="dashboard-stat-meta">
+                <p className="dashboard-stat-value">{s.value}</p>
+                <p className="dashboard-stat-label">{s.label}</p>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      <div className="grid" style={{ gridTemplateColumns: '2fr 1fr', gap: 'var(--space-lg)' }}>
-        {/* Pending requests */}
-        <div className="card">
-          <div className="card-header flex-between">
-            <h3>Connection requests</h3>
-            <Link href="/buddy/requests" className="text-primary text-sm">See all →</Link>
-          </div>
-          <div className="card-body">
-            {requests.filter(r => r.status === 'pending').length === 0 ? (
-              <div className="empty-state">
-                <p>📭 No pending requests right now</p>
+        <div className="dashboard-grid">
+          {/* Pending requests */}
+          <section className="dashboard-card">
+            <div className="dashboard-card-header">
+              <div>
+                <h2 className="dashboard-card-title">Connection requests</h2>
+                <p className="dashboard-card-sub">Tourists who want to explore with you.</p>
               </div>
-            ) : (
-              <ul className="flex flex-col">
-                {requests.filter(r => r.status === 'pending').map(r => {
-                  const t = r.tourist as any
-                  return (
-                    <li key={r.id} className="flex-between py-md" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <div className="flex items-center gap-sm">
-                        <div className="avatar avatar-md">{t?.profile?.full_name?.charAt(0) || '?'}</div>
-                        <div>
-                          <p className="font-medium">{t?.profile?.full_name}</p>
-                          <p className="text-xs text-muted">{t?.nationality || '—'} • {t?.destination || 'Da Nang'}</p>
-                          {r.message && <p className="text-sm mt-xs" style={{ fontStyle: 'italic' }}>&ldquo;{r.message}&rdquo;</p>}
+              <Link href="/buddy/requests" className="dashboard-card-link">Manage all →</Link>
+            </div>
+            <div className="dashboard-card-body">
+              {requests.filter(r => r.status === 'pending').length === 0 ? (
+                <div className="dashboard-empty">
+                  <div className="dashboard-empty-icon">📭</div>
+                  <p>No pending requests right now.</p>
+                  <p className="dashboard-empty-sub">When travelers reach out, they&apos;ll show up here.</p>
+                </div>
+              ) : (
+                <ul className="dashboard-list">
+                  {requests.filter(r => r.status === 'pending').slice(0, 5).map(r => {
+                    const t = r.tourist as any
+                    const name = t?.profile?.full_name || 'Traveler'
+                    return (
+                      <li key={r.id} className="dashboard-list-row">
+                        <div className="dashboard-list-main flex items-center gap-sm">
+                          <div className="avatar avatar-md">{name.charAt(0)}</div>
+                          <div>
+                            <p className="font-medium">{name}</p>
+                            <p className="text-xs text-muted">
+                              {t?.nationality || '—'} · {t?.destination || 'Da Nang'}
+                            </p>
+                            {r.message && (
+                              <p className="dashboard-message">&ldquo;{r.message}&rdquo;</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <Link href="/buddy/requests" className="btn btn-primary btn-sm">Review</Link>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
+                        <div className="dashboard-list-actions">
+                          <Link href="/buddy/requests" className="btn btn-primary btn-sm">Review</Link>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </section>
 
-        {/* Quick actions */}
-        <div className="card">
-          <div className="card-header">
-            <h3>Quick actions</h3>
-          </div>
-          <div className="card-body flex flex-col gap-md">
-            <Link href="/buddy/profile" className="btn btn-outline btn-block">
-              ✏️ Update profile
-            </Link>
-            <Link href="/chat" className="btn btn-outline btn-block">
-              💬 Messages
-            </Link>
-            <Link href="/map" className="btn btn-outline btn-block">
-              📍 My location
-            </Link>
-          </div>
+          {/* Quick actions */}
+          <section className="dashboard-card">
+            <div className="dashboard-card-header">
+              <h2 className="dashboard-card-title">Quick actions</h2>
+            </div>
+            <div className="dashboard-card-body dashboard-actions">
+              <Link href="/buddy/requests" className="dashboard-action">
+                <span className="dashboard-action-icon">📨</span>
+                <span className="dashboard-action-text">
+                  <strong>Review requests</strong>
+                  <small>{pendingCount} pending</small>
+                </span>
+              </Link>
+              <Link href="/buddy/profile" className="dashboard-action">
+                <span className="dashboard-action-icon">✏️</span>
+                <span className="dashboard-action-text">
+                  <strong>Update profile</strong>
+                  <small>Bio, specialties, hourly rate</small>
+                </span>
+              </Link>
+              <Link href="/chat" className="dashboard-action">
+                <span className="dashboard-action-icon">💬</span>
+                <span className="dashboard-action-text">
+                  <strong>Messages</strong>
+                  <small>Chat with active tourists</small>
+                </span>
+              </Link>
+              <Link href="/map" className="dashboard-action">
+                <span className="dashboard-action-icon">📍</span>
+                <span className="dashboard-action-text">
+                  <strong>Pin my location</strong>
+                  <small>Show up on the buddy map</small>
+                </span>
+              </Link>
+            </div>
+          </section>
+
+          {/* Upcoming trips */}
+          <section className="dashboard-card">
+            <div className="dashboard-card-header">
+              <div>
+                <h2 className="dashboard-card-title">Upcoming trips</h2>
+                <p className="dashboard-card-sub">Trips you&apos;re guiding.</p>
+              </div>
+            </div>
+            <div className="dashboard-card-body">
+              {trips.length === 0 ? (
+                <div className="dashboard-empty">
+                  <div className="dashboard-empty-icon">🧭</div>
+                  <p>No trips booked yet.</p>
+                  <p className="dashboard-empty-sub">Accept a request to start planning.</p>
+                </div>
+              ) : (
+                <ul className="dashboard-list">
+                  {trips.slice(0, 5).map((trip) => {
+                    const t = trip.tourist as any
+                    const name = t?.profile?.full_name || 'Traveler'
+                    return (
+                      <li key={trip.id} className="dashboard-list-row">
+                        <div className="dashboard-list-main">
+                          <p className="font-medium">{trip.title}</p>
+                          <p className="text-sm text-muted">
+                            📍 {trip.destination}
+                            {trip.start_date && ` · 📅 ${new Date(trip.start_date).toLocaleDateString('en-US')}`}
+                          </p>
+                          <p className="text-xs text-muted mt-xs">👤 {name}</p>
+                        </div>
+                        <div className="dashboard-list-actions">
+                          <span className={`badge badge-${
+                            trip.status === 'completed' ? 'info'
+                            : trip.status === 'confirmed' ? 'success'
+                            : trip.status === 'cancelled' ? 'danger'
+                            : 'primary'
+                          }`}>
+                            {trip.status === 'completed' ? '✓ Done'
+                             : trip.status === 'confirmed' ? '✓ Confirmed'
+                             : trip.status === 'cancelled' ? '✕ Cancelled'
+                             : '⏳ Planning'}
+                          </span>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </section>
+
+          {/* Map */}
+          <section className="dashboard-card dashboard-map-card">
+            <div className="dashboard-card-header">
+              <div>
+                <h2 className="dashboard-card-title">Your location</h2>
+                <p className="dashboard-card-sub">Pin where you guide so tourists can find you.</p>
+              </div>
+              <div className="flex gap-sm">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${shareLocation ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setShareLocation(v => !v)}
+                  title="Use your live location"
+                >
+                  {shareLocation ? '📍 Sharing live' : '📍 Share my location'}
+                </button>
+                <Link href="/buddy/profile" className="dashboard-card-link">Edit pin →</Link>
+              </div>
+            </div>
+            <div style={{ height: 280 }}>
+              <MapView
+                userLocation={userLocation}
+                height={280}
+              />
+            </div>
+          </section>
         </div>
       </div>
+
+      <style>{`
+        .dashboard-grid {
+          display: grid;
+          grid-template-columns: 2fr 1fr;
+          gap: var(--space-lg);
+        }
+        .dashboard-map-card { grid-column: 1 / -1; padding: 0; overflow: hidden; }
+        .dashboard-map-card > .dashboard-card-header { padding: var(--space-md) var(--space-lg); margin: 0; border-bottom: 1px solid var(--border-color); }
+        @media (max-width: 900px) {
+          .dashboard-grid { grid-template-columns: 1fr; }
+        }
+      `}</style>
     </div>
   )
 }

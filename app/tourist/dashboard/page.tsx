@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { createClient } from '@/utils/supabase/auth'
 import type { Profile, Trip, Connection } from '@/lib/types'
 import { useLiveUserLocations } from '@/hooks/useLiveUserLocations'
+import '../../dashboard.css'
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
 
@@ -97,198 +98,248 @@ export default function TouristDashboardPage() {
   const stats = [
     { label: 'Trips', value: trips.length, icon: '🧳', color: '#FF6B35' },
     { label: 'Buddies connected', value: accepted.length, icon: '👥', color: '#28A745' },
-    { label: 'Pending', value: pending.length, icon: '⏳', color: '#FFC107' },
+    { label: 'Pending requests', value: pending.length, icon: '⏳', color: '#FFC107' },
     { label: 'Reviews sent', value: reviewsCount, icon: '⭐', color: '#FFB347' },
   ]
 
-  return (
-    <div className="container py-xl">
-      <div className="flex-between mb-xl" style={{ flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 className="text-3xl">Welcome back, {profile?.full_name?.split(' ')[0] || 'traveler'}! 👋</h1>
-          <p className="text-muted">Ready for your next Da Nang adventure?</p>
-        </div>
-        <div className="flex gap-sm">
-          <Link href="/tourist/browse" className="btn btn-primary">
-            🔍 Find buddies
-          </Link>
-        </div>
-      </div>
+  const firstName = profile?.full_name?.split(' ')[0] || 'traveler'
 
-      {/* Stats */}
-      <div className="grid grid-4 mb-xl">
-        {stats.map((s, i) => (
-          <div key={i} className="card">
-            <div className="card-body flex items-center gap-md">
+  return (
+    <div className="dashboard-root">
+      {/* Hero — greeting + primary CTA */}
+      <section className="dashboard-hero dashboard-hero-tourist">
+        <div className="dashboard-hero-bg" aria-hidden="true">
+          <span className="dashboard-hero-blob blob-1" />
+          <span className="dashboard-hero-blob blob-2" />
+        </div>
+        <div className="dashboard-hero-content">
+          <div>
+            <span className="dashboard-hero-eyebrow">🧳 Tourist dashboard</span>
+            <h1 className="dashboard-hero-title">
+              Welcome back, <span className="dashboard-hero-name">{firstName}</span>!
+            </h1>
+            <p className="dashboard-hero-sub">
+              You have <strong>{pending.length}</strong> pending {pending.length === 1 ? 'request' : 'requests'} and{' '}
+              <strong>{trips.length}</strong> {trips.length === 1 ? 'trip' : 'trips'} on your itinerary.
+            </p>
+          </div>
+          <div className="dashboard-hero-cta">
+            <Link href="/tourist/browse" className="btn btn-primary btn-lg">
+              🔍 Find buddies
+            </Link>
+            <Link href="/tourist/trips" className="btn btn-outline btn-lg btn-on-dark">
+              🗺️ My trips
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <div className="container py-xl">
+        {/* Stats */}
+        <div className="dashboard-stats-grid">
+          {stats.map((s, i) => (
+            <div key={i} className="dashboard-stat-card">
               <div
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 16,
-                  background: `${s.color}20`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 28,
-                }}
+                className="dashboard-stat-icon"
+                style={{ background: `${s.color}1A`, color: s.color }}
               >
                 {s.icon}
               </div>
+              <div className="dashboard-stat-meta">
+                <p className="dashboard-stat-value">{s.value}</p>
+                <p className="dashboard-stat-label">{s.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="dashboard-grid">
+          {/* Trips */}
+          <section className="dashboard-card">
+            <div className="dashboard-card-header">
               <div>
-                <p className="text-2xl font-bold">{s.value}</p>
-                <p className="text-sm text-muted">{s.label}</p>
+                <h2 className="dashboard-card-title">Your trips</h2>
+                <p className="dashboard-card-sub">Itineraries you&apos;re planning with local buddies.</p>
               </div>
+              <Link href="/tourist/trips" className="dashboard-card-link">See all →</Link>
             </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="dashboard-grid">
-        {/* Trips */}
-        <section className="card">
-          <div className="card-header flex-between">
-            <h2 className="text-xl font-semibold">Your trips</h2>
-            <Link href="/tourist/browse" className="text-primary text-sm">Find more buddies →</Link>
-          </div>
-          <div className="card-body">
-            {trips.length === 0 ? (
-              <div className="empty-state">
-                <p>📭 You don&apos;t have any trips yet.</p>
-                <Link href="/tourist/browse" className="btn btn-primary mt-md">
-                  Find a buddy to get started
-                </Link>
-              </div>
-            ) : (
-              <ul className="flex flex-col">
-                {trips.slice(0, 5).map((trip) => {
-                  const buddy = trip.buddy as any
-                  return (
-                    <li key={trip.id} className="trip-row" style={{ padding: 'var(--space-md) 0', borderBottom: '1px solid var(--border-color)' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p className="font-medium">{trip.title}</p>
-                        <p className="text-sm text-muted">
-                          📍 {trip.destination}
-                          {trip.start_date && ` · 📅 ${new Date(trip.start_date).toLocaleDateString('en-US')}`}
-                        </p>
-                        {buddy?.profile?.full_name && (
-                          <p className="text-xs text-muted mt-xs">
-                            👤 Buddy: {buddy.profile.full_name}
+            <div className="dashboard-card-body">
+              {trips.length === 0 ? (
+                <div className="dashboard-empty">
+                  <div className="dashboard-empty-icon">🧳</div>
+                  <p>You don&apos;t have any trips yet.</p>
+                  <Link href="/tourist/browse" className="btn btn-primary mt-md">
+                    Find a buddy to get started
+                  </Link>
+                </div>
+              ) : (
+                <ul className="dashboard-list">
+                  {trips.slice(0, 5).map((trip) => {
+                    const buddy = trip.buddy as any
+                    return (
+                      <li key={trip.id} className="dashboard-list-row">
+                        <div className="dashboard-list-main">
+                          <p className="font-medium">{trip.title}</p>
+                          <p className="text-sm text-muted">
+                            📍 {trip.destination}
+                            {trip.start_date && ` · 📅 ${new Date(trip.start_date).toLocaleDateString('en-US')}`}
                           </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-sm">
-                        <span className={`badge badge-${
-                          trip.status === 'completed' ? 'info'
-                          : trip.status === 'confirmed' ? 'success'
-                          : trip.status === 'cancelled' ? 'danger'
-                          : 'primary'
-                        }`}>
-                          {trip.status === 'completed' ? '✓ Completed'
-                           : trip.status === 'confirmed' ? '✓ Confirmed'
-                           : trip.status === 'cancelled' ? '✕ Cancelled'
-                           : '⏳ Planning'}
-                        </span>
-                        {trip.status === 'completed' && buddy?.id && (
-                          <Link href={`/review/${trip.id}`} className="btn btn-sm btn-outline">
-                            ⭐ Review
-                          </Link>
-                        )}
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </section>
-
-        <section className="card">
-          <div className="card-header">
-            <h2 className="text-xl font-semibold">My buddies</h2>
-          </div>
-          <div className="card-body">
-            {connections.length === 0 ? (
-              <div className="empty-state">
-                <p>You haven&apos;t connected with any buddies yet.</p>
-                <Link href="/tourist/browse" className="btn btn-primary btn-sm mt-md">
-                  Browse now
-                </Link>
-              </div>
-            ) : (
-              <ul className="flex flex-col">
-                {connections.slice(0, 5).map((c) => {
-                  const buddy = c.buddy as any
-                  const name = buddy?.profile?.full_name ?? 'Buddy'
-                  return (
-                    <li key={c.id} className="flex items-center gap-sm" style={{ padding: 'var(--space-sm) 0', borderBottom: '1px solid var(--border-color)' }}>
-                      <div className="avatar avatar-md">{name.charAt(0)}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p className="text-sm font-medium">{name}</p>
-                        <p className="text-xs text-muted">{buddy?.location_city ?? 'Da Nang'}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-xs">
-                        <span className={`badge badge-${c.status === 'accepted' ? 'success' : c.status === 'declined' ? 'danger' : 'primary'}`}>
-                          {c.status === 'accepted' ? '✓' : c.status === 'pending' ? '⏳' : '✕'}
-                        </span>
-                        {c.status === 'accepted' && (
-                          <Link href={`/chat?buddy=${buddy?.id}`} className="btn btn-sm btn-ghost">💬</Link>
-                        )}
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </section>
-
-        {/* Mini map */}
-        <section className="card dashboard-map-card">
-          <div className="card-header flex-between">
-            <h2 className="text-xl font-semibold">Buddies nearby</h2>
-            <div className="flex gap-sm">
-              <button
-                type="button"
-                className={`btn btn-sm ${shareLocation ? 'btn-primary' : 'btn-outline'}`}
-                onClick={() => setShareLocation(v => !v)}
-                title="Share your live location (no data is saved)"
-              >
-                {shareLocation ? '📍 Sharing live' : '📍 Share my location'}
-              </button>
-              <Link href="/map" className="text-primary text-sm">Open full map →</Link>
+                          {buddy?.profile?.full_name && (
+                            <p className="text-xs text-muted mt-xs">
+                              👤 Buddy: {buddy.profile.full_name}
+                            </p>
+                          )}
+                        </div>
+                        <div className="dashboard-list-actions">
+                          <span className={`badge badge-${
+                            trip.status === 'completed' ? 'info'
+                            : trip.status === 'confirmed' ? 'success'
+                            : trip.status === 'cancelled' ? 'danger'
+                            : 'primary'
+                          }`}>
+                            {trip.status === 'completed' ? '✓ Completed'
+                             : trip.status === 'confirmed' ? '✓ Confirmed'
+                             : trip.status === 'cancelled' ? '✕ Cancelled'
+                             : '⏳ Planning'}
+                          </span>
+                          {trip.status === 'completed' && buddy?.id && (
+                            <Link href={`/review/${trip.id}`} className="btn btn-sm btn-outline">
+                              ⭐ Review
+                            </Link>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </div>
-          </div>
-          <div style={{ height: 300 }}>
-            <MapView
-              userLocation={userLocation}
-              height={300}
-              liveLocations={liveLocations}
-              selfLiveOverride={selfGranted}
-            />
-          </div>
-          {shareLocation && (
-            <p className="text-xs text-muted mt-sm">
-              {selfGranted
-                ? `📍 Sharing your live location${liveLocations.length > 0 ? ` · ${liveLocations.length} tourist${liveLocations.length === 1 ? '' : 's'} nearby` : ''}`
-                : selfDenied
-                  ? '⚠️ Location permission denied — your position is not shared.'
-                  : 'Requesting location permission…'}
-            </p>
-          )}
-        </section>
+          </section>
 
-        {/* Quick actions */}
-        <section className="card">
-          <div className="card-header">
-            <h2 className="text-xl font-semibold">Quick actions</h2>
-          </div>
-          <div className="card-body flex flex-col gap-md">
-            <Link href="/tourist/browse" className="btn btn-outline btn-block">🔍 Find buddies</Link>
-            <Link href="/map" className="btn btn-outline btn-block">🗺️ Buddy map</Link>
-            <Link href="/chat" className="btn btn-outline btn-block">💬 Messages</Link>
-            <Link href="/tourist/profile" className="btn btn-outline btn-block">👤 My profile</Link>
-          </div>
-        </section>
+          <section className="dashboard-card">
+            <div className="dashboard-card-header">
+              <div>
+                <h2 className="dashboard-card-title">My buddies</h2>
+                <p className="dashboard-card-sub">Buddies you&apos;ve connected with.</p>
+              </div>
+              <Link href="/chat" className="dashboard-card-link">Open chat →</Link>
+            </div>
+            <div className="dashboard-card-body">
+              {connections.length === 0 ? (
+                <div className="dashboard-empty">
+                  <div className="dashboard-empty-icon">👋</div>
+                  <p>You haven&apos;t connected with any buddies yet.</p>
+                  <Link href="/tourist/browse" className="btn btn-primary btn-sm mt-md">
+                    Browse now
+                  </Link>
+                </div>
+              ) : (
+                <ul className="dashboard-list">
+                  {connections.slice(0, 5).map((c) => {
+                    const buddy = c.buddy as any
+                    const name = buddy?.profile?.full_name ?? 'Buddy'
+                    return (
+                      <li key={c.id} className="dashboard-list-row">
+                        <div className="dashboard-list-main flex items-center gap-sm">
+                          <div className="avatar avatar-md">{name.charAt(0)}</div>
+                          <div>
+                            <p className="text-sm font-medium">{name}</p>
+                            <p className="text-xs text-muted">{buddy?.location_city ?? 'Da Nang'}</p>
+                          </div>
+                        </div>
+                        <div className="dashboard-list-actions">
+                          <span className={`badge badge-${c.status === 'accepted' ? 'success' : c.status === 'declined' ? 'danger' : 'primary'}`}>
+                            {c.status === 'accepted' ? '✓ Connected' : c.status === 'pending' ? '⏳ Pending' : '✕ Declined'}
+                          </span>
+                          {c.status === 'accepted' && (
+                            <Link href={`/chat?buddy=${buddy?.id}`} className="btn btn-sm btn-ghost">💬</Link>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </section>
+
+          {/* Mini map */}
+          <section className="dashboard-card dashboard-map-card">
+            <div className="dashboard-card-header">
+              <div>
+                <h2 className="dashboard-card-title">Buddies nearby</h2>
+                <p className="dashboard-card-sub">
+                  {buddies.length} available in Da Nang
+                </p>
+              </div>
+              <div className="flex gap-sm">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${shareLocation ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setShareLocation(v => !v)}
+                  title="Share your live location (no data is saved)"
+                >
+                  {shareLocation ? '📍 Sharing live' : '📍 Share my location'}
+                </button>
+                <Link href="/map" className="dashboard-card-link">Full map →</Link>
+              </div>
+            </div>
+            <div style={{ height: 300 }}>
+              <MapView
+                userLocation={userLocation}
+                height={300}
+                liveLocations={liveLocations}
+                selfLiveOverride={selfGranted}
+              />
+            </div>
+            {shareLocation && (
+              <div className="dashboard-card-footer">
+                {selfGranted
+                  ? `📍 Sharing your live location${liveLocations.length > 0 ? ` · ${liveLocations.length} tourist${liveLocations.length === 1 ? '' : 's'} nearby` : ''}`
+                  : selfDenied
+                    ? '⚠️ Location permission denied — your position is not shared.'
+                    : 'Requesting location permission…'}
+              </div>
+            )}
+          </section>
+
+          {/* Quick actions */}
+          <section className="dashboard-card">
+            <div className="dashboard-card-header">
+              <h2 className="dashboard-card-title">Quick actions</h2>
+            </div>
+            <div className="dashboard-card-body dashboard-actions">
+              <Link href="/tourist/browse" className="dashboard-action">
+                <span className="dashboard-action-icon">🔍</span>
+                <span className="dashboard-action-text">
+                  <strong>Find buddies</strong>
+                  <small>Browse verified local guides</small>
+                </span>
+              </Link>
+              <Link href="/map" className="dashboard-action">
+                <span className="dashboard-action-icon">🗺️</span>
+                <span className="dashboard-action-text">
+                  <strong>Buddy map</strong>
+                  <small>See who&apos;s nearby right now</small>
+                </span>
+              </Link>
+              <Link href="/chat" className="dashboard-action">
+                <span className="dashboard-action-icon">💬</span>
+                <span className="dashboard-action-text">
+                  <strong>Messages</strong>
+                  <small>Chat with your buddies</small>
+                </span>
+              </Link>
+              <Link href="/tourist/profile" className="dashboard-action">
+                <span className="dashboard-action-icon">👤</span>
+                <span className="dashboard-action-text">
+                  <strong>My profile</strong>
+                  <small>Update preferences & interests</small>
+                </span>
+              </Link>
+            </div>
+          </section>
+        </div>
       </div>
 
       <style>{`
@@ -298,7 +349,8 @@ export default function TouristDashboardPage() {
           gap: var(--space-lg);
         }
         .dashboard-map-card { grid-column: 1 / -1; padding: 0; overflow: hidden; }
-        .dashboard-map-card .card-header { padding: var(--space-md) var(--space-lg); margin: 0; }
+        .dashboard-map-card > .dashboard-card-header { padding: var(--space-md) var(--space-lg); margin: 0; border-bottom: 1px solid var(--border-color); }
+        .dashboard-map-card .dashboard-card-footer { padding: var(--space-md) var(--space-lg); font-size: 13px; color: var(--text-muted); }
         @media (max-width: 900px) {
           .dashboard-grid { grid-template-columns: 1fr; }
         }
