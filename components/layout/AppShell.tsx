@@ -1,45 +1,40 @@
-'use client'
+'use client';
 
-import { usePathname } from 'next/navigation'
-import Header from './Header'
-import Footer from './Footer'
+import { usePathname } from 'next/navigation';
+import Header from './Header';
+import Footer from './Footer';
 
-// Routes where the role-aware Header (in tourist/buddy layouts) is rendered.
-const ROLE_LAYOUTS = ['/tourist', '/buddy']
+const ROLE_LAYOUTS = ['/tourist', '/buddy'];
+const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const inRoleLayout = ROLE_LAYOUTS.some((p) => pathname.startsWith(p))
-  const isAuthPage =
-    pathname === '/login' ||
-    pathname === '/register' ||
-    pathname === '/forgot-password' ||
-    pathname === '/reset-password'
-  const isLanding = pathname === '/'
+  const pathname = usePathname();
+  const inRoleLayout = ROLE_LAYOUTS.some((p) => pathname.startsWith(p));
+  const isAuthPage = AUTH_PAGES.includes(pathname);
 
-  // Login/Register pages have their own split layout (no global header/footer).
   if (isAuthPage) {
-    return <>{children}</>
+    return <>{children}</>;
   }
 
-  // Tourist / buddy layouts already render their own Header.
   if (inRoleLayout) {
     return (
       <>
         {children}
         <Footer />
       </>
-    )
+    );
   }
 
-  // Public pages (homepage, browse, map for guests): show guest Header + Footer.
   return (
     <>
       <Header />
-      <main style={{ minHeight: 'calc(100vh - var(--header-height))', paddingTop: 'var(--header-height)' }}>
+      <main
+        id="main-content"
+        className="min-h-[calc(100vh-4rem)] pt-16"
+      >
         {children}
       </main>
       <Footer />
     </>
-  )
+  );
 }

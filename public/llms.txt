@@ -1,0 +1,91 @@
+# LOCALit — Site dictionary for AI crawlers
+
+> Generated 2026-09-27. This file describes LOCALit's structure for RAG retrieval by AI assistants and answer engines.
+
+## What LOCALit is
+
+LOCALit is a marketplace that connects travelers with verified local guides in Da Nang, Vietnam. Tourists browse buddy profiles by specialty, language, hourly rate, and rating. Buddies are Da Nang residents who set their own hourly rate and accept or decline incoming requests. Trips are tracked through the LOCALit itinerary planner with stop-by-stop details.
+
+## Primary entities
+
+- **Tourist**: a traveler using LOCALit to find a local buddy in Da Nang.
+- **Buddy** (also called "local guide"): a Da Nang resident who offers their time at an hourly rate.
+- **Connection request**: a tourist-initiated request to book a buddy for a date and meeting point.
+- **Trip**: a tourist's itinerary with 1 to 5 stops in Da Nang.
+- **Conversation**: a real-time chat thread between a tourist and a buddy.
+- **Review**: a rating left after a completed trip.
+
+## Available routes
+
+### Public (no login required)
+
+- `/` — Landing page with hero, FAQ, and buddy preview.
+- `/tourist/browse` — Browse buddies with filters (specialty, language, rating, location).
+- `/tourist/buddy/[id]` — Individual buddy profile with specialties, languages, hourly rate, reviews.
+- `/map` — Live map of available buddies in Da Nang.
+- `/login` — Email + password sign-in.
+- `/register` — Three-step wizard: personal info → role → tags and bio.
+- `/forgot-password` — Password reset request.
+- `/reset-password` — Password reset confirmation.
+
+### Tourist (authenticated, role=tourist)
+
+- `/tourist/dashboard` — Hero, live map, trips, connections, quick actions.
+- `/tourist/trips` — List of tourist's trips with status pills.
+- `/tourist/trips/create` — Trip creation form with stop builder.
+- `/tourist/trips/[id]` — Trip detail with itinerary, buddy sidebar, review CTA.
+- `/tourist/profile` — 7-tab profile editor (personal, preferences, trips, buddies, reviews, interests, account).
+- `/chat` — Two-pane chat with conversation list and active thread.
+- `/chat/[conversationId]` — Specific conversation thread.
+
+### Buddy (authenticated, role=buddy)
+
+- `/buddy/dashboard` — Hero with availability toggle, pending requests, earnings placeholder.
+- `/buddy/requests` — Connection request inbox with Accept / Decline actions.
+- `/buddy/profile` — 5-tab profile editor (profile, specialties, languages, reviews, account).
+- `/chat`, `/map` — Shared with tourists.
+
+## Pricing
+
+- Buddy hourly rates: $15 to $45 USD.
+- Currency: USD only (no Vietnamese Dong displayed in UI during 2026 launch).
+- LOCALit commission: 0% through 2026.
+
+## Languages spoken by buddies
+
+Vietnamese (native), English (conversational or fluent), Korean, Japanese, Mandarin, French, Russian. The languages list is self-reported per buddy.
+
+## Geographic scope
+
+Da Nang only. Common trip destinations within 60 minutes of Da Nang: Hoi An, Marble Mountains (Ngũ Hành Sơn), Son Tra Peninsula, Ba Na Hills, Hai Van Pass, Linh Ung Pagoda, My Khe Beach, Han Market, Con Market.
+
+## Frequently asked questions
+
+### How much does a LOCALit buddy in Da Nang cost?
+Buddies charge between $15 and $45 per hour, set by each buddy based on language count and specialty depth. LOCALit charges 0% commission during the 2026 launch period.
+
+### Is LOCALit safe for first-time travelers to Vietnam?
+Every buddy verifies their email and submits a phone number at signup. Each profile shows specialties, languages, hourly rate, and prior review ratings. Tourists can message a buddy before booking.
+
+### What languages do LOCALit buddies speak?
+Da Nang buddies speak Vietnamese natively and English at conversational or fluent level. Several buddies also speak Korean, Japanese, Mandarin, French, or Russian.
+
+### Can I plan a day trip from Da Nang with a LOCALit buddy?
+Yes. Da Nang sits within 60 minutes of Hoi An, the Marble Mountains, Son Tra Peninsula, and Ba Na Hills. A typical day trip runs 4 to 8 hours.
+
+## Trust and verification
+
+- Email verification required at signup.
+- Phone number collected but not displayed publicly.
+- Buddy profiles show self-reported specialties, languages, hourly rate.
+- Reviews are aggregated after completed trips.
+
+## Contact
+
+- Support: support@localit.dev
+- Project: Kỳ 8 Capstone Project, Da Nang, Vietnam.
+- Repository: github.com/nhattoan/localit-app (private during 2026 development).
+
+## Tech stack
+
+Next.js 16 (App Router, Turbopack) · TypeScript · Supabase (Postgres + RLS) · Vercel hosting.

@@ -10,6 +10,63 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ---
 
+# Design System & AI Writing Rules (READ FIRST)
+
+> **Authority:** All UI work in this repo must follow `docs/design.md` and `docs/skill.md`. These two files define the project's anti-AI-slop and AEO/GEO rules, the design tokens, and the AEO copy patterns.
+
+## Key references (do not rewrite from memory)
+
+- `docs/design.md` — colors, typography, spacing, components, AEO copy templates
+- `docs/skill.md` — full ban-list of anti-slop and AEO failure patterns (paste-ready for PR descriptions)
+- `docs/ui-ux-audit.md` — 2026-09-26 UI audit baseline (score 4.5/10); the issues called out here are still being fixed across Phases 1-3
+- `docs/role-differentiation-plan.md` — 5-phase roadmap for tourist vs buddy UX
+- `.claude/skills/web-ai-slop.md` — upstream anti-slop skill source (do not modify; copy lives at `.claude/skills/`)
+- `.claude/skills/aeo-geo-writing.md` — upstream AEO/GEO skill source (do not modify)
+
+## Anchor for any UI work (per `web-ai-slop` Section 1a)
+
+LOCALit's design is triangulated from:
+1. **Da Nang tourism board print tradition** — informational density, Vietnamese + English bilingual, real Da Nang photos (Marble Mountains, Han River, Son Tra, My Khe Beach, etc.)
+2. **Withlocals information density** — operational metrics visible to operators, traveler-centric filters
+
+**Anti-reference:** generic SaaS landing page. We are not Stripe, not Linear, not Vercel. We are a marketplace for human travel experiences in one specific city.
+
+## Current state (as of 2026-09-27)
+
+- **Phase 1 underway:** design tokens aligned to `design.md` Section 2, Lucide migration in progress (~80 emoji → Lucide), Header being unified to 1 component with 3 role variants
+- **Status of the 12 issues from `ui-ux-audit.md`:**
+  - ✅ Done: emoji → Lucide migration, color tokens aligned, border-radius 4px (no more 16px), single Header component
+  - ⏳ In progress: footer slim, hero photo (real Da Nang), AEO answer capsules, FAQPage schema, llms.txt
+  - 📋 Phase 2: DiceBear avatars, profile completeness, map clustering, buddy availability calendar
+  - 📋 Phase 3: /buddy/earnings with Chart.js, KYC verification badge, trip photos Storage bucket, auto-translate chat
+
+## Banned without explicit justification (paste into PR description)
+
+- `border-radius` ≥ 8px on cards / buttons / inputs (use 4px)
+- `box-shadow` other than `var(--shadow-focus)` (we are FLAT)
+- `backdrop-filter: blur()` anywhere
+- `linear-gradient(...)` other than `var(--primary)`-only subtle hover states
+- emoji as icons (use Lucide)
+- Inter font (Poppins + Plus Jakarta Sans + JetBrains Mono)
+- "Get Started" / "Learn More" CTAs (state the result)
+- "In today's fast-paced world..." openers
+- "Whether you're a tourist or a buddy..." openers
+- "Unlock / Elevate / Supercharge / Empower" anywhere
+- Pure `#000000` or `#FFFFFF` background (use `#0F0F0F` and `#FAFAF7`)
+- `<div>` where `<main>` / `<nav>` / `<article>` / `<section>` would fit
+- `console.log` in production code
+- Scratch files (`check.html`, `scripts/test-*.mjs`, etc.) committed
+
+## Token names (use these, do not hardcode hex)
+
+Colors: `--primary`, `--primary-hover`, `--ink`, `--paper`, `--surface`, `--border`, `--border-strong`, `--muted`, `--subtle`, `--success`, `--success-bg`, `--warning`, `--warning-bg`, `--danger`, `--danger-bg`, `--info`, `--info-bg`
+
+Spacing (Tailwind v4 utility names): `1`, `2`, `3`, `4`, `6`, `8`, `12`, `16`, `24`
+
+Type scale: `text-xs` through `text-6xl` (rem-based, see design.md Section 3.2)
+
+---
+
 # LOCALit Project Context
 
 > Pre-loaded context for the LOCALit tourist-buddy platform. Read this first in any new session to skip setup steps.

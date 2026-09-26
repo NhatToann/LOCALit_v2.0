@@ -2,8 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import Link from 'next/link'
+import {
+  MapPin,
+  AlertTriangle,
+  MessageCircle,
+  X,
+  List,
+  Eye,
+  EyeOff,
+} from 'lucide-react'
+import { createClient } from '@/utils/supabase/auth'
 import { useLocationWatcher } from '@/hooks/useLocationWatcher'
 import { useLiveUserLocations } from '@/hooks/useLiveUserLocations'
 
@@ -42,7 +51,9 @@ export default function MapPage() {
       const supabase = createClient()
       const { data } = await supabase
         .from('buddies')
-        .select('id, location_city, latitude, longitude, languages, hourly_rate, profile:safe_profiles(full_name)')
+        .select(
+          'id, location_city, latitude, longitude, languages, hourly_rate, profile:safe_profiles(full_name)',
+        )
         .eq('location_city', 'Da Nang')
         .not('latitude', 'is', null)
         .not('longitude', 'is', null)
@@ -69,52 +80,75 @@ export default function MapPage() {
   const selected = buddies.find((b) => b.id === selectedId)
 
   return (
-    <div className="container py-xl">
-      <div className="flex-between mb-lg" style={{ flexWrap: 'wrap', gap: 12 }}>
+    <div className="container-page py-8">
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl">Buddy Map — Da Nang</h1>
-          <p className="text-muted mt-sm">
-            {buddies.length} buddies shown on the map
+          <p className="text-eyebrow text-primary mb-2">Live map</p>
+          <h1 className="text-page-title">Buddies in Da Nang</h1>
+          <p className="text-sm text-muted mt-1 max-w-prose">
+            LOCALit maps {buddies.length} verified local buddies across Da Nang. Tap a pin to
+            view their profile and start a conversation. Tourists who opt in also appear in
+            real-time.
+          </p>
+          <p className="text-xs text-muted mt-1">
             {selfGranted
-              ? ' · 📍 Sharing your live location'
+              ? 'Sharing your live location.'
               : selfDenied
-                ? ' · ⚠️ Location permission denied'
-                : ' · Location sharing off'}
-            {liveLocations.length > 0 && ` · ${liveLocations.length} live tourist${liveLocations.length === 1 ? '' : 's'}`}
+              ? 'Location permission denied.'
+              : 'Location sharing off.'}
+            {liveLocations.length > 0 ? ` ${liveLocations.length} live tourist${liveLocations.length === 1 ? '' : 's'} nearby.` : ''}
           </p>
         </div>
-        <div className="flex gap-sm">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className={`btn ${shareLocation ? 'btn-primary' : 'btn-outline'}`}
             onClick={() => {
               if (!signedIn) {
                 setError('Please sign in to share your live location.')
                 return
               }
               setError('')
-              setShareLocation(v => !v)
+              setShareLocation((v) => !v)
             }}
-            title="Opt-in: share your location with other tourists on this map"
+            className={`inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm border ${
+              shareLocation
+                ? 'bg-primary text-paper border-primary hover:bg-primary-hover'
+                : 'bg-transparent text-ink border-border-strong hover:bg-paper'
+            }`}
           >
-            {shareLocation ? '📍 Sharing live' : '📍 Share my location'}
+            {shareLocation ? (
+              <>
+                <EyeOff size={14} aria-hidden="true" />
+                Sharing live
+              </>
+            ) : (
+              <>
+                <Eye size={14} aria-hidden="true" />
+                Share my location
+              </>
+            )}
           </button>
-          <Link href="/tourist/browse" className="btn btn-outline">List view</Link>
+          <Link
+            href="/tourist/browse"
+            className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+          >
+            <List size={14} aria-hidden="true" />
+            List view
+          </Link>
         </div>
-      </div>
+      </header>
 
-      {error && (
-        <div className="alert alert-error mb-md"><span>⚠️</span><span>{error}</span></div>
-      )}
+      {error ? (
+        <div className="alert alert-error mb-4" role="alert">
+          <AlertTriangle size={16} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      ) : null}
 
-      <div style={{
-        height: 'calc(100vh - var(--header-height) - 200px)',
-        minHeight: 500,
-        borderRadius: 'var(--border-radius-lg)',
-        overflow: 'hidden',
-        boxShadow: 'var(--shadow)',
-        position: 'relative',
-      }}>
+      <div
+        className="relative border border-border rounded-sm overflow-hidden bg-surface"
+        style={{ height: 'calc(100vh - 220px)', minHeight: 500 }}
+      >
         <MapView
           userLocation={userLocation}
           height="100%"
@@ -124,62 +158,89 @@ export default function MapPage() {
         />
 
         {/* Legend */}
-        <div style={{
-          position: 'absolute', bottom: 16, left: 16, zIndex: 500,
-          background: 'white', padding: '10px 14px', borderRadius: 8,
-          boxShadow: 'var(--shadow-md)', fontSize: 13,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#FF6B35', display: 'inline-block' }} />
-            <span>Local Buddy</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#17A2B8', display: 'inline-block' }} />
-            <span>Tourist (saved)</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
-            <span>Live tourist (no DB)</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#4dd0e1', display: 'inline-block' }} />
-            <span>You</span>
-          </div>
-        </div>
+        <aside
+          className="absolute bottom-4 left-4 z-[500] bg-surface border border-border rounded-sm p-3 text-xs"
+          aria-label="Map legend"
+        >
+          <p className="text-eyebrow text-muted mb-2">Legend</p>
+          <ul className="space-y-1">
+            <li className="flex items-center gap-2">
+              <span
+                className="w-3 h-3 rounded-full bg-primary inline-block"
+                aria-hidden="true"
+              />
+              Local buddy
+            </li>
+            <li className="flex items-center gap-2">
+              <span
+                className="w-3 h-3 rounded-full bg-info inline-block"
+                aria-hidden="true"
+              />
+              Tourist (saved)
+            </li>
+            <li className="flex items-center gap-2">
+              <span
+                className="w-3 h-3 rounded-full bg-secondary inline-block"
+                aria-hidden="true"
+              />
+              Live tourist
+            </li>
+            <li className="flex items-center gap-2">
+              <span
+                className="w-3 h-3 rounded-full bg-cyan-500 inline-block"
+                aria-hidden="true"
+              />
+              You
+            </li>
+          </ul>
+        </aside>
 
         {/* Selected popup */}
-        {selected && (
-          <div style={{
-            position: 'absolute', top: 16, right: 16, zIndex: 500,
-            width: 280, background: 'white', borderRadius: 'var(--border-radius-lg)',
-            boxShadow: 'var(--shadow-lg)', padding: 'var(--space-md)',
-          }}>
+        {selected ? (
+          <aside
+            className="absolute top-4 right-4 z-[500] w-72 bg-surface border border-border rounded-sm p-4"
+            aria-label={`Selected buddy ${selected.name}`}
+          >
             <button
               type="button"
               onClick={() => setSelectedId(null)}
               aria-label="Close"
-              style={{ position: 'absolute', top: 8, right: 8, background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 18, width: 28, height: 28, borderRadius: '50%' }}
-            >✕</button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <span className="avatar avatar-lg">{selected.name.charAt(0)}</span>
+              className="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-sm text-muted hover:bg-paper hover:text-ink"
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+            <div className="flex items-center gap-3 mb-3">
+              <span className="avatar avatar-lg" aria-hidden="true">
+                {selected.name.charAt(0)}
+              </span>
               <div>
-                <h4>{selected.name}</h4>
-                <p className="text-sm text-muted">📍 {selected.city}</p>
+                <p className="text-base font-semibold text-ink">{selected.name}</p>
+                <p className="text-xs text-muted">
+                  <MapPin size={12} className="inline-block mr-1 align-middle" aria-hidden="true" />
+                  {selected.city ?? 'Da Nang'}
+                </p>
               </div>
             </div>
-            <div style={{ marginBottom: 12, fontSize: 13 }}>
-              🗣️ {selected.languages.slice(0, 3).join(', ')}
-            </div>
-            <div className="flex gap-sm">
-              <Link href={`/tourist/buddy/${selected.id}`} className="btn btn-primary btn-sm flex-1" style={{ flex: 1 }}>
+            <p className="text-xs text-muted mb-3">
+              Speaks {selected.languages.slice(0, 3).join(', ') || 'multiple languages'}
+            </p>
+            <div className="flex gap-2">
+              <Link
+                href={`/tourist/buddy/${selected.id}`}
+                className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+              >
                 Profile
               </Link>
-              <Link href={`/chat?buddy=${selected.id}`} className="btn btn-outline btn-sm" style={{ flex: 1 }}>
-                💬 Message
+              <Link
+                href={`/chat?buddy=${selected.id}`}
+                className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+              >
+                <MessageCircle size={14} className="mr-1" aria-hidden="true" />
+                Message
               </Link>
             </div>
-          </div>
-        )}
+          </aside>
+        ) : null}
       </div>
     </div>
   )

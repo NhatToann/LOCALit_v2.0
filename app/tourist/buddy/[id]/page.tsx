@@ -6,6 +6,8 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { ConnectionStatus } from '@/lib/types'
+import { MapPin, Star, AlertTriangle, MessageCircle, Phone, Send, Hourglass, X, Check, CircleDot } from 'lucide-react'
+import { Avatar } from '@/components/ui/Avatar'
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
 
@@ -180,209 +182,236 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
   }
 
   if (loading) {
-    return <div className="container py-xl text-center"><div className="loading-spinner mx-auto" /></div>
+    return (
+      <div className="container-page py-16 text-center">
+        <div className="loading-spinner mx-auto" />
+      </div>
+    )
   }
   if (error && !buddy) {
     return (
-      <div className="container py-xl">
-        <div className="alert alert-error"><span>⚠️</span><span>{error}</span></div>
-        <Link href="/tourist/browse" className="btn btn-primary mt-md">← Back to list</Link>
+      <div className="container-page py-16">
+        <div className="alert alert-error" role="alert">
+          <AlertTriangle size={16} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+        <Link
+          href="/tourist/browse"
+          className="inline-flex items-center justify-center mt-3 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+        >
+          Back to list
+        </Link>
       </div>
     )
   }
   if (!buddy) return null
 
   return (
-    <div className="container py-xl">
-      <Link href="/tourist/browse" className="text-sm text-muted">← Back to list</Link>
+    <div className="container-page py-8">
+      <Link href="/tourist/browse" className="text-sm text-muted hover:text-ink mb-3 inline-block">
+        Back to list
+      </Link>
 
-      <div className="buddy-profile-grid mt-md">
-        <main>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <main className="lg:col-span-2 space-y-6">
           {/* Hero card */}
-          <div className="card">
-            <div className="card-body">
-              <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                <span className="avatar avatar-2xl">{buddy.full_name.charAt(0)}</span>
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <h1 style={{ fontSize: 'var(--font-size-2xl)', marginBottom: 0 }}>{buddy.full_name}</h1>
-                    {buddy.is_online && <span className="badge badge-success">● Online</span>}
-                  </div>
-                  <p className="text-muted mt-xs">📍 {buddy.location_city}</p>
-                  <div className="buddy-rating mt-sm">
-                    <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
-                      ⭐ {buddy.rating_avg ? buddy.rating_avg.toFixed(1) : '—'}
+          <article className="bg-surface border border-border rounded-sm p-6">
+            <header className="flex flex-wrap items-start gap-4">
+              <Avatar name={buddy.full_name} src={buddy.avatar_url} size="2xl" online={buddy.is_online} />
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <h1 className="text-page-title">{buddy.full_name}</h1>
+                  {buddy.is_online ? (
+                    <span className="badge badge-success">
+                      <CircleDot size={12} className="mr-1" aria-hidden="true" />
+                      Online
                     </span>
-                    <span className="text-sm text-muted ml-sm">
-                      ({reviews.length} reviews · {buddy.trips_completed} trips)
-                    </span>
-                  </div>
-                  {buddy.bio && <p className="mt-md">{buddy.bio}</p>}
+                  ) : null}
                 </div>
+                <p className="text-sm text-muted">
+                  <MapPin size={14} className="inline mr-1" aria-hidden="true" />
+                  {buddy.location_city}
+                </p>
+                <p className="text-sm mt-2">
+                  <Star size={14} className="inline text-warning mr-1" aria-hidden="true" />
+                  <strong>{buddy.rating_avg ? buddy.rating_avg.toFixed(1) : '—'}</strong>
+                  <span className="text-muted ml-1">
+                    ({reviews.length} reviews · {buddy.trips_completed} trips completed)
+                  </span>
+                </p>
+                {buddy.bio ? (
+                  <p className="text-sm leading-relaxed mt-3 max-w-prose">{buddy.bio}</p>
+                ) : null}
               </div>
+            </header>
 
-              <hr style={{ margin: 'var(--space-lg) 0' }} />
+            <hr className="my-6 border-border" />
 
-              {/* Tags */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-md)' }}>
-                <div>
-                  <span className="detail-label">Languages</span>
-                  <div className="lang-list">
-                    {buddy.languages.length === 0
-                      ? <span className="text-muted text-sm">Not set yet</span>
-                      : buddy.languages.map((l) => <span key={l} className="lang-chip">{l}</span>)}
-                  </div>
-                </div>
-                <div>
-                  <span className="detail-label">Specialties</span>
-                  <div className="lang-list">
-                    {buddy.specialties.length === 0
-                      ? <span className="text-muted text-sm">Not set yet</span>
-                      : buddy.specialties.map((s) => <span key={s} className="lang-chip">{s}</span>)}
-                  </div>
-                </div>
-                <div>
-                  <span className="detail-label">Rate</span>
-                  <strong>
+            <dl className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <dt className="text-eyebrow text-muted mb-2">Languages</dt>
+                <dd className="flex flex-wrap gap-1">
+                  {buddy.languages.length === 0 ? (
+                    <span className="text-sm text-muted">Not set yet</span>
+                  ) : (
+                    buddy.languages.map((l) => (
+                      <span key={l} className="lang-chip">{l}</span>
+                    ))
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-eyebrow text-muted mb-2">Specialties</dt>
+                <dd className="flex flex-wrap gap-1">
+                  {buddy.specialties.length === 0 ? (
+                    <span className="text-sm text-muted">Not set yet</span>
+                  ) : (
+                    buddy.specialties.map((s) => (
+                      <span key={s} className="badge badge-neutral text-xs">{s}</span>
+                    ))
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-eyebrow text-muted mb-2">Hourly rate</dt>
+                <dd>
+                  <strong className="text-ink">
                     {buddy.hourly_rate && buddy.hourly_rate > 0
-                      ? `$${Number(buddy.hourly_rate).toFixed(0)}/hour`
+                      ? `$${Number(buddy.hourly_rate).toFixed(0)} USD / hour`
                       : 'Negotiable'}
                   </strong>
-                </div>
+                </dd>
               </div>
-            </div>
-          </div>
+            </dl>
+          </article>
 
           {/* Reviews */}
-          <div className="card mt-lg">
-            <div className="card-header">
-              <h3>Reviews ({reviews.length})</h3>
-            </div>
-            <div className="card-body">
+          <section className="bg-surface border border-border rounded-sm" aria-labelledby="reviews-title">
+            <header className="px-6 py-4 border-b border-border">
+              <h2 id="reviews-title" className="text-lg font-semibold">
+                Reviews ({reviews.length})
+              </h2>
+            </header>
+            <div className="p-6">
               {reviews.length === 0 ? (
-                <div className="empty-state">
-                  <p>No reviews yet.</p>
-                </div>
+                <p className="text-sm text-muted text-center py-8">No reviews yet.</p>
               ) : (
-                <ul className="flex flex-col" style={{ gap: 'var(--space-md)' }}>
-                  {reviews.map((r) => (
-                    <li key={r.id} style={{ paddingBottom: 'var(--space-md)', borderBottom: '1px solid var(--border-color)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                        <span className="avatar avatar-sm">{r.reviewer_name?.charAt(0) ?? '?'}</span>
-                        <strong>{r.reviewer_name ?? 'Traveler'}</strong>
-                        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{'⭐'.repeat(r.rating)}</span>
-                        <span className="text-xs text-muted">{new Date(r.created_at).toLocaleDateString('en-US')}</span>
+                <ul className="space-y-4 divide-y divide-border">
+                  {reviews.map((r, idx) => (
+                    <li key={r.id} className={idx > 0 ? 'pt-4' : ''}>
+                      <div className="flex items-center gap-3 mb-2">
+                        <Avatar name={r.reviewer_name ?? 'Traveler'} size="sm" />
+                        <strong className="text-sm">{r.reviewer_name ?? 'Traveler'}</strong>
+                        <span className="text-warning text-sm" aria-label={`${r.rating} out of 5 stars`}>
+                          {'★'.repeat(r.rating)}
+                          <span className="text-muted">{'☆'.repeat(5 - r.rating)}</span>
+                        </span>
+                        <span className="text-xs text-muted ml-auto">
+                          {new Date(r.created_at).toLocaleDateString('en-US')}
+                        </span>
                       </div>
-                      {r.comment && <p className="text-sm">{r.comment}</p>}
+                      {r.comment ? <p className="text-sm">{r.comment}</p> : null}
                     </li>
                   ))}
                 </ul>
               )}
             </div>
-          </div>
+          </section>
         </main>
 
-        <aside>
+        <aside className="space-y-6">
           {/* Action card */}
-          <div className="card">
-            <div className="card-body">
-              <h3 className="mb-md">Start a conversation</h3>
+          <section className="bg-surface border border-border rounded-sm p-6">
+            <h2 className="text-lg font-semibold mb-4">Start a conversation</h2>
 
-              {!connection && (
-                <>
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="msg">Message (optional)</label>
-                    <textarea
-                      id="msg"
-                      className="form-input form-textarea"
-                      rows={3}
-                      placeholder="Hi! I'd love to learn more about your tours in Da Nang..."
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value.slice(0, 280))}
-                      maxLength={280}
-                    />
-                    <p className="text-xs text-muted mt-xs">{message.length}/280</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-block"
-                    onClick={sendRequest}
-                    disabled={actionLoading}
-                  >
-                    {actionLoading ? 'Sending...' : '🤝 Send connection request'}
-                  </button>
-                </>
-              )}
-
-              {connection?.status === 'pending' && (
-                <div className="alert alert-info">
-                  <span>⏳</span>
-                  <div>
-                    <p className="font-semibold">Request sent</p>
-                    <p className="text-sm">The buddy will respond as soon as possible.</p>
-                  </div>
+            {!connection ? (
+              <>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="msg">
+                    Message (optional)
+                  </label>
+                  <textarea
+                    id="msg"
+                    className="form-input form-textarea"
+                    rows={3}
+                    placeholder="Hi! I would love to learn more about your tours in Da Nang."
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value.slice(0, 280))}
+                    maxLength={280}
+                  />
+                  <p className="text-xs text-muted mt-1">{message.length}/280</p>
                 </div>
-              )}
-
-              {connection?.status === 'declined' && (
-                <div className="alert alert-error">
-                  <span>✕</span>
-                  <span>The buddy declined your request.</span>
-                </div>
-              )}
-
-              {connection?.status === 'accepted' && (
                 <button
                   type="button"
-                  className="btn btn-primary btn-block"
-                  onClick={openChat}
+                  onClick={sendRequest}
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 w-full"
                 >
-                  💬 Open conversation
+                  <Send size={16} aria-hidden="true" />
+                  {actionLoading ? 'Sending...' : 'Send connection request'}
                 </button>
-              )}
+              </>
+            ) : null}
 
-              {error && (
-                <div className="alert alert-error mt-md"><span>⚠️</span><span>{error}</span></div>
-              )}
-            </div>
-          </div>
+            {connection?.status === 'pending' ? (
+              <div className="alert alert-info" role="status">
+                <Hourglass size={16} aria-hidden="true" />
+                <div>
+                  <p className="text-sm font-semibold">Request sent</p>
+                  <p className="text-xs">The buddy will respond as soon as possible.</p>
+                </div>
+              </div>
+            ) : null}
+
+            {connection?.status === 'declined' ? (
+              <div className="alert alert-error" role="status">
+                <X size={16} aria-hidden="true" />
+                <span className="text-sm">The buddy declined your request.</span>
+              </div>
+            ) : null}
+
+            {connection?.status === 'accepted' ? (
+              <button
+                type="button"
+                onClick={openChat}
+                className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover w-full"
+              >
+                <MessageCircle size={16} aria-hidden="true" />
+                Open conversation
+              </button>
+            ) : null}
+
+            {error ? (
+              <div className="alert alert-error mt-3" role="alert">
+                <AlertTriangle size={16} aria-hidden="true" />
+                <span className="text-sm">{error}</span>
+              </div>
+            ) : null}
+          </section>
 
           {/* Map */}
-          <div className="card mt-lg" style={{ overflow: 'hidden' }}>
-            <div className="card-header">
-              <h3 className="text-base">Location</h3>
-            </div>
+          <section className="bg-surface border border-border rounded-sm overflow-hidden">
+            <header className="px-6 py-4 border-b border-border">
+              <h2 className="text-base font-semibold">Location</h2>
+            </header>
             <MapView
               userLocation={{ lat: buddy.latitude, lng: buddy.longitude }}
               height={260}
               showSelfMarker={false}
             />
-          </div>
+          </section>
 
-          {buddy.phone && (
-            <div className="card mt-lg">
-              <div className="card-body text-sm">
-                <span className="detail-label">Contact</span>
-                <p>📞 {buddy.phone}</p>
-              </div>
-            </div>
-          )}
+          {buddy.phone ? (
+            <section className="bg-surface border border-border rounded-sm p-6">
+              <p className="text-eyebrow text-muted mb-2">Contact</p>
+              <p className="text-sm">
+                <Phone size={14} className="inline mr-1" aria-hidden="true" />
+                {buddy.phone}
+              </p>
+            </section>
+          ) : null}
         </aside>
       </div>
-
-      <style>{`
-        .buddy-profile-grid {
-          display: grid;
-          grid-template-columns: 2fr 1fr;
-          gap: var(--space-lg);
-        }
-        @media (max-width: 900px) {
-          .buddy-profile-grid { grid-template-columns: 1fr; }
-        }
-        .buddy-rating { display: flex; align-items: center; gap: 6px; }
-        .ml-sm { margin-left: 8px; }
-        .lang-list { display: flex; flex-wrap: wrap; gap: 4px; }
-      `}</style>
     </div>
   )
 }

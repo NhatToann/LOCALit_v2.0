@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { MapPin, Star } from 'lucide-react'
+import { Avatar } from '@/components/ui/Avatar'
 
 interface BuddyCardProps {
   id: string
@@ -15,55 +17,47 @@ interface BuddyCardProps {
 
 export default function BuddyCard(props: BuddyCardProps) {
   return (
-    <Link href={`/tourist/buddy/${props.id}`} className="card" style={{ textDecoration: 'none' }}>
-      <div style={{ height: 120, background: 'linear-gradient(135deg, var(--primary), var(--primary-light))', position: 'relative' }}>
-        <div
-          className="avatar avatar-lg"
-          style={{
-            position: 'absolute',
-            bottom: -28,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            border: '3px solid white',
-          }}
-        >
-          {props.avatar_url ? <img src={props.avatar_url} alt={props.name} /> : props.name.charAt(0)}
+    <Link
+      href={`/tourist/buddy/${props.id}`}
+      className="block bg-surface border border-border rounded-sm hover:border-border-strong transition-colors duration-150"
+    >
+      <div className="p-6 text-center">
+        <div className="relative inline-block mb-3">
+          <Avatar
+            name={props.name}
+            src={props.avatar_url ?? null}
+            size="xl"
+            online={props.is_available}
+          />
         </div>
-        {props.is_available && (
-          <span
-            className="badge badge-success"
-            style={{ position: 'absolute', top: 12, right: 12 }}
-          >
-            ● Online
-          </span>
-        )}
-      </div>
-      <div className="card-body" style={{ paddingTop: 36, textAlign: 'center' }}>
-        <h3 className="font-semibold">{props.name}</h3>
-        <p className="text-sm text-muted" style={{ marginTop: 4 }}>
-          📍 {props.location_city}
+        <h3 className="text-lg font-semibold">{props.name}</h3>
+        <p className="text-sm text-muted mt-1">
+          <MapPin size={12} className="inline mr-1" aria-hidden="true" />
+          {props.location_city}
         </p>
 
-        <div className="rating flex-center mt-sm">
-          {'★'.repeat(Math.round(props.rating_avg))}
-          <span className="rating-text">({props.rating_avg.toFixed(1)})</span>
-        </div>
+        <p className="text-sm mt-2">
+          <Star size={12} className="inline text-warning mr-1" aria-hidden="true" />
+          <strong>{props.rating_avg.toFixed(1)}</strong>
+        </p>
 
-        <div className="flex flex-wrap gap-xs justify-center mt-md" style={{ minHeight: 28 }}>
-          {props.specialties.slice(0, 3).map(s => (
-            <span key={s} className="tag">{s}</span>
+        <div className="flex flex-wrap gap-1 justify-center mt-3 min-h-[28px]">
+          {props.specialties.slice(0, 3).map((s) => (
+            <span key={s} className="badge badge-neutral text-xs">
+              {s}
+            </span>
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-xs justify-center mt-sm">
-          {props.languages.slice(0, 2).map(l => (
+        <div className="flex flex-wrap gap-1 justify-center mt-2">
+          {props.languages.slice(0, 2).map((l) => (
             <span key={l} className="lang-chip">{l}</span>
           ))}
         </div>
 
-        <div className="mt-md pt-md" style={{ borderTop: '1px solid var(--border-color)' }}>
-          <p className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>
-            ${props.hourly_rate}/giờ
+        <div className="mt-4 pt-3 border-t border-border">
+          <p className="text-sm font-semibold text-ink">
+            ${props.hourly_rate}/hour
           </p>
         </div>
       </div>

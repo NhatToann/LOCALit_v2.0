@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/utils/supabase/auth'
 import { useLiveUserLocations } from '@/hooks/useLiveUserLocations'
-import './browse.css'
+import { Map as MapIcon, MapPin, Star, ChevronDown, Heart, MessageCircle, X, Search, Users } from 'lucide-react'
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
 
@@ -83,7 +83,7 @@ function BrowseContent() {
         const supabase = createClient()
         const { data } = await supabase
           .from('buddies')
-          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, profile:safe_profiles(full_name, avatar_url)')
+          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, profile:safe_profiles(full_name, avatar_url, is_online)')
           .eq('location_city', 'Da Nang')
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
@@ -130,7 +130,7 @@ function BrowseContent() {
           })
         setBuddies(mapped)
       } catch (err) {
-        console.error('Browse load failed:', err)
+        // silent — UI shows skeleton during load
       } finally {
         setLoading(false)
       }
@@ -174,210 +174,325 @@ function BrowseContent() {
   }
 
   return (
-    <div className="buddies-page">
-      {/* Header */}
-      <div className="buddies-header">
-        <div className="header-left">
-          <h1>{hasSearch ? 'Search Results' : 'Find Local Buddies in Da Nang'}</h1>
-          <p>
-            {loading ? 'Loading...' : `${filtered.length} ${filtered.length === 1 ? 'buddy' : 'buddies'}${destinationFilter ? ` for "${destinationFilter}"` : ''}`}
+    <div className="container-page py-8">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-page-title">
+            {hasSearch ? 'Search results' : 'Find local buddies in Da Nang'}
+          </h1>
+          <p className="text-sm text-muted mt-1">
+            {loading ? 'Loading Da Nang buddies...' : `${filtered.length} ${filtered.length === 1 ? 'buddy' : 'buddies'}${destinationFilter ? ` for "${destinationFilter}"` : ''}`}
           </p>
         </div>
-        <div className="header-actions-inline">
-          <Link href="/map" className="btn btn-outline btn-sm">🗺️ Open Map</Link>
-        </div>
-      </div>
+        <Link
+          href="/map"
+          className="inline-flex items-center gap-2 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+        >
+          <MapIcon size={16} aria-hidden="true" />
+          Open map
+        </Link>
+      </header>
 
-      <div className="buddies-list-view">
-        {/* Filter chips bar */}
-        <div className="grid-filters">
-          {hasSearch && (
-            <div className="search-results-note">
-              <div>
-                <span className="search-results-label">Showing results for</span>
-                <strong>{destinationFilter || 'Da Nang'}</strong>
-                {languageFilter && <span>Language: {languageFilter}</span>}
-              </div>
-              <Link href="/tourist/browse" className="clear-search-link">Clear search</Link>
-            </div>
-          )}
-          <div className="filter-row">
+      {/* Filters */}
+      <section
+        aria-label="Filters"
+        className="mb-6 border border-border rounded-sm bg-surface p-4"
+      >
+        {hasSearch ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-border text-sm">
+            <p className="text-muted">
+              Showing results for{' '}
+              <strong className="text-ink">{destinationFilter || 'Da Nang'}</strong>
+              {languageFilter ? <> · Language: <strong className="text-ink">{languageFilter}</strong></> : null}
+            </p>
+            <Link href="/tourist/browse" className="text-primary hover:underline text-sm">
+              Clear search
+            </Link>
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+          <div className="relative md:col-span-2">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle pointer-events-none"
+              aria-hidden="true"
+            />
             <input
-              className="form-input search-input"
+              className="form-input w-full pl-9"
               placeholder="Search Da Nang buddies by name, area, or interest"
               value={destinationFilter}
               onChange={(e) => setDestinationFilter(e.target.value)}
+              aria-label="Search Da Nang buddies"
             />
-            <select
-              className="form-input form-select search-select"
-              value={languageFilter}
-              onChange={(e) => setLanguageFilter(e.target.value)}
-            >
-              <option value="">All languages</option>
-              {LANGUAGES.map((l) => (
-                <option key={l} value={l}>{l}</option>
-              ))}
-            </select>
           </div>
-          <div className="filter-chips">
-            {FILTERS.map((filter) => (
+          <select
+            className="form-input form-select"
+            value={languageFilter}
+            onChange={(e) => setLanguageFilter(e.target.value)}
+            aria-label="Filter by language"
+          >
+            <option value="">All languages</option>
+            {LANGUAGES.map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-wrap gap-2" role="tablist">
+          {FILTERS.map((filter) => {
+            const active = activeFilter === filter.id
+            return (
               <button
                 key={filter.id}
-                className={`filter-chip ${activeFilter === filter.id ? 'active' : ''}`}
+                role="tab"
+                aria-selected={active}
                 onClick={() => setActiveFilter(filter.id)}
+                className={`h-8 px-3 text-sm font-medium rounded-pill border transition-colors duration-150 ${
+                  active
+                    ? 'bg-primary text-paper border-primary'
+                    : 'bg-transparent text-muted border-border hover:text-ink hover:border-border-strong'
+                }`}
               >
                 {filter.label}
               </button>
-            ))}
-          </div>
+            )
+          })}
         </div>
+      </section>
 
-        {/* Map section */}
-        <section className="find-buddies-map">
-          <div className="buddy-map-copy">
-            <span>Buddy Map</span>
-            <h2>Find buddies around you</h2>
-            <p>Hover a marker or click a buddy below to see their location in Da Nang.</p>
-          </div>
-          <div className="buddy-leaflet-map">
-            <button
-              type="button"
-              className={`buddy-share-toggle ${shareLocation ? 'on' : ''}`}
-              onClick={() => setShareLocation(v => !v)}
-              title="Share your live location with other tourists (no data is saved)"
-            >
-              {shareLocation ? '📍 Sharing live' : '📍 Share my location'}
-            </button>
-            <MapView
-              userLocation={userLocation}
-              height={340}
-              onSelectBuddy={(id) => { setSelectedMapId(id); setExpandedBuddyId(id) }}
-              liveLocations={liveLocations}
-              selfLiveOverride={selfGranted}
-            />
-            {selectedBuddy && (
-              <div className="buddy-map-popup">
-                <button type="button" onClick={() => setSelectedMapId(null)} aria-label="Close">✕</button>
-                <h3>{selectedBuddy.full_name}</h3>
-                <p>📍 {selectedBuddy.location_city}</p>
-                <span>⭐ {selectedBuddy.rating_avg ? selectedBuddy.rating_avg.toFixed(1) : '—'} · {selectedBuddy.languages.slice(0, 2).join(', ')}</span>
-                <Link href={`/tourist/buddy/${selectedBuddy.id}`} className="btn btn-primary btn-sm btn-block mt-sm">View profile</Link>
-              </div>
-            )}
-          </div>
-        </section>
+      {/* Map */}
+      <section
+        aria-label="Buddy map"
+        className="mb-6 border border-border rounded-sm overflow-hidden bg-surface"
+      >
+        <div className="px-6 py-4 border-b border-border">
+          <p className="text-eyebrow text-primary mb-1">Buddy map</p>
+          <h2 className="text-lg font-semibold">Find buddies around Da Nang</h2>
+          <p className="text-sm text-muted mt-1">
+            Hover a marker or click a buddy below to see their location.
+          </p>
+        </div>
+        <div className="relative h-[340px]">
+          <button
+            type="button"
+            onClick={() => setShareLocation(v => !v)}
+            className={`absolute top-3 right-3 z-10 inline-flex items-center gap-2 h-8 px-3 text-sm font-medium rounded-sm border ${
+              shareLocation
+                ? 'bg-primary text-paper border-primary'
+                : 'bg-surface text-ink border-border-strong hover:bg-paper'
+            }`}
+            title="Share your live location with other tourists (no data is saved)"
+          >
+            <MapPin size={14} aria-hidden="true" />
+            {shareLocation ? 'Sharing live' : 'Share my location'}
+          </button>
+          <MapView
+            userLocation={userLocation}
+            height={340}
+            onSelectBuddy={(id) => { setSelectedMapId(id); setExpandedBuddyId(id) }}
+            liveLocations={liveLocations}
+            selfLiveOverride={selfGranted}
+          />
+          {selectedBuddy ? (
+            <div className="absolute bottom-3 left-3 right-3 md:left-auto md:right-3 md:w-80 bg-surface border border-border rounded-sm p-4 shadow-lg">
+              <button
+                type="button"
+                onClick={() => setSelectedMapId(null)}
+                aria-label="Close popup"
+                className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 text-muted hover:text-ink"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+              <h3 className="text-sm font-semibold pr-6">{selectedBuddy.full_name}</h3>
+              <p className="text-xs text-muted mt-1">
+                <MapPin size={12} className="inline mr-1" aria-hidden="true" />
+                {selectedBuddy.location_city}
+              </p>
+              <p className="text-xs text-muted mt-1">
+                <Star size={12} className="inline mr-1" aria-hidden="true" />
+                {selectedBuddy.rating_avg ? selectedBuddy.rating_avg.toFixed(1) : '—'} · {selectedBuddy.languages.slice(0, 2).join(', ')}
+              </p>
+              <Link
+                href={`/tourist/buddy/${selectedBuddy.id}`}
+                className="inline-flex items-center justify-center mt-2 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover w-full"
+              >
+                View profile
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      </section>
 
-        {/* Buddy accordion list */}
+      {/* Buddy list */}
+      <section aria-label="Buddies list">
         {loading ? (
-          <div className="text-center py-xl"><div className="loading-spinner mx-auto" /></div>
+          <div className="text-center py-16">
+            <div className="loading-spinner mx-auto" />
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="empty-results">
-            <h3>No buddies found</h3>
-            <p>Try removing filters or searching for Da Nang areas like My Khe Beach, Han River, or Son Tra.</p>
-            <Link href="/tourist/browse" className="grid-btn">See all buddies</Link>
+          <div className="border border-border rounded-sm p-12 text-center bg-surface">
+            <Users size={48} className="mx-auto text-subtle mb-3" aria-hidden="true" />
+            <h3 className="text-lg font-semibold mb-2">No buddies found</h3>
+            <p className="text-sm text-muted mb-4">
+              Try removing filters or searching for Da Nang areas like My Khe Beach, Han River, or Son Tra.
+            </p>
+            <Link
+              href="/tourist/browse"
+              className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+            >
+              See all Da Nang buddies
+            </Link>
           </div>
         ) : (
-          <div className="buddy-accordion-list">
+          <ul className="divide-y divide-border border border-border rounded-sm bg-surface">
             {filtered.map((b) => {
               const expanded = expandedBuddyId === b.id
               const dist = haversineKm(userLocation, { lat: b.latitude, lng: b.longitude })
               const saved = savedBuddies.includes(b.id)
               return (
-                <article key={b.id} className={`buddy-list-card ${expanded ? 'expanded' : ''}`}>
+                <li key={b.id}>
                   <button
                     type="button"
-                    className="buddy-list-summary"
                     onClick={() => setExpandedBuddyId(expanded ? null : b.id)}
                     onMouseEnter={() => setSelectedMapId(b.id)}
                     aria-expanded={expanded}
+                    className="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-paper transition-colors duration-150"
                   >
-                    <span className="list-avatar">{b.full_name.charAt(0)}</span>
-                    <span className="list-main">
-                      <span className="list-name">{b.full_name}</span>
-                      <span className="list-location">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                        </svg>
-                        {b.location_city} · {dist.toFixed(1)} km
-                      </span>
+                    <span
+                      className="flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold text-paper"
+                      style={{ backgroundColor: avatarColor(b.id) }}
+                      aria-hidden="true"
+                    >
+                      {b.full_name.charAt(0)}
                     </span>
-                    <span className="list-tags">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ink truncate">{b.full_name}</p>
+                      <p className="text-xs text-muted truncate">
+                        <MapPin size={12} className="inline mr-1" aria-hidden="true" />
+                        {b.location_city} · {dist.toFixed(1)} km away
+                      </p>
+                    </div>
+                    <div className="hidden md:flex flex-wrap gap-1 max-w-[200px]">
                       {b.specialties.slice(0, 3).map((tag) => (
-                        <span key={tag} className="list-tag">{tag}</span>
+                        <span key={tag} className="badge badge-neutral text-xs">
+                          {tag}
+                        </span>
                       ))}
-                    </span>
-                    <span className="list-meta">
-                      <span>⭐ {b.rating_avg ? b.rating_avg.toFixed(1) : '—'}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{b.rating_count} reviews</span>
-                    </span>
-                    <span className="list-chevron">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M6 9l6 6 6-6"/>
-                      </svg>
-                    </span>
+                    </div>
+                    <div className="text-right hidden sm:block">
+                      <p className="text-sm font-medium">
+                        <Star size={12} className="inline mr-1 text-warning" aria-hidden="true" />
+                        {b.rating_avg ? b.rating_avg.toFixed(1) : '—'}
+                      </p>
+                      <p className="text-xs text-muted">{b.rating_count} reviews</p>
+                    </div>
+                    <ChevronDown
+                      size={18}
+                      className={`text-muted transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`}
+                      aria-hidden="true"
+                    />
                   </button>
 
-                  <div className="buddy-dropdown-panel">
-                    {b.bio && <p className="list-bio">{b.bio}</p>}
-                    <div className="list-detail-grid">
-                      <div>
-                        <span className="detail-label">Languages</span>
-                        <div className="lang-list">
-                          {b.languages.map((l) => (
-                            <span key={l} className="lang-chip">{l}</span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="detail-label">Specialties</span>
-                        <div className="buddy-interests">
-                          {b.specialties.map((s) => (
-                            <span key={s} className="interest-chip">{s}</span>
-                          ))}
-                        </div>
-                      </div>
-                      {b.hourly_rate !== null && (
+                  {expanded ? (
+                    <div className="px-6 pb-6 pt-2 bg-paper border-t border-border">
+                      {b.bio ? (
+                        <p className="text-sm text-ink leading-relaxed mb-4 max-w-prose">{b.bio}</p>
+                      ) : null}
+                      <dl className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div>
-                          <span className="detail-label">Rate</span>
-                          <strong>${Number(b.hourly_rate).toFixed(0)}/hour</strong>
-                          {b.is_online && (
-                            <div style={{ marginTop: 6 }}>
-                              <span className="badge badge-success">Active now</span>
-                            </div>
-                          )}
+                          <dt className="text-eyebrow text-muted mb-2">Languages</dt>
+                          <dd className="flex flex-wrap gap-1">
+                            {b.languages.map((l) => (
+                              <span key={l} className="lang-chip">{l}</span>
+                            ))}
+                          </dd>
                         </div>
-                      )}
+                        <div>
+                          <dt className="text-eyebrow text-muted mb-2">Specialties</dt>
+                          <dd className="flex flex-wrap gap-1">
+                            {b.specialties.map((s) => (
+                              <span key={s} className="badge badge-neutral text-xs">{s}</span>
+                            ))}
+                          </dd>
+                        </div>
+                        {b.hourly_rate !== null ? (
+                          <div>
+                            <dt className="text-eyebrow text-muted mb-2">Hourly rate</dt>
+                            <dd>
+                              <strong className="text-ink">${Number(b.hourly_rate).toFixed(0)} USD / hour</strong>
+                              {b.is_online ? (
+                                <p className="mt-2">
+                                  <span className="badge badge-success">
+                                    <span
+                                      className="inline-block w-1.5 h-1.5 rounded-full bg-success mr-1"
+                                      aria-hidden="true"
+                                    />
+                                    Active now
+                                  </span>
+                                </p>
+                              ) : null}
+                            </dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleSave(b.id)}
+                          aria-pressed={saved}
+                          className={`inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm border ${
+                            saved
+                              ? 'bg-primary-bg text-primary border-primary-bg'
+                              : 'bg-transparent text-ink border-border-strong hover:bg-surface'
+                          }`}
+                        >
+                          <Heart
+                            size={14}
+                            className={saved ? 'fill-primary text-primary' : ''}
+                            aria-hidden="true"
+                          />
+                          {saved ? 'Saved' : 'Save'}
+                        </button>
+                        <Link
+                          href={`/tourist/buddy/${b.id}`}
+                          className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+                        >
+                          View profile
+                        </Link>
+                        <Link
+                          href={`/chat?buddy=${b.id}`}
+                          className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-surface"
+                        >
+                          <MessageCircle size={14} aria-hidden="true" />
+                          Message
+                        </Link>
+                      </div>
                     </div>
-                    <div className="list-actions">
-                      <button
-                        type="button"
-                        className={`save-buddy-btn ${saved ? 'saved' : ''}`}
-                        onClick={() => toggleSave(b.id)}
-                      >
-                        {saved ? '✓ Saved' : '♡ Save'}
-                      </button>
-                      <Link href={`/tourist/buddy/${b.id}`} className="grid-btn">
-                        View profile
-                      </Link>
-                      <Link href={`/chat?buddy=${b.id}`} className="connect-list-btn">
-                        💬 Message
-                      </Link>
-                    </div>
-                  </div>
-                </article>
+                  ) : null}
+                </li>
               )
             })}
-          </div>
+          </ul>
         )}
-      </div>
+      </section>
     </div>
   )
+}
+
+function avatarColor(seed: string): string {
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const hue = Math.abs(hash) % 360
+  return `hsl(${hue}, 50%, 45%)`
 }
 
 export default function BrowsePage() {
   return (
     <Suspense fallback={
-      <div className="container py-xl text-center"><div className="loading-spinner mx-auto" /></div>
+      <div className="container-page py-16 text-center"><div className="loading-spinner mx-auto" /></div>
     }>
       <BrowseContent />
     </Suspense>

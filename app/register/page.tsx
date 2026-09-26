@@ -3,24 +3,21 @@
 import { useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-// utils/supabase/auth exports createClient (re-export of the browser client).
-// Currently unused in this file; kept for potential future client-side updates.
-import '@/utils/supabase/auth'
-import './register.css'
+import { AlertTriangle, ArrowLeft, ArrowRight, Check } from 'lucide-react'
 
 type Role = 'tourist' | 'buddy'
 
 const INTERESTS = [
-  { id: 'food', label: 'Food', emoji: '🍜' },
-  { id: 'photography', label: 'Photography', emoji: '📷' },
-  { id: 'history', label: 'History', emoji: '🏛️' },
-  { id: 'beach', label: 'Beach', emoji: '🏖️' },
-  { id: 'nature', label: 'Nature', emoji: '🏔️' },
-  { id: 'nightlife', label: 'Nightlife', emoji: '🌃' },
-  { id: 'shopping', label: 'Shopping', emoji: '🛍️' },
-  { id: 'culture', label: 'Local Culture', emoji: '🎎' },
-  { id: 'adventure', label: 'Adventure', emoji: '🧗' },
-  { id: 'wellness', label: 'Wellness', emoji: '🧘' },
+  { id: 'food', label: 'Food' },
+  { id: 'photography', label: 'Photography' },
+  { id: 'history', label: 'History' },
+  { id: 'beach', label: 'Beach' },
+  { id: 'nature', label: 'Nature' },
+  { id: 'nightlife', label: 'Nightlife' },
+  { id: 'shopping', label: 'Shopping' },
+  { id: 'culture', label: 'Local Culture' },
+  { id: 'adventure', label: 'Adventure' },
+  { id: 'wellness', label: 'Wellness' },
 ]
 
 const TRAVEL_STYLES = [
@@ -30,12 +27,33 @@ const TRAVEL_STYLES = [
   { id: 'family', label: 'Family', desc: 'Traveling with family' },
 ]
 
-const LANGUAGES = ['English', 'Vietnamese', 'Japanese', 'Korean', 'French', 'Mandarin', 'Russian', 'Spanish']
+const LANGUAGES = [
+  'English',
+  'Vietnamese',
+  'Japanese',
+  'Korean',
+  'French',
+  'Mandarin',
+  'Russian',
+  'Spanish',
+]
 
 const NATIONALITIES = [
-  'United States', 'United Kingdom', 'Australia', 'Canada', 'Singapore',
-  'Japan', 'South Korea', 'China', 'Vietnam', 'Thailand', 'Malaysia',
-  'Germany', 'France', 'Netherlands', 'Other',
+  'United States',
+  'United Kingdom',
+  'Australia',
+  'Canada',
+  'Singapore',
+  'Japan',
+  'South Korea',
+  'China',
+  'Vietnam',
+  'Thailand',
+  'Malaysia',
+  'Germany',
+  'France',
+  'Netherlands',
+  'Other',
 ]
 
 const BUDGETS = [
@@ -109,19 +127,110 @@ const INITIAL_FORM: FormState = {
   terms: false,
 }
 
+const STEP_LABELS = ['Personal info', 'Choose role', 'Tags & bio']
+
+function Stepper({ step }: { step: number }) {
+  return (
+    <ol
+      className="flex items-center justify-center gap-2 mb-6"
+      aria-label="Sign-up progress"
+    >
+      {STEP_LABELS.map((label, i) => {
+        const state = step >= i ? (step === i ? 'current' : 'done') : 'todo'
+        return (
+          <li key={label} className="flex items-center gap-2">
+            <span
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                state === 'current'
+                  ? 'bg-primary text-paper'
+                  : state === 'done'
+                  ? 'bg-primary text-paper'
+                  : 'bg-transparent text-muted border border-border'
+              }`}
+            >
+              {state === 'done' ? <Check size={12} aria-hidden="true" /> : i + 1}
+            </span>
+            <span
+              className={`text-xs font-medium ${
+                state === 'current' ? 'text-ink' : 'text-muted'
+              }`}
+            >
+              {label}
+            </span>
+            {i < STEP_LABELS.length - 1 ? (
+              <span
+                className={`w-8 h-px ${state === 'done' ? 'bg-primary' : 'bg-border'}`}
+                aria-hidden="true"
+              />
+            ) : null}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`h-8 px-3 text-sm rounded-pill border transition-colors duration-150 ${
+        active
+          ? 'bg-primary text-paper border-primary'
+          : 'bg-transparent text-ink border-border hover:border-border-strong'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function ChoiceCard({
+  active,
+  onClick,
+  title,
+  desc,
+}: {
+  active: boolean
+  onClick: () => void
+  title: string
+  desc: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`text-left p-4 rounded-sm border transition-colors duration-150 ${
+        active
+          ? 'bg-primary text-paper border-primary'
+          : 'bg-transparent text-ink border-border hover:border-border-strong'
+      }`}
+    >
+      <span className="block text-sm font-semibold">{title}</span>
+      <span className="block text-xs mt-1 opacity-80">{desc}</span>
+    </button>
+  )
+}
+
 function RegisterForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const roleParam = searchParams.get('role')
-  const initialRole: Role | null = roleParam === 'buddy' || roleParam === 'tourist' ? roleParam : null
+  const initialRole: Role | null =
+    roleParam === 'buddy' || roleParam === 'tourist' ? roleParam : null
   const skipRoleStep = initialRole !== null
 
-  // Step order: 0=Personal info, 1=Role, 2=Tags & bio.
-  // When ?role= is passed (e.g. from /register?role=buddy on the landing
-  // page), the role is pre-selected so we skip Step 1 — but we ALWAYS land
-  // on Step 0 first so the user enters name/email/password/terms before
-  // choosing interests/specialties. (Previously this jumped straight to
-  // Step 2, which meant landing-page CTAs skipped the personal-info step.)
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<FormState>(() => ({
     ...INITIAL_FORM,
@@ -130,44 +239,44 @@ function RegisterForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  const validateEmail = (email: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   const pw = useMemo(() => passwordScore(form.password), [form.password])
 
   function pickRole(role: Role) {
-    setForm(p => ({ ...p, role }))
+    setForm((p) => ({ ...p, role }))
     setStep(2)
   }
 
   function toggleInterest(id: string) {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       interests: prev.interests.includes(id)
-        ? prev.interests.filter(i => i !== id)
+        ? prev.interests.filter((i) => i !== id)
         : [...prev.interests, id],
     }))
   }
 
   function toggleSpecialty(id: string) {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       specialties: prev.specialties.includes(id)
-        ? prev.specialties.filter(i => i !== id)
+        ? prev.specialties.filter((i) => i !== id)
         : [...prev.specialties, id],
     }))
   }
 
   function toggleLanguage(lang: string) {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       languages: prev.languages.includes(lang)
-        ? prev.languages.filter(l => l !== lang)
+        ? prev.languages.filter((l) => l !== lang)
         : [...prev.languages, lang],
     }))
   }
 
   const stepReady = useMemo(() => {
     if (step === 0) {
-      // Personal info step
       return (
         form.fullName.trim().length >= 2 &&
         validateEmail(form.email) &&
@@ -177,7 +286,6 @@ function RegisterForm() {
       )
     }
     if (step === 2) {
-      // Tags & bio step (role-specific)
       if (form.role === 'tourist') {
         return (
           form.nationality !== '' &&
@@ -201,7 +309,6 @@ function RegisterForm() {
     setLoading(true)
 
     try {
-      // Build the profile payload (same as before, but simpler — no more OTP).
       const payload =
         form.role === 'tourist'
           ? {
@@ -243,21 +350,10 @@ function RegisterForm() {
         return
       }
 
-      const data = (await res.json()) as {
-        userId: string
-        email: string
-      }
-
-      // Account is created and email is confirmed. Now sign in directly.
-      // (Supabase keeps a separate session state from auth.users, so even
-      // though the email is confirmed we still need a session before we
-      // can hit any RLS-protected query.)
       if (typeof window !== 'undefined') {
         const { signIn } = await import('@/utils/supabase/auth')
         const { error: signInError } = await signIn(form.email, form.password)
         if (signInError) {
-          // Sign-in failed but the user exists — redirect to /login so they
-          // can finish signing in manually.
           router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
           return
         }
@@ -272,517 +368,536 @@ function RegisterForm() {
     }
   }
 
-  const stepLabels = ['Personal info', 'Choose role', 'Tags & bio']
-  const totalSteps = 3
-
   return (
-    <div className="register-page">
-      <div className="register-container">
-        {/* Top header (always shown) */}
-        <div className="register-topbar">
-          <Link href="/" className="register-logo">
-            <span className="register-logo-mark">L</span>
-            <span className="register-logo-text">LOCALit</span>
-          </Link>
-          <div className="register-topbar-meta">
-            {step > 0 && (
-              <button
-                type="button"
-                className="link-back"
-                onClick={() => setStep(s => Math.max(0, s - 1))}
-                disabled={loading}
-              >
-                ← Back
-              </button>
-            )}
-            <Link href="/login" className="register-topbar-signin">
-              Already a member? <strong>Sign in</strong>
-            </Link>
-          </div>
-        </div>
+    <main className="container-page py-8 max-w-2xl">
+      <header className="flex items-center justify-between mb-4">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-ink hover:text-primary"
+        >
+          <span
+            className="w-7 h-7 rounded-sm bg-primary text-paper flex items-center justify-center font-bold"
+            aria-hidden="true"
+          >
+            L
+          </span>
+          LOCALit
+        </Link>
+        <Link
+          href="/login"
+          className="text-xs text-muted hover:text-ink"
+        >
+          Already a member? <strong>Sign in</strong>
+        </Link>
+      </header>
 
-        {/* Stepper (shown on all steps so users see progress) */}
-        {step >= 0 && (
-          <div className="register-stepper" aria-label="Sign-up progress">
-            {stepLabels.map((label, i) => (
-              <div key={label} className={`stepper-item ${step >= i ? 'active' : ''} ${step === i ? 'current' : ''}`}>
-                <span className="stepper-dot">{i + 1}</span>
-                <span className="stepper-label">{label}</span>
-                {i < stepLabels.length - 1 && <span className="stepper-bar" />}
-              </div>
-            ))}
-          </div>
-        )}
+      <Stepper step={step} />
 
-        {/* STEP 0 — Personal info (name, phone, email, password, terms) */}
-        {step === 0 && (
-          <div className="register-pane">
-            <div className="register-pane-head">
-              <h2>Create your account</h2>
-              <p className="register-pane-sub">
-                Tell us who you are. You&apos;ll pick your role and interests on the next steps.
-              </p>
-            </div>
-
-            <form
-              className="register-form"
-              onSubmit={(e) => {
-                e.preventDefault()
-                // If the landing page passed ?role=..., skip the role step
-                // and go straight to the role-specific profile step.
-                if (stepReady) setStep(skipRoleStep ? 2 : 1)
-              }}
-            >
-              <div className="reg-row reg-row-2">
-                <div className="form-group">
-                  <label htmlFor="fullName">Full name</label>
-                  <input
-                    id="fullName"
-                    type="text"
-                    className="form-input"
-                    placeholder="Alex Johnson"
-                    value={form.fullName}
-                    onChange={(e) => setForm(p => ({ ...p, fullName: e.target.value }))}
-                    required
-                    minLength={2}
-                    maxLength={100}
-                    autoComplete="name"
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="phone">
-                    Phone <span className="optional">optional</span>
-                  </label>
-                  <input
-                    id="phone"
-                    type="tel"
-                    className="form-input"
-                    placeholder="+84 123 456 789"
-                    value={form.phone}
-                    onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))}
-                    maxLength={20}
-                    autoComplete="tel"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="email">Email</label>
-                <input
-                  id="email"
-                  type="email"
-                  className={`form-input ${form.email && !validateEmail(form.email) ? 'error' : ''}`}
-                  placeholder="you@example.com"
-                  value={form.email}
-                  onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))}
-                  required
-                  autoComplete="email"
-                />
-                {form.email && !validateEmail(form.email) && (
-                  <p className="form-hint error">Please enter a valid email address.</p>
-                )}
-              </div>
-
-              <div className="reg-row reg-row-2">
-                <div className="form-group">
-                  <label htmlFor="password">Password</label>
-                  <input
-                    id="password"
-                    type="password"
-                    className="form-input"
-                    placeholder="At least 6 characters"
-                    value={form.password}
-                    onChange={(e) => setForm(p => ({ ...p, password: e.target.value }))}
-                    required
-                    autoComplete="new-password"
-                    minLength={6}
-                  />
-                  {form.password && (
-                    <div className={`pw-meter pw-meter-${pw.score}`} aria-label={`Password strength: ${pw.label}`}>
-                      <span /><span /><span /><span />
-                    </div>
-                  )}
-                  {form.password && (
-                    <p className="form-hint">Strength: {pw.label}</p>
-                  )}
-                </div>
-                <div className="form-group">
-                  <label htmlFor="confirmPassword">Confirm password</label>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    className={`form-input ${form.confirmPassword && form.password !== form.confirmPassword ? 'error' : ''}`}
-                    placeholder="Re-enter your password"
-                    value={form.confirmPassword}
-                    onChange={(e) => setForm(p => ({ ...p, confirmPassword: e.target.value }))}
-                    required
-                    autoComplete="new-password"
-                  />
-                  {form.confirmPassword && form.password !== form.confirmPassword && (
-                    <p className="form-hint error">Passwords do not match.</p>
-                  )}
-                </div>
-              </div>
-
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={form.terms}
-                  onChange={(e) => setForm(p => ({ ...p, terms: e.target.checked }))}
-                />
-                <span>
-                  I agree to LOCALit&apos;s{' '}
-                  <a href="#" onClick={(e) => e.preventDefault()}>Terms of Service</a> and{' '}
-                  <a href="#" onClick={(e) => e.preventDefault()}>Privacy Policy</a>.
-                </span>
-              </label>
-
-              <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={!stepReady}>
-                Continue →
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* STEP 1 — Role selection hero */}
-        {step === 1 && (
-          <div className="role-hero">
-            <div className="role-hero-intro">
-              <span className="role-hero-eyebrow">Almost there</span>
-              <h1 className="role-hero-title">How will you use LOCALit?</h1>
-              <p className="role-hero-subtitle">
-                Pick the experience that fits you — you can always switch later from your profile settings.
-              </p>
-            </div>
-
-            <div className="role-grid">
-              <button
-                type="button"
-                className="role-card role-card-tourist"
-                onClick={() => pickRole('tourist')}
-              >
-                <div className="role-card-icon" aria-hidden="true">🧳</div>
-                <h2 className="role-card-title">I&apos;m a Tourist</h2>
-                <p className="role-card-desc">
-                  Discover Da Nang alongside trusted local buddies who share your interests and language.
-                </p>
-                <ul className="role-card-features">
-                  <li>Browse verified local buddies</li>
-                  <li>Plan trips together in chat</li>
-                  <li>Get hand-picked recommendations</li>
-                </ul>
-                <span className="role-card-cta">Continue as Tourist →</span>
-              </button>
-
-              <button
-                type="button"
-                className="role-card role-card-buddy"
-                onClick={() => pickRole('buddy')}
-              >
-                <div className="role-card-icon" aria-hidden="true">🌍</div>
-                <h2 className="role-card-title">I&apos;m a Local Buddy</h2>
-                <p className="role-card-desc">
-                  Share the best of your city, meet travelers from around the world, and earn on your schedule.
-                </p>
-                <ul className="role-card-features">
-                  <li>Receive trip requests from travelers</li>
-                  <li>Set your own hourly rate</li>
-                  <li>Build reviews and a trusted profile</li>
-                </ul>
-                <span className="role-card-cta">Continue as Buddy →</span>
-              </button>
-            </div>
-
-            <p className="role-hero-foot">
-              🔒 We never share your contact details without your permission.
+      {step === 0 ? (
+        <section className="border border-border rounded-sm bg-surface p-6">
+          <header className="mb-5">
+            <h1 className="text-section-title">Create your account</h1>
+            <p className="text-sm text-muted mt-1">
+              Tell us who you are. You&apos;ll pick your role and interests on the next steps.
             </p>
-          </div>
-        )}
+          </header>
 
-        {/* STEP 2 — Role-specific profile */}
-        {step === 2 && (
-          <div className="register-pane">
-            <div className="register-pane-head">
-              <h2>
-                {form.role === 'buddy' ? 'Tell travelers about you' : 'Tell us about your trip'}
-              </h2>
-              <p className="register-pane-sub">
-                Signing up as <strong>{form.role === 'buddy' ? 'a Local Buddy' : 'a Tourist'}</strong>.{' '}
-                <button type="button" className="link-inline" onClick={() => setStep(1)}>Change</button>
-              </p>
-              <p className="register-pane-sub">
-                We&apos;ll use this to match you with the right {form.role === 'buddy' ? 'travelers' : 'buddies'}. You can edit everything later.
-              </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (stepReady) setStep(skipRoleStep ? 2 : 1)
+            }}
+            noValidate
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="form-group">
+                <label htmlFor="fullName" className="form-label">Full name</label>
+                <input
+                  id="fullName"
+                  type="text"
+                  className="form-input"
+                  placeholder="Alex Johnson"
+                  value={form.fullName}
+                  onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  autoComplete="name"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="phone" className="form-label">
+                  Phone <span className="text-muted text-xs">(optional)</span>
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  className="form-input"
+                  placeholder="+84 123 456 789"
+                  value={form.phone}
+                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                  maxLength={20}
+                  autoComplete="tel"
+                />
+              </div>
             </div>
 
-            <form
-              className="register-form"
-              onSubmit={(e) => {
-                e.preventDefault()
-                if (stepReady && !loading) handleSubmit()
-              }}
+            <div className="form-group">
+              <label htmlFor="email" className="form-label">Email</label>
+              <input
+                id="email"
+                type="email"
+                className="form-input"
+                placeholder="you@example.com"
+                value={form.email}
+                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                required
+                autoComplete="email"
+              />
+              {form.email && !validateEmail(form.email) ? (
+                <p className="form-hint text-danger">Please enter a valid email address.</p>
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="form-group">
+                <label htmlFor="password" className="form-label">Password</label>
+                <input
+                  id="password"
+                  type="password"
+                  className="form-input"
+                  placeholder="At least 6 characters"
+                  value={form.password}
+                  onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+                  required
+                  autoComplete="new-password"
+                  minLength={6}
+                />
+                {form.password ? (
+                  <>
+                    <div
+                      className="mt-2 flex gap-1"
+                      aria-label={`Password strength: ${pw.label}`}
+                    >
+                      {[0, 1, 2, 3].map((i) => (
+                        <span
+                          key={i}
+                          className={`h-1 flex-1 rounded-sm ${
+                            i < pw.score ? 'bg-primary' : 'bg-border'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className="form-hint">Strength: {pw.label}</p>
+                  </>
+                ) : null}
+              </div>
+              <div className="form-group">
+                <label htmlFor="confirmPassword" className="form-label">Confirm password</label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  className="form-input"
+                  placeholder="Re-enter your password"
+                  value={form.confirmPassword}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, confirmPassword: e.target.value }))
+                  }
+                  required
+                  autoComplete="new-password"
+                />
+                {form.confirmPassword && form.password !== form.confirmPassword ? (
+                  <p className="form-hint text-danger">Passwords do not match.</p>
+                ) : null}
+              </div>
+            </div>
+
+            <label className="flex items-start gap-2 mt-4 text-sm text-ink cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={form.terms}
+                onChange={(e) => setForm((p) => ({ ...p, terms: e.target.checked }))}
+              />
+              <span>
+                I agree to LOCALit&apos;s{' '}
+                <a href="#" onClick={(e) => e.preventDefault()} className="text-primary hover:underline">
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a href="#" onClick={(e) => e.preventDefault()} className="text-primary hover:underline">
+                  Privacy Policy
+                </a>
+                .
+              </span>
+            </label>
+
+            <button
+              type="submit"
+              disabled={!stepReady}
+              className="w-full h-11 mt-5 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1"
             >
-              {form.role === 'tourist' ? (
-                <>
-                  <div className="reg-row reg-row-2">
-                    <div className="form-group">
-                      <label htmlFor="nationality">Nationality</label>
-                      <select
-                        id="nationality"
-                        className="form-input"
-                        value={form.nationality}
-                        onChange={(e) => setForm(p => ({ ...p, nationality: e.target.value }))}
-                        required
-                      >
-                        <option value="">Select your country</option>
-                        {NATIONALITIES.map(n => <option key={n} value={n}>{n}</option>)}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label htmlFor="dateOfBirth">
-                        Date of birth <span className="optional">optional</span>
-                      </label>
-                      <input
-                        id="dateOfBirth"
-                        type="date"
-                        className="form-input"
-                        value={form.dateOfBirth}
-                        onChange={(e) => setForm(p => ({ ...p, dateOfBirth: e.target.value }))}
-                        max={new Date().toISOString().split('T')[0]}
-                      />
-                    </div>
-                  </div>
+              Continue
+              <ArrowRight size={14} aria-hidden="true" />
+            </button>
+          </form>
+        </section>
+      ) : null}
 
-                  <div className="form-group">
-                    <label>Travel style</label>
-                    <div className="reg-choice-grid">
-                      {TRAVEL_STYLES.map(style => (
-                        <button
-                          key={style.id}
-                          type="button"
-                          className={`reg-choice ${form.travelStyle === style.id ? 'selected' : ''}`}
-                          onClick={() => setForm(p => ({ ...p, travelStyle: style.id }))}
-                        >
-                          <strong>{style.label}</strong>
-                          <span>{style.desc}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+      {step === 1 ? (
+        <section>
+          <header className="text-center mb-6">
+            <p className="text-eyebrow text-primary mb-2">Almost there</p>
+            <h1 className="text-page-title">How will you use LOCALit?</h1>
+            <p className="text-sm text-muted mt-2 max-w-md mx-auto">
+              Pick the experience that fits you. You can switch later from your profile settings.
+            </p>
+          </header>
 
-                  <div className="form-group">
-                    <label>Interests <span className="form-hint inline">(pick at least one)</span></label>
-                    <div className="reg-chip-grid">
-                      {INTERESTS.map(i => (
-                        <button
-                          key={i.id}
-                          type="button"
-                          className={`reg-chip ${form.interests.includes(i.id) ? 'selected' : ''}`}
-                          onClick={() => toggleInterest(i.id)}
-                        >
-                          <span className="chip-emoji">{i.emoji}</span>
-                          <span>{i.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => pickRole('tourist')}
+              className="text-left p-6 rounded-sm border border-border bg-surface hover:border-border-strong transition-colors duration-150"
+            >
+              <span className="inline-flex items-center justify-center w-10 h-10 rounded-sm bg-paper text-primary mb-3">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 12h18M5 12V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6M9 22v-4h6v4" />
+                </svg>
+              </span>
+              <h2 className="text-lg font-semibold text-ink mb-1">I&apos;m a tourist</h2>
+              <p className="text-sm text-muted mb-3">
+                Discover Da Nang alongside trusted local buddies who share your interests and language.
+              </p>
+              <ul className="space-y-1 text-xs text-ink">
+                <li className="flex gap-2"><Check size={12} className="text-success mt-0.5" aria-hidden="true" /> Browse verified local buddies</li>
+                <li className="flex gap-2"><Check size={12} className="text-success mt-0.5" aria-hidden="true" /> Plan trips together in chat</li>
+                <li className="flex gap-2"><Check size={12} className="text-success mt-0.5" aria-hidden="true" /> Get hand-picked recommendations</li>
+              </ul>
+              <p className="mt-4 text-sm font-medium text-primary inline-flex items-center gap-1">
+                Continue as tourist <ArrowRight size={12} aria-hidden="true" />
+              </p>
+            </button>
 
-                  <div className="form-group">
-                    <label>Languages you speak</label>
-                    <div className="reg-chip-grid">
-                      {LANGUAGES.map(lang => (
-                        <button
-                          key={lang}
-                          type="button"
-                          className={`reg-chip ${form.languages.includes(lang) ? 'selected' : ''}`}
-                          onClick={() => toggleLanguage(lang)}
-                        >
-                          {lang}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+            <button
+              type="button"
+              onClick={() => pickRole('buddy')}
+              className="text-left p-6 rounded-sm border border-border bg-surface hover:border-border-strong transition-colors duration-150"
+            >
+              <span className="inline-flex items-center justify-center w-10 h-10 rounded-sm bg-paper text-primary mb-3">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+              </span>
+              <h2 className="text-lg font-semibold text-ink mb-1">I&apos;m a local buddy</h2>
+              <p className="text-sm text-muted mb-3">
+                Share the best of your city, meet travelers from around the world, and earn on your schedule.
+              </p>
+              <ul className="space-y-1 text-xs text-ink">
+                <li className="flex gap-2"><Check size={12} className="text-success mt-0.5" aria-hidden="true" /> Receive trip requests from travelers</li>
+                <li className="flex gap-2"><Check size={12} className="text-success mt-0.5" aria-hidden="true" /> Set your own hourly rate</li>
+                <li className="flex gap-2"><Check size={12} className="text-success mt-0.5" aria-hidden="true" /> Build reviews and a trusted profile</li>
+              </ul>
+              <p className="mt-4 text-sm font-medium text-primary inline-flex items-center gap-1">
+                Continue as buddy <ArrowRight size={12} aria-hidden="true" />
+              </p>
+            </button>
+          </div>
 
-                  <div className="form-group">
-                    <label>Daily budget</label>
-                    <div className="reg-choice-grid">
-                      {BUDGETS.map(b => (
-                        <button
-                          key={b.id}
-                          type="button"
-                          className={`reg-choice ${form.budgetRange === b.id ? 'selected' : ''}`}
-                          onClick={() => setForm(p => ({ ...p, budgetRange: b.id }))}
-                        >
-                          <strong>{b.label}</strong>
-                          <span>{b.desc}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+          <p className="text-xs text-muted text-center mt-6">
+            We never share your contact details without your permission.
+          </p>
+        </section>
+      ) : null}
 
-                  <div className="reg-row reg-row-2">
-                    <div className="form-group">
-                      <label htmlFor="destination">Destination</label>
-                      <input
-                        id="destination"
-                        type="text"
-                        className="form-input"
-                        value={form.destination}
-                        onChange={(e) => setForm(p => ({ ...p, destination: e.target.value }))}
-                        maxLength={100}
-                      />
-                      <p className="form-hint">LOCALit currently focuses on Da Nang.</p>
-                    </div>
-                    <div className="form-group">
-                      <label htmlFor="arrivalDate">
-                        Arrival date <span className="optional">optional</span>
-                      </label>
-                      <input
-                        id="arrivalDate"
-                        type="date"
-                        className="form-input"
-                        value={form.arrivalDate}
-                        onChange={(e) => setForm(p => ({ ...p, arrivalDate: e.target.value }))}
-                        min={new Date().toISOString().split('T')[0]}
-                      />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="reg-row reg-row-2">
-                    <div className="form-group">
-                      <label htmlFor="locationCity">Your city</label>
-                      <input
-                        id="locationCity"
-                        type="text"
-                        className="form-input"
-                        value={form.locationCity}
-                        onChange={(e) => setForm(p => ({ ...p, locationCity: e.target.value }))}
-                        maxLength={100}
-                        required
-                      />
-                      <p className="form-hint">LOCALit currently only features Da Nang-based buddies.</p>
-                    </div>
-                    <div className="form-group">
-                      <label>Hourly rate</label>
-                      <div className="reg-rate-grid">
-                        {HOURLY_RATES.map(r => (
-                          <button
-                            key={r.id}
-                            type="button"
-                            className={`reg-rate ${form.hourlyRate === r.id ? 'selected' : ''}`}
-                            onClick={() => setForm(p => ({ ...p, hourlyRate: r.id }))}
-                          >
-                            <strong>{r.label}</strong>
-                            <span>{r.desc}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Specialties <span className="form-hint inline">(pick at least one)</span></label>
-                    <div className="reg-chip-grid">
-                      {INTERESTS.map(i => (
-                        <button
-                          key={i.id}
-                          type="button"
-                          className={`reg-chip ${form.specialties.includes(i.id) ? 'selected' : ''}`}
-                          onClick={() => toggleSpecialty(i.id)}
-                        >
-                          <span className="chip-emoji">{i.emoji}</span>
-                          <span>{i.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Languages you speak</label>
-                    <div className="reg-chip-grid">
-                      {LANGUAGES.map(lang => (
-                        <button
-                          key={lang}
-                          type="button"
-                          className={`reg-chip ${form.languages.includes(lang) ? 'selected' : ''}`}
-                          onClick={() => toggleLanguage(lang)}
-                        >
-                          {lang}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="bio">
-                      About you <span className="form-hint inline">(at least 30 characters)</span>
-                    </label>
-                    <textarea
-                      id="bio"
-                      className="form-input form-textarea"
-                      value={form.bio}
-                      onChange={(e) => setForm(p => ({ ...p, bio: e.target.value }))}
-                      maxLength={500}
-                      rows={5}
-                      placeholder="Tell travelers about yourself and what you can show them in Da Nang..."
-                    />
-                    <p className="form-hint">{form.bio.trim().length}/500</p>
-                  </div>
-                </>
-              )}
-
-              {error && (
-                <div className="alert alert-error">
-                  <span aria-hidden="true">⚠️</span>
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <div className="form-actions">
+      {step === 2 ? (
+        <section className="border border-border rounded-sm bg-surface p-6">
+          <header className="mb-5 pb-4 border-b border-border flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h1 className="text-section-title">
+                {form.role === 'buddy' ? 'Tell travelers about you' : 'Tell us about your trip'}
+              </h1>
+              <p className="text-sm text-muted mt-1">
+                Signing up as{' '}
+                <strong>{form.role === 'buddy' ? 'a local buddy' : 'a tourist'}</strong>.{' '}
                 <button
                   type="button"
-                  className="btn btn-outline"
                   onClick={() => setStep(1)}
-                  disabled={loading}
+                  className="text-primary hover:underline"
                 >
-                  ← Back
+                  Change
                 </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={!stepReady || loading}
-                >
-                  {loading ? 'Creating your account…' : `Create ${form.role === 'buddy' ? 'Buddy' : 'Tourist'} Account`}
-                </button>
+              </p>
+            </div>
+          </header>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (stepReady && !loading) handleSubmit()
+            }}
+            noValidate
+          >
+            {form.role === 'tourist' ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="form-group">
+                    <label htmlFor="nationality" className="form-label">Nationality</label>
+                    <select
+                      id="nationality"
+                      className="form-input form-select"
+                      value={form.nationality}
+                      onChange={(e) => setForm((p) => ({ ...p, nationality: e.target.value }))}
+                      required
+                    >
+                      <option value="">Select your country</option>
+                      {NATIONALITIES.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="dateOfBirth" className="form-label">
+                      Date of birth <span className="text-muted text-xs">(optional)</span>
+                    </label>
+                    <input
+                      id="dateOfBirth"
+                      type="date"
+                      className="form-input"
+                      value={form.dateOfBirth}
+                      onChange={(e) => setForm((p) => ({ ...p, dateOfBirth: e.target.value }))}
+                      max={new Date().toISOString().split('T')[0]}
+                    />
+                  </div>
+                </div>
+
+                <fieldset className="form-group">
+                  <legend className="form-label">Travel style</legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    {TRAVEL_STYLES.map((style) => (
+                      <ChoiceCard
+                        key={style.id}
+                        active={form.travelStyle === style.id}
+                        onClick={() => setForm((p) => ({ ...p, travelStyle: style.id }))}
+                        title={style.label}
+                        desc={style.desc}
+                      />
+                    ))}
+                  </div>
+                </fieldset>
+
+                <fieldset className="form-group">
+                  <legend className="form-label">
+                    Interests <span className="text-muted text-xs">(pick at least one)</span>
+                  </legend>
+                  <div className="flex flex-wrap gap-2">
+                    {INTERESTS.map((i) => (
+                      <Chip
+                        key={i.id}
+                        active={form.interests.includes(i.id)}
+                        onClick={() => toggleInterest(i.id)}
+                      >
+                        {i.label}
+                      </Chip>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <fieldset className="form-group">
+                  <legend className="form-label">Languages you speak</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {LANGUAGES.map((lang) => (
+                      <Chip
+                        key={lang}
+                        active={form.languages.includes(lang)}
+                        onClick={() => toggleLanguage(lang)}
+                      >
+                        {lang}
+                      </Chip>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <fieldset className="form-group">
+                  <legend className="form-label">Daily budget</legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    {BUDGETS.map((b) => (
+                      <ChoiceCard
+                        key={b.id}
+                        active={form.budgetRange === b.id}
+                        onClick={() => setForm((p) => ({ ...p, budgetRange: b.id }))}
+                        title={b.label}
+                        desc={b.desc}
+                      />
+                    ))}
+                  </div>
+                </fieldset>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="form-group">
+                    <label htmlFor="destination" className="form-label">Destination</label>
+                    <input
+                      id="destination"
+                      type="text"
+                      className="form-input"
+                      value={form.destination}
+                      onChange={(e) => setForm((p) => ({ ...p, destination: e.target.value }))}
+                      maxLength={100}
+                    />
+                    <p className="form-hint">LOCALit currently focuses on Da Nang.</p>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="arrivalDate" className="form-label">
+                      Arrival date <span className="text-muted text-xs">(optional)</span>
+                    </label>
+                    <input
+                      id="arrivalDate"
+                      type="date"
+                      className="form-input"
+                      value={form.arrivalDate}
+                      onChange={(e) => setForm((p) => ({ ...p, arrivalDate: e.target.value }))}
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="form-group">
+                    <label htmlFor="locationCity" className="form-label">Your city</label>
+                    <input
+                      id="locationCity"
+                      type="text"
+                      className="form-input"
+                      value={form.locationCity}
+                      onChange={(e) => setForm((p) => ({ ...p, locationCity: e.target.value }))}
+                      maxLength={100}
+                      required
+                    />
+                    <p className="form-hint">
+                      LOCALit currently only features Da Nang-based buddies.
+                    </p>
+                  </div>
+                  <fieldset className="form-group">
+                    <legend className="form-label">Hourly rate</legend>
+                    <div className="grid grid-cols-2 gap-2">
+                      {HOURLY_RATES.map((r) => (
+                        <ChoiceCard
+                          key={r.id}
+                          active={form.hourlyRate === r.id}
+                          onClick={() => setForm((p) => ({ ...p, hourlyRate: r.id }))}
+                          title={r.label}
+                          desc={r.desc}
+                        />
+                      ))}
+                    </div>
+                  </fieldset>
+                </div>
+
+                <fieldset className="form-group">
+                  <legend className="form-label">
+                    Specialties <span className="text-muted text-xs">(pick at least one)</span>
+                  </legend>
+                  <div className="flex flex-wrap gap-2">
+                    {INTERESTS.map((i) => (
+                      <Chip
+                        key={i.id}
+                        active={form.specialties.includes(i.id)}
+                        onClick={() => toggleSpecialty(i.id)}
+                      >
+                        {i.label}
+                      </Chip>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <fieldset className="form-group">
+                  <legend className="form-label">Languages you speak</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {LANGUAGES.map((lang) => (
+                      <Chip
+                        key={lang}
+                        active={form.languages.includes(lang)}
+                        onClick={() => toggleLanguage(lang)}
+                      >
+                        {lang}
+                      </Chip>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <div className="form-group">
+                  <label htmlFor="bio" className="form-label">
+                    About you <span className="text-muted text-xs">(at least 30 characters)</span>
+                  </label>
+                  <textarea
+                    id="bio"
+                    className="form-input form-textarea"
+                    value={form.bio}
+                    onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))}
+                    maxLength={500}
+                    rows={5}
+                    placeholder="Tell travelers about yourself and what you can show them in Da Nang..."
+                  />
+                  <p className="form-hint">{form.bio.trim().length}/500 characters</p>
+                </div>
+              </>
+            )}
+
+            {error ? (
+              <div className="alert alert-error mb-4" role="alert">
+                <AlertTriangle size={16} aria-hidden="true" />
+                <span>{error}</span>
               </div>
-            </form>
-          </div>
-        )}
+            ) : null}
 
-        {step > 0 && (
-          <p className="register-foot">
-            Already have an account? <Link href="/login">Sign in</Link>
-          </p>
-        )}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                disabled={loading}
+                className="inline-flex items-center gap-1 h-11 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+              >
+                <ArrowLeft size={14} aria-hidden="true" />
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={!stepReady || loading}
+                className="inline-flex items-center gap-2 h-11 px-5 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading
+                  ? 'Creating account…'
+                  : `Create ${form.role === 'buddy' ? 'Buddy' : 'Tourist'} account`}
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
-        {/* progress announced for screen readers */}
-        <span className="visually-hidden" aria-live="polite">
-          {step > 0 ? `Step ${step} of ${totalSteps - 1}: ${stepLabels[step]}` : ''}
-        </span>
-      </div>
-    </div>
+      {step > 0 ? (
+        <p className="text-sm text-muted text-center mt-6">
+          Already have an account?{' '}
+          <Link href="/login" className="text-primary hover:underline font-medium">
+            Sign in
+          </Link>
+        </p>
+      ) : null}
+    </main>
   )
 }
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen flex-center">
-        <div className="loading-spinner" />
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="container-page py-16 text-center">
+          <div className="loading-spinner mx-auto" />
+        </main>
+      }
+    >
       <RegisterForm />
     </Suspense>
   )

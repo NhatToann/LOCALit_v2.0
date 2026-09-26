@@ -168,11 +168,11 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
             <Popup>
               <div style={{ minWidth: 160 }}>
                 <strong>{b.name}</strong>
-                <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>📍 {b.city}</div>
-                <div style={{ fontSize: 12, marginTop: 4 }}>🗣️ {b.languages.slice(0, 2).join(', ')}</div>
-                <div style={{ fontSize: 12 }}>{b.is_online ? '🟢 Online' : '⚪ Offline'}</div>
+                <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{b.city ?? 'Da Nang'}</div>
+                <div style={{ fontSize: 12, marginTop: 4 }}>{b.languages.slice(0, 2).join(', ')}</div>
+                <div style={{ fontSize: 12 }}>{b.is_online ? 'Online' : 'Offline'}</div>
                 <Link href={`/tourist/buddy/${b.id}`} style={{ display: 'inline-block', marginTop: 8, color: '#FF6B35', fontWeight: 600, fontSize: 12 }}>
-                  View profile →
+                  View profile
                 </Link>
               </div>
             </Popup>
@@ -183,7 +183,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
           <Marker key={`tourist-${t.id}`} position={[t.lat, t.lng]} icon={touristIcon}>
             <Popup>
               <strong>{t.name}</strong>
-              <div style={{ fontSize: 12, color: '#666' }}>🧳 Du khách</div>
+              <div style={{ fontSize: 12, color: '#666' }}>Tourist</div>
             </Popup>
           </Marker>
         ))}
@@ -192,7 +192,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
           <Marker key={`live-${l.userId}`} position={[l.lat, l.lng]} icon={liveIcon}>
             <Popup>
               <strong>{l.name}</strong>
-              <div style={{ fontSize: 12, color: '#666' }}>📍 Live now</div>
+              <div style={{ fontSize: 12, color: '#666' }}>Sharing live</div>
             </Popup>
           </Marker>
         ))}

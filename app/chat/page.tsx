@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { MessageCircle, Send, MapPin, Calendar, Clock, Languages, Star } from 'lucide-react'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { Message } from '@/lib/types'
+import { Avatar } from '@/components/ui/Avatar'
+import { EmptyState } from '@/components/ui/Avatar'
 
 interface ConvSummary {
   id: string
@@ -16,6 +19,13 @@ interface ConvSummary {
   partner_city: string | null
   is_partner_online: boolean
   updated_at: string
+  partner_languages?: string[]
+  partner_hourly_rate?: number | null
+  partner_rating_avg?: number | null
+}
+
+interface UserRole {
+  role: 'tourist' | 'buddy'
 }
 
 function ChatInner() {
@@ -25,6 +35,7 @@ function ChatInner() {
   const convParam = searchParams.get('c')
 
   const [myId, setMyId] = useState<string | null>(null)
+  const [myRole, setMyRole] = useState<UserRole['role'] | null>(null)
   const [conversations, setConversations] = useState<ConvSummary[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -37,14 +48,12 @@ function ChatInner() {
 
   useEffect(() => {
     init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     if (buddyParam && myId) {
       openConversationWithBuddy(buddyParam)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buddyParam, myId])
 
   useEffect(() => {
@@ -53,7 +62,6 @@ function ChatInner() {
       if (exists) setActiveId(convParam)
       router.replace('/chat')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convParam, myId, conversations.length])
 
   useEffect(() => {
@@ -72,6 +80,12 @@ function ChatInner() {
       return
     }
     setMyId(user.id)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    setMyRole((profile?.role as 'tourist' | 'buddy') ?? 'tourist')
     await loadConversations(user.id)
     setLoading(false)
   }
@@ -80,7 +94,7 @@ function ChatInner() {
     const supabase = createClient()
     const { data } = await supabase
       .from('conversations')
-      .select('id, tourist_id, buddy_id, updated_at, tourist:tourists(profile:profiles(full_name)), buddy:buddies(location_city, profile:profiles(full_name, is_online))')
+      .select('id, tourist_id, buddy_id, updated_at, tourist:tourists(profile:profiles(full_name)), buddy:buddies(location_city, hourly_rate, rating_avg, languages, profile:profiles(full_name, is_online))')
       .or(`tourist_id.eq.${uid},buddy_id.eq.${uid}`)
       .order('updated_at', { ascending: false })
 
@@ -98,10 +112,13 @@ function ChatInner() {
         partner_city: partner?.location_city ?? null,
         is_partner_online: !!partner?.profile?.is_online,
         updated_at: c.updated_at,
+        partner_languages: partner?.languages ?? [],
+        partner_hourly_rate: partner?.hourly_rate ?? null,
+        partner_rating_avg: partner?.rating_avg ?? null,
       }
     })
     setConversations(mapped)
-    if (mapped.length > 0) setActiveId(mapped[0].id)
+    if (mapped.length > 0 && !activeId) setActiveId(mapped[0].id)
   }
 
   async function openConversationWithBuddy(otherBuddyId: string) {
@@ -143,7 +160,7 @@ function ChatInner() {
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error(error)
+      // silent — UI keeps empty state
       return
     }
     setMessages((data as Message[]) ?? [])
@@ -230,256 +247,281 @@ function ChatInner() {
   }
 
   if (loading) {
-    return <div className="container py-xl text-center"><div className="loading-spinner mx-auto" /></div>
+    return (
+      <div className="container-page py-16 text-center">
+        <div className="loading-spinner mx-auto" />
+      </div>
+    )
   }
 
   const activeConv = conversations.find((c) => c.id === activeId)
 
   if (conversations.length === 0 && !buddyParam) {
     return (
-      <div className="container py-xl">
-        <h1 className="text-3xl font-bold mb-lg">💬 Messages</h1>
-        <div className="empty-state">
-          <p style={{ fontSize: 48 }}>💬</p>
-          <h3>No conversations yet</h3>
-          <p className="text-muted mt-sm">Connect with a buddy to start chatting.</p>
-          <Link href="/tourist/browse" className="btn btn-primary mt-md">Find buddies</Link>
+      <div className="container-page py-12">
+        <h1 className="text-page-title mb-6">Messages</h1>
+        <div className="border border-border rounded-sm p-12 bg-surface">
+          <EmptyState
+            icon={MessageCircle}
+            title={myRole === 'buddy' ? 'No conversations yet' : 'No conversations yet'}
+            description={
+              myRole === 'buddy'
+                ? 'When a tourist sends you a connection request and you accept, the conversation will appear here.'
+                : 'Connect with a buddy to start chatting. Browse the buddy list to send your first request.'
+            }
+            action={
+              myRole === 'buddy' ? null : (
+                <Link
+                  href="/tourist/browse"
+                  className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+                >
+                  Browse Da Nang buddies
+                </Link>
+              )
+            }
+          />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="container py-xl">
-      <h1 className="text-3xl font-bold mb-lg">💬 Messages</h1>
+    <div className="container-page py-8">
+      <h1 className="text-page-title mb-6">Messages</h1>
 
-      <div
-        className="card chat-shell"
-        style={{
-          height: 'calc(100vh - var(--header-height) - 160px)',
-          minHeight: 480,
-          display: 'flex',
-          flexDirection: 'row',
-          overflow: 'hidden',
-        }}
-      >
-        <aside className="chat-sidebar">
+      <div className="border border-border rounded-sm bg-surface overflow-hidden flex flex-col md:flex-row" style={{ minHeight: 480 }}>
+        {/* Sidebar */}
+        <aside
+          className="md:w-72 border-b md:border-b-0 md:border-r border-border overflow-y-auto flex-shrink-0"
+          aria-label="Conversations"
+        >
           {conversations.length === 0 ? (
-            <div className="empty-state" style={{ padding: 'var(--space-lg)' }}>
-              <p className="text-sm text-muted">Creating conversation...</p>
-            </div>
+            <div className="p-4 text-sm text-muted">Creating conversation...</div>
           ) : (
-            conversations.map((c) => {
-              const isActive = c.id === activeId
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setActiveId(c.id)}
-                  className={`chat-sidebar-item ${isActive ? 'active' : ''}`}
-                >
-                  <span className="avatar avatar-md">{c.partner_name.charAt(0)}</span>
-                  <span className="chat-sidebar-info">
-                    <span className="chat-sidebar-name">{c.partner_name}</span>
-                    <span className="chat-sidebar-sub">
-                      {c.partner_city ? `📍 ${c.partner_city}` : 'Start a conversation'}
-                    </span>
-                  </span>
-                  {c.is_partner_online && <span className="online-dot" />}
-                </button>
-              )
-            })
+            <ul>
+              {conversations.map((c) => {
+                const isActive = c.id === activeId
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveId(c.id)}
+                      aria-current={isActive ? 'true' : undefined}
+                      className={`w-full text-left p-4 border-b border-border last:border-b-0 hover:bg-paper transition-colors duration-150 ${
+                        isActive ? 'bg-info-bg border-l-2 border-l-primary' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar name={c.partner_name} size="md" online={c.is_partner_online} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{c.partner_name}</p>
+                          <p className="text-xs text-muted truncate">
+                            {c.partner_city ?? 'Start a conversation'}
+                          </p>
+                        </div>
+                        {c.is_partner_online ? (
+                          <span
+                            className="w-2.5 h-2.5 rounded-full bg-success flex-shrink-0"
+                            aria-label="Online"
+                          />
+                        ) : null}
+                      </div>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
           )}
         </aside>
 
-        <main className="chat-main">
+        {/* Active thread */}
+        <main className="flex-1 flex flex-col min-w-0">
           {activeConv ? (
             <>
-              <div className="chat-header">
-                <span className="avatar avatar-md">{activeConv.partner_name.charAt(0)}</span>
-                <div style={{ flex: 1 }}>
-                  <p className="font-semibold">{activeConv.partner_name}</p>
+              {/* Header */}
+              <header className="px-4 py-3 border-b border-border flex items-center gap-3">
+                <Avatar name={activeConv.partner_name} size="md" online={activeConv.is_partner_online} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate">{activeConv.partner_name}</p>
                   <p className="text-xs text-muted">
-                    {activeConv.is_partner_online ? '🟢 Active' : '⚪ Offline'}
+                    {activeConv.is_partner_online ? 'Online now' : 'Offline'}
                   </p>
+                </div>
+                <Link
+                  href={myRole === 'buddy' ? '/buddy/requests' : `/tourist/buddy/${activeConv.buddy_id}`}
+                  className="text-sm text-primary hover:underline"
+                >
+                  View profile
+                </Link>
+              </header>
+
+              {/* Quick actions (role-aware) */}
+              <div className="px-4 py-2 border-b border-border bg-paper">
+                <p className="text-xs text-muted mb-2">Quick actions</p>
+                <div className="flex flex-wrap gap-2">
+                  {myRole === 'tourist' ? (
+                    <>
+                      <QuickAction
+                        href={`/tourist/buddy/${activeConv.buddy_id}`}
+                        icon={MapPin}
+                        label="View profile"
+                      />
+                      <QuickAction
+                        href={`/tourist/trips/create?buddy=${activeConv.buddy_id}`}
+                        icon={Calendar}
+                        label="Plan a trip"
+                      />
+                      {activeConv.partner_hourly_rate && activeConv.partner_hourly_rate > 0 ? (
+                        <span className="inline-flex items-center gap-1 h-7 px-2 text-xs rounded-sm bg-info-bg text-info border border-info-bg">
+                          <Star size={12} aria-hidden="true" />
+                          ${Number(activeConv.partner_hourly_rate).toFixed(0)}/hour
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <QuickAction
+                        href={`/chat`}
+                        icon={Clock}
+                        label="Reply time"
+                      />
+                      <span className="inline-flex items-center gap-1 h-7 px-2 text-xs rounded-sm bg-info-bg text-info border border-info-bg">
+                        <Languages size={12} aria-hidden="true" />
+                        {(activeConv.partner_languages ?? []).slice(0, 3).join(', ') || '—'}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
-              <div className="chat-messages">
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 bg-paper" aria-live="polite">
                 {messages.length === 0 ? (
-                  <div className="empty-state">
-                    <p className="text-muted">Start a conversation with {activeConv.partner_name}!</p>
-                  </div>
+                  <p className="text-sm text-muted text-center py-8">
+                    Start a conversation with {activeConv.partner_name}.
+                  </p>
                 ) : (
-                  messages.map((m) => (
-                    <MessageBubble key={m.id} message={m} myId={myId} partnerInitial={activeConv.partner_name.charAt(0)} />
-                  ))
+                  <ul className="space-y-2">
+                    {messages.map((m) => (
+                      <MessageBubble
+                        key={m.id}
+                        message={m}
+                        myId={myId}
+                        partnerName={activeConv.partner_name}
+                      />
+                    ))}
+                  </ul>
                 )}
                 <div ref={messagesEndRef} />
               </div>
 
-              <form onSubmit={handleSend} className="chat-input-row">
+              {/* Composer */}
+              <form
+                onSubmit={handleSend}
+                className="flex items-center gap-2 p-3 border-t border-border bg-surface"
+              >
                 <input
-                  className="form-input"
-                  placeholder="Type a message..."
+                  className="form-input flex-1"
+                  placeholder="Type a message"
                   value={draft}
-                  onChange={(e) => { setDraft(e.target.value); setError('') }}
+                  onChange={(e) => {
+                    setDraft(e.target.value)
+                    setError('')
+                  }}
                   maxLength={1000}
                   disabled={sending}
                   autoFocus
                   aria-label="Message"
                 />
-                <span className="text-xs text-muted" style={{ alignSelf: 'center', minWidth: 50, textAlign: 'right' }}>
-                  {draft.length}/1000
-                </span>
+                <span className="text-xs text-muted whitespace-nowrap">{draft.length}/1000</span>
                 <button
                   type="submit"
-                  className="btn btn-primary"
+                  className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={sending || !draft.trim()}
                   aria-label="Send message"
                 >
-                  ➤ Send
+                  <Send size={14} aria-hidden="true" />
+                  Send
                 </button>
               </form>
-              {error && (
-                <p className="text-xs text-danger" style={{ padding: '0 var(--space-md) var(--space-sm)' }}>{error}</p>
-              )}
+              {error ? (
+                <p className="text-xs text-danger px-4 pb-2" role="alert">
+                  {error}
+                </p>
+              ) : null}
             </>
           ) : (
-            <div className="empty-state">
-              <p style={{ fontSize: 48 }}>👈</p>
-              <p className="text-muted">Choose a conversation to start chatting</p>
+            <div className="flex-1 flex items-center justify-center p-8 text-sm text-muted">
+              Choose a conversation to start chatting.
             </div>
           )}
         </main>
       </div>
-
-      <style>{chatStyles}</style>
     </div>
   )
 }
 
-function MessageBubble({ message, myId, partnerInitial }: { message: Message; myId: string | null; partnerInitial: string }) {
-  const isOwn = myId === message.sender_id
+function QuickAction({
+  href,
+  icon: IconCmp,
+  label,
+}: {
+  href: string
+  icon: typeof MapPin
+  label: string
+}) {
   return (
-    <div style={{ display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
-      {!isOwn && (
-        <span className="avatar avatar-sm" style={{ marginRight: 8, alignSelf: 'flex-end' }}>
-          {partnerInitial}
-        </span>
-      )}
-      <div className={`bubble ${isOwn ? 'bubble-own' : 'bubble-partner'}`}>
-        <p style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{message.content}</p>
-        <small className="bubble-time">
-          {new Date(message.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+    <Link
+      href={href}
+      className="inline-flex items-center gap-1 h-7 px-2 text-xs rounded-sm bg-transparent text-ink border border-border-strong hover:bg-surface"
+    >
+      <IconCmp size={12} aria-hidden="true" />
+      {label}
+    </Link>
+  )
+}
+
+function MessageBubble({
+  message,
+  myId,
+  partnerName,
+}: {
+  message: Message
+  myId: string | null
+  partnerName: string
+}) {
+  const isOwn = myId === message.sender_id
+  const time = new Date(message.created_at)
+  const now = new Date()
+  const sameDay = time.toDateString() === now.toDateString()
+  const timeLabel = sameDay
+    ? time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    : time.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+  return (
+    <li className={`flex items-end gap-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+      {!isOwn ? (
+        <Avatar name={partnerName} size="sm" />
+      ) : null}
+      <div
+        className={`max-w-[70%] px-3 py-2 rounded-sm text-sm leading-relaxed ${
+          isOwn
+            ? 'bg-primary text-paper rounded-br-none'
+            : 'bg-surface border border-border text-ink rounded-bl-none'
+        }`}
+      >
+        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        <small className={`block text-[10px] mt-1 ${isOwn ? 'text-paper/70' : 'text-muted'}`}>
+          <time dateTime={message.created_at}>{timeLabel}</time>
         </small>
       </div>
-    </div>
+    </li>
   )
 }
-
-const chatStyles = `
-.chat-shell { background: var(--bg-white); }
-.chat-sidebar {
-  width: 300px;
-  border-right: 1px solid var(--border-color);
-  overflow-y: auto;
-  flex-shrink: 0;
-}
-.chat-sidebar-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--border-color);
-  cursor: pointer;
-  text-align: left;
-  transition: background var(--transition-fast);
-  position: relative;
-}
-.chat-sidebar-item:hover { background: var(--bg-gray); }
-.chat-sidebar-item.active { background: var(--primary-alpha); border-left: 3px solid var(--primary); }
-.chat-sidebar-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.chat-sidebar-name {
-  font-weight: 600;
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.chat-sidebar-sub {
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.online-dot {
-  width: 10px;
-  height: 10px;
-  background: var(--success);
-  border-radius: 50%;
-  border: 2px solid var(--bg-white);
-  flex-shrink: 0;
-}
-.chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.chat-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--border-color);
-}
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-lg);
-  background: var(--bg-light);
-}
-.bubble {
-  max-width: 70%;
-  padding: 8px 14px;
-  border-radius: 18px;
-  box-shadow: var(--shadow-sm);
-  font-size: var(--font-size-sm);
-  line-height: 1.4;
-}
-.bubble-own {
-  background: var(--primary);
-  color: white;
-  border-bottom-right-radius: 4px;
-}
-.bubble-partner {
-  background: white;
-  color: var(--text-primary);
-  border-bottom-left-radius: 4px;
-}
-.bubble-time {
-  opacity: 0.7;
-  font-size: 10px;
-  display: block;
-  margin-top: 4px;
-}
-.chat-input-row {
-  display: flex;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  border-top: 1px solid var(--border-color);
-  background: white;
-}
-.chat-input-row .form-input { flex: 1; }
-@media (max-width: 768px) {
-  .chat-sidebar { width: 100%; max-width: 100%; }
-  .chat-shell { flex-direction: column; }
-}
-`
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="container py-xl text-center"><div className="loading-spinner mx-auto" /></div>}>
+    <Suspense fallback={<div className="container-page py-16 text-center"><div className="loading-spinner mx-auto" /></div>}>
       <ChatInner />
     </Suspense>
   )

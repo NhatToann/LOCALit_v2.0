@@ -3,6 +3,7 @@
 import { useState, Suspense, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Lock, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { updatePassword, getCurrentUser } from '@/utils/supabase/auth'
 import { createClient } from '@/utils/supabase/auth'
 
@@ -26,7 +27,8 @@ function ResetPasswordForm() {
   }, [])
 
   const passwordsMatch = password === confirmPassword
-  const passwordValid = password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password)
+  const passwordValid =
+    password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password)
   const canSubmit = passwordsMatch && passwordValid && !loading
 
   async function handleSubmit(e: React.FormEvent) {
@@ -64,90 +66,111 @@ function ResetPasswordForm() {
 
   if (checking) {
     return (
-      <main className="min-h-screen flex-center">
-        <div className="loading-spinner" />
+      <main className="container-page py-16 text-center">
+        <div className="loading-spinner mx-auto" />
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen flex-center" style={{ background: 'var(--bg-light)' }}>
-      <div className="card" style={{ width: '100%', maxWidth: 420 }}>
-        <div className="card-body">
-          <div className="text-center mb-lg">
-            <div style={{ fontSize: 40 }}>🔒</div>
-            <h1 className="text-2xl mt-sm">Reset your password</h1>
-            <p className="text-muted text-sm mt-xs">Choose a new password for your account.</p>
-          </div>
+    <main className="container-page py-12 max-w-md">
+      <Link
+        href="/login"
+        className="inline-flex items-center gap-1 text-sm text-primary hover:underline mb-4"
+      >
+        <ArrowLeft size={14} aria-hidden="true" />
+        Back to sign in
+      </Link>
 
-          {error ? (
-            <div className="alert alert-error mb-md">
-              <span>⚠️</span>
-              <span>{error}</span>
-            </div>
-          ) : null}
+      <header className="text-center mb-6">
+        <span
+          className="inline-flex items-center justify-center w-12 h-12 rounded-sm bg-paper text-primary mb-3"
+          aria-hidden="true"
+        >
+          <Lock size={24} />
+        </span>
+        <h1 className="text-page-title">Reset your password</h1>
+        <p className="text-sm text-muted mt-2">Choose a new password for your account.</p>
+      </header>
 
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="password">New password</label>
-              <input
-                id="password"
-                type="password"
-                className="form-input"
-                placeholder="At least 8 characters with letters and numbers"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                minLength={8}
-                maxLength={128}
-                required
-              />
-              {password && !passwordValid && (
-                <p className="text-xs text-danger mt-xs">
-                  Password must be at least 8 characters and include both letters and numbers.
-                </p>
-              )}
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="confirm">Confirm password</label>
-              <input
-                id="confirm"
-                type="password"
-                className="form-input"
-                placeholder="Re-enter your new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                autoComplete="new-password"
-                maxLength={128}
-                required
-              />
-              {confirmPassword && !passwordsMatch && (
-                <p className="text-xs text-danger mt-xs">The confirmation password does not match.</p>
-              )}
-            </div>
-
-            <button type="submit" className="btn btn-primary btn-block" disabled={!canSubmit}>
-              {loading ? 'Saving...' : 'Reset password'}
-            </button>
-          </form>
-
-          <div className="text-center mt-lg">
-            <Link href="/login" className="text-sm text-muted">← Back to sign in</Link>
-          </div>
+      {error ? (
+        <div className="alert alert-error mb-4" role="alert">
+          <AlertTriangle size={16} aria-hidden="true" />
+          <span>{error}</span>
         </div>
-      </div>
+      ) : null}
+
+      <form
+        onSubmit={handleSubmit}
+        className="border border-border rounded-sm bg-surface p-6"
+        noValidate
+      >
+        <div className="form-group">
+          <label htmlFor="password" className="form-label">New password</label>
+          <input
+            id="password"
+            type="password"
+            className="form-input"
+            placeholder="At least 8 characters with letters and numbers"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+            maxLength={128}
+            required
+          />
+          {password && !passwordValid ? (
+            <p className="form-hint text-danger">
+              Password must be at least 8 characters and include both letters and numbers.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="confirm" className="form-label">Confirm password</label>
+          <input
+            id="confirm"
+            type="password"
+            className="form-input"
+            placeholder="Re-enter your new password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+            maxLength={128}
+            required
+          />
+          {confirmPassword && !passwordsMatch ? (
+            <p className="form-hint text-danger">The confirmation password does not match.</p>
+          ) : null}
+        </div>
+
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          className="w-full h-11 mt-2 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Saving…' : 'Reset password'}
+        </button>
+      </form>
+
+      <p className="text-sm text-muted text-center mt-6">
+        <Link href="/login" className="hover:underline">
+          Back to sign in
+        </Link>
+      </p>
     </main>
   )
 }
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen flex-center">
-        <div className="loading-spinner" />
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="container-page py-16 text-center">
+          <div className="loading-spinner mx-auto" />
+        </main>
+      }
+    >
       <ResetPasswordForm />
     </Suspense>
   )

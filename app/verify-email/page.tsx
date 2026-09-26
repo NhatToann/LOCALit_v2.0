@@ -3,14 +3,16 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { CheckCircle2, MailWarning, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { signIn } from '@/utils/supabase/auth'
-import '../auth.css'
 
 function VerifyEmailForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const email = searchParams.get('email') || ''
-  const role = (searchParams.get('role') === 'buddy' ? 'buddy' : 'tourist') as 'tourist' | 'buddy'
+  const role = (searchParams.get('role') === 'buddy' ? 'buddy' : 'tourist') as
+    | 'tourist'
+    | 'buddy'
 
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', ''])
   const [error, setError] = useState('')
@@ -19,7 +21,6 @@ function VerifyEmailForm() {
   const [resendCooldown, setResendCooldown] = useState(0)
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
 
-  // userId is stashed in sessionStorage by /register; required by the OTP routes.
   const [userId, setUserId] = useState<string>('')
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -29,23 +30,23 @@ function VerifyEmailForm() {
         const parsed = JSON.parse(raw) as { userId?: string }
         if (parsed.userId) setUserId(parsed.userId)
       }
-    } catch {}
+    } catch {
+      /* ignore */
+    }
   }, [])
 
-  // Cooldown ticker for the "Resend code" button.
   useEffect(() => {
     if (resendCooldown <= 0) return
-    const t = setTimeout(() => setResendCooldown(c => Math.max(0, c - 1)), 1000)
+    const t = setTimeout(() => setResendCooldown((c) => Math.max(0, c - 1)), 1000)
     return () => clearTimeout(t)
   }, [resendCooldown])
 
-  // Auto-focus the first input on mount.
   useEffect(() => {
     inputsRef.current[0]?.focus()
   }, [])
 
   function setDigitAt(idx: number, value: string) {
-    setDigits(prev => {
+    setDigits((prev) => {
       const next = [...prev]
       next[idx] = value.replace(/\D/g, '').slice(0, 1)
       return next
@@ -90,29 +91,31 @@ function VerifyEmailForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, email, code }),
       })
-      const body = (await res.json().catch(() => ({}))) as { error?: string; reason?: string; userId?: string }
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string
+        reason?: string
+        userId?: string
+      }
       if (!res.ok) {
         setError(body.error ?? `Verification failed (${res.status}).`)
-        // Clear the code so the user can re-enter easily.
         setDigits(['', '', '', '', '', ''])
         inputsRef.current[0]?.focus()
         setLoading(false)
         return
       }
 
-      // Read the role-specific payload that /register stashed in sessionStorage.
-      let pendingPayload: { role: 'tourist' | 'buddy'; payload: Record<string, unknown>; userId: string } | null = null
+      let pendingPayload:
+        | { role: 'tourist' | 'buddy'; payload: Record<string, unknown>; userId: string }
+        | null = null
       if (typeof window !== 'undefined') {
         try {
           const raw = sessionStorage.getItem('localit.pendingPayload')
           if (raw) pendingPayload = JSON.parse(raw)
-        } catch {}
+        } catch {
+          /* ignore */
+        }
       }
 
-      // Write the role-specific row (tourists/buddies) now that the email is
-      // confirmed. Falls back gracefully if sessionStorage was cleared (e.g.
-      // user opened a new tab) — they can still sign in and finish in the
-      // profile editor.
       if (pendingPayload && body.userId === pendingPayload.userId) {
         const profileRes = await fetch('/api/auth/create-profile', {
           method: 'POST',
@@ -122,19 +125,17 @@ function VerifyEmailForm() {
             userId: pendingPayload.userId,
             role: pendingPayload.role,
             payload: pendingPayload.payload,
-            autoConfirm: true, // safe: verify-otp already flipped the flag
+            autoConfirm: true,
           }),
         })
         if (!profileRes.ok) {
           const errBody = (await profileRes.json().catch(() => ({}))) as { error?: string }
           console.warn('[verify-email] create-profile failed:', errBody.error)
-          // Non-fatal: continue to sign-in. The user can fix profile data later.
         }
       }
 
-      // Sign the user in. We need their password — try sessionStorage first,
-      // otherwise fall through to /login.
-      const password = typeof window !== 'undefined' ? sessionStorage.getItem('localit.pendingPw') : null
+      const password =
+        typeof window !== 'undefined' ? sessionStorage.getItem('localit.pendingPw') : null
       if (password) {
         const { error: signInError } = await signIn(email, password)
         if (signInError) {
@@ -184,114 +185,130 @@ function VerifyEmailForm() {
 
   if (!email) {
     return (
-      <div className="auth-page">
-        <div className="auth-form-section">
-          <div className="auth-form-container">
-            <h2>Missing email</h2>
-            <p>We couldn&apos;t find the email you signed up with.</p>
-            <Link href="/register" className="btn btn-primary btn-block">Start over</Link>
-          </div>
-        </div>
-      </div>
+      <main className="container-page py-16 max-w-md text-center">
+        <MailWarning size={32} className="text-warning mx-auto mb-3" aria-hidden="true" />
+        <h1 className="text-page-title">Missing email</h1>
+        <p className="text-sm text-muted mt-2">
+          We couldn&apos;t find the email you signed up with.
+        </p>
+        <Link
+          href="/register"
+          className="inline-flex items-center gap-1 h-10 px-4 mt-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+        >
+          Start over
+        </Link>
+      </main>
     )
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-form-section">
-        <div className="auth-form-container">
-          <Link href="/" className="auth-logo" style={{ marginBottom: 24 }}>
-            <span className="auth-logo-icon">L</span>
-            <span>LOCALit</span>
-          </Link>
+    <main className="container-page py-8 max-w-md">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-ink mb-4 hover:text-primary"
+      >
+        <span
+          className="w-7 h-7 rounded-sm bg-primary text-paper flex items-center justify-center font-bold"
+          aria-hidden="true"
+        >
+          L
+        </span>
+        LOCALit
+      </Link>
 
-          <div className="auth-header">
-            <h2>Verify your email</h2>
-            <p>
-              We sent a 6-digit code to <strong>{email}</strong>. Enter it below to finish signing up.
-            </p>
+      <header className="mb-6 text-center">
+        <CheckCircle2 size={32} className="text-success mx-auto mb-3" aria-hidden="true" />
+        <h1 className="text-page-title">Verify your email</h1>
+        <p className="text-sm text-muted mt-2">
+          We sent a 6-digit code to <strong>{email}</strong>. Enter it below to finish signing up.
+        </p>
+      </header>
+
+      <form
+        onSubmit={handleSubmit}
+        className="border border-border rounded-sm bg-surface p-6"
+        noValidate
+      >
+        <fieldset>
+          <legend className="form-label">Verification code</legend>
+          <div className="flex justify-center gap-2 my-3" onPaste={handlePaste}>
+            {digits.map((d, i) => (
+              <input
+                key={i}
+                id={`otp-${i}`}
+                ref={(el) => {
+                  inputsRef.current[i] = el
+                }}
+                type="text"
+                inputMode="numeric"
+                pattern="\d*"
+                maxLength={1}
+                value={d}
+                onChange={(e) => setDigitAt(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(i, e)}
+                autoComplete="one-time-code"
+                disabled={loading}
+                aria-label={`Digit ${i + 1}`}
+                className="w-11 h-12 text-center text-lg font-semibold rounded-sm border border-border-strong bg-surface text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            ))}
           </div>
-
-          <form onSubmit={handleSubmit} className="auth-form">
-            <div className="form-group">
-              <label htmlFor="otp-0">Verification code</label>
-              <div
-                className="otp-input-grid"
-                onPaste={handlePaste}
-              >
-                {digits.map((d, i) => (
-                  <input
-                    key={i}
-                    id={`otp-${i}`}
-                    ref={el => { inputsRef.current[i] = el }}
-                    type="text"
-                    inputMode="numeric"
-                    pattern="\d*"
-                    maxLength={1}
-                    className="otp-cell"
-                    value={d}
-                    onChange={e => setDigitAt(i, e.target.value)}
-                    onKeyDown={e => handleKeyDown(i, e)}
-                    autoComplete="one-time-code"
-                    disabled={loading}
-                    aria-label={`Digit ${i + 1}`}
-                  />
-                ))}
-              </div>
-              <p className="form-hint" style={{ marginTop: 8 }}>
-                Didn&apos;t get the code? Check your spam folder, or
-                {' '}
-                <button
-                  type="button"
-                  className="link-primary"
-                  onClick={handleResend}
-                  disabled={resendCooldown > 0}
-                  style={{ background: 'none', border: 'none', padding: 0, cursor: resendCooldown > 0 ? 'default' : 'pointer' }}
-                >
-                  {resendCooldown > 0 ? `resend in ${resendCooldown}s` : 'resend now'}
-                </button>.
-              </p>
-            </div>
-
-            {info && (
-              <div className="alert alert-info">
-                <span>✉️</span>
-                <span>{info}</span>
-              </div>
-            )}
-
-            {error && (
-              <div className="alert alert-error">
-                <span>⚠️</span>
-                <span>{error}</span>
-              </div>
-            )}
-
+          <p className="form-hint text-center">
+            Didn&apos;t get the code? Check your spam folder, or{' '}
             <button
-              type="submit"
-              className="btn btn-primary btn-block"
-              disabled={!codeReady || loading}
+              type="button"
+              onClick={handleResend}
+              disabled={resendCooldown > 0}
+              className="text-primary hover:underline disabled:opacity-50 disabled:cursor-default"
             >
-              {loading ? 'Verifying…' : 'Verify & continue'}
+              {resendCooldown > 0 ? `resend in ${resendCooldown}s` : 'resend now'}
             </button>
-          </form>
+            .
+          </p>
+        </fieldset>
 
-          <div className="auth-footer">
-            Wrong email? <Link href="/register">Sign up again</Link>
+        {info ? (
+          <div className="alert alert-info mt-3" role="status">
+            <CheckCircle2 size={16} aria-hidden="true" />
+            <span>{info}</span>
           </div>
-        </div>
-      </div>
-    </div>
+        ) : null}
+
+        {error ? (
+          <div className="alert alert-error mt-3" role="alert">
+            <AlertTriangle size={16} aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={!codeReady || loading}
+          className="w-full h-11 mt-4 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Verifying…' : 'Verify & continue'}
+        </button>
+      </form>
+
+      <p className="text-sm text-muted text-center mt-6">
+        Wrong email?{' '}
+        <Link href="/register" className="text-primary hover:underline font-medium">
+          Sign up again
+        </Link>
+      </p>
+    </main>
   )
 }
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen flex-center">
-        <div className="loading-spinner" />
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="container-page py-16 text-center">
+          <div className="loading-spinner mx-auto" />
+        </main>
+      }
+    >
       <VerifyEmailForm />
     </Suspense>
   )
