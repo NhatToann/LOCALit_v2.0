@@ -245,24 +245,22 @@ function RegisterForm() {
 
       const data = (await res.json()) as {
         userId: string
-        session: { access_token: string; refresh_token: string; expires_in: number; expires_at: number } | null
+        email: string
       }
 
-      // If the server could not mint a session (edge case), fall back to /login.
-      if (!data.session) {
-        router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
-        return
-      }
-
-      // Inject the session into the browser Supabase client so the user lands
-      // on their dashboard without a second round-trip to sign in.
+      // Account is created and email is confirmed. Now sign in directly.
+      // (Supabase keeps a separate session state from auth.users, so even
+      // though the email is confirmed we still need a session before we
+      // can hit any RLS-protected query.)
       if (typeof window !== 'undefined') {
-        const { createClient } = await import('@/utils/supabase/auth')
-        const supabase = createClient()
-        await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        })
+        const { signIn } = await import('@/utils/supabase/auth')
+        const { error: signInError } = await signIn(form.email, form.password)
+        if (signInError) {
+          // Sign-in failed but the user exists — redirect to /login so they
+          // can finish signing in manually.
+          router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
+          return
+        }
       }
 
       router.push(form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard')

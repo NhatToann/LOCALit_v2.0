@@ -1,20 +1,22 @@
 /**
- * Simple sign-up flow: creates user (email confirmed), profile, and role-specific
- * row in one request, then returns a session so the client can redirect to the
- * dashboard without a separate login step.
+ * Simple sign-up flow.
  *
  * POST /api/auth/signup
  * Body: { email, password, fullName, role, profilePayload }
  *
- * Security:
- *   - All heavy validation happens server-side.
- *   - The auth user is confirmed immediately — user proved they can receive email
- *     by clicking the link (Supabase sends a confirmation email automatically).
- *   - Rate-limiting is deferred to Supabase GoTrue's built-in limits.
+ * The server creates:
+ *   1. The auth user (email confirmed — Supabase will still email them a
+ *      welcome message but no separate verification step is needed).
+ *   2. The profiles row (defensive upsert in case the trigger is missing).
+ *   3. The role-specific row (tourists or buddies).
+ *
+ * On success the client is told to call signIn() to establish its own session
+ * and then redirect to /tourist/dashboard or /buddy/dashboard. We don't mint
+ * the session here because GoTrueAdminApi has no server-side session endpoint
+ * we can use safely without leaking tokens.
  */
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { createBrowserClient } from '@supabase/ssr'
 type Role = 'tourist' | 'buddy'
 
 interface SignupBody {
@@ -52,9 +54,6 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
 
   // 1. Create the auth user with email confirmed.
-  // No separate /verify-email step needed — Supabase will still email the user
-  // a confirmation link (we can't suppress it without disabling email entirely),
-  // but the account is immediately usable.
   const { data: userData, error: userError } = await admin.auth.admin.createUser({
     email,
     password,
@@ -66,6 +65,14 @@ export async function POST(req: NextRequest) {
   })
 
   if (userError || !userData.user) {
+    // If the email already exists, return a generic message so we don't leak
+    // whether the account exists.
+    if (userError?.message?.toLowerCase().includes('already')) {
+      return NextResponse.json(
+        { error: 'An account with this email already exists. Try signing in.' },
+        { status: 409 },
+      )
+    }
     return NextResponse.json(
       { error: userError?.message ?? 'Could not create user.' },
       { status: 400 },
@@ -74,10 +81,7 @@ export async function POST(req: NextRequest) {
 
   const userId = userData.user.id
 
-  // 2. Upsert the profiles row. If the on_auth_user_created trigger fired,
-  // this will hit onConflict and do nothing. If the trigger dropped, this
-  // creates the row so subsequent FK constraints don't fail.
-  const profilePayloadClean = profilePayload ?? {}
+  // 2. Defensive profiles upsert (trigger may or may not have fired).
   try {
     await admin
       .from('profiles')
@@ -87,7 +91,6 @@ export async function POST(req: NextRequest) {
           email,
           full_name: fullName.trim(),
           role,
-          ...profilePayloadClean,
         },
         { onConflict: 'id', ignoreDuplicates: true },
       )
@@ -95,7 +98,7 @@ export async function POST(req: NextRequest) {
     console.warn('[signup] profiles upsert warning:', (e as Error).message)
   }
 
-  // 3. Create the role-specific row (tourists or buddies).
+  // 3. Create the role-specific row.
   if (role === 'tourist') {
     const tPayload = profilePayload ?? {}
     try {
@@ -131,25 +134,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 4. Create a session for the client so they land on the dashboard directly.
-  // We call admin.auth.admin.createSession so we get a plaintext access_token
-  // that the browser client can ingest. A cookie-based session would be cleaner
-  // but would require a separate /api/auth/callback route and more infra.
-  const { data: sessionData, error: sessionError } = await admin.auth.admin.createSession(userId)
-  if (sessionError || !sessionData?.session) {
-    // Session creation failed — user still exists but won't auto-log in.
-    // Client should redirect to /login in this case.
-    console.warn('[signup] session creation warning:', sessionError?.message)
-    return NextResponse.json({ userId, session: null })
-  }
-
-  return NextResponse.json({
-    userId,
-    session: {
-      access_token: sessionData.session.access_token,
-      refresh_token: sessionData.session.refresh_token,
-      expires_in: sessionData.session.expires_in,
-      expires_at: sessionData.session.expires_at,
-    },
-  })
+  return NextResponse.json({ userId, email })
 }
