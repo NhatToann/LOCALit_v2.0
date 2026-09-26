@@ -116,9 +116,13 @@ function RegisterForm() {
   const initialRole: Role | null = roleParam === 'buddy' || roleParam === 'tourist' ? roleParam : null
   const skipRoleStep = initialRole !== null
 
-  // New order: 0=Personal info, 1=Role, 2=Tags & bio
-  // When ?role= is passed (e.g. from /register?role=buddy), skip step 1.
-  const [step, setStep] = useState(skipRoleStep ? 2 : 0)
+  // Step order: 0=Personal info, 1=Role, 2=Tags & bio.
+  // When ?role= is passed (e.g. from /register?role=buddy on the landing
+  // page), the role is pre-selected so we skip Step 1 — but we ALWAYS land
+  // on Step 0 first so the user enters name/email/password/terms before
+  // choosing interests/specialties. (Previously this jumped straight to
+  // Step 2, which meant landing-page CTAs skipped the personal-info step.)
+  const [step, setStep] = useState(0)
   const [form, setForm] = useState<FormState>(() => ({
     ...INITIAL_FORM,
     role: initialRole ?? 'tourist',
@@ -333,7 +337,9 @@ function RegisterForm() {
               className="register-form"
               onSubmit={(e) => {
                 e.preventDefault()
-                if (stepReady) setStep(1)
+                // If the landing page passed ?role=..., skip the role step
+                // and go straight to the role-specific profile step.
+                if (stepReady) setStep(skipRoleStep ? 2 : 1)
               }}
             >
               <div className="reg-row reg-row-2">
