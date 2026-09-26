@@ -180,14 +180,14 @@ export default function MapPage() {
             </li>
             <li className="flex items-center gap-2">
               <span
-                className="w-3 h-3 rounded-full bg-secondary inline-block"
+                className="w-3 h-3 rounded-full bg-info inline-block"
                 aria-hidden="true"
               />
               Live tourist
             </li>
             <li className="flex items-center gap-2">
               <span
-                className="w-3 h-3 rounded-full bg-cyan-500 inline-block"
+                className="w-3 h-3 rounded-full bg-ink inline-block border border-surface"
                 aria-hidden="true"
               />
               You

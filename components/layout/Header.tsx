@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { Menu, User, Search, LogOut, X, Globe } from 'lucide-react';
+import { Menu, User, Search, LogOut, X, MapPin } from 'lucide-react';
 import { createClient } from '@/utils/supabase/auth';
 import { useRouter } from 'next/navigation';
 
@@ -81,8 +81,13 @@ export default function Header({ userRole, userName }: HeaderProps) {
       </a>
       <div className="max-w-7xl mx-auto h-full px-6 flex items-center justify-between gap-6">
         <Link href={homePath} className="flex items-center gap-2 flex-shrink-0">
-          <Globe size={28} className="text-primary" aria-hidden="true" />
-          <span className="text-xl font-semibold text-primary tracking-tight">LOCALit</span>
+          <span
+            className="w-7 h-7 rounded-sm bg-primary text-paper flex items-center justify-center"
+            aria-hidden="true"
+          >
+            <MapPin size={16} strokeWidth={2.25} />
+          </span>
+          <span className="text-lg font-semibold text-primary tracking-tight">LOCALit</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-8 flex-1 justify-center" aria-label="Primary">
@@ -109,7 +114,7 @@ export default function Header({ userRole, userName }: HeaderProps) {
             <div ref={menuRef} className="relative">
               <button
                 onClick={() => setMenuOpen((s) => !s)}
-                className="p-1 rounded-full transition-transform duration-150 hover:scale-105"
+                className="p-1 rounded-full transition-colors duration-150 hover:bg-paper"
                 aria-label="Open account menu"
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"

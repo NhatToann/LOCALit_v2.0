@@ -38,8 +38,10 @@ function colorFromName(name: string): string {
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 50%, 45%)`;
+  // Brand-aligned flat palette. No rainbow saturation per design tokens.
+  const palette = ['#FF6B35', '#0F0F0F', '#92400E', '#166534', '#075985', '#7C2D12'];
+  const idx = Math.abs(hash) % palette.length;
+  return palette[idx];
 }
 
 /**

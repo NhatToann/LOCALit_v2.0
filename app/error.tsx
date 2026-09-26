@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { AlertTriangle } from 'lucide-react'
 
 export default function Error({
   error,
@@ -16,55 +17,36 @@ export default function Error({
   }, [error])
 
   return (
-    <div
-      style={{
-        minHeight: '60vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 32,
-        fontFamily: 'system-ui, sans-serif',
-      }}
-    >
-      <div style={{ maxWidth: 480, textAlign: 'center' }}>
-        <div style={{ fontSize: 56, marginBottom: 8 }}>⚠️</div>
-        <h2 style={{ fontSize: 22, margin: '0 0 8px', fontWeight: 700 }}>
+    <main className="container-page py-16">
+      <div className="max-w-[480px] mx-auto border border-border rounded-sm bg-surface p-8 text-center">
+        <AlertTriangle
+          className="mx-auto mb-4 text-warning"
+          size={48}
+          strokeWidth={1.5}
+          aria-hidden="true"
+        />
+        <h1 className="text-2xl font-semibold text-ink mb-2 tracking-tight">
           Couldn&apos;t load this section
-        </h2>
-        <p style={{ color: '#666', margin: '0 0 20px' }}>
+        </h1>
+        <p className="text-sm text-muted mb-6">
           Try again, or browse other parts of LOCALit.
         </p>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+        <div className="flex gap-2 justify-center flex-wrap">
           <button
+            type="button"
             onClick={() => reset()}
-            style={{
-              padding: '10px 18px',
-              background: '#FF6B35',
-              color: '#FFF',
-              border: 0,
-              borderRadius: 8,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
           >
             Retry
           </button>
           <Link
             href="/"
-            style={{
-              padding: '10px 18px',
-              background: '#FFF',
-              border: '1px solid #E0E0E0',
-              borderRadius: 8,
-              fontWeight: 600,
-              textDecoration: 'none',
-              color: '#1A1A2E',
-            }}
+            className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-surface text-ink border border-border-strong hover:bg-paper"
           >
             Home
           </Link>
         </div>
       </div>
-    </div>
+    </main>
   )
 }

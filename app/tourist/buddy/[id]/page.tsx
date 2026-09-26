@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { ConnectionStatus } from '@/lib/types'
-import { MapPin, Star, AlertTriangle, MessageCircle, Phone, Send, Hourglass, X, Check, CircleDot } from 'lucide-react'
+import { MapPin, Star, AlertTriangle, MessageCircle, Phone, Send, Hourglass, X, CircleDot } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
@@ -302,9 +302,20 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
                       <div className="flex items-center gap-3 mb-2">
                         <Avatar name={r.reviewer_name ?? 'Traveler'} size="sm" />
                         <strong className="text-sm">{r.reviewer_name ?? 'Traveler'}</strong>
-                        <span className="text-warning text-sm" aria-label={`${r.rating} out of 5 stars`}>
-                          {'★'.repeat(r.rating)}
-                          <span className="text-muted">{'☆'.repeat(5 - r.rating)}</span>
+                        <span
+                          className="flex items-center gap-0.5 text-warning"
+                          aria-label={`${r.rating} out of 5 stars`}
+                        >
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star
+                              key={n}
+                              size={14}
+                              fill={n <= r.rating ? 'currentColor' : 'none'}
+                              strokeWidth={1.5}
+                              className={n > r.rating ? 'text-muted' : ''}
+                              aria-hidden="true"
+                            />
+                          ))}
                         </span>
                         <span className="text-xs text-muted ml-auto">
                           {new Date(r.created_at).toLocaleDateString('en-US')}

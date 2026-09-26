@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { Check, Info, AlertTriangle, Star } from 'lucide-react'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 
 const LABELS = ['', 'Poor', 'Below average', 'Average', 'Great', 'Excellent']
@@ -44,7 +45,7 @@ export default function ReviewPage() {
     }
 
     if (tripData.tourist_id !== user.id) {
-      setError('You don&apos;t have permission to review this trip.')
+      setError("You don't have permission to review this trip.")
       return
     }
 
@@ -74,7 +75,7 @@ export default function ReviewPage() {
     setError('')
 
     if (rating < 1 || rating > 5) {
-      setError('Please choose a rating (1-5 stars).')
+      setError('Please choose a rating from 1 to 5.')
       return
     }
     if (comment.length > 1000) {
@@ -120,111 +121,136 @@ export default function ReviewPage() {
 
   if (error && !trip) {
     return (
-      <div className="container py-xl">
-        <div className="card" style={{ maxWidth: 560, margin: '0 auto' }}>
-          <div className="card-body text-center">
-            <div style={{ fontSize: 48 }}>⚠️</div>
-            <h3>{error}</h3>
-            <button onClick={() => router.push('/tourist/dashboard')} className="btn btn-primary mt-md">
-              ← Back to Dashboard
-            </button>
-          </div>
-        </div>
-      </div>
+      <main className="container-page py-16">
+        <article className="max-w-[560px] mx-auto border border-border rounded-sm bg-surface p-12 text-center">
+          <AlertTriangle className="mx-auto mb-4 text-danger" size={48} strokeWidth={1.5} aria-hidden="true" />
+          <h1 className="text-xl font-semibold mb-4">{error}</h1>
+          <button
+            type="button"
+            onClick={() => router.push('/tourist/dashboard')}
+            className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+          >
+            Back to dashboard
+          </button>
+        </article>
+      </main>
     )
   }
 
-  if (!trip || !reviewing) return <div className="container py-xl text-center"><div className="loading-spinner mx-auto" /></div>
+  if (!trip || !reviewing) {
+    return (
+      <main className="container-page py-16 text-center">
+        <div className="loading-spinner mx-auto" aria-hidden="true" />
+      </main>
+    )
+  }
 
   return (
-    <div className="container py-xl">
-      <div className="card" style={{ maxWidth: 560, margin: '0 auto' }}>
-        <div className="card-body">
-          <h1 className="text-2xl font-bold mb-md">Review your trip</h1>
-          <p className="text-muted mb-lg">
-            Trip: <strong>{trip.title}</strong>
-          </p>
+    <main className="container-page py-12">
+      <article className="max-w-[560px] mx-auto border border-border rounded-sm bg-surface p-6 lg:p-8">
+        <header className="mb-6">
+          <p className="text-eyebrow text-muted mb-2">Trip review</p>
+          <h1 className="text-2xl font-semibold text-ink mb-1 tracking-tight">Rate your Da Nang buddy</h1>
+          <p className="text-sm text-muted">Trip: <strong className="text-ink">{trip.title}</strong></p>
+        </header>
 
-          {submitted ? (
-            <div className="alert alert-success">
-              <span>✓</span>
-              <div>
-                <p className="font-semibold">Thanks for leaving a review!</p>
-                <p className="text-sm mt-xs">Redirecting to your dashboard...</p>
-              </div>
+        {submitted ? (
+          <div className="border border-success-bg bg-success-bg text-success rounded-sm p-4 flex items-start gap-3">
+            <Check size={20} className="flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-semibold">Thanks for leaving a review.</p>
+              <p className="text-xs mt-1">Redirecting to your dashboard...</p>
             </div>
-          ) : existingReview ? (
-            <div className="alert alert-info">
-              <span>ℹ️</span>
-              <span>You have already reviewed this trip.</span>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit}>
-              <div style={{ textAlign: 'center', marginBottom: 'var(--space-lg)' }}>
-                <p className="text-sm text-muted mb-sm">Reviewing</p>
-                <div className="flex items-center gap-md" style={{ justifyContent: 'center' }}>
-                  <span className="avatar avatar-lg">{reviewing.profile?.full_name?.charAt(0) ?? 'B'}</span>
-                  <div style={{ textAlign: 'left' }}>
-                    <strong>{reviewing.profile?.full_name}</strong>
-                    <p className="text-sm text-muted">Your Local Buddy</p>
-                  </div>
+          </div>
+        ) : existingReview ? (
+          <div className="border border-info-bg bg-info-bg text-info rounded-sm p-4 flex items-start gap-3">
+            <Info size={20} className="flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <span className="text-sm">You have already reviewed this trip.</span>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} noValidate>
+            <section className="mb-6 text-center">
+              <p className="text-eyebrow text-muted mb-3">Reviewing</p>
+              <div className="flex items-center justify-center gap-3">
+                <span className="avatar avatar-lg" aria-hidden="true">
+                  {reviewing.profile?.full_name?.charAt(0) ?? 'B'}
+                </span>
+                <div className="text-left">
+                  <strong className="text-base text-ink block">{reviewing.profile?.full_name}</strong>
+                  <p className="text-xs text-muted">Your local buddy</p>
                 </div>
               </div>
+            </section>
 
-              <div className="form-group text-center">
-                <label className="form-label">Star rating</label>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 4, fontSize: 36, margin: '12px 0' }}>
-                  {[1, 2, 3, 4, 5].map((n) => (
+            <fieldset className="mb-6 text-center">
+              <legend className="text-sm font-medium text-ink mb-3">How was the trip?</legend>
+              <div
+                className="flex items-center justify-center gap-1 mb-2"
+                role="radiogroup"
+                aria-label="Star rating"
+              >
+                {[1, 2, 3, 4, 5].map((n) => {
+                  const active = n <= (hover || rating)
+                  return (
                     <button
                       key={n}
                       type="button"
                       onClick={() => setRating(n)}
                       onMouseEnter={() => setHover(n)}
                       onMouseLeave={() => setHover(0)}
-                      aria-label={`Rate ${n} stars`}
-                      style={{
-                        background: 'none',
-                        color: n <= (hover || rating) ? '#FFB347' : '#ddd',
-                        cursor: 'pointer',
-                        fontSize: 40,
-                        lineHeight: 1,
-                        transition: 'transform 150ms',
-                        transform: hover === n ? 'scale(1.2)' : 'scale(1)',
-                      }}
+                      role="radio"
+                      aria-checked={rating === n}
+                      aria-label={`Rate ${n} of 5`}
+                      className="p-1 rounded-sm transition-colors duration-150"
                     >
-                      ★
+                      <Star
+                        size={36}
+                        strokeWidth={1.5}
+                        fill={active ? 'currentColor' : 'none'}
+                        className={active ? 'text-primary' : 'text-subtle'}
+                      />
                     </button>
-                  ))}
-                </div>
-                <p className="text-sm font-medium" style={{ color: 'var(--accent)' }}>
-                  {(hover || rating) ? LABELS[hover || rating] : 'Choose a rating'}
-                </p>
+                  )
+                })}
               </div>
+              <p className="text-sm font-medium text-ink">
+                {(hover || rating) ? LABELS[hover || rating] : 'Choose a rating'}
+              </p>
+            </fieldset>
 
-              <div className="form-group">
-                <label className="form-label">Comment (optional)</label>
-                <textarea
-                  className="form-input form-textarea"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  rows={4}
-                  maxLength={1000}
-                  placeholder="Share your experience..."
-                />
-                <p className="text-xs text-muted mt-xs">{comment.length}/1000</p>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-ink mb-2" htmlFor="comment">
+                Comment (optional)
+              </label>
+              <textarea
+                id="comment"
+                className="form-input form-textarea w-full"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={4}
+                maxLength={1000}
+                placeholder="Share what you saw, ate, or learned in Da Nang."
+              />
+              <p className="text-xs text-muted mt-1">{comment.length}/1000</p>
+            </div>
+
+            {error ? (
+              <div className="border border-danger-bg bg-danger-bg text-danger rounded-sm p-3 flex items-start gap-2 mb-4" role="alert">
+                <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" aria-hidden="true" />
+                <span className="text-sm">{error}</span>
               </div>
+            ) : null}
 
-              {error && (
-                <div className="alert alert-error mb-md"><span>⚠️</span><span>{error}</span></div>
-              )}
-
-              <button type="submit" disabled={submitting || rating === 0} className="btn btn-primary btn-block">
-                {submitting ? 'Submitting...' : 'Submit review'}
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
+            <button
+              type="submit"
+              disabled={submitting || rating === 0}
+              className="inline-flex items-center justify-center w-full h-11 px-6 text-base font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? 'Submitting...' : 'Submit review'}
+            </button>
+          </form>
+        )}
+      </article>
+    </main>
   )
 }
