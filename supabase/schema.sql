@@ -104,6 +104,9 @@ ALTER TABLE public.buddies ENABLE ROW LEVEL SECURITY;
 -- Buddies: discoverable when available (or your own row).
 -- SECURITY: tightened on 2026-09-26 — anon only sees buddies marked
 -- is_available=true; the owner can always read their own row.
+-- Also: anon SELECT is restricted to non-PII columns (no bio, no exact
+-- lat/long, no trips_completed) via column-level grants at the bottom of
+-- this file.
 CREATE POLICY "Buddies discoverable when available"
   ON public.buddies FOR SELECT
   USING (is_available = true OR auth.uid() = id);
@@ -491,3 +494,20 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO anon, authenticated;
+
+-- ============================================================
+-- SECURITY: column-level grants (anon reads only non-PII columns)
+-- 2026-09-26 hardening — see supabase/migrations/2026-09-26_revoke_pii_columns.sql
+-- Without these, anon can read full rows including PII (DOB, bio, lat/long).
+-- ============================================================
+REVOKE SELECT ON public.tourists FROM anon;
+GRANT SELECT (id, nationality, travel_style, interests, languages, budget_range, arrival_date, destination, is_visible, created_at, updated_at) ON public.tourists TO anon;
+
+REVOKE SELECT ON public.buddies FROM anon;
+GRANT SELECT (id, location_city, languages, specialties, hourly_rate, is_available, rating_avg) ON public.buddies TO anon;
+
+REVOKE SELECT ON public.reviews FROM anon;
+GRANT SELECT (id, trip_id, rating, comment, created_at) ON public.reviews TO anon;
+
+REVOKE SELECT ON public.profiles FROM anon;
+-- (no re-grant: profiles is fully owned by authenticated)
