@@ -83,7 +83,7 @@ function BrowseContent() {
         const supabase = createClient()
         const { data } = await supabase
           .from('buddies')
-          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, profile:profiles(full_name, is_online, avatar_url)')
+          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, profile:safe_profiles(full_name, avatar_url)')
           .eq('location_city', 'Da Nang')
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)

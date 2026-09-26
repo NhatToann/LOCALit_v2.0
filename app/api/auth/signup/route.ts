@@ -63,6 +63,17 @@ export async function POST(req: NextRequest) {
   const passwordStr = typeof password === 'string' ? password : ''
   const fullNameStr = typeof fullName === 'string' ? fullName.trim() : ''
 
+  // Hard caps — reject (don't silently truncate) oversized free-text fields.
+  if (fullNameStr.length > 100) {
+    return NextResponse.json({ error: 'Full name is too long (max 100 characters).' }, { status: 400 })
+  }
+  if (emailStr.length > 254) {
+    return NextResponse.json({ error: 'Email is too long.' }, { status: 400 })
+  }
+  if (passwordStr.length > 128) {
+    return NextResponse.json({ error: 'Password is too long (max 128 characters).' }, { status: 400 })
+  }
+
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr)) {
     return NextResponse.json({ error: 'Invalid email.' }, { status: 400 })
   }

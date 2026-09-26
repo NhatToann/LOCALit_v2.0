@@ -1,0 +1,176 @@
+
+=== ATTACK 1: Email enumeration ===
+EXISTING: 409 {"error":"Sign up could not be completed with these details. Try a different email or sign in."}
+FRESH:    200 {"userId":"13916a92-17a3-4c2e-9761-518a4982cd1a","email":"redteam-fresh-1790432497039@example.com"}
+
+=== ATTACK 2: Rate limit /signup 30 reqs ===
+30 reqs in 4.17s; statuses: {
+  "200": 28,
+  "429": 2
+}
+first 3: [
+  {
+    "s": 200,
+    "b": "{\"userId\":\"8124d4aa-0ac4-492f-80e3-af03268d1952\",\"email\":\"redteam-burst-1790432498965-0@example.com\"}"
+  },
+  {
+    "s": 200,
+    "b": "{\"userId\":\"af4f9a89-cc31-4c55-84a3-6dad5bb6d59f\",\"email\":\"redteam-burst-1790432498966-1@example.com\"}"
+  },
+  {
+    "s": 200,
+    "b": "{\"userId\":\"c31b97d7-9c1c-45e7-8719-a8129e13bb7b\",\"email\":\"redteam-burst-1790432498966-2@example.com\"}"
+  }
+]
+
+=== ATTACK 3: Mass account creation ===
+acc 1: 200 {"userId":"8b82e978-c21b-48e8-8571-11e6785e756a","email":"redteam-test1-1790432503134@example.com"}
+acc 2: 200 {"userId":"b04576e8-d60d-4adb-8341-5408a759d609","email":"redteam-test2-1790432504317@example.com"}
+acc 3: 200 {"userId":"b998cafe-1c6e-4357-b53f-6b6f7197c81d","email":"redteam-test3-1790432506127@example.com"}
+
+=== ATTACK 4: create-profile abuse ===
+fresh signup: 200 {"userId":"48dd9806-381b-435e-a1d4-bfd4b678bd6d","email":"redteam-ac-1790432508398@example.com"}
+attacker overwrites fresh user as buddy: 401 {"error":"Unauthorized: no active session and no valid signup token."}
+create-profile fakeId autoConfirm: 401 {"error":"Unauthorized: no active session and no valid signup token."}
+create-profile fakeId no autoConfirm: 401 {"error":"Unauthorized: no active session and no valid signup token."}
+
+=== ATTACK 5: OTP brute force ===
+signup-admin: 200 {"userId":"9f0cb61c-4bd4-447f-ac89-2639f199ab46","email":"redteam-otp-1790432511371@example.com"}
+25 OTP attempts, distinct statuses: [
+  410
+]
+first 5: [
+  {
+    "code": "653939",
+    "status": 410,
+    "body": "{\"error\":\"No active verification code. Please request a new one.\",\"reason\":\"no_code\"}"
+  },
+  {
+    "code": "721290",
+    "status": 410,
+    "body": "{\"error\":\"No active verification code. Please request a new one.\",\"reason\":\"no_code\"}"
+  },
+  {
+    "code": "273080",
+    "status": 410,
+    "body": "{\"error\":\"No active verification code. Please request a new one.\",\"reason\":\"no_code\"}"
+  },
+  {
+    "code": "808000",
+    "status": 410,
+    "body": "{\"error\":\"No active verification code. Please request a new one.\",\"reason\":\"no_code\"}"
+  },
+  {
+    "code": "039512",
+    "status": 410,
+    "body": "{\"error\":\"No active verification code. Please request a new one.\",\"reason\":\"no_code\"}"
+  }
+]
+
+=== ATTACK 6: XSS ===
+xss1: 429 {"error":"Too many requests. Please slow down."}
+xss2: 429 {"error":"Too many requests. Please slow down."}
+
+=== ATTACK 7: CSRF newsletter ===
+csrf: 403 {"error":"Forbidden."}
+
+=== ATTACK 9: Password enumeration ===
+password tries: [
+  {
+    "pw": "password",
+    "status": 400,
+    "body": "{\"code\":400,\"error_code\":\"invalid_credentials\",\"msg\":\"Invalid login credentials\"}"
+  },
+  {
+    "pw": "123456",
+    "status": 400,
+    "body": "{\"code\":400,\"error_code\":\"invalid_credentials\",\"msg\":\"Invalid login credentials\"}"
+  },
+  {
+    "pw": "wrong",
+    "status": 400,
+    "body": "{\"code\":400,\"error_code\":\"invalid_credentials\",\"msg\":\"Invalid login credentials\"}"
+  },
+  {
+    "pw": "password123",
+    "status": 200,
+    "body": "{\"access_token\":\"eyJhbGciOiJFUzI1NiIsImtpZCI6Ijc5YjBhNDhjLWJiOWMtNDM0ZS04ZjViLTQ4ODE0NzY3YzBhZSIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3Bxdm5qZ3lxYnhseWxhd3dvZ2p2LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOi"
+  },
+  {
+    "pw": "Password123",
+    "status": 400,
+    "body": "{\"code\":400,\"error_code\":\"invalid_credentials\",\"msg\":\"Invalid login credentials\"}"
+  },
+  {
+    "pw": "p@ssw0rd",
+    "status": 400,
+    "body": "{\"code\":400,\"error_code\":\"invalid_credentials\",\"msg\":\"Invalid login credentials\"}"
+  }
+]
+
+=== ATTACK 10: Supabase anon reads ===
+  profiles: 200 []
+  tourists: 200 [{"id":"8600582a-217f-496e-8ed9-820007d4fdd4","nationality":"United States","date_of_birth":"1995-05
+  buddies: 200 [{"id":"55555555-5555-5555-5555-555555555555","location_city":"Nha Trang","latitude":16.0933,"longit
+  connections: 200 []
+  trips: 200 []
+  conversations: 200 []
+  messages: 401 {"code":"42501","details":null,"hint":"Grant the required privileges to the current role with: GRANT
+  reviews: 200 [{"id":"6a7163dc-30a0-412d-b1e0-c0d16129f5fc","trip_id":"2391e2e9-acdc-4237-a9ba-f34c63d98508","revi
+  location_updates: 200 []
+  email_verifications: 401 {"code":"42501","details":null,"hint":"Grant the required privileges to the current role with: GRANT
+
+=== ATTACK 11: admin role signup ===
+admin role: 429 {"error":"Too many requests. Please slow down."}
+
+=== ATTACK 12: OTP resend amplification ===
+signup-admin: 200 f7a28e5b-250c-4435-9858-cff8ccfb19e7
+resend 15 attempts, distinct: [
+  200,
+  429
+]
+samples: [
+  {
+    "i": 0,
+    "status": 200,
+    "body": "{\"ok\":true}"
+  },
+  {
+    "i": 1,
+    "status": 200,
+    "body": "{\"ok\":true}"
+  },
+  {
+    "i": 2,
+    "status": 200,
+    "body": "{\"ok\":true}"
+  },
+  {
+    "i": 3,
+    "status": 429,
+    "body": "{\"error\":\"Too many requests. Please slow down.\"}"
+  },
+  {
+    "i": 4,
+    "status": 429,
+    "body": "{\"error\":\"Too many requests. Please slow down.\"}"
+  }
+]
+
+=== ATTACK 13: verify-otp userId enumeration ===
+non-existent userId: 404 {"error":"User not found"}
+existing userId:     410 {"error":"No active verification code. Please request a new one.","reason":"no_code"}
+
+=== ATTACK 14: Type confusion ===
+userId as array: 400 {"error":"Missing userId."}
+userId too short + non-numeric code: 400 {"error":"Code must be 6 digits."}
+huge payload: 429 {"error":"Too many requests. Please slow down."}
+
+=== ATTACK 15: force-confirm existing user ===
+attacker force-confirms victim: 401 {"error":"Unauthorized: no active session and no valid signup token."}
+
+=== ATTACK 16: SQL/noSQL injection in email ===
+sql in email: 429 {"error":"Too many requests. Please slow down."}
+nosql in password: 429 {"error":"Too many requests. Please slow down."}
+
+=== DONE â€” wrote scripts/redteam-results.json ===

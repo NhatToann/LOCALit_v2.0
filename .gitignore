@@ -48,3 +48,6 @@ next-env.d.ts
 /scripts/redteam-results.json
 /scripts/redteam-*.json
 
+
+# local DB password scratch file
+.dbpw

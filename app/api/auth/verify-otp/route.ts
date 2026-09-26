@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { consumeOtp } from '@/utils/otp'
+import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 
 interface VerifyOtpBody {
   userId?: string
@@ -29,6 +30,11 @@ interface VerifyOtpBody {
  *     email_verifications prevents cross-user lookups anyway.
  */
 export async function POST(req: NextRequest) {
+  // ---- Rate limit (10 req / 60s per IP) --------------------------------------
+  const ip = getClientIp(req)
+  const rl = rateLimit(ip, 'auth:verify-otp', { windowMs: 60_000, max: 10 })
+  if (!rl.ok) return rateLimitResponse(rl.resetAt)
+
   let body: VerifyOtpBody
   try {
     body = await req.json()
@@ -47,18 +53,29 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
+  // Constant response for unknown / unverified / over-attempted userIds so an
+  // attacker cannot enumerate which userIds correspond to real accounts.
+  const GENERIC_INVALID = { error: 'Invalid or expired code.', reason: 'invalid' }
+  const GENERIC_410 = { error: 'No active verification code. Please request a new one.', reason: 'no_code' }
+
   const { data: lookup, error: lookupErr } = await admin.auth.admin.getUserById(userId)
   if (lookupErr || !lookup?.user) {
-    return NextResponse.json(
-      { error: lookupErr?.message ?? 'User not found.' },
-      { status: 404 },
-    )
+    return NextResponse.json(GENERIC_INVALID, { status: 400 })
   }
   const target = lookup.user
 
+  // If the user is already confirmed (or has no email), treat as a generic
+  // "no_code" — don't leak that they're a real account vs not.
+  if (target.email_confirmed_at || !target.email) {
+    return NextResponse.json(GENERIC_410, { status: 410 })
+  }
+
   const result = await consumeOtp(target.id, code)
   if (!result.ok) {
-    const status = result.reason === 'no_code' || result.reason === 'expired' || result.reason === 'too_many_attempts' ? 410 : 400
+    const status =
+      result.reason === 'no_code' || result.reason === 'expired' || result.reason === 'too_many_attempts'
+        ? 410
+        : 400
     return NextResponse.json({ error: result.error, reason: result.reason }, { status })
   }
 

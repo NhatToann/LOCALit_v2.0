@@ -65,9 +65,12 @@ CREATE TABLE public.tourists (
 
 ALTER TABLE public.tourists ENABLE ROW LEVEL SECURITY;
 
--- Tourists: public read, owner write
-CREATE POLICY "Tourist profiles are viewable by everyone"
-  ON public.tourists FOR SELECT USING (true);
+-- Tourists: visible rows OR your own row.
+-- SECURITY: tightened on 2026-09-26 — anon can only see rows marked
+-- is_visible=true; the owner can always read their own row.
+CREATE POLICY "Tourists visible row is public"
+  ON public.tourists FOR SELECT
+  USING (is_visible = true OR auth.uid() = id);
 
 CREATE POLICY "Tourists can update own profile"
   ON public.tourists FOR UPDATE
@@ -98,9 +101,12 @@ CREATE TABLE public.buddies (
 
 ALTER TABLE public.buddies ENABLE ROW LEVEL SECURITY;
 
--- Buddies: public read for discovery, owner write
-CREATE POLICY "Buddies are discoverable by everyone"
-  ON public.buddies FOR SELECT USING (true);
+-- Buddies: discoverable when available (or your own row).
+-- SECURITY: tightened on 2026-09-26 — anon only sees buddies marked
+-- is_available=true; the owner can always read their own row.
+CREATE POLICY "Buddies discoverable when available"
+  ON public.buddies FOR SELECT
+  USING (is_available = true OR auth.uid() = id);
 
 CREATE POLICY "Buddies can update own profile"
   ON public.buddies FOR UPDATE

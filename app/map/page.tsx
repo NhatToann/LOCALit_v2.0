@@ -42,7 +42,7 @@ export default function MapPage() {
       const supabase = createClient()
       const { data } = await supabase
         .from('buddies')
-        .select('id, location_city, latitude, longitude, languages, hourly_rate, profile:profiles(full_name, is_online)')
+        .select('id, location_city, latitude, longitude, languages, hourly_rate, profile:safe_profiles(full_name)')
         .eq('location_city', 'Da Nang')
         .not('latitude', 'is', null)
         .not('longitude', 'is', null)
@@ -58,7 +58,7 @@ export default function MapPage() {
             rating_avg: null,
             lat: b.latitude,
             lng: b.longitude,
-            is_online: b.profile?.is_online ?? false,
+            is_online: false,
           }))
         setBuddies(mapped)
       }
