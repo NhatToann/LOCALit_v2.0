@@ -24,7 +24,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Live Endpoints
 
 - **Current Production** (check `vercel ls --prod` — URL changes per deploy):
- `https://localit-b1cqm86ty-nhattoann.vercel.app/` (deploy 2026-09-26 — landing-page CTAs now start at Step 0)
+ `https://localit-menf0nwha-nhattoann.vercel.app/` (deploy 2026-09-26 — redesigned tourist + buddy dashboards with hero, stats, quick actions)
 - **Supabase URL**: https://pqvnjgyqbxlylawwogjv.supabase.co
 - **Supabase Dashboard**: https://supabase.com/dashboard/project/pqvnjgyqbxlylawwogjv
 
