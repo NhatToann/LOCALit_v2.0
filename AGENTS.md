@@ -23,10 +23,45 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Live Endpoints
 
-- **Current Production** (check `vercel ls --prod` — URL changes per deploy):
- `https://localit-menf0nwha-nhattoann.vercel.app/` (deploy 2026-09-26 — redesigned tourist + buddy dashboards with hero, stats, quick actions)
+- **Canonical Production** (always aliases to the latest deploy):
+  - `https://localit-nhattoann.vercel.app/` ← production
+  - `https://localit-vn.vercel.app/` ← production alias
+  - `vercel ls --prod` shows the latest hash URL — every deploy produces a
+    new `localit-XXXXXXXXXXX-nhattoann.vercel.app` URL, but the canonical
+    alias above is what users see and share. **Do not hard-code the hash URL.**
+  - Last deploy: 2026-09-26 (security hardening pass — email enumeration
+    closed, auth trigger rebuilt, password policy tightened)
+- **Stale URLs that should NOT be shared**: every prior deployment URL
+  (e.g., `localit-menf0nwha-nhattoann.vercel.app` from the dashboard
+  redesign) remains publicly accessible as an immutable Vercel deployment.
+  These older URLs may carry **vulnerable code** that has since been
+  patched on canonical production. Disable via the Vercel dashboard if
+  they leak in screenshots, slides, or auto-redirects.
 - **Supabase URL**: https://pqvnjgyqbxlylawwogjv.supabase.co
 - **Supabase Dashboard**: https://supabase.com/dashboard/project/pqvnjgyqbxlylawwogjv
+
+## Security Status (as of 2026-09-26)
+
+The red-team audit (full report: `scripts/REPORT.md`) found 12 issues. Current status:
+
+| # | Severity | Status | What was done |
+|---|----------|--------|---------------|
+| 1 | CRITICAL: create-profile autoConfirm IDOR | ✅ Closed | `autoConfirm` deprecated; route now requires cookie session OR one-shot signup token |
+| 2 | CRITICAL: PII leak (tourists/buddies/reviews) | ✅ Closed | Column-level GRANT/REVOKE; bio/DOB/reviewer_id hidden from anon |
+| 3 | HIGH: no signup rate limit | ✅ Closed | 5 req / 60s / IP (in-memory) |
+| 4 | HIGH: email enumeration on /signup & /signup-admin | ✅ Closed | Both return generic 400 for any failure — no 200/409 oracle |
+| 5 | HIGH: OTP brute-force window | ✅ Closed | verify-otp 10/60s/IP; resend-otp 3/60s/IP + per-user 5-attempt cap |
+| 6 | HIGH: stored XSS in full_name/bio | ✅ Closed | Server-side sanitizer strips `<…>` and control chars; 100/500 char caps |
+| 7 | HIGH: `on_auth_user_created` trigger missing | ✅ Fixed | Reinstalled (`scripts/install-missing-trigger.mjs`) and given explicit `search_path`; defensive profiles-upsert added to signup-admin |
+| 8 | MEDIUM: user enumeration on verify-otp/resend-otp | ✅ Closed | Generic `no_code` / `no_user` errors only |
+| 9 | MEDIUM: password too weak (≥ 6 chars) | ✅ Tightened | `utils/password-validator.ts`: ≥ 10 chars + letter + non-letter |
+| 10 | LOW: type confusion / oversized payloads | ✅ Closed | Hard length caps + array sanitization |
+| 11 | LOW: misleading 200/204 on RLS-blocked writes | ⚠️ Documented | Supabase REST behavior — not a security hole, only DX |
+| 12 | LOW: Vercel bypass token shared | ⚠️ Documented | Token was already configured; treated as known low-severity finding |
+
+How to verify the production state is still clean: run
+`node scripts/redteam-final.mjs` (or any of the `scripts/redteam-*.mjs` probes
+individually — they target the canonical `localit-nhattoann.vercel.app`).
 
 ## Credentials (session-cached — reuse if same task)
 
@@ -142,7 +177,9 @@ If a preview URL returns 200 but client-side data fetch fails, the env vars in P
 ### Auth/Profile Triggers (CRITICAL)
 - **The `on_auth_user_created` trigger on `auth.users` can silently disappear.** If it does, every new sign-up creates an `auth.users` row but NOT a `public.profiles` row. This then causes `/api/auth/create-profile` to fail with a **foreign-key violation** (tourists/buddies require `profiles.id`). Symptoms: 500 on sign-up completion.
 - **Fix**: Run `scripts/install-missing-trigger.mjs` (idempotent). The trigger function `public.handle_new_user()` also needs to exist (it survives even when the trigger binding is dropped).
-- **Defensive code**: `app/api/auth/create-profile/route.ts` now has a fallback that upserts a `profiles` row if the trigger missed, so the route works even if the trigger is absent.
+- **Trigger function gotcha**: `public.handle_new_user()` is `SECURITY DEFINER` and must have `SET search_path TO 'public', 'pg_catalog'` — otherwise the unqualified `'tourist'::user_role` cast fails with `type "user_role" does not exist` and GoTrue returns `500 Database error creating new user`. If you see that error in `vercel logs`, check the function's search_path.
+- **Daily health-check**: `node scripts/check-current-triggers.mjs` confirms the trigger is still bound. Wire into a Vercel cron / GitHub Action when convenient.
+- **Defensive code**: `app/api/auth/create-profile/route.ts` AND `app/api/auth/signup-admin/route.ts` now have a fallback that upserts a `profiles` row if the trigger missed, so the routes work even if the trigger is absent.
 
 ### Vercel Deployment Protection
 - **`vercel env rm` is DANGEROUS without `--yes` confirmation** — the CLI may still prompt but PowerShell eats the prompt and proceeds anyway.
