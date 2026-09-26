@@ -19,23 +19,34 @@ export default function TouristDashboardPage() {
   const [buddies, setBuddies] = useState<any[]>([])
   const [reviewsCount, setReviewsCount] = useState(0)
   const [userLocation, setUserLocation] = useState(DEFAULT_LOCATION)
+  const [hasGpsFix, setHasGpsFix] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [shareLocation, setShareLocation] = useState(false)
 
+  // Auto-enable live location sharing on dashboard mount.
+  // We give the user a single permission prompt and, if granted, broadcast
+  // their position so other signed-in tourists can see them on the map.
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
-    enabled: shareLocation,
+    enabled: true,
   })
+
+  // Track our real GPS position so the map pans/zooms to us once we get
+  // the first fix. Falls back to Da Nang if permission is denied.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setHasGpsFix(true)
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 },
+    )
+    return () => navigator.geolocation.clearWatch(id)
+  }, [])
 
   useEffect(() => {
     load()
-
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => {},
-        { enableHighAccuracy: false, timeout: 4000 },
-      )
-    }
   }, [])
 
   async function load() {
@@ -103,6 +114,7 @@ export default function TouristDashboardPage() {
   ]
 
   const firstName = profile?.full_name?.split(' ')[0] || 'traveler'
+  const nearbyCount = buddies.length + liveLocations.length
 
   return (
     <div className="dashboard-root">
@@ -127,10 +139,43 @@ export default function TouristDashboardPage() {
             <Link href="/tourist/browse" className="btn btn-primary btn-lg">
               🔍 Find buddies
             </Link>
-            <Link href="/tourist/trips" className="btn btn-outline btn-lg btn-on-dark">
-              🗺️ My trips
+            <Link href="/tourist/trips/create" className="btn btn-outline btn-lg btn-on-dark">
+              ＋ Plan a trip
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* Featured map — full-width, above the fold. Tourists who grant
+          location permission show up as a pulsing dot here, alongside the
+          available buddies and other signed-in travellers who are sharing
+          their live position. */}
+      <section className="dashboard-featured-map">
+        <div className="dashboard-featured-map-header">
+          <div>
+            <h2 className="dashboard-featured-map-title">
+              📍 Who&apos;s around you right now
+            </h2>
+            <p className="dashboard-featured-map-sub">
+              {nearbyCount > 0
+                ? `${buddies.length} buddies + ${liveLocations.length} live traveller${liveLocations.length === 1 ? '' : 's'} on the map.`
+                : 'Buddies and other travellers will appear here as they go online.'}
+            </p>
+          </div>
+          <div className="dashboard-featured-map-actions">
+            <ShareStatusBadge granted={selfGranted} denied={selfDenied} hasFix={hasGpsFix} />
+            <Link href="/map" className="btn btn-outline btn-sm">
+              Open full map →
+            </Link>
+          </div>
+        </div>
+        <div className="dashboard-featured-map-canvas">
+          <MapView
+            userLocation={userLocation}
+            height="100%"
+            selfLiveOverride={selfGranted}
+            liveLocations={liveLocations}
+          />
         </div>
       </section>
 
@@ -273,46 +318,6 @@ export default function TouristDashboardPage() {
             </div>
           </section>
 
-          {/* Mini map */}
-          <section className="dashboard-card dashboard-map-card">
-            <div className="dashboard-card-header">
-              <div>
-                <h2 className="dashboard-card-title">Buddies nearby</h2>
-                <p className="dashboard-card-sub">
-                  {buddies.length} available in Da Nang
-                </p>
-              </div>
-              <div className="flex gap-sm">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${shareLocation ? 'btn-primary' : 'btn-outline'}`}
-                  onClick={() => setShareLocation(v => !v)}
-                  title="Share your live location (no data is saved)"
-                >
-                  {shareLocation ? '📍 Sharing live' : '📍 Share my location'}
-                </button>
-                <Link href="/map" className="dashboard-card-link">Full map →</Link>
-              </div>
-            </div>
-            <div style={{ height: 300 }}>
-              <MapView
-                userLocation={userLocation}
-                height={300}
-                liveLocations={liveLocations}
-                selfLiveOverride={selfGranted}
-              />
-            </div>
-            {shareLocation && (
-              <div className="dashboard-card-footer">
-                {selfGranted
-                  ? `📍 Sharing your live location${liveLocations.length > 0 ? ` · ${liveLocations.length} tourist${liveLocations.length === 1 ? '' : 's'} nearby` : ''}`
-                  : selfDenied
-                    ? '⚠️ Location permission denied — your position is not shared.'
-                    : 'Requesting location permission…'}
-              </div>
-            )}
-          </section>
-
           {/* Quick actions */}
           <section className="dashboard-card">
             <div className="dashboard-card-header">
@@ -353,18 +358,80 @@ export default function TouristDashboardPage() {
       </div>
 
       <style>{`
+        .dashboard-featured-map {
+          background: #fff;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+        .dashboard-featured-map-header {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: var(--space-lg) var(--space-md) var(--space-md);
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: var(--space-md);
+          flex-wrap: wrap;
+        }
+        .dashboard-featured-map-title {
+          font-size: var(--font-size-xl, 22px);
+          font-weight: 700;
+          margin: 0;
+        }
+        .dashboard-featured-map-sub {
+          margin: 4px 0 0;
+          color: var(--text-muted, #6b7280);
+          font-size: 14px;
+        }
+        .dashboard-featured-map-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .dashboard-featured-map-canvas {
+          height: clamp(360px, 52vh, 560px);
+          width: 100%;
+          background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%);
+        }
         .dashboard-grid {
           display: grid;
           grid-template-columns: 2fr 1fr;
           gap: var(--space-lg);
         }
-        .dashboard-map-card { grid-column: 1 / -1; padding: 0; overflow: hidden; }
-        .dashboard-map-card > .dashboard-card-header { padding: var(--space-md) var(--space-lg); margin: 0; border-bottom: 1px solid var(--border-color); }
-        .dashboard-map-card .dashboard-card-footer { padding: var(--space-md) var(--space-lg); font-size: 13px; color: var(--text-muted); }
         @media (max-width: 900px) {
           .dashboard-grid { grid-template-columns: 1fr; }
+          .dashboard-featured-map-header { padding: var(--space-md); }
         }
       `}</style>
     </div>
+  )
+}
+
+function ShareStatusBadge({ granted, denied, hasFix }: { granted: boolean; denied: boolean; hasFix: boolean }) {
+  if (granted && hasFix) {
+    return (
+      <span className="badge badge-success" title="You're sharing your live location with other travellers on the map.">
+        <span style={{
+          display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+          background: '#28A745', marginRight: 6,
+          boxShadow: '0 0 0 0 rgba(40,167,69,0.6)',
+          animation: 'liveBadgePulse 2s ease-out infinite',
+        }} />
+        Sharing live
+      </span>
+    )
+  }
+  if (denied) {
+    return (
+      <span className="badge badge-warning" title="Location permission was denied. Enable it in your browser to show up on the map.">
+        ⚠️ Location off
+      </span>
+    )
+  }
+  return (
+    <span className="badge badge-primary" title="Asking for location permission…">
+      ⏳ Locating…
+    </span>
   )
 }

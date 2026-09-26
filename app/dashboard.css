@@ -327,6 +327,13 @@
   color: var(--text-muted, #6b7280);
 }
 
+/* ----- Live-location pulse (used by share-status badge) ----- */
+@keyframes liveBadgePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(40, 167, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
 /* ----- Responsive ----- */
 @media (max-width: 900px) {
   .dashboard-stats-grid {
