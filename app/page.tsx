@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { Suspense, useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 
 const FEATURED_DESTINATIONS = [
@@ -23,11 +23,38 @@ interface BuddyPreview {
 }
 
 export default function HomePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen" aria-busy="true" aria-label="Loading home page">
+          <div className="loading-spinner" role="status" aria-live="polite" />
+        </main>
+      }
+    >
+      <HomePageInner />
+    </Suspense>
+  )
+}
+
+function HomePageInner() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [searchDestination, setSearchDestination] = useState('Da Nang')
   const [searchDates, setSearchDates] = useState('')
   const [buddies, setBuddies] = useState<BuddyPreview[]>([])
+
+  const searchParams = useSearchParams()
+  const justSubscribed = searchParams.get('subscribed') === '1'
+  const [showSubscribedToast, setShowSubscribedToast] = useState(justSubscribed)
+
+  useEffect(() => {
+    if (justSubscribed) {
+      const t = setTimeout(() => setShowSubscribedToast(false), 5000)
+      // Strip the query so refresh doesn't re-trigger
+      router.replace('/')
+      return () => clearTimeout(t)
+    }
+  }, [justSubscribed, router])
 
   useEffect(() => {
     async function init() {
@@ -87,14 +114,41 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex-center">
-        <div className="loading-spinner" />
+      <main className="min-h-screen" aria-busy="true" aria-label="Loading home page">
+        <div
+          className="loading-spinner"
+          role="status"
+          aria-live="polite"
+        />
       </main>
     )
   }
 
   return (
     <main>
+      {showSubscribedToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            top: 88,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#28A745',
+            color: '#FFFFFF',
+            padding: '12px 22px',
+            borderRadius: 9999,
+            boxShadow: '0 8px 24px rgba(0,0,0,.18)',
+            zIndex: 100,
+            fontSize: 14,
+            fontWeight: 500,
+          }}
+        >
+          ✓ Subscribed! We&apos;ll keep you posted.
+        </div>
+      )}
+
       {/* ============= HERO ============= */}
       <section className="hero-section">
         <div className="hero-overlay" />

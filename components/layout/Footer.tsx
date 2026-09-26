@@ -12,8 +12,9 @@ export default function Footer() {
               <span className="logo-text">LOCALit</span>
             </Link>
             <p className="footer-tagline">
-              Connect with local guides and create unforgettable travel experiences in Da Nang.
+              Connect with trusted local guides and create unforgettable travel experiences in Da Nang.
             </p>
+
             <div className="footer-social">
               <a href="https://twitter.com" className="social-link" aria-label="LOCALit on X">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -30,6 +31,23 @@ export default function Footer() {
                   <path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z"/>
                 </svg>
               </a>
+              <a href="https://linkedin.com" className="social-link" aria-label="LOCALit on LinkedIn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4.98 3.5c0 1.381-1.11 2.5-2.48 2.5s-2.48-1.119-2.48-2.5c0-1.38 1.11-2.5 2.48-2.5s2.48 1.12 2.48 2.5zm.02 4.5h-5v16h5v-16zm7.982 0h-4.968v16h4.969v-8.399c0-4.67 6.029-5.052 6.029 0v8.399h4.988v-10.131c0-7.88-8.922-7.593-11.018-3.714v-2.155z"/>
+                </svg>
+              </a>
+            </div>
+
+            <div className="footer-newsletter">
+              <h5>Stay in the loop</h5>
+              <form
+                className="newsletter-form"
+                action="/api/newsletter/subscribe"
+                method="post"
+              >
+                <input type="email" name="email" placeholder="your@email.com" aria-label="Email address" required />
+                <button type="submit">Subscribe</button>
+              </form>
             </div>
           </div>
 
@@ -54,12 +72,18 @@ export default function Footer() {
               <Link href="/reset-password">Reset Password</Link>
               <Link href="#">Terms of Service</Link>
               <Link href="#">Privacy Policy</Link>
+              <Link href="#">Contact Us</Link>
             </div>
           </div>
         </div>
 
         <div className="footer-bottom">
           <p>&copy; 2026 LOCALit. All rights reserved. Kỳ 8 Capstone Project.</p>
+          <div className="footer-meta">
+            <span>Made with ♥ in Da Nang</span>
+            <Link href="#">Status</Link>
+            <Link href="#">Sitemap</Link>
+          </div>
         </div>
       </div>
     </footer>
