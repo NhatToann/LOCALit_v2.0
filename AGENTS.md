@@ -161,6 +161,56 @@ If a preview URL returns 200 but client-side data fetch fails, the env vars in P
 - "Change" link on Step 2 returns the user to Step 1 (role); the back button on Step 2 also returns to Step 1; Step 1 has a topbar back button returning to Step 0.
 - Stepper is shown on every step now (previously only after step 0).
 
+### Signup Flow (Simplified 2026-09-26)
+- **No more OTP/verify-email step.** Account is created with `email_confirm: true`. Client calls `signIn()` itself after the server returns userId. If sign-in fails, client is redirected to `/login?registered=1`.
+- Endpoint: `POST /api/auth/signup` (replaces the older `signup-admin` for the simple case).
+- Legacy `signup-admin` + `verify-otp` + `resend-otp` still exist for the OTP flow but are no longer called from the UI.
+
+### Security Hardening (2026-09-26 — Red Team Audit)
+The project was put through a Red Team audit and the following issues were found and fixed:
+
+**Critical**
+- `profiles` table had a public `SELECT` policy — anon users could read emails, phones, full names of ALL registered users (GDPR violation).
+  - Fix: `supabase/migrations/2026-09-26-rls-profiles-restrict.sql` restricts SELECT to `auth.role() = 'authenticated'`. Public discovery uses `safe_profiles` view (`id`, `full_name`, `role`, `avatar_url` only).
+  - The home page now joins buddies→safe_profiles instead of buddies→profiles.
+  - Run with: `node scripts/apply-migration.mjs supabase/migrations/2026-09-26-rls-profiles-restrict.sql`
+
+**High**
+- `autoConfirm: true` on `create-profile` allowed ANY caller to confirm arbitrary users within a 15-minute window (incl. IDOR over arbitrary victim userIds).
+  - Fix: the `autoConfirm` flag is now DEPRECATED. New auth path uses a one-shot `signupToken` issued by `/api/auth/signup` (5-min TTL, single-use, scoped to a userId). Cookie-session users are still accepted.
+- No rate limit on `/api/auth/signup`, `/api/auth/signup-admin`, `/api/auth/create-profile`, `/api/auth/resend-otp`, `/api/newsletter/subscribe`.
+  - Fix: `utils/rate-limit.ts` is a per-IP in-memory token-bucket limiter. signups throttle at 5/min, create-profile at 10/min, resend-otp at 3/min, newsletter at 3/min.
+
+**Medium**
+- `/api/newsletter/subscribe` accepted cross-origin POSTs (CSRF).
+  - Fix: same-origin check on `Origin`/`Referer` against `Host`.
+- Email enumeration via `/api/auth/signup` (different error for existing vs fresh email).
+  - Fix: identical generic message for both cases ("Sign up could not be completed with these details.").
+- XSS via `full_name` / `bio` / `location_city` (HTML was stored verbatim and rendered as raw text in some components).
+  - Fix: server-side stripping of control chars + `<...>` tags before insert.
+- OTP brute force: 25 random code attempts against a fresh userId.
+  - Fix: the OTP route itself already enforced `attempts >= MAX_ATTEMPTS` (5) in `utils/otp.ts`. Verified working.
+
+**Defensive utilities added**
+- `utils/rate-limit.ts` — `rateLimit(key, bucket, opts)`, `getClientIp(req)`, `rateLimitResponse(resetAt)`.
+- `scripts/apply-migration.mjs` — applies SQL migrations to Supabase.
+- `scripts/verify-defenses.mjs`, `scripts/verify-defenses-via-vercel.mjs`, `scripts/verify-profiles-db.mjs` — post-deploy checks.
+
+**How to verify quickly**
+```
+# Rate limit (expect 429 after 5 reqs)
+for ($i = 1; $i -le 7; $i++) { vercel curl <prod>/api/auth/signup -X POST -H "content-type: application/json" -d ('{"email":"v' + $i + '-' + (Get-Date).Ticks.ToString() + '@test.com","password":"password123","fullName":"V","role":"tourist"}') }
+
+# CSRF newsletter (expect 403)
+vercel curl <prod>/api/newsletter/subscribe -X POST -H "content-type: application/x-www-form-urlencoded" -H "origin: https://evil.example.com" -d "email=evil@evil.com"
+
+# IDOR create-profile (expect 401)
+vercel curl <prod>/api/auth/create-profile -X POST -H "content-type: application/json" -d '{"userId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","role":"buddy","payload":{}}'
+
+# Anon profiles read (expect [])
+curl 'https://pqvnjgyqbxlylawwogjv.supabase.co/rest/v1/profiles?select=*&limit=2' -H "apikey: sb_publishable_3uRUZqdvazd4cENt8WOWJA_SB7HmCEE" -H "authorization: Bearer sb_publishable_3uRUZqdvazd4cENt8WOWJA_SB7HmCEE"
+```
+
 ### Postgres / Node `pg` quirks (Windows PowerShell)
 - **PowerShell does NOT support inline env prefix**: `VAR=value node script` is invalid. Use `$env:VAR="value"` before the command, or chain: `cmd /c "set VAR=value&& node script"`.
 - **PowerShell here-strings**: do NOT use `Get-Content file | node` or pipe into node; pipe `node script` output through `Out-String | Select-String` instead of grep.
