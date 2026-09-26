@@ -34,6 +34,9 @@ export async function middleware(request: NextRequest) {
   // Auth routes — allow if logged in (redirect to dashboard) or not logged in
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register')
   const isPublicRoute = pathname === '/' || pathname.startsWith('/forgot-password')
+  // /verify-email is part of the sign-up flow but lives outside /register, so
+  // it needs to be reachable while logged out.
+  const isVerifyEmailRoute = pathname.startsWith('/verify-email')
 
   // If on auth pages while logged in, redirect to dashboard
   if (isAuthRoute && user) {
@@ -49,7 +52,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // If not on auth/public routes and not logged in, redirect to login
-  if (!isAuthRoute && !isPublicRoute && !user) {
+  if (!isAuthRoute && !isPublicRoute && !isVerifyEmailRoute && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirectTo', pathname)
