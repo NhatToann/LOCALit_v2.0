@@ -114,17 +114,29 @@ export async function POST(req: NextRequest) {
   const passwordPlain = pending.password_plain
 
   // ---- Double-check email is still free -------------------------------------
+  //
+  // DEV escape hatch: when OTP_PREVIEW_ALLOW_REUSED=1, delete any existing
+  // profile row that matches this email. This lets you re-register an
+  // existing email during testing without manually cleaning the DB first.
+  //
+  // Production: reject duplicates (409) so sign-up remains a one-way door.
   const { data: clash } = await admin
     .from('profiles')
     .select('id')
     .eq('email', emailStr)
     .maybeSingle()
   if (clash) {
-    // Race condition: someone registered the same email between /start and /complete.
-    return NextResponse.json(
-      { error: 'This email is now registered. Please sign in.' },
-      { status: 409 },
-    )
+    if (process.env.OTP_PREVIEW_ALLOW_REUSED === '1') {
+      console.warn(`[signup/complete] DEV: deleting existing profile ${clash.id} for ${emailStr}`)
+      // CASCADE deletes the auth.users + tourists/buddies row automatically.
+      await admin.auth.admin.deleteUser(clash.id)
+    } else {
+      // Race condition: someone registered the same email between /start and /complete.
+      return NextResponse.json(
+        { error: 'This email is now registered. Please sign in.' },
+        { status: 409 },
+      )
+    }
   }
 
   // ---- Create auth.users ----------------------------------------------------
