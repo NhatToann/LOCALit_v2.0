@@ -299,9 +299,6 @@ function RegisterForm() {
   async function finalizeSignup() {
     setError('')
     setLoading(true)
-    // #region agent log
-    fetch('http://127.0.0.1:7361/ingest/de2e065f-e3a3-4716-9f9f-e202e338a42b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f52780'},body:JSON.stringify({sessionId:'f52780',runId:'reg-step1',hypothesisId:'FIX',location:'app/register/page.tsx:finalizeSignup',message:'finalizeSignup start',data:{email:form.email,role:form.role},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     try {
       // Build the role-specific profile payload. /api/auth/signup handles
@@ -340,9 +337,6 @@ function RegisterForm() {
           profilePayload,
         }),
       })
-      // #region agent log
-      fetch('http://127.0.0.1:7361/ingest/de2e065f-e3a3-4716-9f9f-e202e338a42b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f52780'},body:JSON.stringify({sessionId:'f52780',runId:'reg-step1',hypothesisId:'FIX',location:'app/register/page.tsx:finalizeSignup',message:'signup responded',data:{status:res.status,ok:res.ok},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: 'Unknown error' }))
@@ -358,9 +352,6 @@ function RegisterForm() {
         router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
         return
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7361/ingest/de2e065f-e3a3-4716-9f9f-e202e338a42b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f52780'},body:JSON.stringify({sessionId:'f52780',runId:'reg-step1',hypothesisId:'FIX',location:'app/register/page.tsx:finalizeSignup',message:'redirecting to dashboard',data:{role:form.role},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       router.push(form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard')
     } catch (err) {
       console.error('Finalize sign-up error:', err)
@@ -407,9 +398,6 @@ function RegisterForm() {
             onSubmit={(e) => {
               e.preventDefault()
               if (!stepReady || loading) return
-              // #region agent log
-              fetch('http://127.0.0.1:7361/ingest/de2e065f-e3a3-4716-9f9f-e202e338a42b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f52780'},body:JSON.stringify({sessionId:'f52780',runId:'reg-step1',hypothesisId:'FIX',location:'app/register/page.tsx:step1Submit',message:'step1 onSubmit fired',data:{step,roleParam:searchParams.get('role'),stepReady,loading},timestamp:Date.now()})}).catch(()=>{});
-              // #endregion
               // If a role was provided via ?role=, skip the role picker and
               // go straight to the tags step. Otherwise show the role picker.
               const initialRole = searchParams.get('role')
