@@ -85,21 +85,21 @@ export default function DaNangBackdrop() {
       aria-hidden="true"
       className="fixed inset-0 -z-10 overflow-hidden bg-paper"
     >
-      {/* Photo layer — desaturated + softened */}
+      {/* Photo layer — desaturated + softened but visible */}
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{
           backgroundImage: `url(${photo.src})`,
-          opacity: 0.18,
-          filter: 'saturate(0.7) contrast(0.95)',
+          opacity: 0.32,
+          filter: 'saturate(0.85) contrast(0.95)',
         }}
       />
-      {/* Paper-tone wash to keep contrast for white surfaces */}
+      {/* Soft paper wash — just enough to keep white surfaces legible */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'linear-gradient(180deg, rgba(250,250,247,0.55) 0%, rgba(250,250,247,0.78) 100%)',
+            'linear-gradient(180deg, rgba(250,250,247,0.25) 0%, rgba(250,250,247,0.45) 100%)',
         }}
       />
       {/* Tiny attribution mark, bottom-right, never visible to assistive tech */}

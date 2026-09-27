@@ -257,7 +257,142 @@ export default function BuddyRequestsPage() {
       </header>
 
       {/* ============================================================
+          INCOMING CONNECTION REQUESTS — pending first, then the rest
+          ============================================================ */}
+      {/* Filter chips */}
+      <div className="flex flex-wrap gap-2 mb-4" role="tablist">
+        {(['all', 'pending', 'accepted', 'declined'] as const).map((f) => {
+          const active = filter === f
+          return (
+            <button
+              key={f}
+              role="tab"
+              aria-selected={active}
+              onClick={() => setFilter(f)}
+              className={`h-8 px-3 text-sm font-medium rounded-pill border transition-colors duration-150 capitalize ${
+                active
+                  ? 'bg-primary text-paper border-primary'
+                  : 'bg-transparent text-muted border-border hover:text-ink hover:border-border-strong'
+              }`}
+            >
+              {f}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Request list (flat, not card soup) */}
+      {sorted.length === 0 ? (
+        <div className="border border-border rounded-sm p-12 bg-surface text-center">
+          <p className="text-base text-muted">
+            No requests in this section. New connection requests will appear here.
+          </p>
+        </div>
+      ) : (
+        <section
+          aria-labelledby="requests-title"
+          className="border border-border rounded-sm bg-surface mb-8"
+        >
+          <header className="px-6 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 id="requests-title" className="text-lg font-semibold">
+                Connection requests
+              </h2>
+              <p className="text-sm text-muted mt-1">
+                Stage 1 — tourists searching for a buddy. Pending requests show first.
+              </p>
+            </div>
+            <span className="badge badge-primary">{sorted.length}</span>
+          </header>
+          <ul className="divide-y divide-border">
+            {sorted.map((r) => {
+              const t = r.tourist as any
+              const isPending = r.status === 'pending'
+              const ageHours = Math.floor(
+                (Date.now() - new Date(r.created_at).getTime()) / (1000 * 60 * 60),
+              )
+              const isUrgent = isPending && ageHours >= 24
+              return (
+                <li key={r.id} className="p-4">
+                  <div className="flex flex-wrap items-start gap-4">
+                    <Avatar name={t?.profile?.full_name ?? 'Traveler'} size="lg" />
+                    <div className="flex-1 min-w-[240px]">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <p className="text-base font-semibold text-ink">
+                          {t?.profile?.full_name ?? 'Traveler'}
+                        </p>
+                        <span className="badge badge-neutral text-xs">
+                          {t?.nationality || '—'} · {t?.destination || 'Da Nang'}
+                        </span>
+                        {isUrgent ? (
+                          <span className="badge badge-warning text-xs">
+                            <Clock size={12} className="mr-1" aria-hidden="true" />
+                            Waiting {ageHours}h
+                          </span>
+                        ) : null}
+                      </div>
+                      {r.message ? (
+                        <blockquote className="text-sm text-ink leading-relaxed mt-2 px-3 py-2 border-l-2 border-border-strong max-w-prose">
+                          &ldquo;{r.message}&rdquo;
+                        </blockquote>
+                      ) : null}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {t?.interests?.slice(0, 3).map((i: string) => (
+                          <span key={i} className="badge badge-neutral text-xs">
+                            {i}
+                          </span>
+                        ))}
+                        {t?.languages?.slice(0, 3).map((l: string) => (
+                          <span key={l} className="lang-chip">{l}</span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted mt-2">
+                        Arrival:{' '}
+                        {t?.arrival_date
+                          ? new Date(t.arrival_date).toLocaleDateString('en-US')
+                          : 'Not specified'}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 min-w-[140px]">
+                      {r.status === 'pending' ? (
+                        <>
+                          <button
+                            onClick={() => updateStatus(r.id, 'accepted')}
+                            className="inline-flex items-center justify-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+                          >
+                            <Check size={14} aria-hidden="true" />
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => updateStatus(r.id, 'declined')}
+                            className="inline-flex items-center justify-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+                          >
+                            <X size={14} aria-hidden="true" />
+                            Decline
+                          </button>
+                        </>
+                      ) : (
+                        <span
+                          className={`badge ${
+                            r.status === 'accepted' ? 'badge-success' : 'badge-danger'
+                          } justify-center w-full`}
+                        >
+                          {r.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* ============================================================
           TOURIST MATCHING & SEARCH — buddies discover travelers
+          (Below the inbox so the inbox keeps priority for the buddy's daily flow.)
           ============================================================ */}
       <section
         aria-labelledby="matches-title"
@@ -266,7 +401,7 @@ export default function BuddyRequestsPage() {
         <header className="px-6 py-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="matches-title" className="text-lg font-semibold">
-              Find travelers matching your specialties
+              Discover travelers matching your specialties
             </h2>
             <p className="text-sm text-muted mt-1">
               Search Da Nang-bound travelers by interests, language, or nationality. Send the first
@@ -433,121 +568,6 @@ export default function BuddyRequestsPage() {
           </ul>
         )}
       </section>
-
-      {/* Filter chips */}
-      <div className="flex flex-wrap gap-2 mb-6" role="tablist">
-        {(['all', 'pending', 'accepted', 'declined'] as const).map((f) => {
-          const active = filter === f
-          return (
-            <button
-              key={f}
-              role="tab"
-              aria-selected={active}
-              onClick={() => setFilter(f)}
-              className={`h-8 px-3 text-sm font-medium rounded-pill border transition-colors duration-150 capitalize ${
-                active
-                  ? 'bg-primary text-paper border-primary'
-                  : 'bg-transparent text-muted border-border hover:text-ink hover:border-border-strong'
-              }`}
-            >
-              {f}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Request list (flat, not card soup) */}
-      {sorted.length === 0 ? (
-        <div className="border border-border rounded-sm p-12 bg-surface text-center">
-          <p className="text-base text-muted">
-            No requests in this section. New connection requests will appear here.
-          </p>
-        </div>
-      ) : (
-        <ul className="divide-y divide-border border border-border rounded-sm bg-surface">
-          {sorted.map((r) => {
-            const t = r.tourist as any
-            const isPending = r.status === 'pending'
-            const ageHours = Math.floor(
-              (Date.now() - new Date(r.created_at).getTime()) / (1000 * 60 * 60),
-            )
-            const isUrgent = isPending && ageHours >= 24
-            return (
-              <li key={r.id} className="p-4">
-                <div className="flex flex-wrap items-start gap-4">
-                  <Avatar name={t?.profile?.full_name ?? 'Traveler'} size="lg" />
-                  <div className="flex-1 min-w-[240px]">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <p className="text-base font-semibold text-ink">
-                        {t?.profile?.full_name ?? 'Traveler'}
-                      </p>
-                      <span className="badge badge-neutral text-xs">
-                        {t?.nationality || '—'} · {t?.destination || 'Da Nang'}
-                      </span>
-                      {isUrgent ? (
-                        <span className="badge badge-warning text-xs">
-                          <Clock size={12} className="mr-1" aria-hidden="true" />
-                          Waiting {ageHours}h
-                        </span>
-                      ) : null}
-                    </div>
-                    {r.message ? (
-                      <blockquote className="text-sm text-ink leading-relaxed mt-2 px-3 py-2 border-l-2 border-border-strong max-w-prose">
-                        &ldquo;{r.message}&rdquo;
-                      </blockquote>
-                    ) : null}
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {t?.interests?.slice(0, 3).map((i: string) => (
-                        <span key={i} className="badge badge-neutral text-xs">
-                          {i}
-                        </span>
-                      ))}
-                      {t?.languages?.slice(0, 3).map((l: string) => (
-                        <span key={l} className="lang-chip">{l}</span>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted mt-2">
-                      Arrival:{' '}
-                      {t?.arrival_date
-                        ? new Date(t.arrival_date).toLocaleDateString('en-US')
-                        : 'Not specified'}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col gap-2 min-w-[140px]">
-                    {r.status === 'pending' ? (
-                      <>
-                        <button
-                          onClick={() => updateStatus(r.id, 'accepted')}
-                          className="inline-flex items-center justify-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
-                        >
-                          <Check size={14} aria-hidden="true" />
-                          Accept
-                        </button>
-                        <button
-                          onClick={() => updateStatus(r.id, 'declined')}
-                          className="inline-flex items-center justify-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-                        >
-                          <X size={14} aria-hidden="true" />
-                          Decline
-                        </button>
-                      </>
-                    ) : (
-                      <span
-                        className={`badge ${
-                          r.status === 'accepted' ? 'badge-success' : 'badge-danger'
-                        } justify-center w-full`}
-                      >
-                        {r.status}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      )}
     </div>
   )
 }

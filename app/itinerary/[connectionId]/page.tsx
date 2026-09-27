@@ -31,18 +31,20 @@ import DaysTab from '@/components/itinerary/DaysTab'
 import BookingsTab from '@/components/itinerary/BookingsTab'
 import PackingTab from '@/components/itinerary/PackingTab'
 import ActivityFeed from '@/components/itinerary/ActivityFeed'
+import ManageCompanions from '@/components/itinerary/ManageCompanions'
 
 interface PageProps {
   params: Promise<{ connectionId: string }>
 }
 
-type Tab = 'plan' | 'days' | 'bookings' | 'packing'
+type Tab = 'plan' | 'days' | 'bookings' | 'packing' | 'group'
 
 const TABS: Array<{ id: Tab; label: string; icon: typeof Compass }> = [
   { id: 'plan', label: 'Plan', icon: Pencil },
   { id: 'days', label: 'Days & Map', icon: Calendar },
   { id: 'bookings', label: 'Bookings & Budget', icon: Receipt },
   { id: 'packing', label: 'Packing', icon: Backpack },
+  { id: 'group', label: 'Group', icon: Users },
 ]
 
 export default function SharedItineraryPage({ params }: PageProps) {
@@ -183,6 +185,30 @@ export default function SharedItineraryPage({ params }: PageProps) {
           role: r.role,
         })),
       )
+
+      // Self-accept invitations: when a companion or co-buddy lands on the trip
+      // page, flip their own row from 'invited' to 'accepted' (RLS allows the
+      // invited user to update only their own row). Silently skipped if RLS denies.
+      const invitedTraveler = (travelersRows as any[])?.find(
+        (r) => r.tourist_id === user.id && r.status === 'invited',
+      )
+      if (invitedTraveler) {
+        await supabase
+          .from('trip_travelers')
+          .update({ status: 'accepted' })
+          .eq('trip_id', activeTrip.id)
+          .eq('tourist_id', user.id)
+      }
+      const invitedBuddy = (buddiesRows as any[])?.find(
+        (r) => r.buddy_id === user.id && r.status === 'invited',
+      )
+      if (invitedBuddy) {
+        await supabase
+          .from('trip_buddies')
+          .update({ status: 'accepted' })
+          .eq('trip_id', activeTrip.id)
+          .eq('buddy_id', user.id)
+      }
     }
 
     setLoading(false)
@@ -531,6 +557,25 @@ export default function SharedItineraryPage({ params }: PageProps) {
               ) : null}
               {tab === 'packing' ? (
                 <PackingTab trip={trip} canEdit={canEdit} me={me!} onLogActivity={logActivity} />
+              ) : null}
+              {tab === 'group' && trip ? (
+                <div className="p-6">
+                  <div className="mb-4">
+                    <h2 className="text-lg font-semibold mb-1">Group on this trip</h2>
+                    <p className="text-sm text-muted">
+                      Add companions (other travelers in your group) and co-buddies (extra local
+                      guides). Leads can invite; everyone can see who is on the trip.
+                    </p>
+                  </div>
+                  <ManageCompanions
+                    tripId={trip.id}
+                    myId={me?.id ?? ''}
+                    canManage={canEdit && (me?.id === trip.tourist_id || me?.id === trip.buddy_id)}
+                    onChange={() => {
+                      if (connectionId) load(connectionId)
+                    }}
+                  />
+                </div>
               ) : null}
             </>
           ) : null}

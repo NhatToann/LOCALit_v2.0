@@ -506,17 +506,36 @@ export default function BuddyDashboardPage() {
                         : trip.status === 'cancelled'
                           ? 'danger'
                           : 'warning'
+                  // Find the connection row that owns this trip. The trip may not
+                  // exist yet (planning stage), so fall back to looking up the
+                  // tourist's most recent accepted connection.
+                  const conn = requests.find(
+                    (r) =>
+                      r.tourist_id === trip.tourist_id &&
+                      r.buddy_id === trip.buddy_id,
+                  )
+                  const connId = conn?.id ?? null
                   return (
-                    <li key={trip.id} className="py-3 flex items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{trip.title}</p>
-                        <p className="text-xs text-muted mt-0.5 truncate">
-                          {trip.destination}
-                          {trip.start_date ? ` · ${new Date(trip.start_date).toLocaleDateString('en-US')}` : ''}
-                        </p>
-                        <p className="text-xs text-muted mt-0.5 truncate">{name}</p>
-                      </div>
-                      <span className={`badge badge-${tone}`}>{trip.status}</span>
+                    <li key={trip.id}>
+                      <Link
+                        href={connId ? `/itinerary/${connId}` : `/chat?buddy=${trip.buddy_id ?? ''}`}
+                        className="flex items-center justify-between gap-3 py-3 px-2 -mx-2 rounded-sm hover:bg-paper transition-colors duration-150"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{trip.title}</p>
+                          <p className="text-xs text-muted mt-0.5 truncate">
+                            {trip.destination}
+                            {trip.start_date ? ` · ${new Date(trip.start_date).toLocaleDateString('en-US')}` : ''}
+                          </p>
+                          <p className="text-xs text-muted mt-0.5 truncate">{name}</p>
+                        </div>
+                        <span className={`badge badge-${tone}`}>{trip.status}</span>
+                        <Compass
+                          size={14}
+                          className="text-subtle flex-shrink-0"
+                          aria-hidden="true"
+                        />
+                      </Link>
                     </li>
                   )
                 })}
@@ -590,11 +609,12 @@ export default function BuddyDashboardPage() {
       </div>
 
       {/* ============================================================
-          QUICK ACTIONS
+          QUICK ACTIONS — non-duplicate calls to action
+          (Top nav already covers Profile / Map / Messages.)
           ============================================================ */}
       <section aria-label="Quick actions">
         <h2 className="text-lg font-semibold mb-3">Quick actions</h2>
-        <ul className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <li>
             <Link
               href="/buddy/requests"
@@ -611,43 +631,29 @@ export default function BuddyDashboardPage() {
           </li>
           <li>
             <Link
-              href="/buddy/profile"
+              href="/buddy/requests#matches"
               className="flex items-start gap-3 p-4 border border-border rounded-sm bg-surface hover:border-border-strong transition-colors duration-150"
             >
               <span className="inline-flex items-center justify-center w-10 h-10 rounded-sm bg-info text-paper flex-shrink-0" aria-hidden="true">
-                <ClipboardList size={18} />
+                <Compass size={18} />
               </span>
               <span>
-                <strong className="block text-sm font-semibold">Complete profile</strong>
-                <small className="block text-xs text-muted mt-0.5">Bio, specialties, rate</small>
+                <strong className="block text-sm font-semibold">Browse open travelers</strong>
+                <small className="block text-xs text-muted mt-0.5">Match by interest + language</small>
               </span>
             </Link>
           </li>
           <li>
             <Link
-              href="/chat"
+              href="/buddy/profile"
               className="flex items-start gap-3 p-4 border border-border rounded-sm bg-surface hover:border-border-strong transition-colors duration-150"
             >
               <span className="inline-flex items-center justify-center w-10 h-10 rounded-sm bg-primary text-paper flex-shrink-0" aria-hidden="true">
-                <MessageCircle size={18} />
+                <ClipboardList size={18} />
               </span>
               <span>
-                <strong className="block text-sm font-semibold">Messages</strong>
-                <small className="block text-xs text-muted mt-0.5">Chat with active tourists</small>
-              </span>
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/map"
-              className="flex items-start gap-3 p-4 border border-border rounded-sm bg-surface hover:border-border-strong transition-colors duration-150"
-            >
-              <span className="inline-flex items-center justify-center w-10 h-10 rounded-sm bg-success text-paper flex-shrink-0" aria-hidden="true">
-                <MapPin size={18} />
-              </span>
-              <span>
-                <strong className="block text-sm font-semibold">Pin my location</strong>
-                <small className="block text-xs text-muted mt-0.5">Show up on the buddy map</small>
+                <strong className="block text-sm font-semibold">Edit profile</strong>
+                <small className="block text-xs text-muted mt-0.5">Bio, rate, specialties</small>
               </span>
             </Link>
           </li>

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/utils/supabase/auth';
-import { Briefcase, Users, Clock, Send, MapPin, Calendar, User, Search, Map as MapIcon, MessageCircle, UserCircle, Compass, Phone } from 'lucide-react';
+import { Briefcase, Users, Clock, Send, MapPin, Calendar, User, Search, MessageCircle, UserCircle, Compass, Phone } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/Avatar';
 import type { Profile, Trip, Connection } from '@/lib/types';
@@ -319,38 +319,55 @@ export default function TouristDashboardPage() {
                           ? 'danger'
                           : 'warning'
                   return (
-                    <li key={trip.id} className="py-3 flex items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-ink truncate">{trip.title}</p>
-                        <p className="text-xs text-muted mt-0.5">
-                          <MapPin size={12} className="inline mr-1" aria-hidden="true" />
-                          {trip.destination}
-                          {trip.start_date ? (
-                            <>
-                              {' · '}
-                              <Calendar size={12} className="inline mr-1" aria-hidden="true" />
-                              {new Date(trip.start_date).toLocaleDateString('en-US')}
-                            </>
-                          ) : null}
-                        </p>
-                        {buddy?.profile?.full_name ? (
+                    <li key={trip.id}>
+                      <Link
+                        href={
+                          // Prefer the connectionId so /itinerary can resolve the trip.
+                          // Fall back to /tourist/trips/<id> if no connection (planning).
+                          connections.find(
+                            (cc) =>
+                              cc.tourist_id === trip.tourist_id &&
+                              cc.buddy_id === trip.buddy_id,
+                          )?.id
+                            ? `/itinerary/${connections.find((cc) => cc.tourist_id === trip.tourist_id && cc.buddy_id === trip.buddy_id)!.id}`
+                            : `/tourist/trips/${trip.id}`
+                        }
+                        className="flex items-center justify-between gap-3 py-3 px-2 -mx-2 rounded-sm hover:bg-paper transition-colors duration-150"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-ink truncate">{trip.title}</p>
                           <p className="text-xs text-muted mt-0.5">
-                            <User size={12} className="inline mr-1" aria-hidden="true" />
-                            {buddy.profile.full_name}
+                            <MapPin size={12} className="inline mr-1" aria-hidden="true" />
+                            {trip.destination}
+                            {trip.start_date ? (
+                              <>
+                                {' · '}
+                                <Calendar size={12} className="inline mr-1" aria-hidden="true" />
+                                {new Date(trip.start_date).toLocaleDateString('en-US')}
+                              </>
+                            ) : null}
                           </p>
-                        ) : null}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`badge badge-${statusTone}`}>{trip.status}</span>
-                        {trip.status === 'completed' && buddy?.id ? (
-                          <Link
-                            href={`/review/${trip.id}`}
-                            className="inline-flex items-center h-8 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-                          >
-                            Review
-                          </Link>
-                        ) : null}
-                      </div>
+                          {buddy?.profile?.full_name ? (
+                            <p className="text-xs text-muted mt-0.5">
+                              <User size={12} className="inline mr-1" aria-hidden="true" />
+                              {buddy.profile.full_name}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`badge badge-${statusTone}`}>{trip.status}</span>
+                          {trip.status === 'completed' && buddy?.id ? (
+                            <span className="inline-flex items-center h-8 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong">
+                              Review
+                            </span>
+                          ) : null}
+                          <Compass
+                            size={14}
+                            className="text-subtle flex-shrink-0"
+                            aria-hidden="true"
+                          />
+                        </div>
+                      </Link>
                     </li>
                   )
                 })}
@@ -445,10 +462,11 @@ export default function TouristDashboardPage() {
         </section>
       </div>
 
-      {/* Quick actions */}
+      {/* Quick actions — non-duplicate calls to action.
+          Top nav already covers Map and Messages. */}
       <section className="mt-6" aria-label="Quick actions">
         <h2 className="text-lg font-semibold mb-3">Quick actions</h2>
-        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <QuickAction
             href="/tourist/browse"
             icon={Search}
@@ -456,17 +474,16 @@ export default function TouristDashboardPage() {
             subtitle="Browse verified local guides"
           />
           <QuickAction
-            href="/map"
-            icon={MapIcon}
-            title="Buddy map"
-            subtitle="See who is nearby right now"
+            href="/tourist/trips/create"
+            icon={Briefcase}
+            title="Plan a new trip"
+            subtitle="Sketch a Da Nang itinerary"
           />
-          <QuickAction href="/chat" icon={MessageCircle} title="Messages" subtitle="Chat with your buddies" />
           <QuickAction
             href="/tourist/profile"
             icon={User}
-            title="My profile"
-            subtitle="Update preferences and interests"
+            title="Edit profile"
+            subtitle="Interests, languages, arrival"
           />
         </ul>
       </section>
