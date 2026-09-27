@@ -64,8 +64,14 @@ export function usePresence(
 
     return () => {
       clearInterval(hb)
-      supabase.removeChannel(channel)
-      channelRef.current = null
+      if (channelRef.current === channel) {
+        channelRef.current = null
+      }
+      try {
+        supabase.removeChannel(channel)
+      } catch {
+        // Channel may already be gone during fast remounts.
+      }
       setUsers([])
     }
   }, [channelName, me?.user_id])

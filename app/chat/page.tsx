@@ -310,7 +310,7 @@ function ChatInner() {
 
   const { typingPeers, notifyTyping } = useTyping(activeId, myId, peerNames)
 
-  const { presenceUsers } = usePresence(activeId ? `conv-${activeId}` : null, myId ? { user_id: myId, full_name: myName } : null)
+  const { presenceUsers } = usePresence(activeId ? `presence-conv-${activeId}` : null, myId ? { user_id: myId, full_name: myName } : null)
   const isPartnerOnline = presenceUsers.some((u) => u.user_id !== myId)
 
   async function handleSend(e: React.FormEvent) {
