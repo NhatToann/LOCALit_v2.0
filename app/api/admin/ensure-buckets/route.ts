@@ -4,15 +4,13 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 /**
  * POST /api/admin/ensure-buckets — idempotent. Safe to call repeatedly.
  *
- * Uses the SERVICE_ROLE_KEY (server-only) to create the `avatars` bucket if it
- * doesn't exist. Public access (so avatar URLs work in <img src=...>).
+ * Uses the SERVICE_ROLE_KEY (server-only) to create storage buckets.
  *
- * Body: { buckets?: string[] }   defaults to ['avatars'].
+ * Body: { buckets?: Array<{name, public?, sizeMB?, mimes?}> }
+ *   defaults to: avatars, trip-photos (public, 5MB),
+ *                chat-attachments (private, 10MB)
  */
 export async function POST(req: Request) {
-  // Lightweight gate — only admins can hit this. The route is meant to be
-  // called from deployment scripts, not by users, but we also require an
-  // internal cron token to avoid anon tampering.
   const internalToken = process.env.INTERNAL_API_TOKEN
   const provided = req.headers.get('x-internal-token')
   if (!internalToken || provided !== internalToken) {
@@ -24,8 +22,19 @@ export async function POST(req: Request) {
   if (!serviceKey || !url) {
     return NextResponse.json({ error: 'server-misconfigured' }, { status: 500 })
   }
-  const body = (await req.json().catch(() => ({}))) as { buckets?: string[] }
-  const wanted = body.buckets || ['avatars']
+
+  const body = (await req.json().catch(() => ({}))) as {
+    buckets?: Array<{ name: string; public?: boolean; sizeMB?: number; mimes?: string[] }>
+  }
+
+  const wanted =
+    body.buckets && body.buckets.length > 0
+      ? body.buckets
+      : [
+          { name: 'avatars', public: true, sizeMB: 5, mimes: ['image/png', 'image/jpeg', 'image/webp'] },
+          { name: 'trip-photos', public: true, sizeMB: 5, mimes: ['image/png', 'image/jpeg', 'image/webp'] },
+          { name: 'chat-attachments', public: false, sizeMB: 10, mimes: ['image/png', 'image/jpeg', 'image/webp', 'application/pdf', 'text/plain'] },
+        ]
 
   const admin = createAdminClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -38,18 +47,32 @@ export async function POST(req: Request) {
   const existingNames = new Set((existing || []).map((b) => b.name))
 
   const created: string[] = []
-  for (const name of wanted) {
-    if (existingNames.has(name)) continue
-    const { error } = await admin.storage.createBucket(name, {
-      public: true,
-      fileSizeLimit: 5 * 1024 * 1024,
-      allowedMimeTypes: name === 'avatars' ? ['image/png', 'image/jpeg', 'image/webp'] : undefined,
+  const updated: string[] = []
+  for (const b of wanted) {
+    if (existingNames.has(b.name)) {
+      // Update size limit / mime types if they differ
+      const cur = (existing || []).find((x) => x.name === b.name)
+      const wantSize = (b.sizeMB ?? 5) * 1024 * 1024
+      if (cur && cur.file_size_limit !== wantSize) {
+        const { error } = await admin.storage.updateBucket(b.name, {
+          fileSizeLimit: wantSize,
+          allowedMimeTypes: b.mimes,
+          public: b.public ?? true,
+        })
+        if (!error) updated.push(b.name)
+      }
+      continue
+    }
+    const { error } = await admin.storage.createBucket(b.name, {
+      public: b.public ?? true,
+      fileSizeLimit: (b.sizeMB ?? 5) * 1024 * 1024,
+      allowedMimeTypes: b.mimes,
     })
     if (error) {
-      return NextResponse.json({ error: error.message, created }, { status: 502 })
+      return NextResponse.json({ error: error.message, created, updated }, { status: 502 })
     }
-    created.push(name)
+    created.push(b.name)
   }
 
-  return NextResponse.json({ ok: true, created, existing: Array.from(existingNames) })
+  return NextResponse.json({ ok: true, created, updated, existing: Array.from(existingNames) })
 }

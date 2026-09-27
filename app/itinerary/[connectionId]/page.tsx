@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Compass,
-  Save,
+  Calendar,
+  Backpack,
+  Receipt,
   AlertTriangle,
   Users,
   Clock,
@@ -14,15 +16,34 @@ import {
   ArrowLeft,
   Pencil,
   Check,
+  Share2,
+  Copy,
+  Pin,
+  Plus,
+  X,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
-import type { Connection, Trip, Profile, TripStop } from '@/lib/types'
+import type { Connection, Trip, Profile, TripActivity } from '@/lib/types'
 import { Avatar } from '@/components/ui/Avatar'
 import { daysUntilExpiry, expiryLabel } from '@/lib/connection-stages'
+import PlanTab from '@/components/itinerary/PlanTab'
+import DaysTab from '@/components/itinerary/DaysTab'
+import BookingsTab from '@/components/itinerary/BookingsTab'
+import PackingTab from '@/components/itinerary/PackingTab'
+import ActivityFeed from '@/components/itinerary/ActivityFeed'
 
 interface PageProps {
   params: Promise<{ connectionId: string }>
 }
+
+type Tab = 'plan' | 'days' | 'bookings' | 'packing'
+
+const TABS: Array<{ id: Tab; label: string; icon: typeof Compass }> = [
+  { id: 'plan', label: 'Plan', icon: Pencil },
+  { id: 'days', label: 'Days & Map', icon: Calendar },
+  { id: 'bookings', label: 'Bookings & Budget', icon: Receipt },
+  { id: 'packing', label: 'Packing', icon: Backpack },
+]
 
 export default function SharedItineraryPage({ params }: PageProps) {
   const router = useRouter()
@@ -30,15 +51,14 @@ export default function SharedItineraryPage({ params }: PageProps) {
   const [me, setMe] = useState<Profile | null>(null)
   const [connection, setConnection] = useState<Connection | null>(null)
   const [trip, setTrip] = useState<Trip | null>(null)
-  const [stops, setStops] = useState<TripStop[]>([])
   const [loading, setLoading] = useState(true)
   const [canEdit, setCanEdit] = useState(false)
-  const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [notes, setNotes] = useState('')
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [staleDuration, setStaleDuration] = useState(false)
+  const [tab, setTab] = useState<Tab>('plan')
+  const [activity, setActivity] = useState<TripActivity[]>([])
+  const [showActivity, setShowActivity] = useState(true)
+  const [showShareMenu, setShowShareMenu] = useState(false)
+  const [copyOk, setCopyOk] = useState(false)
 
-  // Resolve params (Next.js 16 returns params as a Promise in client components)
   useEffect(() => {
     params.then((p) => setConnectionId(p.connectionId))
   }, [params])
@@ -54,7 +74,9 @@ export default function SharedItineraryPage({ params }: PageProps) {
 
     const { data: conn } = await supabase
       .from('connections')
-      .select('*, tourist:tourists(*, profile:profiles(*)), buddy:buddies(*, profile:profiles(*))')
+      .select(
+        '*, tourist:tourists(*, profile:profiles(*)), buddy:buddies(*, profile:profiles(*))',
+      )
       .eq('id', cid)
       .maybeSingle()
 
@@ -70,27 +92,21 @@ export default function SharedItineraryPage({ params }: PageProps) {
       setLoading(false)
       return
     }
+    setCanEdit(conn.status === 'accepted')
 
-    // Both participants can edit once status=accepted
-    const editable = conn.status === 'accepted'
-    setCanEdit(editable)
-
-    // Find a trip that already references this buddy + tourist pair
     const { data: trips } = await supabase
       .from('trips')
-      .select('*, tourist:tourists(*, profile:profiles(*)), buddy:buddies(*, profile:profiles(*))')
+      .select(
+        '*, tourist:tourists(*, profile:profiles(*)), buddy:buddies(*, profile:profiles(*))',
+      )
       .eq('tourist_id', conn.tourist_id)
       .eq('buddy_id', conn.buddy_id)
       .order('updated_at', { ascending: false })
       .limit(1)
 
-    const existingTrip = (trips && trips.length > 0 ? trips[0] : null) as Trip | null
-    let activeTrip = existingTrip
-
-    if (!existingTrip) {
-      // Auto-create a shared itinerary trip
+    let activeTrip = (trips && trips.length > 0 ? trips[0] : null) as Trip | null
+    if (!activeTrip) {
       const buddyProfile = (conn.buddy as any)?.profile
-      const touristProfile = (conn.tourist as any)?.profile
       const title = `Da Nang trip with ${buddyProfile?.full_name ?? 'buddy'}`
       const { data: created } = await supabase
         .from('trips')
@@ -105,16 +121,16 @@ export default function SharedItineraryPage({ params }: PageProps) {
         .single()
       activeTrip = created as Trip
     }
+    setTrip(activeTrip)
 
     if (activeTrip) {
-      setTrip(activeTrip)
-      setNotes(activeTrip.itinerary_notes ?? '')
-      const { data: stopsData } = await supabase
-        .from('trip_stops')
-        .select('*')
+      const { data: acts } = await supabase
+        .from('trip_activity')
+        .select('*, actor:profiles!trip_activity_actor_id_fkey(id, full_name, avatar_url)')
         .eq('trip_id', activeTrip.id)
-        .order('stop_order', { ascending: true })
-      setStops((stopsData || []) as TripStop[])
+        .order('created_at', { ascending: false })
+        .limit(20)
+      setActivity((acts as any) || [])
     }
 
     setLoading(false)
@@ -124,57 +140,63 @@ export default function SharedItineraryPage({ params }: PageProps) {
     if (connectionId) load(connectionId)
   }, [connectionId, load])
 
-  // Debounced autosave: write notes + last-edited attribution after 1.2s idle
-  const scheduleSave = useCallback((nextNotes: string) => {
-    if (!trip || !me) return
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    setSavingState('saving')
-    setStaleDuration(false)
-    saveTimer.current = setTimeout(async () => {
-      const supabase = createClient()
-      await supabase
-        .from('trips')
-        .update({
-          itinerary_notes: nextNotes,
-          itinerary_updated_by: me.id,
-          itinerary_updated_at: new Date().toISOString(),
-        })
-        .eq('id', trip.id)
-      setSavingState('saved')
-      setStaleDuration(true)
-    }, 1200)
-  }, [trip, me])
-
-  function onNotesChange(value: string) {
-    setNotes(value)
-    scheduleSave(value)
-  }
-
-  async function addStop() {
+  // Realtime: subscribe to trip_activity for live feed
+  useEffect(() => {
     if (!trip) return
-    const name = prompt('Name of the next stop?')
-    if (!name) return
     const supabase = createClient()
-    const order = stops.length
-    const { data, error } = await supabase
-      .from('trip_stops')
+    const channel = supabase
+      .channel(`trip-activity-${trip.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'trip_activity',
+          filter: `trip_id=eq.${trip.id}`,
+        },
+        async (payload) => {
+          // Refetch activity to get joined actor
+          const { data } = await supabase
+            .from('trip_activity')
+            .select('*, actor:profiles!trip_activity_actor_id_fkey(id, full_name, avatar_url)')
+            .eq('trip_id', trip.id)
+            .order('created_at', { ascending: false })
+            .limit(20)
+          setActivity((data as any) || [])
+        },
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [trip?.id])
+
+  function logActivity(verb: string, payload: Record<string, unknown> = {}) {
+    if (!trip || !me) return
+    const supabase = createClient()
+    supabase
+      .from('trip_activity')
       .insert({
         trip_id: trip.id,
-        stop_order: order,
-        name: name.trim().slice(0, 120),
-        address: null,
+        actor_id: me.id,
+        verb,
+        payload,
       })
-      .select()
-      .single()
-    if (!error && data) {
-      setStops([...stops, data as TripStop])
-    }
+      .then(() => {
+        // Realtime will refresh; nothing else to do
+      })
   }
 
-  async function removeStop(stopId: string) {
-    const supabase = createClient()
-    await supabase.from('trip_stops').delete().eq('id', stopId)
-    setStops(stops.filter((s) => s.id !== stopId))
+  async function copyShareLink() {
+    if (!trip?.share_token) return
+    const url = `${window.location.origin}/itinerary/share/${trip.share_token}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopyOk(true)
+      setTimeout(() => setCopyOk(false), 2000)
+    } catch {
+      window.prompt('Copy this link:', url)
+    }
   }
 
   if (loading) {
@@ -207,20 +229,53 @@ export default function SharedItineraryPage({ params }: PageProps) {
   const touristAvatar = tourist?.profile?.avatar_url
   const daysLeft = connection.status === 'accepted' ? daysUntilExpiry(connection.updated_at) : null
 
-  const lastEditor = (() => {
-    const who = trip?.itinerary_updated_by
-    if (who === me?.id) return 'you'
-    if (who === connection.tourist_id) return touristName
-    if (who === connection.buddy_id) return buddyName
-    return null
-  })()
-
   return (
-    <div className="container-page py-8 lg:py-12 space-y-6">
-      <Link href="/tourist/dashboard" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
-        <ArrowLeft size={14} aria-hidden="true" />
-        Back
-      </Link>
+    <div className="container-page py-6 lg:py-8 space-y-4">
+      {/* Top breadcrumb */}
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href={me?.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'}
+          className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink"
+        >
+          <ArrowLeft size={14} aria-hidden="true" />
+          Back
+        </Link>
+        {trip?.share_token ? (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowShareMenu((s) => !s)}
+              className="inline-flex items-center gap-1 h-8 px-3 text-sm rounded-sm bg-surface text-ink border border-border-strong hover:bg-paper"
+              aria-label="Share itinerary"
+            >
+              <Share2 size={13} aria-hidden="true" />
+              Share
+            </button>
+            {showShareMenu ? (
+              <div className="absolute right-0 top-full mt-1 z-20 w-72 p-3 bg-surface border border-border rounded-sm shadow-focus">
+                <p className="text-xs text-muted mb-2">
+                  Anyone with this link can read (not edit) your itinerary.
+                </p>
+                <button
+                  type="button"
+                  onClick={copyShareLink}
+                  className="w-full inline-flex items-center justify-center gap-1 h-8 px-3 text-xs font-medium rounded-sm bg-primary text-paper hover:bg-primary-hover"
+                >
+                  {copyOk ? (
+                    <>
+                      <Check size={12} aria-hidden="true" /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} aria-hidden="true" /> Copy public link
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       {/* Hero */}
       <section className="relative overflow-hidden border border-border rounded-sm bg-surface">
@@ -253,7 +308,15 @@ export default function SharedItineraryPage({ params }: PageProps) {
               <span className="text-sm text-ink font-medium">{buddyName}</span>
             </div>
             <span className="hidden sm:inline text-subtle">·</span>
-            <span className={`badge badge-${connection.status === 'accepted' ? 'success' : connection.status === 'declined' ? 'danger' : 'warning'}`}>
+            <span
+              className={`badge badge-${
+                connection.status === 'accepted'
+                  ? 'success'
+                  : connection.status === 'declined'
+                    ? 'danger'
+                    : 'warning'
+              }`}
+            >
               {connection.status}
             </span>
             {daysLeft !== null ? (
@@ -267,8 +330,8 @@ export default function SharedItineraryPage({ params }: PageProps) {
             <div className="alert alert-warning mt-4" role="alert">
               <AlertTriangle size={16} aria-hidden="true" />
               <span>
-                Editing unlocks once the buddy accepts the connection.
-                You can still read the plan.
+                Editing unlocks once the buddy accepts the connection. You can
+                still read the plan.
               </span>
             </div>
           ) : null}
@@ -302,7 +365,7 @@ export default function SharedItineraryPage({ params }: PageProps) {
           </span>
         </Link>
         <Link
-          href={`/tourist/trips`}
+          href={me?.role === 'buddy' ? '/buddy/dashboard' : '/tourist/trips'}
           className="flex items-center gap-3 p-4 border border-border rounded-sm bg-surface hover:border-border-strong transition-colors duration-150"
         >
           <span className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-info text-paper" aria-hidden="true">
@@ -315,109 +378,77 @@ export default function SharedItineraryPage({ params }: PageProps) {
         </Link>
       </section>
 
-      {/* Shared notes editor */}
-      <section className="border border-border rounded-sm bg-surface" aria-labelledby="notes-title">
-        <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h2 id="notes-title" className="text-lg font-semibold">
-              Shared plan
-            </h2>
-            <p className="text-sm text-muted">
-              {lastEditor ? `Last edited by ${lastEditor}` : 'No edits yet'}
-              {lastEditor && trip?.itinerary_updated_at
-                ? ` · ${new Date(trip.itinerary_updated_at).toLocaleString('en-US')}`
-                : ''}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            {savingState === 'saving' ? (
-              <span className="inline-flex items-center gap-1 text-muted">
-                <span className="loading-spinner w-3 h-3" aria-hidden="true" />
-                Saving…
-              </span>
-            ) : savingState === 'saved' ? (
-              <span className="inline-flex items-center gap-1 text-success">
-                <Check size={12} aria-hidden="true" />
-                Saved
-              </span>
-            ) : null}
-          </div>
-        </header>
-        <div className="p-6">
-          <textarea
-            value={notes}
-            onChange={(e) => onNotesChange(e.target.value)}
-            disabled={!canEdit}
-            rows={10}
-            maxLength={5000}
-            aria-label="Shared itinerary notes"
-            placeholder={`Day 1\n09:00  Meet at Han Market\n10:30  Cồn Market for breakfast\n14:00  Marble Mountains\n\nDay 2\n…`}
-            className="w-full p-3 border border-border rounded-sm bg-paper text-sm text-ink font-mono leading-relaxed focus:outline-none focus:border-primary"
-          />
-          <p className="text-xs text-muted mt-2 flex items-center gap-1">
-            <Pencil size={11} aria-hidden="true" />
-            Autosaves 1.2 s after your last keystroke. Both parties see updates instantly.
-          </p>
+      {/* Tabs */}
+      <section
+        className="border border-border rounded-sm bg-surface overflow-hidden"
+        aria-label="Itinerary tabs"
+      >
+        <div role="tablist" className="flex border-b border-border overflow-x-auto">
+          {TABS.map((t) => {
+            const Icon = t.icon
+            const isActive = tab === t.id
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setTab(t.id)}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors duration-150 ${
+                  isActive
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted hover:text-ink'
+                }`}
+              >
+                <Icon size={14} aria-hidden="true" />
+                {t.label}
+              </button>
+            )
+          })}
         </div>
-      </section>
-
-      {/* Stops builder */}
-      <section className="border border-border rounded-sm bg-surface" aria-labelledby="stops-title">
-        <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-3">
-          <div>
-            <h2 id="stops-title" className="text-lg font-semibold">
-              Stops on the map
-            </h2>
-            <p className="text-sm text-muted">{stops.length} stop{stops.length === 1 ? '' : 's'} added.</p>
-          </div>
-          {canEdit ? (
-            <button
-              type="button"
-              onClick={addStop}
-              className="inline-flex items-center gap-1 h-8 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
-            >
-              <Save size={14} aria-hidden="true" />
-              Add stop
-            </button>
+        <div className="p-4 lg:p-6">
+          {trip ? (
+            <>
+              {tab === 'plan' ? (
+                <PlanTab trip={trip} canEdit={canEdit} me={me!} onLogActivity={logActivity} onTripUpdate={setTrip} />
+              ) : null}
+              {tab === 'days' ? (
+                <DaysTab trip={trip} canEdit={canEdit} me={me!} onLogActivity={logActivity} />
+              ) : null}
+              {tab === 'bookings' ? (
+                <BookingsTab trip={trip} canEdit={canEdit} me={me!} onLogActivity={logActivity} />
+              ) : null}
+              {tab === 'packing' ? (
+                <PackingTab trip={trip} canEdit={canEdit} me={me!} onLogActivity={logActivity} />
+              ) : null}
+            </>
           ) : null}
-        </header>
-        <div className="p-6">
-          {stops.length === 0 ? (
-            <p className="text-sm text-muted text-center py-6">
-              No stops yet. Use the shared plan above to sketch the day, then add geo-pinned stops here.
-            </p>
-          ) : (
-            <ol className="space-y-2">
-              {stops.map((s, i) => (
-                <li
-                  key={s.id}
-                  className="flex items-center gap-3 px-3 py-2 border border-border rounded-sm bg-paper"
-                >
-                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-sm bg-primary text-paper text-xs font-semibold">
-                    {i + 1}
-                  </span>
-                  <span className="flex-1 text-sm text-ink truncate">{s.name}</span>
-                  {s.address ? (
-                    <span className="text-xs text-muted truncate hidden sm:inline">{s.address}</span>
-                  ) : null}
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      onClick={() => removeStop(s.id)}
-                      className="text-xs text-danger hover:underline"
-                    >
-                      Remove
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          )}
         </div>
       </section>
 
-      {/* Save visible status pill */}
-      <noscript>This page requires JavaScript for real-time edits.</noscript>
+      {/* Activity feed (collapsible right rail) */}
+      <section
+        className="border border-border rounded-sm bg-surface overflow-hidden"
+        aria-label="Recent activity"
+      >
+        <button
+          type="button"
+          onClick={() => setShowActivity((s) => !s)}
+          className="w-full px-4 py-3 flex items-center justify-between text-left border-b border-border hover:bg-paper"
+          aria-expanded={showActivity}
+        >
+          <span className="inline-flex items-center gap-2 text-sm font-semibold">
+            <Pin size={13} aria-hidden="true" />
+            Activity
+          </span>
+          <span className="text-xs text-muted">
+            {showActivity ? 'Hide' : `Show (${activity.length})`}
+          </span>
+        </button>
+        {showActivity ? (
+          <ActivityFeed items={activity} meId={me?.id ?? null} />
+        ) : null}
+      </section>
     </div>
   )
 }

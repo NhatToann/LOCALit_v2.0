@@ -88,6 +88,10 @@ export interface Trip {
   itinerary_notes: string | null
   itinerary_updated_by: string | null
   itinerary_updated_at: string | null
+  currency: string
+  budget_total_cents: number | null
+  cover_photo_url: string | null
+  share_token: string | null
   created_at: string
   updated_at: string
   // Joined
@@ -95,6 +99,10 @@ export interface Trip {
   buddy?: Buddy
   trip_stops?: TripStop[]
   itinerary_editor?: Profile
+  days?: TripDay[]
+  bookings?: TripBooking[]
+  budget?: TripBudgetItem[]
+  packing?: TripPackingItem[]
 }
 
 export interface TripStop {
@@ -106,7 +114,77 @@ export interface TripStop {
   latitude: number | null
   longitude: number | null
   notes: string | null
+  day_id: string | null
+  planned_time: string | null   // 'HH:MM:SS'
+  category: 'food' | 'sight' | 'transport' | 'stay' | 'activity' | 'other' | null
+  photo_url: string | null
+  est_cost_cents: number | null
   created_at: string
+}
+
+export interface TripDay {
+  id: string
+  trip_id: string
+  day_order: number
+  date: string | null
+  title: string | null
+  notes: string | null
+  created_at: string
+  // Joined
+  stops?: TripStop[]
+}
+
+export interface TripBooking {
+  id: string
+  trip_id: string
+  type: 'flight' | 'hotel' | 'restaurant' | 'tour' | 'transport' | 'other'
+  provider: string | null
+  confirmation_code: string | null
+  start_at: string | null
+  end_at: string | null
+  location_name: string | null
+  address: string | null
+  cost_cents: number
+  currency: string
+  notes: string | null
+  attachment_url: string | null
+  added_by: string | null
+  created_at: string
+}
+
+export interface TripBudgetItem {
+  id: string
+  trip_id: string
+  category: 'food' | 'transport' | 'tickets' | 'shopping' | 'stay' | 'other'
+  description: string | null
+  amount_cents: number
+  currency: string
+  paid_by: string | null
+  split_with: string[]
+  spent_at: string | null
+  created_at: string
+}
+
+export interface TripPackingItem {
+  id: string
+  trip_id: string
+  item: string
+  category: 'clothes' | 'toiletries' | 'tech' | 'docs' | 'misc'
+  is_packed: boolean
+  packed_by: string | null
+  packed_at: string | null
+  created_at: string
+}
+
+export interface TripActivity {
+  id: string
+  trip_id: string
+  actor_id: string | null
+  verb: string
+  payload: Record<string, unknown>
+  created_at: string
+  // Joined
+  actor?: Profile
 }
 
 export interface Conversation {
@@ -115,6 +193,13 @@ export interface Conversation {
   buddy_id: string
   created_at: string
   updated_at: string
+  last_read_at_by_tourist: string | null
+  last_read_at_by_buddy: string | null
+  last_message_preview: string | null
+  last_message_at: string | null
+  typing_started_at: string | null
+  typing_user_id: string | null
+  pinned_message_id: string | null
   // Joined
   tourist?: Tourist
   buddy?: Buddy
@@ -128,6 +213,45 @@ export interface Message {
   sender_id: string
   content: string
   is_read: boolean
+  message_type: 'text' | 'image' | 'file' | 'location' | 'system'
+  reply_to_id: string | null
+  edited_at: string | null
+  deleted_at: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string
+  // Joined
+  reactions?: MessageReaction[]
+  reply_to?: Message
+}
+
+export interface MessageReaction {
+  id: string
+  message_id: string
+  user_id: string
+  emoji: string
+  created_at: string
+}
+
+export interface CallLog {
+  id: string
+  conversation_id: string
+  caller_id: string
+  callee_id: string
+  call_type: 'voice' | 'video'
+  status: 'initiated' | 'ringing' | 'accepted' | 'declined' | 'missed' | 'ended' | 'failed'
+  started_at: string
+  answered_at: string | null
+  ended_at: string | null
+  duration_seconds: number | null
+}
+
+export interface CallSignal {
+  id: string
+  call_log_id: string
+  sender_id: string
+  recipient_id: string
+  signal_type: 'offer' | 'answer' | 'ice' | 'bye' | 'busy'
+  payload: Record<string, unknown>
   created_at: string
 }
 
