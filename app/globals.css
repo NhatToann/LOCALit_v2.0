@@ -7,6 +7,8 @@
 
 /* ============================================================
    DESIGN TOKENS (per design.md Section 2)
+   Tailwind v4 uses @theme to expose tokens as both CSS vars
+   and Tailwind utility values.
    ============================================================ */
 @theme {
   /* Primary brand */
@@ -54,564 +56,597 @@
 }
 
 /* ============================================================
-   ROOT
+   TAILWIND v4 LAYER CASCADE NOTE
+   Tailwind v4 uses three layers (low to high priority):
+     @layer base        — element defaults (h1, body, a, *)
+     @layer components  — reusable class components (.card, .badge)
+     @layer utilities   — atomic utilities (.mx-auto, .px-6, .flex)
+
+   Rules OUTSIDE @layer win over everything (highest priority).
+   We wrap ALL custom CSS in @layer so utilities can override
+   components (the standard cascade).
    ============================================================ */
-:root {
-  color-scheme: light;
-}
-
-html {
-  -webkit-text-size-adjust: 100%;
-  scroll-behavior: smooth;
-}
-
-body {
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--color-ink);
-  background-color: var(--color-paper);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  min-height: 100vh;
-}
 
 /* ============================================================
-   SEMANTIC RESET (per Section 5a)
+   LAYER: BASE
+   Element defaults — html, body, headings, links, inputs
    ============================================================ */
-*,
-*::before,
-*::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+@layer base {
+  :root {
+    color-scheme: light;
+  }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
 
-button {
-  font: inherit;
-  cursor: pointer;
-  border: none;
-  background: none;
-}
+  body {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--color-ink);
+    background-color: var(--color-paper);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
 
-input,
-textarea,
-select {
-  font: inherit;
-}
-
-img,
-svg,
-video {
-  display: block;
-  max-width: 100%;
-}
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-}
-
-/* ============================================================
-   ACCESSIBILITY (per Section 4c, 8.1)
-   ============================================================ */
-
-/* Skip to main content — first focusable element on every page */
-.skip-link {
-  position: absolute;
-  top: -40px;
-  left: 8px;
-  z-index: 1000;
-  padding: 8px 16px;
-  background: var(--color-ink);
-  color: var(--color-paper);
-  border-radius: var(--radius-sm);
-  transition: top var(--duration-fast) var(--ease-out);
-}
-
-.skip-link:focus {
-  top: 8px;
-}
-
-/* Focus styles — never suppress (Section 4c) */
-*:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-/* Honor reduced motion (Section 4c) */
-@media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  img,
+  svg,
+  video {
+    display: block;
+    max-width: 100%;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+
+  /* Focus styles — never suppress (Section 4c) */
+  *:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  /* Honor reduced motion (Section 4c) */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
 /* ============================================================
-   LAYOUT CONTAINERS (per design.md Section 4.2)
+   LAYER: COMPONENTS
+   Reusable class components — overrides Tailwind base
    ============================================================ */
-.container-page {
-  width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
+@layer components {
+  /* Skip to main content — first focusable element on every page */
+  .skip-link {
+    position: absolute;
+    top: -40px;
+    left: 8px;
+    z-index: 1000;
+    padding: 8px 16px;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    border-radius: var(--radius-sm);
+    transition: top var(--duration-fast) var(--ease-out);
+  }
 
-.container-prose {
-  width: 100%;
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
+  .skip-link:focus {
+    top: 8px;
+  }
 
-@media (max-width: 768px) {
-  .container-page,
+  /* ============================================================
+     LAYOUT CONTAINERS (per design.md Section 4.2)
+     ============================================================ */
+  .container-page {
+    width: 100%;
+    max-width: 1280px;
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+
   .container-prose {
-    padding: 0 16px;
+    width: 100%;
+    max-width: 680px;
+    margin-inline: auto;
+    padding-inline: 24px;
   }
-}
 
-/* ============================================================
-   TYPE SCALE (per design.md Section 3.2)
-   ============================================================ */
-.text-display {
-  font-size: 3rem;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  font-weight: 600;
-}
+  @media (max-width: 768px) {
+    .container-page,
+    .container-prose {
+      padding-inline: 16px;
+    }
+  }
 
-@media (max-width: 768px) {
+  /* ============================================================
+     TYPE SCALE (per design.md Section 3.2)
+     ============================================================ */
   .text-display {
+    font-size: 3rem;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  @media (max-width: 768px) {
+    .text-display {
+      font-size: 2.25rem;
+    }
+  }
+
+  .text-page-title {
+    font-size: 2.25rem;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  @media (min-width: 768px) {
+    .text-page-title {
+      font-size: 3rem;
+    }
+  }
+
+  .text-section-title {
+    font-size: 1.5rem;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+  }
+
+  @media (min-width: 768px) {
+    .text-section-title {
+      font-size: 1.875rem;
+    }
+  }
+
+  .text-eyebrow {
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--color-muted);
+  }
+
+  /* ============================================================
+     SCROLLBAR (Section 5b — keep simple)
+     ============================================================ */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-muted);
+  }
+
+  /* ============================================================
+     AEO FAQ SECTION (per aeo-geo-writing Section 1c)
+     ============================================================ */
+  .faq-list {
+    display: grid;
+    gap: 0;
+  }
+
+  .faq-item {
+    padding: 24px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .faq-item:first-child {
+    border-top: 1px solid var(--color-border);
+  }
+
+  .faq-question {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-ink);
+    margin-bottom: 8px;
+  }
+
+  .faq-answer {
+    font-size: 1rem;
+    color: var(--color-muted);
+    line-height: 1.6;
+  }
+
+  /* ============================================================
+     CARD (FLAT, no shadow)
+     ============================================================ */
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 24px;
+    transition: border-color var(--duration-fast) var(--ease-out);
+  }
+
+  .card:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  /* ============================================================
+     BADGE (status pills — Section 6.4)
+     ============================================================ */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: var(--radius-pill);
+    line-height: 1;
+  }
+
+  .badge-success {
+    background-color: var(--color-success-bg);
+    color: var(--color-success);
+  }
+
+  .badge-warning {
+    background-color: var(--color-warning-bg);
+    color: var(--color-warning);
+  }
+
+  .badge-danger {
+    background-color: var(--color-danger-bg);
+    color: var(--color-danger);
+  }
+
+  .badge-info {
+    background-color: var(--color-info-bg);
+    color: var(--color-info);
+  }
+
+  .badge-neutral {
+    background-color: #F5F5F4;
+    color: var(--color-muted);
+  }
+
+  /* ============================================================
+     AVATAR — circular, sized variants
+     ============================================================ */
+  .avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-pill);
+    background-color: var(--color-muted);
+    color: var(--color-paper);
+    font-weight: 600;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .avatar-sm {
+    width: 32px;
+    height: 32px;
+    font-size: 0.75rem;
+  }
+
+  .avatar-md {
+    width: 40px;
+    height: 40px;
+    font-size: 0.875rem;
+  }
+
+  .avatar-lg {
+    width: 56px;
+    height: 56px;
+    font-size: 1.125rem;
+  }
+
+  .avatar-xl {
+    width: 80px;
+    height: 80px;
+    font-size: 1.5rem;
+  }
+
+  .avatar-2xl {
+    width: 120px;
+    height: 120px;
     font-size: 2.25rem;
   }
-}
 
-.text-page-title {
-  font-size: 2.25rem;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  font-weight: 600;
-}
-
-@media (min-width: 768px) {
-  .text-page-title {
-    font-size: 3rem;
+  /* ============================================================
+     LANGUAGE CHIP
+     ============================================================ */
+  .lang-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    background-color: #F5F5F4;
+    color: var(--color-muted);
+    border-radius: var(--radius-pill);
   }
-}
 
-.text-section-title {
-  font-size: 1.5rem;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  font-weight: 600;
-}
-
-@media (min-width: 768px) {
-  .text-section-title {
-    font-size: 1.875rem;
+  /* ============================================================
+     LOADING — spinner + skeleton
+     ============================================================ */
+  .loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: var(--radius-pill);
+    animation: spin 0.8s linear infinite;
   }
-}
 
-.text-eyebrow {
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  font-weight: 500;
-  color: var(--color-muted);
-}
-
-/* ============================================================
-   SCROLLBAR (Section 5b — keep simple)
-   ============================================================ */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-border-strong);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted);
-}
-
-/* ============================================================
-   AEO FAQ SECTION (per aeo-geo-writing Section 1c)
-   ============================================================ */
-.faq-list {
-  display: grid;
-  gap: 0;
-}
-
-.faq-item {
-  padding: 24px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.faq-item:first-child {
-  border-top: 1px solid var(--color-border);
-}
-
-.faq-question {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--color-ink);
-  margin-bottom: 8px;
-}
-
-.faq-answer {
-  font-size: 1rem;
-  color: var(--color-muted);
-  line-height: 1.6;
-}
-
-/* ============================================================
-   LEGACY CSS CLASSES (kept for migration, will be phased out)
-   ============================================================ */
-
-/* Card — FLAT, no shadow */
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 24px;
-  transition: border-color var(--duration-fast) var(--ease-out);
-}
-
-.card:hover {
-  border-color: var(--color-border-strong);
-}
-
-/* Status badges (Section 6.4) */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: var(--radius-pill);
-  line-height: 1;
-}
-
-.badge-success {
-  background-color: var(--color-success-bg);
-  color: var(--color-success);
-}
-
-.badge-warning {
-  background-color: var(--color-warning-bg);
-  color: var(--color-warning);
-}
-
-.badge-danger {
-  background-color: var(--color-danger-bg);
-  color: var(--color-danger);
-}
-
-.badge-info {
-  background-color: var(--color-info-bg);
-  color: var(--color-info);
-}
-
-.badge-neutral {
-  background-color: #F5F5F4;
-  color: var(--color-muted);
-}
-
-/* Avatar — circular, sized variants */
-.avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-pill);
-  background-color: var(--color-muted);
-  color: var(--color-paper);
-  font-weight: 600;
-  text-transform: uppercase;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-sm {
-  width: 32px;
-  height: 32px;
-  font-size: 0.75rem;
-}
-.avatar-md {
-  width: 40px;
-  height: 40px;
-  font-size: 0.875rem;
-}
-.avatar-lg {
-  width: 56px;
-  height: 56px;
-  font-size: 1.125rem;
-}
-.avatar-xl {
-  width: 80px;
-  height: 80px;
-  font-size: 1.5rem;
-}
-.avatar-2xl {
-  width: 120px;
-  height: 120px;
-  font-size: 2.25rem;
-}
-
-/* Lang chip */
-.lang-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  background-color: #F5F5F4;
-  color: var(--color-muted);
-  border-radius: var(--radius-pill);
-}
-
-/* Loading spinner */
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: var(--radius-pill);
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
-}
 
-/* Skeleton loader */
-.skeleton {
-  background: #F5F5F4;
-  border-radius: var(--radius-sm);
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes skeleton-pulse {
-  0%,
-  100% {
-    opacity: 1;
+  .skeleton {
+    background: #F5F5F4;
+    border-radius: var(--radius-sm);
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
-  50% {
-    opacity: 0.5;
+
+  @keyframes skeleton-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
-}
 
-/* Empty state — actionable, no emoji */
-.empty-state {
-  text-align: center;
-  padding: 64px 24px;
-  color: var(--color-muted);
-}
+  /* ============================================================
+     EMPTY STATE — actionable, no emoji
+     ============================================================ */
+  .empty-state {
+    text-align: center;
+    padding: 64px 24px;
+    color: var(--color-muted);
+  }
 
-.empty-state h3 {
-  font-size: 1.125rem;
-  color: var(--color-ink);
-  margin-bottom: 8px;
-  font-weight: 600;
-}
+  .empty-state h3 {
+    font-size: 1.125rem;
+    color: var(--color-ink);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
 
-.empty-state p {
-  margin-bottom: 24px;
-  color: var(--color-muted);
-}
+  .empty-state p {
+    margin-bottom: 24px;
+    color: var(--color-muted);
+  }
 
-/* Alert */
-.alert {
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  font-size: 0.875rem;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  border: 1px solid;
-}
+  /* ============================================================
+     ALERT — variants
+     ============================================================ */
+  .alert {
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    border: 1px solid;
+  }
 
-.alert-success {
-  background-color: var(--color-success-bg);
-  color: var(--color-success);
-  border-color: #BBF7D0;
-}
+  .alert-success {
+    background-color: var(--color-success-bg);
+    color: var(--color-success);
+    border-color: #BBF7D0;
+  }
 
-.alert-error {
-  background-color: var(--color-danger-bg);
-  color: var(--color-danger);
-  border-color: #FECACA;
-}
+  .alert-error {
+    background-color: var(--color-danger-bg);
+    color: var(--color-danger);
+    border-color: #FECACA;
+  }
 
-.alert-info {
-  background-color: var(--color-info-bg);
-  color: var(--color-info);
-  border-color: #BAE6FD;
-}
+  .alert-info {
+    background-color: var(--color-info-bg);
+    color: var(--color-info);
+    border-color: #BAE6FD;
+  }
 
-.alert-warning {
-  background-color: var(--color-warning-bg);
-  color: var(--color-warning);
-  border-color: #FDE68A;
-}
+  .alert-warning {
+    background-color: var(--color-warning-bg);
+    color: var(--color-warning);
+    border-color: #FDE68A;
+  }
 
-/* Form elements (FLAT, 4px radius) */
-.form-group {
-  margin-bottom: 24px;
-}
+  /* ============================================================
+     FORM ELEMENTS (FLAT, 4px radius)
+     ============================================================ */
+  .form-group {
+    margin-bottom: 24px;
+  }
 
-.form-label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-ink);
-}
+  .form-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-ink);
+  }
 
-.form-input {
-  width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: 1rem;
-  background-color: var(--color-surface);
-  color: var(--color-ink);
-  transition: border-color var(--duration-fast) var(--ease-out);
-}
+  .form-input {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    transition: border-color var(--duration-fast) var(--ease-out);
+  }
 
-.form-input:hover {
-  border-color: var(--color-border-strong);
-}
+  .form-input:hover {
+    border-color: var(--color-border-strong);
+  }
 
-.form-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
+  .form-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
 
-.form-input::placeholder {
-  color: var(--color-subtle);
-}
+  .form-input::placeholder {
+    color: var(--color-subtle);
+  }
 
-.form-input[aria-invalid="true"],
-.form-input.error {
-  border-color: var(--color-danger);
-}
+  .form-input[aria-invalid="true"],
+  .form-input.error {
+    border-color: var(--color-danger);
+  }
 
-.form-textarea {
-  min-height: 100px;
-  padding: 12px;
-  resize: vertical;
-  height: auto;
-  font-family: inherit;
-}
+  .form-textarea {
+    min-height: 100px;
+    padding: 12px;
+    resize: vertical;
+    height: auto;
+    font-family: inherit;
+  }
 
-.form-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23737373' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-  cursor: pointer;
-}
+  .form-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23737373' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+    cursor: pointer;
+  }
 
-.form-hint {
-  margin-top: 4px;
-  font-size: 0.75rem;
-  color: var(--color-muted);
-}
+  .form-hint {
+    margin-top: 4px;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+  }
 
-.form-hint.error {
-  color: var(--color-danger);
-}
+  .form-hint.error {
+    color: var(--color-danger);
+  }
 
-/* Checkbox */
-.form-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
+  /* ============================================================
+     CHECKBOX
+     ============================================================ */
+  .form-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
 
-.form-check-input {
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 4px;
-  cursor: pointer;
-  accent-color: var(--color-primary);
-}
+  .form-check-input {
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 4px;
+    cursor: pointer;
+    accent-color: var(--color-primary);
+  }
 
-/* Progress step indicator (for register wizard) */
-.progress-steps {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  margin-bottom: 32px;
-}
+  /* ============================================================
+     PROGRESS STEPS (register wizard)
+     ============================================================ */
+  .progress-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 32px;
+  }
 
-.step-circle {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-pill);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 600;
-  border: 1px solid var(--color-border-strong);
-  color: var(--color-muted);
-  background: var(--color-surface);
-}
+  .step-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-pill);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-muted);
+    background: var(--color-surface);
+  }
 
-.step-circle.active {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-paper);
-}
+  .step-circle.active {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-paper);
+  }
 
-.step-circle.completed {
-  border-color: var(--color-success);
-  background: var(--color-success);
-  color: var(--color-paper);
-}
+  .step-circle.completed {
+    border-color: var(--color-success);
+    background: var(--color-success);
+    color: var(--color-paper);
+  }
 
-.progress-line {
-  width: 48px;
-  height: 1px;
-  background: var(--color-border);
-}
+  .progress-line {
+    width: 48px;
+    height: 1px;
+    background: var(--color-border);
+  }
 
-.progress-line.active {
-  background: var(--color-primary);
+  .progress-line.active {
+    background: var(--color-primary);
+  }
 }
