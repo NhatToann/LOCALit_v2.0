@@ -62,5 +62,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Could not resend code.' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, signupId: result.signupId })
+  const responseBody: Record<string, unknown> = { ok: true, signupId: result.signupId }
+  if (result.previewCode) responseBody.__devCode = result.previewCode
+  return NextResponse.json(responseBody)
 }

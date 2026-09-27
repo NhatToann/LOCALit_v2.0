@@ -53,6 +53,9 @@ export interface PendingSignupPayload {
 export interface IssueOtpResult {
   ok: boolean
   signupId?: string
+  /** Plaintext code. ONLY returned when OTP_PREVIEW=true (dev mode).
+   *  In production this is undefined — the code only lives in the user's inbox. */
+  previewCode?: string
   error?: string
 }
 
@@ -89,6 +92,21 @@ export async function issueOtpForSignup(
 
   if (insertErr || !inserted) {
     return { ok: false, error: `Could not store code: ${insertErr?.message ?? 'unknown'}` }
+  }
+
+  // ---- DEV MODE ---------------------------------------------------------
+  // When OTP_PREVIEW=true, we skip the actual email send (Resend test mode
+  // restricts recipients to the account owner), and instead echo the code
+  // back via the result. The route also logs the code to the server console
+  // so you can grep `vercel logs`.
+  //
+  // SECURITY: this MUST be gated on the env var. If left enabled in
+  // production, anyone registering could complete signup without ever
+  // proving email ownership.
+  // -----------------------------------------------------------------------
+  if (process.env.OTP_PREVIEW === 'true') {
+    console.warn(`[otp] DEV PREVIEW — code for ${payload.email}: ${code} (signupId=${inserted.id})`)
+    return { ok: true, signupId: inserted.id, previewCode: code }
   }
 
   const message = buildOtpEmail({ code })

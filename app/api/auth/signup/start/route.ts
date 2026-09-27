@@ -89,23 +89,33 @@ export async function POST(req: NextRequest) {
 
   // ---- Check email isn't already registered ---------------------------------
   // SECURITY: same generic message regardless of whether email is taken.
+  //
+  // DEV ESCAPE HATCH: when OTP_PREVIEW=true AND OTP_PREVIEW_ALLOW_REUSED=1,
+  // we skip the duplicate check so you can re-register an existing email
+  // while testing without manually deleting the old profile row first.
+  // Both flags must be set; OTP_PREVIEW alone is not enough.
   const admin = createAdminClient()
-  const { data: existingAuth } = await admin.auth.admin.listUsers({ perPage: 1, page: 1 })
-  // listUsers doesn't filter by email; we use a different endpoint.
-  // Get user by email via the admin API.
-  const { data: existingProfile } = await admin
-    .from('profiles')
-    .select('id')
-    .eq('email', emailStr)
-    .maybeSingle()
+  let skipExistingCheck = false
+  if (process.env.OTP_PREVIEW === 'true' && process.env.OTP_PREVIEW_ALLOW_REUSED === '1') {
+    skipExistingCheck = true
+    console.warn(`[signup/start] DEV: re-registering existing email ${emailStr}`)
+  }
 
-  if (existingProfile) {
-    // Don't leak that the email exists. Same generic 400 as other failures.
-    console.warn(`[signup/start] email already registered: ${emailStr}`)
-    return NextResponse.json(
-      { error: 'Could not start signup. If you already have an account, please sign in.' },
-      { status: 400 },
-    )
+  if (!skipExistingCheck) {
+    const { data: existingProfile } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('email', emailStr)
+      .maybeSingle()
+
+    if (existingProfile) {
+      // Don't leak that the email exists. Same generic 400 as other failures.
+      console.warn(`[signup/start] email already registered: ${emailStr}`)
+      return NextResponse.json(
+        { error: 'Could not start signup. If you already have an account, please sign in.' },
+        { status: 400 },
+      )
+    }
   }
 
   // ---- Hash password + create pending signup --------------------------------
@@ -134,11 +144,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // For dev mode (no RESEND_API_KEY), the code is logged server-side.
-  // In production, only the user who owns the inbox can read it.
-  return NextResponse.json({
+  // For dev mode (OTP_PREVIEW=true), the code is returned in the response so
+  // you can complete the flow without checking an inbox. In production this
+  // is undefined — the code only exists in the user's email.
+  //
+  // Also forwarded to a `__devCode` field so it's obviously not a production
+  // surface. The UI logs it to console (dev only).
+  const responseBody: Record<string, unknown> = {
     signupId: result.signupId,
     email: emailStr,
     expiresInSeconds: 15 * 60,
-  })
+  }
+  if (result.previewCode) {
+    responseBody.__devCode = result.previewCode
+  }
+
+  return NextResponse.json(responseBody)
 }
