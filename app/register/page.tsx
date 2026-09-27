@@ -4,6 +4,7 @@ import { useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle, ArrowLeft, ArrowRight, Check } from 'lucide-react'
+import { validatePassword } from '@/utils/password-validator'
 
 type Role = 'tourist' | 'buddy'
 
@@ -70,16 +71,6 @@ const HOURLY_RATES = [
   { id: 30, label: '$30/hr', desc: 'Premium' },
   { id: 0, label: 'Free', desc: 'Just chatting' },
 ]
-
-function passwordScore(pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string } {
-  let s = 0
-  if (pw.length >= 8) s++
-  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) s++
-  if (/\d/.test(pw)) s++
-  if (/[^A-Za-z0-9]/.test(pw)) s++
-  const labels = ['Too short', 'Weak', 'Fair', 'Good', 'Strong']
-  return { score: s as 0 | 1 | 2 | 3 | 4, label: labels[s] }
-}
 
 interface FormState {
   role: Role
@@ -241,7 +232,6 @@ function RegisterForm() {
 
   const validateEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  const pw = useMemo(() => passwordScore(form.password), [form.password])
 
   function pickRole(role: Role) {
     setForm((p) => ({ ...p, role }))
@@ -277,10 +267,11 @@ function RegisterForm() {
 
   const stepReady = useMemo(() => {
     if (step === 0) {
+      const pwOk = validatePassword(form.password) === null
       return (
         form.fullName.trim().length >= 2 &&
         validateEmail(form.email) &&
-        form.password.length >= 6 &&
+        pwOk &&
         form.password === form.confirmPassword &&
         form.terms
       )
@@ -331,7 +322,17 @@ function RegisterForm() {
               is_available: true,
             }
 
-      const res = await fetch('/api/auth/signup', {
+      // 1. Stash pending payload + password so /verify-email can rehydrate.
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(
+          'localit.pendingPayload',
+          JSON.stringify({ userId: '', role: form.role, payload }),
+        )
+        sessionStorage.setItem('localit.pendingPw', form.password)
+      }
+
+      // 2. Create the auth user (unconfirmed) + trigger the OTP email.
+      const res = await fetch('/api/auth/signup-admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -339,7 +340,6 @@ function RegisterForm() {
           password: form.password,
           fullName: form.fullName,
           role: form.role,
-          profilePayload: payload,
         }),
       })
 
@@ -350,16 +350,30 @@ function RegisterForm() {
         return
       }
 
+      const body = (await res.json().catch(() => ({}))) as {
+        userId?: string
+        devCode?: string
+      }
+      if (!body.userId) {
+        setError('Sign up failed.')
+        setLoading(false)
+        return
+      }
+
+      // 3. Update stash with the real userId from signup-admin.
       if (typeof window !== 'undefined') {
-        const { signIn } = await import('@/utils/supabase/auth')
-        const { error: signInError } = await signIn(form.email, form.password)
-        if (signInError) {
-          router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
-          return
+        sessionStorage.setItem(
+          'localit.pendingPayload',
+          JSON.stringify({ userId: body.userId, role: form.role, payload }),
+        )
+        if (body.devCode) {
+          sessionStorage.setItem('localit.devCode', body.devCode)
         }
       }
 
-      router.push(form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard')
+      router.push(
+        `/verify-email?email=${encodeURIComponent(form.email)}&role=${form.role}`,
+      )
       return
     } catch (err) {
       console.error('Sign-up error:', err)
@@ -466,30 +480,20 @@ function RegisterForm() {
                   id="password"
                   type="password"
                   className="form-input"
-                  placeholder="At least 6 characters"
+                  placeholder="At least 10 characters"
                   value={form.password}
                   onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
                   required
                   autoComplete="new-password"
-                  minLength={6}
+                  minLength={10}
+                  maxLength={128}
                 />
                 {form.password ? (
-                  <>
-                    <div
-                      className="mt-2 flex gap-1"
-                      aria-label={`Password strength: ${pw.label}`}
-                    >
-                      {[0, 1, 2, 3].map((i) => (
-                        <span
-                          key={i}
-                          className={`h-1 flex-1 rounded-sm ${
-                            i < pw.score ? 'bg-primary' : 'bg-border'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <p className="form-hint">Strength: {pw.label}</p>
-                  </>
+                  validatePassword(form.password) ? (
+                    <p className="form-hint text-danger">{validatePassword(form.password)}</p>
+                  ) : (
+                    <p className="form-hint">Looks good. At least 10 chars, with a letter and a number or symbol.</p>
+                  )
                 ) : null}
               </div>
               <div className="form-group">
@@ -505,6 +509,7 @@ function RegisterForm() {
                   }
                   required
                   autoComplete="new-password"
+                  maxLength={128}
                 />
                 {form.confirmPassword && form.password !== form.confirmPassword ? (
                   <p className="form-hint text-danger">Passwords do not match.</p>

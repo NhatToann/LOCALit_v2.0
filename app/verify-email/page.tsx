@@ -19,6 +19,7 @@ function VerifyEmailForm() {
   const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
   const [resendCooldown, setResendCooldown] = useState(0)
+  const [devCode, setDevCode] = useState('')
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
 
   const [userId, setUserId] = useState<string>('')
@@ -30,6 +31,8 @@ function VerifyEmailForm() {
         const parsed = JSON.parse(raw) as { userId?: string }
         if (parsed.userId) setUserId(parsed.userId)
       }
+      const rawCode = sessionStorage.getItem('localit.devCode')
+      if (rawCode) setDevCode(rawCode)
     } catch {
       /* ignore */
     }
@@ -150,6 +153,7 @@ function VerifyEmailForm() {
         sessionStorage.removeItem('localit.pendingPw')
         sessionStorage.removeItem('localit.pendingRole')
         sessionStorage.removeItem('localit.pendingPayload')
+        sessionStorage.removeItem('localit.devCode')
       }
 
       router.push(role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard')
@@ -223,6 +227,21 @@ function VerifyEmailForm() {
           We sent a 6-digit code to <strong>{email}</strong>. Enter it below to finish signing up.
         </p>
       </header>
+
+      {devCode ? (
+        <div className="alert alert-info mb-4" role="status">
+          <AlertTriangle size={16} aria-hidden="true" />
+          <div className="flex flex-col gap-1">
+            <span>
+              Dev mode (no <code>RESEND_API_KEY</code>): your code is{' '}
+              <strong className="font-mono text-base tracking-widest">{devCode}</strong>.
+            </span>
+            <span className="text-xs">
+              Copy it into the inputs below. In production this banner is hidden.
+            </span>
+          </div>
+        </div>
+      ) : null}
 
       <form
         onSubmit={handleSubmit}

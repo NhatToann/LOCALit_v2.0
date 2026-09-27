@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 import { validatePassword } from '@/utils/password-validator'
+import { issueOtp } from '@/utils/otp'
 
 type Role = 'tourist' | 'buddy'
 
@@ -106,8 +107,21 @@ export async function POST(req: NextRequest) {
     console.warn('[signup-admin] profiles upsert warning:', (e as Error).message)
   }
 
+  // ---- Issue + email the 6-digit OTP. In dev (no RESEND_API_KEY), utils/email
+  // logs the code to the server console and issueOtp still returns ok=true with
+  // the plaintext code in `.code`. We surface it as `devCode` so /verify-email
+  // can show it in the UI when NEXT_PUBLIC_VERIFY_DEV_MODE is on.
+  const otp = await issueOtp(userId, emailStr)
+  if (!otp.ok) {
+    // Don't fail sign-up — the user can request a resend from /verify-email.
+    console.warn('[signup-admin] issueOtp warning:', otp.error)
+  }
+
   return NextResponse.json({
     userId,
     email: emailStr,
+    ...(process.env.NODE_ENV !== 'production' && otp.code
+      ? { devCode: otp.code }
+      : {}),
   })
 }
