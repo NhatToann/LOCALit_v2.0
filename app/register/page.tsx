@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useMemo, Suspense } from 'react'
+import { useState, useMemo, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle, ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { validatePassword } from '@/utils/password-validator'
 
 type Role = 'tourist' | 'buddy'
+type Step = 'personal' | 'role' | 'tags'
 
 const INTERESTS = [
   { id: 'food', label: 'Food' },
@@ -120,14 +121,15 @@ const INITIAL_FORM: FormState = {
 
 const STEP_LABELS = ['Personal info', 'Choose role', 'Tags & bio']
 
-function Stepper({ step }: { step: number }) {
+function Stepper({ step }: { step: Step }) {
+  const idx = step === 'personal' ? 0 : step === 'role' ? 1 : 2
   return (
     <ol
       className="flex items-center justify-center gap-2 mb-6"
       aria-label="Sign-up progress"
     >
       {STEP_LABELS.map((label, i) => {
-        const state = step >= i ? (step === i ? 'current' : 'done') : 'todo'
+        const state = idx >= i ? (idx === i ? 'current' : 'done') : 'todo'
         return (
           <li key={label} className="flex items-center gap-2">
             <span
@@ -220,9 +222,8 @@ function RegisterForm() {
   const roleParam = searchParams.get('role')
   const initialRole: Role | null =
     roleParam === 'buddy' || roleParam === 'tourist' ? roleParam : null
-  const skipRoleStep = initialRole !== null
 
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState<Step>('personal')
   const [form, setForm] = useState<FormState>(() => ({
     ...INITIAL_FORM,
     role: initialRole ?? 'tourist',
@@ -230,12 +231,32 @@ function RegisterForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Returning from /verify-email after a successful OTP entry: drop the user
+  // straight into the Tags & bio step with their pending payload rehydrated.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('postOtp') !== '1') return
+    try {
+      const raw = sessionStorage.getItem('localit.pendingPayload')
+      const parsed = raw ? JSON.parse(raw) : null
+      if (parsed?.role === 'tourist' || parsed?.role === 'buddy') {
+        setForm((p) => ({ ...p, role: parsed.role }))
+        setStep('tags')
+      }
+    } catch {
+      /* ignore */
+    }
+    // Clean the URL so a refresh doesn't re-trigger this.
+    router.replace('/register')
+  }, [router])
+
   const validateEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
   function pickRole(role: Role) {
     setForm((p) => ({ ...p, role }))
-    setStep(2)
+    sendOtpAndRedirect()
   }
 
   function toggleInterest(id: string) {
@@ -266,7 +287,7 @@ function RegisterForm() {
   }
 
   const stepReady = useMemo(() => {
-    if (step === 0) {
+    if (step === 'personal') {
       const pwOk = validatePassword(form.password) === null
       return (
         form.fullName.trim().length >= 2 &&
@@ -276,7 +297,7 @@ function RegisterForm() {
         form.terms
       )
     }
-    if (step === 2) {
+    if (step === 'tags') {
       if (form.role === 'tourist') {
         return (
           form.nationality !== '' &&
@@ -295,38 +316,16 @@ function RegisterForm() {
     return false
   }, [step, form])
 
-  async function handleSubmit() {
+  async function sendOtpAndRedirect() {
     setError('')
     setLoading(true)
 
     try {
-      const payload =
-        form.role === 'tourist'
-          ? {
-              nationality: form.nationality || null,
-              date_of_birth: form.dateOfBirth || null,
-              travel_style: form.travelStyle || null,
-              interests: form.interests,
-              languages: form.languages,
-              budget_range: form.budgetRange,
-              arrival_date: form.arrivalDate || null,
-              destination: form.destination,
-              is_visible: true,
-            }
-          : {
-              location_city: form.locationCity,
-              languages: form.languages,
-              specialties: form.specialties,
-              hourly_rate: Number(form.hourlyRate),
-              bio: form.bio,
-              is_available: true,
-            }
-
       // 1. Stash pending payload + password so /verify-email can rehydrate.
       if (typeof window !== 'undefined') {
         sessionStorage.setItem(
           'localit.pendingPayload',
-          JSON.stringify({ userId: '', role: form.role, payload }),
+          JSON.stringify({ userId: '', role: form.role, payload: {} }),
         )
         sessionStorage.setItem('localit.pendingPw', form.password)
       }
@@ -364,7 +363,7 @@ function RegisterForm() {
       if (typeof window !== 'undefined') {
         sessionStorage.setItem(
           'localit.pendingPayload',
-          JSON.stringify({ userId: body.userId, role: form.role, payload }),
+          JSON.stringify({ userId: body.userId, role: form.role, payload: {} }),
         )
         if (body.devCode) {
           sessionStorage.setItem('localit.devCode', body.devCode)
@@ -372,11 +371,113 @@ function RegisterForm() {
       }
 
       router.push(
-        `/verify-email?email=${encodeURIComponent(form.email)}&role=${form.role}`,
+        `/verify-email?email=${encodeURIComponent(form.email)}&role=${form.role}&postOtp=1`,
       )
       return
     } catch (err) {
       console.error('Sign-up error:', err)
+      setError('Something went wrong. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  async function finalizeSignup() {
+    setError('')
+    setLoading(true)
+
+    try {
+      // 1. Read stashed pending payload from signup-admin (sets userId).
+      const raw =
+        typeof window !== 'undefined'
+          ? sessionStorage.getItem('localit.pendingPayload')
+          : null
+      if (!raw) {
+        setError('Your sign-up session expired. Please sign up again.')
+        setLoading(false)
+        router.push('/register')
+        return
+      }
+      const pending = JSON.parse(raw) as {
+        userId?: string
+        role: 'tourist' | 'buddy'
+      }
+      if (!pending.userId) {
+        setError('Your sign-up session expired. Please sign up again.')
+        setLoading(false)
+        router.push('/register')
+        return
+      }
+
+      // 2. Build role-specific insert payload (same shape as before).
+      const insertPayload =
+        form.role === 'tourist'
+          ? {
+              nationality: form.nationality || null,
+              date_of_birth: form.dateOfBirth || null,
+              travel_style: form.travelStyle || null,
+              interests: form.interests,
+              languages: form.languages,
+              budget_range: form.budgetRange,
+              arrival_date: form.arrivalDate || null,
+              destination: form.destination,
+              is_visible: true,
+            }
+          : {
+              location_city: form.locationCity,
+              languages: form.languages,
+              specialties: form.specialties,
+              hourly_rate: Number(form.hourlyRate),
+              bio: form.bio,
+              is_available: true,
+            }
+
+      // 3. Call /api/auth/create-profile. The user has a confirmed session
+      // (signIn() ran on /verify-email right before landing here), so this
+      // route will authenticate via the cookie path.
+      const password =
+        typeof window !== 'undefined'
+          ? sessionStorage.getItem('localit.pendingPw')
+          : null
+
+      const res = await fetch('/api/auth/create-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          userId: pending.userId,
+          role: pending.role,
+          payload: { full_name: form.fullName, ...insertPayload },
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: 'Unknown error' }))
+        setError(body.error ?? `Could not finalize account (${res.status}).`)
+        setLoading(false)
+        return
+      }
+
+      // 4. Sign the user in if they aren't already (cookie from /verify-email
+      // covers most cases; this guards against missing-cookie edge cases).
+      if (password) {
+        const { signIn } = await import('@/utils/supabase/auth')
+        const { error: signInError } = await signIn(form.email, password)
+        if (signInError) {
+          router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
+          return
+        }
+      }
+
+      // 5. Cleanup + redirect.
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('localit.pendingPayload')
+        sessionStorage.removeItem('localit.pendingPw')
+        sessionStorage.removeItem('localit.pendingRole')
+        sessionStorage.removeItem('localit.devCode')
+      }
+      router.push(form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard')
+    } catch (err) {
+      console.error('Finalize sign-up error:', err)
       setError('Something went wrong. Please try again.')
       setLoading(false)
     }
@@ -407,7 +508,7 @@ function RegisterForm() {
 
       <Stepper step={step} />
 
-      {step === 0 ? (
+      {step === 'personal' ? (
         <section className="border border-border rounded-sm bg-surface p-6">
           <header className="mb-5">
             <h1 className="text-section-title">Create your account</h1>
@@ -419,7 +520,17 @@ function RegisterForm() {
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              if (stepReady) setStep(skipRoleStep ? 2 : 1)
+              if (!stepReady || loading) return
+              // If a role was provided via ?role=, skip the role picker
+              // and head straight to the OTP wall. Otherwise show the role
+              // picker — the OTP email still goes from the role picker.
+              const initialRole = searchParams.get('role')
+              if (initialRole === 'tourist' || initialRole === 'buddy') {
+                setForm((p) => ({ ...p, role: initialRole }))
+                sendOtpAndRedirect()
+                return
+              }
+              setStep('role')
             }}
             noValidate
           >
@@ -539,17 +650,22 @@ function RegisterForm() {
 
             <button
               type="submit"
-              disabled={!stepReady}
+              disabled={!stepReady || loading}
               className="w-full h-11 mt-5 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1"
             >
-              Continue
-              <ArrowRight size={14} aria-hidden="true" />
+              {loading ? 'Sending code…' : null}
+              {!loading ? (
+                <>
+                  Continue
+                  <ArrowRight size={14} aria-hidden="true" />
+                </>
+              ) : null}
             </button>
           </form>
         </section>
       ) : null}
 
-      {step === 1 ? (
+      {step === 'role' ? (
         <section>
           <header className="text-center mb-6">
             <p className="text-eyebrow text-primary mb-2">Almost there</p>
@@ -616,7 +732,7 @@ function RegisterForm() {
         </section>
       ) : null}
 
-      {step === 2 ? (
+      {step === 'tags' ? (
         <section className="border border-border rounded-sm bg-surface p-6">
           <header className="mb-5 pb-4 border-b border-border flex flex-wrap items-baseline justify-between gap-2">
             <div>
@@ -628,7 +744,7 @@ function RegisterForm() {
                 <strong>{form.role === 'buddy' ? 'a local buddy' : 'a tourist'}</strong>.{' '}
                 <button
                   type="button"
-                  onClick={() => setStep(1)}
+                  onClick={() => setStep('role')}
                   className="text-primary hover:underline"
                 >
                   Change
@@ -640,7 +756,8 @@ function RegisterForm() {
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              if (stepReady && !loading) handleSubmit()
+              if (!stepReady || loading) return
+              finalizeSignup()
             }}
             noValidate
           >
@@ -861,7 +978,7 @@ function RegisterForm() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => setStep(1)}
+                onClick={() => setStep('role')}
                 disabled={loading}
                 className="inline-flex items-center gap-1 h-11 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
               >
@@ -882,7 +999,7 @@ function RegisterForm() {
         </section>
       ) : null}
 
-      {step > 0 ? (
+      {step !== 'personal' ? (
         <p className="text-sm text-muted text-center mt-6">
           Already have an account?{' '}
           <Link href="/login" className="text-primary hover:underline font-medium">

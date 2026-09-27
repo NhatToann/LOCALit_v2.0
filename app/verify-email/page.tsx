@@ -80,6 +80,7 @@ function VerifyEmailForm() {
 
   const code = digits.join('')
   const codeReady = /^\d{6}$/.test(code)
+  const postOtp = searchParams.get('postOtp') === '1'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -152,10 +153,14 @@ function VerifyEmailForm() {
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('localit.pendingPw')
         sessionStorage.removeItem('localit.pendingRole')
-        sessionStorage.removeItem('localit.pendingPayload')
-        sessionStorage.removeItem('localit.devCode')
+        // Keep localit.pendingPayload + localit.devCode — /register reads
+        // them on the postOtp=1 round trip to populate the Tags step.
       }
 
+      if (postOtp) {
+        router.push(`/register?postOtp=1&role=${role}`)
+        return
+      }
       router.push(role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard')
     } catch (err) {
       console.error(err)
