@@ -25,6 +25,7 @@ function VerifyEmailForm() {
   const [userId, setUserId] = useState<string>('')
   useEffect(() => {
     if (typeof window === 'undefined') return
+    let devCodePresent = false
     try {
       const raw = sessionStorage.getItem('localit.pendingPayload')
       if (raw) {
@@ -32,10 +33,16 @@ function VerifyEmailForm() {
         if (parsed.userId) setUserId(parsed.userId)
       }
       const rawCode = sessionStorage.getItem('localit.devCode')
-      if (rawCode) setDevCode(rawCode)
+      if (rawCode) {
+        setDevCode(rawCode)
+        devCodePresent = true
+      }
     } catch {
       /* ignore */
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7361/ingest/de2e065f-e3a3-4716-9f9f-e202e338a42b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f52780'},body:JSON.stringify({sessionId:'f52780',runId:'reg-step1',hypothesisId:'H3',location:'app/verify-email/page.tsx:39',message:'verify-email mounted (legacy instrumentation, should not fire after fix)',data:{email,userId,hasDevCode:devCodePresent},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
   }, [])
 
   useEffect(() => {
@@ -95,6 +102,9 @@ function VerifyEmailForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, email, code }),
       })
+      // #region agent log
+      fetch('http://127.0.0.1:7361/ingest/de2e065f-e3a3-4716-9f9f-e202e338a42b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f52780'},body:JSON.stringify({sessionId:'f52780',runId:'reg-step1',hypothesisId:'H4',location:'app/verify-email/page.tsx:97',message:'verify-otp responded',data:{status:res.status,ok:res.ok,hasUserId:!!userId},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       const body = (await res.json().catch(() => ({}))) as {
         error?: string
         reason?: string

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, Suspense } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle, ArrowLeft, ArrowRight, Check } from 'lucide-react'
@@ -231,32 +231,12 @@ function RegisterForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Returning from /verify-email after a successful OTP entry: drop the user
-  // straight into the Tags & bio step with their pending payload rehydrated.
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('postOtp') !== '1') return
-    try {
-      const raw = sessionStorage.getItem('localit.pendingPayload')
-      const parsed = raw ? JSON.parse(raw) : null
-      if (parsed?.role === 'tourist' || parsed?.role === 'buddy') {
-        setForm((p) => ({ ...p, role: parsed.role }))
-        setStep('tags')
-      }
-    } catch {
-      /* ignore */
-    }
-    // Clean the URL so a refresh doesn't re-trigger this.
-    router.replace('/register')
-  }, [router])
-
   const validateEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
   function pickRole(role: Role) {
     setForm((p) => ({ ...p, role }))
-    sendOtpAndRedirect()
+    setStep('tags')
   }
 
   function toggleInterest(id: string) {
@@ -316,100 +296,18 @@ function RegisterForm() {
     return false
   }, [step, form])
 
-  async function sendOtpAndRedirect() {
-    setError('')
-    setLoading(true)
-
-    try {
-      // 1. Stash pending payload + password so /verify-email can rehydrate.
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem(
-          'localit.pendingPayload',
-          JSON.stringify({ userId: '', role: form.role, payload: {} }),
-        )
-        sessionStorage.setItem('localit.pendingPw', form.password)
-      }
-
-      // 2. Create the auth user (unconfirmed) + trigger the OTP email.
-      const res = await fetch('/api/auth/signup-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-          fullName: form.fullName,
-          role: form.role,
-        }),
-      })
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: 'Unknown error' }))
-        setError(body.error ?? `Sign up failed (${res.status}).`)
-        setLoading(false)
-        return
-      }
-
-      const body = (await res.json().catch(() => ({}))) as {
-        userId?: string
-        devCode?: string
-      }
-      if (!body.userId) {
-        setError('Sign up failed.')
-        setLoading(false)
-        return
-      }
-
-      // 3. Update stash with the real userId from signup-admin.
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem(
-          'localit.pendingPayload',
-          JSON.stringify({ userId: body.userId, role: form.role, payload: {} }),
-        )
-        if (body.devCode) {
-          sessionStorage.setItem('localit.devCode', body.devCode)
-        }
-      }
-
-      router.push(
-        `/verify-email?email=${encodeURIComponent(form.email)}&role=${form.role}&postOtp=1`,
-      )
-      return
-    } catch (err) {
-      console.error('Sign-up error:', err)
-      setError('Something went wrong. Please try again.')
-      setLoading(false)
-    }
-  }
-
   async function finalizeSignup() {
     setError('')
     setLoading(true)
+    // #region agent log
+    fetch('http://127.0.0.1:7361/ingest/de2e065f-e3a3-4716-9f9f-e202e338a42b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f52780'},body:JSON.stringify({sessionId:'f52780',runId:'reg-step1',hypothesisId:'FIX',location:'app/register/page.tsx:finalizeSignup',message:'finalizeSignup start',data:{email:form.email,role:form.role},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     try {
-      // 1. Read stashed pending payload from signup-admin (sets userId).
-      const raw =
-        typeof window !== 'undefined'
-          ? sessionStorage.getItem('localit.pendingPayload')
-          : null
-      if (!raw) {
-        setError('Your sign-up session expired. Please sign up again.')
-        setLoading(false)
-        router.push('/register')
-        return
-      }
-      const pending = JSON.parse(raw) as {
-        userId?: string
-        role: 'tourist' | 'buddy'
-      }
-      if (!pending.userId) {
-        setError('Your sign-up session expired. Please sign up again.')
-        setLoading(false)
-        router.push('/register')
-        return
-      }
-
-      // 2. Build role-specific insert payload (same shape as before).
-      const insertPayload =
+      // Build the role-specific profile payload. /api/auth/signup handles
+      // the auth.users row + profiles row + tourists/buddies row in one call
+      // (email_confirm: true — no OTP wall).
+      const profilePayload =
         form.role === 'tourist'
           ? {
               nationality: form.nationality || null,
@@ -431,50 +329,38 @@ function RegisterForm() {
               is_available: true,
             }
 
-      // 3. Call /api/auth/create-profile. The user has a confirmed session
-      // (signIn() ran on /verify-email right before landing here), so this
-      // route will authenticate via the cookie path.
-      const password =
-        typeof window !== 'undefined'
-          ? sessionStorage.getItem('localit.pendingPw')
-          : null
-
-      const res = await fetch('/api/auth/create-profile', {
+      const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
-          userId: pending.userId,
-          role: pending.role,
-          payload: { full_name: form.fullName, ...insertPayload },
+          email: form.email,
+          password: form.password,
+          fullName: form.fullName,
+          role: form.role,
+          profilePayload,
         }),
       })
+      // #region agent log
+      fetch('http://127.0.0.1:7361/ingest/de2e065f-e3a3-4716-9f9f-e202e338a42b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f52780'},body:JSON.stringify({sessionId:'f52780',runId:'reg-step1',hypothesisId:'FIX',location:'app/register/page.tsx:finalizeSignup',message:'signup responded',data:{status:res.status,ok:res.ok},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: 'Unknown error' }))
-        setError(body.error ?? `Could not finalize account (${res.status}).`)
+        setError(body.error ?? `Could not create account (${res.status}).`)
         setLoading(false)
         return
       }
 
-      // 4. Sign the user in if they aren't already (cookie from /verify-email
-      // covers most cases; this guards against missing-cookie edge cases).
-      if (password) {
-        const { signIn } = await import('@/utils/supabase/auth')
-        const { error: signInError } = await signIn(form.email, password)
-        if (signInError) {
-          router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
-          return
-        }
+      // Sign the user in so they land on the dashboard with a live session.
+      const { signIn } = await import('@/utils/supabase/auth')
+      const { error: signInError } = await signIn(form.email, form.password)
+      if (signInError) {
+        router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
+        return
       }
-
-      // 5. Cleanup + redirect.
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('localit.pendingPayload')
-        sessionStorage.removeItem('localit.pendingPw')
-        sessionStorage.removeItem('localit.pendingRole')
-        sessionStorage.removeItem('localit.devCode')
-      }
+      // #region agent log
+      fetch('http://127.0.0.1:7361/ingest/de2e065f-e3a3-4716-9f9f-e202e338a42b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f52780'},body:JSON.stringify({sessionId:'f52780',runId:'reg-step1',hypothesisId:'FIX',location:'app/register/page.tsx:finalizeSignup',message:'redirecting to dashboard',data:{role:form.role},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       router.push(form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard')
     } catch (err) {
       console.error('Finalize sign-up error:', err)
@@ -521,13 +407,15 @@ function RegisterForm() {
             onSubmit={(e) => {
               e.preventDefault()
               if (!stepReady || loading) return
-              // If a role was provided via ?role=, skip the role picker
-              // and head straight to the OTP wall. Otherwise show the role
-              // picker — the OTP email still goes from the role picker.
+              // #region agent log
+              fetch('http://127.0.0.1:7361/ingest/de2e065f-e3a3-4716-9f9f-e202e338a42b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f52780'},body:JSON.stringify({sessionId:'f52780',runId:'reg-step1',hypothesisId:'FIX',location:'app/register/page.tsx:step1Submit',message:'step1 onSubmit fired',data:{step,roleParam:searchParams.get('role'),stepReady,loading},timestamp:Date.now()})}).catch(()=>{});
+              // #endregion
+              // If a role was provided via ?role=, skip the role picker and
+              // go straight to the tags step. Otherwise show the role picker.
               const initialRole = searchParams.get('role')
               if (initialRole === 'tourist' || initialRole === 'buddy') {
                 setForm((p) => ({ ...p, role: initialRole }))
-                sendOtpAndRedirect()
+                setStep('tags')
                 return
               }
               setStep('role')
