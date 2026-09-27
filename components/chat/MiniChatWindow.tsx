@@ -83,13 +83,13 @@ export default function MiniChatWindow() {
     const [{ data: touristConvs }, { data: buddyConvs }] = await Promise.all([
       supabase
         .from('conversations')
-        .select('id, tourist:tourists(profile:profiles(full_name, avatar_url, id)), buddy:buddies(profile:profiles(full_name, avatar_url, id)), messages(content, created_at, sender_id, is_read)')
+        .select('id, tourist_id, buddy_id, last_message_preview, last_message_at, updated_at, tourist:tourists(profile:profiles(full_name, avatar_url, id)), buddy:buddies(profile:profiles(full_name, avatar_url, id))')
         .eq('tourist_id', myUserId)
         .order('updated_at', { ascending: false })
         .limit(8),
       supabase
         .from('conversations')
-        .select('id, tourist:tourists(profile:profiles(full_name, avatar_url, id)), buddy:buddies(profile:profiles(full_name, avatar_url, id)), messages(content, created_at, sender_id, is_read)')
+        .select('id, tourist_id, buddy_id, last_message_preview, last_message_at, updated_at, tourist:tourists(profile:profiles(full_name, avatar_url, id)), buddy:buddies(profile:profiles(full_name, avatar_url, id))')
         .eq('buddy_id', myUserId)
         .order('updated_at', { ascending: false })
         .limit(8),
@@ -97,20 +97,30 @@ export default function MiniChatWindow() {
 
     const summaries: ConversationSummary[] = []
     const convRows = [...(touristConvs ?? []), ...(buddyConvs ?? [])]
+    const convIds = (convRows as any[]).map((r) => r.id)
+    const { data: msgs } = convIds.length
+      ? await supabase
+          .from('messages')
+          .select('conversation_id, sender_id, is_read')
+          .in('conversation_id', convIds)
+          .eq('is_read', false)
+      : { data: [] as any[] }
+    const unreadByConv: Record<string, number> = {}
+    for (const m of msgs ?? []) {
+      if (m.sender_id === myUserId) continue
+      unreadByConv[m.conversation_id] = (unreadByConv[m.conversation_id] ?? 0) + 1
+    }
     for (const row of convRows as any[]) {
       const other = row.tourist?.profile?.id === myUserId ? row.buddy?.profile : row.tourist?.profile
       if (!other) continue
-      const lastMsg = Array.isArray(row.messages) && row.messages.length > 0
-        ? row.messages.sort((a: any, b: any) => (a.created_at > b.created_at ? -1 : 1))[0]
-        : null
       summaries.push({
         id: row.id,
         counterpart_id: other.id,
         counterpart_name: other.full_name ?? 'Chat',
         counterpart_avatar: other.avatar_url ?? null,
-        last_message: lastMsg?.content ?? '',
-        last_message_at: lastMsg?.created_at ?? '',
-        unread: (row.messages ?? []).filter((m: any) => !m.is_read && m.sender_id !== myUserId).length,
+        last_message: row.last_message_preview ?? '',
+        last_message_at: row.last_message_at ?? row.updated_at,
+        unread: unreadByConv[row.id] ?? 0,
       })
     }
     summaries.sort((a, b) => (a.last_message_at > b.last_message_at ? -1 : 1))

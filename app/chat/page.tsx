@@ -171,24 +171,36 @@ function ChatInner() {
         pinned_message_id, typing_user_id,
         tourist:tourists(profile:profiles(full_name, avatar_url, is_online, id)),
         buddy:buddies(location_city, hourly_rate, rating_avg, languages,
-                      profile:profiles(full_name, avatar_url, is_online, id)),
-        messages(content, created_at, sender_id, is_read)
+                      profile:profiles(full_name, avatar_url, is_online, id))
       `,
       )
       .or(`tourist_id.eq.${uid},buddy_id.eq.${uid}`)
       .order('last_message_at', { ascending: false, nullsFirst: false })
 
-    const mapped: ConvSummary[] = (data ?? []).map((c: any) => {
+    if (!data || data.length === 0) {
+      setConversations([])
+      return
+    }
+
+    // Fetch unread counts in a single follow-up query (avoid the FK embed collision)
+    const convIds = (data as any[]).map((c) => c.id)
+    const { data: msgs } = await supabase
+      .from('messages')
+      .select('conversation_id, sender_id, is_read, created_at')
+      .in('conversation_id', convIds)
+      .eq('is_read', false)
+
+    const unreadByConv: Record<string, number> = {}
+    for (const m of msgs ?? []) {
+      if (m.sender_id === uid) continue
+      unreadByConv[m.conversation_id] = (unreadByConv[m.conversation_id] ?? 0) + 1
+    }
+
+    const mapped: ConvSummary[] = (data as any[]).map((c) => {
       const isTouristSide = c.tourist_id === uid
       const partner = isTouristSide ? c.buddy : c.tourist
       const partnerProfile = partner?.profile
       const partnerName = partnerProfile?.full_name ?? 'Buddy'
-      const myLastRead = isTouristSide
-        ? c.last_read_at_by_tourist
-        : c.last_read_at_by_buddy
-      const unread = (c.messages ?? []).filter(
-        (m: any) => !m.is_read && m.sender_id !== uid && m.created_at > (myLastRead ?? '0'),
-      ).length
       return {
         id: c.id,
         partner_id: partnerProfile?.id ?? '',
@@ -201,7 +213,7 @@ function ChatInner() {
         is_partner_online: !!partnerProfile?.is_online,
         last_message_preview: c.last_message_preview ?? '',
         last_message_at: c.last_message_at ?? c.updated_at,
-        unread,
+        unread: unreadByConv[c.id] ?? 0,
         pinned_message_id: c.pinned_message_id ?? null,
         typing_user_id: c.typing_user_id === uid ? null : c.typing_user_id,
       }
