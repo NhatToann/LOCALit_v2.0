@@ -9,6 +9,9 @@
    DESIGN TOKENS (per design.md Section 2)
    Tailwind v4 uses @theme to expose tokens as both CSS vars
    and Tailwind utility values.
+
+   Light theme is the default. .dark on <html> swaps the palette
+   by re-declaring every --color-* at :root.dark.
    ============================================================ */
 @theme {
   /* Primary brand */
@@ -33,26 +36,45 @@
   --color-danger-bg: #FEE2E2;
   --color-info: #075985;
   --color-info-bg: #E0F2FE;
+  --color-success-border: #BBF7D0;
+  --color-danger-border: #FECACA;
+  --color-info-border: #BAE6FD;
+  --color-warning-border: #FDE68A;
+}
 
-  /* Typography — Plus Jakarta Sans single family (Section 2b) */
-  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+:root.dark {
+  --color-success-border: #14532D;
+  --color-danger-border: #7F1D1D;
+  --color-info-border: #075985;
+  --color-warning-border: #78350F;
 
-  /* Border-radius — 4px default (anti-slop Section 1c) */
-  --radius-sm: 4px;
-  --radius-md: 4px;
-  --radius-lg: 4px;
-  --radius-xl: 8px;
-  --radius-pill: 9999px;
+  /* Brand slightly desaturated for dark surfaces */
+  --color-primary: #FF7A4A;
+  --color-primary-hover: #FF9168;
 
-  /* Shadows — only focus rings (FLAT design) */
-  --shadow-focus: 0 0 0 2px #FAFAF7, 0 0 0 4px #FF6B35;
+  /* Neutrals (warm-dark, not pure black/white) */
+  --color-ink: #F5F5F2;
+  --color-paper: #0E0E10;
+  --color-surface: #17171A;
+  --color-border: #2A2A2E;
+  --color-border-strong: #3A3A3F;
+  --color-muted: #A3A3A3;
+  --color-subtle: #737373;
 
-  /* Transitions — specific per element (Section 5b) */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --duration-fast: 150ms;
-  --duration-base: 200ms;
+  /* Semantic (lighter fg on darker bg) */
+  --color-success: #4ADE80;
+  --color-success-bg: #052E16;
+  --color-warning: #FBBF24;
+  --color-warning-bg: #422006;
+  --color-danger: #F87171;
+  --color-danger-bg: #450A0A;
+  --color-info: #38BDF8;
+  --color-info-bg: #082F49;
+
+  /* Focus ring uses paper as inner halo */
+  --shadow-focus: 0 0 0 2px #0E0E10, 0 0 0 4px #FF7A4A;
+
+  color-scheme: dark;
 }
 
 /* ============================================================
@@ -74,6 +96,10 @@
 @layer base {
   :root {
     color-scheme: light;
+  }
+
+  :root.dark {
+    color-scheme: dark;
   }
 
   html {
@@ -351,7 +377,7 @@
   }
 
   .badge-neutral {
-    background-color: #F5F5F4;
+    background-color: var(--color-paper);
     color: var(--color-muted);
   }
 
@@ -421,7 +447,7 @@
     align-items: center;
     padding: 2px 8px;
     font-size: 0.75rem;
-    background-color: #F5F5F4;
+    background-color: var(--color-paper);
     color: var(--color-muted);
     border-radius: var(--radius-pill);
   }
@@ -445,7 +471,7 @@
   }
 
   .skeleton {
-    background: #F5F5F4;
+    background: var(--color-paper);
     border-radius: var(--radius-sm);
     animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
@@ -497,25 +523,25 @@
   .alert-success {
     background-color: var(--color-success-bg);
     color: var(--color-success);
-    border-color: #BBF7D0;
+    border-color: var(--color-success-border);
   }
 
   .alert-error {
     background-color: var(--color-danger-bg);
     color: var(--color-danger);
-    border-color: #FECACA;
+    border-color: var(--color-danger-border);
   }
 
   .alert-info {
     background-color: var(--color-info-bg);
     color: var(--color-info);
-    border-color: #BAE6FD;
+    border-color: var(--color-info-border);
   }
 
   .alert-warning {
     background-color: var(--color-warning-bg);
     color: var(--color-warning);
-    border-color: #FDE68A;
+    border-color: var(--color-warning-border);
   }
 
   /* ============================================================

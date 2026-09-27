@@ -7,20 +7,14 @@ import {
   Compass,
   Calendar,
   Backpack,
-  Receipt,
   AlertTriangle,
-  Users,
   Clock,
-  Phone,
-  MessageCircle,
-  ArrowLeft,
   Pencil,
-  Check,
   Share2,
   Copy,
   Pin,
-  Plus,
-  X,
+  ArrowLeft,
+  Check,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import type { Connection, Trip, Profile, TripActivity } from '@/lib/types'
@@ -28,7 +22,6 @@ import { Avatar } from '@/components/ui/Avatar'
 import { daysUntilExpiry, expiryLabel } from '@/lib/connection-stages'
 import PlanTab from '@/components/itinerary/PlanTab'
 import DaysTab from '@/components/itinerary/DaysTab'
-import BookingsTab from '@/components/itinerary/BookingsTab'
 import PackingTab from '@/components/itinerary/PackingTab'
 import ActivityFeed from '@/components/itinerary/ActivityFeed'
 import ManageCompanions from '@/components/itinerary/ManageCompanions'
@@ -37,14 +30,12 @@ interface PageProps {
   params: Promise<{ connectionId: string }>
 }
 
-type Tab = 'plan' | 'days' | 'bookings' | 'packing' | 'group'
+type Tab = 'plan' | 'days' | 'packing'
 
 const TABS: Array<{ id: Tab; label: string; icon: typeof Compass }> = [
   { id: 'plan', label: 'Plan', icon: Pencil },
   { id: 'days', label: 'Days & Map', icon: Calendar },
-  { id: 'bookings', label: 'Bookings & Budget', icon: Receipt },
   { id: 'packing', label: 'Packing', icon: Backpack },
-  { id: 'group', label: 'Group', icon: Users },
 ]
 
 export default function SharedItineraryPage({ params }: PageProps) {
@@ -475,46 +466,6 @@ export default function SharedItineraryPage({ params }: PageProps) {
         </div>
       </section>
 
-      {/* Quick actions */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <Link
-          href={`/chat?buddy=${connection.buddy_id}`}
-          className="flex items-center gap-3 p-4 border border-border rounded-sm bg-surface hover:border-border-strong transition-colors duration-150"
-        >
-          <span className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-primary text-paper" aria-hidden="true">
-            <MessageCircle size={16} />
-          </span>
-          <span>
-            <strong className="block text-sm font-semibold">Message</strong>
-            <small className="block text-xs text-muted">Chat about the plan</small>
-          </span>
-        </Link>
-        <Link
-          href={`/chat?buddy=${connection.buddy_id}&call=1`}
-          className="flex items-center gap-3 p-4 border border-border rounded-sm bg-surface hover:border-border-strong transition-colors duration-150"
-        >
-          <span className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-success text-paper" aria-hidden="true">
-            <Phone size={16} />
-          </span>
-          <span>
-            <strong className="block text-sm font-semibold">Voice / video call</strong>
-            <small className="block text-xs text-muted">WebRTC real-time</small>
-          </span>
-        </Link>
-        <Link
-          href={me?.role === 'buddy' ? '/buddy/dashboard' : '/tourist/trips'}
-          className="flex items-center gap-3 p-4 border border-border rounded-sm bg-surface hover:border-border-strong transition-colors duration-150"
-        >
-          <span className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-info text-paper" aria-hidden="true">
-            <Compass size={16} />
-          </span>
-          <span>
-            <strong className="block text-sm font-semibold">All trips</strong>
-            <small className="block text-xs text-muted">Manage dates and stops</small>
-          </span>
-        </Link>
-      </section>
-
       {/* Tabs */}
       <section
         className="border border-border rounded-sm bg-surface overflow-hidden"
@@ -552,35 +503,40 @@ export default function SharedItineraryPage({ params }: PageProps) {
               {tab === 'days' ? (
                 <DaysTab trip={trip} canEdit={canEdit} me={me!} onLogActivity={logActivity} />
               ) : null}
-              {tab === 'bookings' ? (
-                <BookingsTab trip={trip} canEdit={canEdit} me={me!} onLogActivity={logActivity} />
-              ) : null}
               {tab === 'packing' ? (
                 <PackingTab trip={trip} canEdit={canEdit} me={me!} onLogActivity={logActivity} />
-              ) : null}
-              {tab === 'group' && trip ? (
-                <div className="p-6">
-                  <div className="mb-4">
-                    <h2 className="text-lg font-semibold mb-1">Group on this trip</h2>
-                    <p className="text-sm text-muted">
-                      Add companions (other travelers in your group) and co-buddies (extra local
-                      guides). Leads can invite; everyone can see who is on the trip.
-                    </p>
-                  </div>
-                  <ManageCompanions
-                    tripId={trip.id}
-                    myId={me?.id ?? ''}
-                    canManage={canEdit && (me?.id === trip.tourist_id || me?.id === trip.buddy_id)}
-                    onChange={() => {
-                      if (connectionId) load(connectionId)
-                    }}
-                  />
-                </div>
               ) : null}
             </>
           ) : null}
         </div>
       </section>
+
+      {/* Companion management — collapsed by default; sits outside the tabs. */}
+      <details
+        className="border border-border rounded-sm bg-surface overflow-hidden"
+        aria-label="Manage trip companions"
+      >
+        <summary className="px-4 py-3 cursor-pointer text-sm font-semibold flex items-center gap-2 hover:bg-paper">
+          <Pencil size={13} aria-hidden="true" />
+          Manage group
+        </summary>
+        <div className="p-4 lg:p-6 border-t border-border">
+          <p className="text-sm text-muted mb-4">
+            Add companions (other travelers in your group) and co-buddies (extra local
+            guides). Leads can invite; everyone can see who is on the trip.
+          </p>
+          {trip ? (
+            <ManageCompanions
+              tripId={trip.id}
+              myId={me?.id ?? ''}
+              canManage={canEdit && (me?.id === trip.tourist_id || me?.id === trip.buddy_id)}
+              onChange={() => {
+                if (connectionId) load(connectionId)
+              }}
+            />
+          ) : null}
+        </div>
+      </details>
 
       {/* Activity feed (collapsible right rail) */}
       <section

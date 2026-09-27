@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/auth'
-import type { Trip, TripPackingItem, Profile } from '@/lib/types'
-import { Plus, X, Trash2, Shirt, Bath, Laptop, FileText, Box, Check } from 'lucide-react'
+import type { Trip, TripPackingItem, TripStop, Profile } from '@/lib/types'
+import { Plus, X, Shirt, Bath, Laptop, FileText, Box, Check, Sparkles } from 'lucide-react'
+import { suggestItems, type PackingSuggestion } from '@/lib/packing-suggestions'
 
 interface Props {
   trip: Trip
@@ -30,6 +31,7 @@ const SUGGESTED: Record<TripPackingItem['category'], string[]> = {
 
 export default function PackingTab({ trip, canEdit, me, onLogActivity }: Props) {
   const [items, setItems] = useState<TripPackingItem[]>([])
+  const [stops, setStops] = useState<TripStop[]>([])
   const [newItem, setNewItem] = useState('')
   const [newCategory, setNewCategory] = useState<TripPackingItem['category']>('misc')
   const [loading, setLoading] = useState(true)
@@ -44,6 +46,7 @@ export default function PackingTab({ trip, canEdit, me, onLogActivity }: Props) 
     const ch = supabase
       .channel(`packing-${trip.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_packing_items', filter: `trip_id=eq.${trip.id}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_stops', filter: `trip_id=eq.${trip.id}` }, () => load())
       .subscribe()
     return () => {
       supabase.removeChannel(ch)
@@ -52,12 +55,12 @@ export default function PackingTab({ trip, canEdit, me, onLogActivity }: Props) 
 
   async function load() {
     const supabase = createClient()
-    const { data } = await supabase
-      .from('trip_packing_items')
-      .select('*')
-      .eq('trip_id', trip.id)
-      .order('created_at', { ascending: true })
-    setItems((data as TripPackingItem[]) || [])
+    const [{ data: p }, { data: s }] = await Promise.all([
+      supabase.from('trip_packing_items').select('*').eq('trip_id', trip.id).order('created_at', { ascending: true }),
+      supabase.from('trip_stops').select('*').eq('trip_id', trip.id),
+    ])
+    setItems((p as TripPackingItem[]) || [])
+    setStops((s as TripStop[]) || [])
     setLoading(false)
   }
 
@@ -160,6 +163,15 @@ export default function PackingTab({ trip, canEdit, me, onLogActivity }: Props) 
         </form>
       ) : null}
 
+      {/* Smart suggestions — derived from stops */}
+      {canEdit ? (
+        <SmartSuggestions
+          stops={stops}
+          items={items}
+          onPick={addSuggested}
+        />
+      ) : null}
+
       {/* Categories */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {CATEGORIES.map((cat) => {
@@ -240,5 +252,64 @@ export default function PackingTab({ trip, canEdit, me, onLogActivity }: Props) 
         })}
       </div>
     </div>
+  )
+}
+
+function SmartSuggestions({
+  stops,
+  items,
+  onPick,
+}: {
+  stops: TripStop[]
+  items: TripPackingItem[]
+  onPick: (category: TripPackingItem['category'], text: string) => void
+}) {
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+  const all = suggestItems(stops, items)
+  const visible = all.filter((s) => !dismissed.has(s.item))
+  if (visible.length === 0) return null
+  return (
+    <section className="border border-primary rounded-sm bg-info-bg p-4">
+      <header className="flex items-center justify-between gap-2 mb-2">
+        <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
+          <Sparkles size={14} className="text-primary" aria-hidden="true" />
+          Smart suggestions
+        </h3>
+        <span className="text-[11px] text-muted">
+          From your {stops.length} planned stop{stops.length === 1 ? '' : 's'}
+        </span>
+      </header>
+      <p className="text-xs text-muted mb-3">
+        Tap to add. Suggestions hide once added.
+      </p>
+      <ul className="space-y-2">
+        {visible.map((s) => (
+          <li
+            key={s.item}
+            className="flex items-center gap-2 bg-surface border border-border rounded-sm px-3 py-2"
+          >
+            <span className="text-[11px] text-muted flex-1 min-w-0">
+              <strong className="text-ink">{s.item}</strong>{' '}
+              <span className="text-subtle">— {s.reason}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => onPick(s.category, s.item)}
+              className="inline-flex items-center gap-1 h-7 px-2 text-xs rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+            >
+              <Plus size={10} aria-hidden="true" /> Add
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissed((d) => new Set(d).add(s.item))}
+              aria-label={`Dismiss ${s.item}`}
+              className="text-muted hover:text-ink"
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

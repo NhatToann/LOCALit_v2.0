@@ -14,6 +14,7 @@ const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password'
 function AuthAwareHeader() {
   const [role, setRole] = useState<'tourist' | 'buddy' | null>(null);
   const [name, setName] = useState<string | undefined>(undefined);
+  const [userId, setUserId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,6 +31,7 @@ function AuthAwareHeader() {
       if (profile?.role === 'tourist' || profile?.role === 'buddy') {
         setRole(profile.role);
         setName(profile.full_name ?? undefined);
+        setUserId(user.id);
       }
     }
     load();
@@ -41,7 +43,7 @@ function AuthAwareHeader() {
   }, []);
 
   if (role) {
-    return <Header userRole={role} userName={name} />;
+    return <Header userRole={role} userName={name} userId={userId} />;
   }
   return <Header />;
 }

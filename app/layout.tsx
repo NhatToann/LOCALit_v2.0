@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   },
 }
 
+// Inline before-paint theme bootstrap — reads localStorage so dark mode
+// avoids the FOUC flash. Mirrors lib/theme.ts#applyTheme.
+const themeBootstrap = `(function(){try{var t=localStorage.getItem('localit-theme');var isDark=t==='dark'||(t!=='light'&&t!=='dark'&&t!=='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(isDark)document.documentElement.classList.add('dark');}catch(e){}})();`
+
 export default function RootLayout({
   children,
 }: {
@@ -17,6 +21,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+      </head>
       <body>
         <AppShell>{children}</AppShell>
       </body>
