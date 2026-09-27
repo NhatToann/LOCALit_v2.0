@@ -13,9 +13,9 @@ interface CreateProfileBody {
    *  This was a footgun — any caller could confirm arbitrary users inside a
    *  15-minute window. We now require a one-time signup token instead. */
   autoConfirm?: boolean
-  /** A one-time token issued by /api/auth/signup that authorises the call to
-   *  mark a specific user as confirmed. Issued only when Supabase refuses to
-   *  auto-confirm a fresh user. */
+  /** A one-time token issued by /api/auth/signup/complete that authorises the
+   *  call to mark a specific user as confirmed. Issued only when Supabase
+   *  refuses to auto-confirm a fresh user. */
   signupToken?: string
 }
 

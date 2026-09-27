@@ -1,0 +1,3 @@
+{"sessionId":"f52780","runId":"reg-step1","hypothesisId":"FIX","location":"app/register/page.tsx:step1Submit","message":"step1 onSubmit fired","data":{"step":"personal","roleParam":null,"stepReady":true,"loading":false},"timestamp":1790520535609}
+{"sessionId":"f52780","runId":"reg-step1","hypothesisId":"FIX","location":"app/register/page.tsx:finalizeSignup","message":"finalizeSignup start","data":{"email":"dbg.ui.tourist.1790520300000@gmail.com","role":"tourist"},"timestamp":1790520627568}
+{"sessionId":"f52780","runId":"reg-step1","hypothesisId":"FIX","location":"app/register/page.tsx:finalizeSignup","message":"signup responded","data":{"status":500,"ok":false},"timestamp":1790520628503}

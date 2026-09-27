@@ -3,11 +3,11 @@
 import { useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, ArrowRight, Check } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, Mail, RefreshCw } from 'lucide-react'
 import { validatePassword } from '@/utils/password-validator'
 
 type Role = 'tourist' | 'buddy'
-type Step = 'personal' | 'role' | 'tags'
+type Step = 'personal' | 'verify-email' | 'role' | 'tags'
 
 const INTERESTS = [
   { id: 'food', label: 'Food' },
@@ -119,10 +119,17 @@ const INITIAL_FORM: FormState = {
   terms: false,
 }
 
-const STEP_LABELS = ['Personal info', 'Choose role', 'Tags & bio']
+const STEP_LABELS = ['Personal info', 'Verify email', 'Choose role', 'Tags & bio']
 
 function Stepper({ step }: { step: Step }) {
-  const idx = step === 'personal' ? 0 : step === 'role' ? 1 : 2
+  const idx =
+    step === 'personal'
+      ? 0
+      : step === 'verify-email'
+      ? 1
+      : step === 'role'
+      ? 2
+      : 3
   return (
     <ol
       className="flex items-center justify-center gap-2 mb-6"
@@ -231,6 +238,13 @@ function RegisterForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // OTP flow state (Step 0.5 — between personal info and role)
+  const [signupId, setSignupId] = useState<string | null>(null)
+  const [otp, setOtp] = useState(['', '', '', '', '', ''])
+  const [otpSending, setOtpSending] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null)
+
   const validateEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
@@ -277,6 +291,9 @@ function RegisterForm() {
         form.terms
       )
     }
+    if (step === 'verify-email') {
+      return otp.every((d) => d !== '') && otp.join('').length === 6
+    }
     if (step === 'tags') {
       if (form.role === 'tourist') {
         return (
@@ -294,16 +311,130 @@ function RegisterForm() {
       )
     }
     return false
-  }, [step, form])
+  }, [step, form, otp])
+
+  async function startSignup() {
+    setError('')
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/signup/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          fullName: form.fullName,
+          phone: form.phone,
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(body.error ?? 'Could not start signup. Please try again.')
+        setLoading(false)
+        return
+      }
+      setSignupId(body.signupId)
+      setVerifiedEmail(body.email)
+      setOtp(['', '', '', '', '', ''])
+      setLoading(false)
+      setStep('verify-email')
+      // Start 60-second resend cooldown
+      setResendCooldown(60)
+      const interval = setInterval(() => {
+        setResendCooldown((s) => {
+          if (s <= 1) {
+            clearInterval(interval)
+            return 0
+          }
+          return s - 1
+        })
+      }, 1000)
+    } catch (err) {
+      console.error('Start signup error:', err)
+      setError('Could not reach the server. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  async function verifyOtpCode() {
+    if (!signupId) return
+    setError('')
+    setOtpSending(true)
+    try {
+      const code = otp.join('')
+      const res = await fetch('/api/auth/signup/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signupId, code }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(body.error ?? 'Verification failed.')
+        setOtp(['', '', '', '', '', ''])
+        setOtpSending(false)
+        return
+      }
+      setOtpSending(false)
+      // Advance to role step (or skip it if ?role= was provided)
+      const initialRole = searchParams.get('role')
+      if (initialRole === 'tourist' || initialRole === 'buddy') {
+        setForm((p) => ({ ...p, role: initialRole }))
+        setStep('tags')
+      } else {
+        setStep('role')
+      }
+    } catch (err) {
+      console.error('Verify OTP error:', err)
+      setError('Could not verify code. Please try again.')
+      setOtpSending(false)
+    }
+  }
+
+  async function resendOtp() {
+    if (!signupId || resendCooldown > 0) return
+    setError('')
+    setOtpSending(true)
+    try {
+      const res = await fetch('/api/auth/signup/resend-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signupId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(body.error ?? 'Could not resend code.')
+        setOtpSending(false)
+        return
+      }
+      // New signupId was returned (the prior row was invalidated). Use it.
+      if (body.signupId) setSignupId(body.signupId)
+      setOtp(['', '', '', '', '', ''])
+      setOtpSending(false)
+      setResendCooldown(60)
+      const interval = setInterval(() => {
+        setResendCooldown((s) => {
+          if (s <= 1) {
+            clearInterval(interval)
+            return 0
+          }
+          return s - 1
+        })
+      }, 1000)
+    } catch (err) {
+      console.error('Resend OTP error:', err)
+      setError('Could not resend code. Please try again.')
+      setOtpSending(false)
+    }
+  }
 
   async function finalizeSignup() {
     setError('')
     setLoading(true)
 
     try {
-      // Build the role-specific profile payload. /api/auth/signup handles
-      // the auth.users row + profiles row + tourists/buddies row in one call
-      // (email_confirm: true — no OTP wall).
+      // Build the role-specific profile payload. /api/auth/signup/complete
+      // uses the pending_payload (saved at /signup/start) plus the role +
+      // profilePayload here to create auth.users + profiles + tourist/buddy.
       const profilePayload =
         form.role === 'tourist'
           ? {
@@ -326,13 +457,11 @@ function RegisterForm() {
               is_available: true,
             }
 
-      const res = await fetch('/api/auth/signup', {
+      const res = await fetch('/api/auth/signup/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-          fullName: form.fullName,
+          signupId,
           role: form.role,
           profilePayload,
         }),
@@ -398,15 +527,10 @@ function RegisterForm() {
             onSubmit={(e) => {
               e.preventDefault()
               if (!stepReady || loading) return
-              // If a role was provided via ?role=, skip the role picker and
-              // go straight to the tags step. Otherwise show the role picker.
-              const initialRole = searchParams.get('role')
-              if (initialRole === 'tourist' || initialRole === 'buddy') {
-                setForm((p) => ({ ...p, role: initialRole }))
-                setStep('tags')
-                return
-              }
-              setStep('role')
+              // Step 0 → call /api/auth/signup/start → OTP → Step 0.5.
+              // The auth.users row is NOT created here — it will be created
+              // at /api/auth/signup/complete AFTER the OTP is verified.
+              startSignup()
             }}
             noValidate
           >
@@ -532,11 +656,147 @@ function RegisterForm() {
               {loading ? 'Sending code…' : null}
               {!loading ? (
                 <>
-                  Continue
+                  Send verification code
                   <ArrowRight size={14} aria-hidden="true" />
                 </>
               ) : null}
             </button>
+          </form>
+        </section>
+      ) : null}
+
+      {step === 'verify-email' ? (
+        <section className="border border-border rounded-sm bg-surface p-6">
+          <header className="mb-5 pb-4 border-b border-border">
+            <div className="flex items-center gap-2 text-primary mb-2">
+              <Mail size={18} aria-hidden="true" />
+              <span className="text-eyebrow">Step 2 of 4</span>
+            </div>
+            <h1 className="text-section-title">Check your inbox</h1>
+            <p className="text-sm text-muted mt-1">
+              We sent a 6-digit code to{' '}
+              <strong className="text-ink">{verifiedEmail ?? form.email}</strong>. Enter it below to
+              verify your email and continue.
+            </p>
+          </header>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!stepReady || otpSending) return
+              verifyOtpCode()
+            }}
+            noValidate
+          >
+            <div className="form-group">
+              <label className="form-label">Verification code</label>
+              <div className="flex gap-2 justify-between" role="group" aria-label="6-digit code">
+                {otp.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => {
+                      if (el) (el as unknown as { _idx?: number })._idx = i
+                    }}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={1}
+                    autoComplete="one-time-code"
+                    className="w-12 h-14 text-center text-2xl font-semibold tabular-nums border border-border rounded-sm bg-paper focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+                    value={digit}
+                    aria-label={`Digit ${i + 1} of 6`}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 1)
+                      setOtp((prev) => {
+                        const next = [...prev]
+                        next[i] = v
+                        return next
+                      })
+                      // Auto-advance focus to next input
+                      if (v && i < 5) {
+                        const inputs = document.querySelectorAll<HTMLInputElement>(
+                          'input[autocomplete="one-time-code"]',
+                        )
+                        const next = inputs[i + 1]
+                        if (next) next.focus()
+                      }
+                    }}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+                      if (pasted.length === 6) {
+                        e.preventDefault()
+                        setOtp(pasted.split(''))
+                        // Focus the last input
+                        const inputs = document.querySelectorAll<HTMLInputElement>(
+                          'input[autocomplete="one-time-code"]',
+                        )
+                        const last = inputs[5]
+                        if (last) last.focus()
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Backspace' && !digit && i > 0) {
+                        const inputs = document.querySelectorAll<HTMLInputElement>(
+                          'input[autocomplete="one-time-code"]',
+                        )
+                        const prev = inputs[i - 1]
+                        if (prev) {
+                          prev.focus()
+                          setOtp((p) => {
+                            const next = [...p]
+                            next[i - 1] = ''
+                            return next
+                          })
+                        }
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+              <p className="form-hint mt-2">
+                Code expires in 15 minutes. Paste from your email or type each digit.
+              </p>
+            </div>
+
+            {error ? (
+              <div className="alert alert-error mb-4" role="alert">
+                <AlertTriangle size={16} aria-hidden="true" />
+                <span>{error}</span>
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('personal')
+                  setError('')
+                  setOtp(['', '', '', '', '', ''])
+                }}
+                disabled={otpSending}
+                className="inline-flex items-center gap-1 h-11 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+              >
+                <ArrowLeft size={14} aria-hidden="true" />
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={!stepReady || otpSending}
+                className="inline-flex items-center gap-2 h-11 px-5 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {otpSending ? 'Verifying…' : 'Verify and continue'}
+                {!otpSending ? <ArrowRight size={14} aria-hidden="true" /> : null}
+              </button>
+              <button
+                type="button"
+                onClick={resendOtp}
+                disabled={resendCooldown > 0 || otpSending}
+                className="inline-flex items-center gap-2 h-11 px-4 text-sm font-medium rounded-sm bg-transparent text-muted border border-border hover:border-border-strong hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw size={14} aria-hidden="true" />
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
+              </button>
+            </div>
           </form>
         </section>
       ) : null}
@@ -605,6 +865,17 @@ function RegisterForm() {
           <p className="text-xs text-muted text-center mt-6">
             We never share your contact details without your permission.
           </p>
+
+          <div className="text-center mt-6">
+            <button
+              type="button"
+              onClick={() => setStep('verify-email')}
+              className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink"
+            >
+              <ArrowLeft size={12} aria-hidden="true" />
+              Back to email verification
+            </button>
+          </div>
         </section>
       ) : null}
 
@@ -620,7 +891,13 @@ function RegisterForm() {
                 <strong>{form.role === 'buddy' ? 'a local buddy' : 'a tourist'}</strong>.{' '}
                 <button
                   type="button"
-                  onClick={() => setStep('role')}
+                  onClick={() => {
+                    // If a role was provided via ?role=, we skipped the role
+                    // step, so going back means going back to OTP. Otherwise
+                    // the role picker was shown.
+                    const hadRoleParam = searchParams.get('role') === 'tourist' || searchParams.get('role') === 'buddy'
+                    setStep(hadRoleParam ? 'verify-email' : 'role')
+                  }}
                   className="text-primary hover:underline"
                 >
                   Change
@@ -854,7 +1131,10 @@ function RegisterForm() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => setStep('role')}
+                onClick={() => {
+                  const hadRoleParam = searchParams.get('role') === 'tourist' || searchParams.get('role') === 'buddy'
+                  setStep(hadRoleParam ? 'verify-email' : 'role')
+                }}
                 disabled={loading}
                 className="inline-flex items-center gap-1 h-11 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
               >
