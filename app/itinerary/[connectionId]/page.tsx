@@ -55,6 +55,8 @@ export default function SharedItineraryPage({ params }: PageProps) {
   const [canEdit, setCanEdit] = useState(false)
   const [tab, setTab] = useState<Tab>('plan')
   const [activity, setActivity] = useState<TripActivity[]>([])
+  const [travelers, setTravelers] = useState<Array<{ id: string; full_name: string; avatar_url: string | null; nationality: string | null; role: string }>>([])
+  const [coBuddies, setCoBuddies] = useState<Array<{ id: string; full_name: string; avatar_url: string | null; specialties: string[]; role: string }>>([])
   const [showActivity, setShowActivity] = useState(true)
   const [showShareMenu, setShowShareMenu] = useState(false)
   const [copyOk, setCopyOk] = useState(false)
@@ -80,39 +82,55 @@ export default function SharedItineraryPage({ params }: PageProps) {
       .eq('id', cid)
       .maybeSingle()
 
-    if (!conn) {
+    // Connection not found OR not a party — find the user's most relevant
+    // connection instead. Prefer accepted (so editing is unlocked), then any.
+    let resolved = conn as Connection | null
+    if (!resolved || (resolved.tourist_id !== user.id && resolved.buddy_id !== user.id)) {
+      const { data: userConns } = await supabase
+        .from('connections')
+        .select('id, status, updated_at')
+        .or(`tourist_id.eq.${user.id},buddy_id.eq.${user.id}`)
+        .order('updated_at', { ascending: false })
+        .limit(20)
+
+      const accepted = (userConns || []).find((c) => c.status === 'accepted')
+      const fallback = accepted || (userConns || [])[0]
+      if (fallback) {
+        router.replace(`/itinerary/${fallback.id}`)
+        return
+      }
       setLoading(false)
       return
     }
-    setConnection(conn as Connection)
+    setConnection(resolved)
 
-    const isTourist = conn.tourist_id === user.id
-    const isBuddy = conn.buddy_id === user.id
+    const isTourist = resolved.tourist_id === user.id
+    const isBuddy = resolved.buddy_id === user.id
     if (!isTourist && !isBuddy) {
       setLoading(false)
       return
     }
-    setCanEdit(conn.status === 'accepted')
+    setCanEdit(resolved.status === 'accepted')
 
     const { data: trips } = await supabase
       .from('trips')
       .select(
         '*, tourist:tourists(*, profile:profiles(*)), buddy:buddies(*, profile:profiles(*))',
       )
-      .eq('tourist_id', conn.tourist_id)
-      .eq('buddy_id', conn.buddy_id)
+      .eq('tourist_id', resolved.tourist_id)
+      .eq('buddy_id', resolved.buddy_id)
       .order('updated_at', { ascending: false })
       .limit(1)
 
     let activeTrip = (trips && trips.length > 0 ? trips[0] : null) as Trip | null
     if (!activeTrip) {
-      const buddyProfile = (conn.buddy as any)?.profile
+      const buddyProfile = (resolved.buddy as any)?.profile
       const title = `Da Nang trip with ${buddyProfile?.full_name ?? 'buddy'}`
       const { data: created } = await supabase
         .from('trips')
         .insert({
-          tourist_id: conn.tourist_id,
-          buddy_id: conn.buddy_id,
+          tourist_id: resolved.tourist_id,
+          buddy_id: resolved.buddy_id,
           title,
           destination: 'Da Nang',
           status: 'planning',
@@ -124,13 +142,47 @@ export default function SharedItineraryPage({ params }: PageProps) {
     setTrip(activeTrip)
 
     if (activeTrip) {
-      const { data: acts } = await supabase
-        .from('trip_activity')
-        .select('*, actor:profiles!trip_activity_actor_id_fkey(id, full_name, avatar_url)')
-        .eq('trip_id', activeTrip.id)
-        .order('created_at', { ascending: false })
-        .limit(20)
+      const [
+        { data: acts },
+        { data: travelersRows },
+        { data: buddiesRows },
+      ] = await Promise.all([
+        supabase
+          .from('trip_activity')
+          .select('*, actor:profiles!trip_activity_actor_id_fkey(id, full_name, avatar_url)')
+          .eq('trip_id', activeTrip.id)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('trip_travelers')
+          .select('role, status, profile:profiles(id, full_name, avatar_url), tourist:tourists(nationality)')
+          .eq('trip_id', activeTrip.id)
+          .order('role', { ascending: true }),
+        supabase
+          .from('trip_buddies')
+          .select('role, status, profile:profiles(id, full_name, avatar_url), buddy:buddies(specialties)')
+          .eq('trip_id', activeTrip.id)
+          .order('role', { ascending: true }),
+      ])
       setActivity((acts as any) || [])
+      setTravelers(
+        ((travelersRows as any[]) || []).map((r) => ({
+          id: r.profile?.id ?? r.tourist_id,
+          full_name: r.profile?.full_name ?? 'Traveler',
+          avatar_url: r.profile?.avatar_url ?? null,
+          nationality: r.tourist?.nationality ?? null,
+          role: r.role,
+        })),
+      )
+      setCoBuddies(
+        ((buddiesRows as any[]) || []).map((r) => ({
+          id: r.profile?.id ?? r.buddy_id,
+          full_name: r.profile?.full_name ?? 'Buddy',
+          avatar_url: r.profile?.avatar_url ?? null,
+          specialties: r.buddy?.specialties ?? [],
+          role: r.role,
+        })),
+      )
     }
 
     setLoading(false)
@@ -212,11 +264,25 @@ export default function SharedItineraryPage({ params }: PageProps) {
       <div className="container-page py-16">
         <div className="alert alert-error" role="alert">
           <AlertTriangle size={16} aria-hidden="true" />
-          <span>Connection not found.</span>
+          <span>No active connection found. Accept or send a buddy request to start an itinerary.</span>
         </div>
-        <Link href="/" className="inline-flex items-center gap-2 mt-4 text-sm text-primary hover:underline">
-          <ArrowLeft size={14} /> Back to home
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href={me?.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'}
+            className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+          >
+            <ArrowLeft size={14} aria-hidden="true" />
+            Back to dashboard
+          </Link>
+          {me?.role !== 'buddy' ? (
+            <Link
+              href="/tourist/browse"
+              className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+            >
+              Find a buddy
+            </Link>
+          ) : null}
+        </div>
       </div>
     )
   }
@@ -297,16 +363,61 @@ export default function SharedItineraryPage({ params }: PageProps) {
           <p className="text-eyebrow text-primary mb-2">Shared itinerary</p>
           <h1 className="text-page-title mb-2">{trip?.title ?? 'Da Nang itinerary'}</h1>
           <p className="text-sm text-muted mb-4 max-w-xl">
-            Both {touristName} and {buddyName} can edit this page. Changes save automatically.
+            {travelers.length > 1 || coBuddies.length > 1
+              ? `This trip has ${travelers.length} traveler${travelers.length === 1 ? '' : 's'} and ${coBuddies.length} guide${coBuddies.length === 1 ? '' : 's'}. All accepted participants can read; leads can edit.`
+              : `Both ${touristName} and ${buddyName} can edit this page. Changes save automatically.`}
           </p>
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <span className="badge badge-primary text-xs">
+              Travelers ({travelers.length})
+            </span>
+            <ul className="flex flex-wrap items-center gap-2">
+              {travelers.length === 0 ? (
+                <li className="text-xs text-muted">No travelers yet.</li>
+              ) : (
+                travelers.map((t) => (
+                  <li
+                    key={t.id}
+                    className="flex items-center gap-2 border border-border rounded-sm pl-1 pr-3 py-1 bg-paper"
+                  >
+                    <Avatar name={t.full_name} src={t.avatar_url} size="xs" />
+                    <span className="text-xs font-medium text-ink truncate max-w-[120px]">
+                      {t.full_name}
+                    </span>
+                    {t.role === 'lead' ? (
+                      <span className="badge badge-warning text-[10px]">Lead</span>
+                    ) : null}
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Avatar name={touristName} src={touristAvatar} size="sm" />
-              <span className="text-sm text-ink font-medium">{touristName}</span>
-              <Users size={14} className="text-subtle mx-1" aria-hidden="true" />
-              <Avatar name={buddyName} src={buddyAvatar} size="sm" />
-              <span className="text-sm text-ink font-medium">{buddyName}</span>
-            </div>
+            <span className="badge badge-success text-xs">
+              Buddies ({coBuddies.length})
+            </span>
+            <ul className="flex flex-wrap items-center gap-2">
+              {coBuddies.length === 0 ? (
+                <li className="text-xs text-muted">No buddies yet.</li>
+              ) : (
+                coBuddies.map((b) => (
+                  <li
+                    key={b.id}
+                    className="flex items-center gap-2 border border-border rounded-sm pl-1 pr-3 py-1 bg-paper"
+                  >
+                    <Avatar name={b.full_name} src={b.avatar_url} size="xs" />
+                    <span className="text-xs font-medium text-ink truncate max-w-[120px]">
+                      {b.full_name}
+                    </span>
+                    {b.role === 'lead' ? (
+                      <span className="badge badge-warning text-[10px]">Lead</span>
+                    ) : null}
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 mt-4">
             <span className="hidden sm:inline text-subtle">·</span>
             <span
               className={`badge badge-${

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import {
   User,
@@ -13,6 +13,8 @@ import {
   Trash2,
   Check,
   AlertTriangle,
+  Camera,
+  X,
 } from 'lucide-react'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { Profile, Tourist } from '@/lib/types'
@@ -84,6 +86,9 @@ export default function TouristProfilePage() {
   const [trips, setTrips] = useState<any[]>([])
   const [reviewsWritten, setReviewsWritten] = useState<any[]>([])
   const [reviewsAboutMe, setReviewsAboutMe] = useState<any[]>([])
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+  const fileRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -207,6 +212,52 @@ export default function TouristProfilePage() {
     setTimeout(() => setSavedAt(null), 3000)
   }
 
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !profile) return
+    setAvatarError('')
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setAvatarError('Use PNG, JPG, or WebP.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Max size is 5 MB.')
+      return
+    }
+    setAvatarUploading(true)
+    const supabase = createClient()
+    const ext = file.name.split('.').pop()
+    const path = `${profile.id}/${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, contentType: file.type })
+    if (upErr) {
+      setAvatarError(upErr.message)
+      setAvatarUploading(false)
+      return
+    }
+    const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
+    const publicUrl = pub.publicUrl
+    const { error: upProfileErr } = await supabase
+      .from('profiles')
+      .update({ avatar_url: publicUrl })
+      .eq('id', profile.id)
+    setAvatarUploading(false)
+    if (upProfileErr) {
+      setAvatarError(upProfileErr.message)
+      return
+    }
+    setProfile({ ...profile, avatar_url: publicUrl })
+  }
+
+  async function handleRemoveAvatar() {
+    if (!profile || !profile.avatar_url) return
+    if (!confirm('Remove your custom avatar?')) return
+    const supabase = createClient()
+    await supabase.from('profiles').update({ avatar_url: null }).eq('id', profile.id)
+    setProfile({ ...profile, avatar_url: null })
+  }
+
   async function handleChangePassword(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setPwMsg(null)
@@ -298,10 +349,47 @@ export default function TouristProfilePage() {
         {/* Sidebar */}
         <aside className="border border-border rounded-sm bg-surface p-5 h-fit">
           <div className="flex flex-col items-center text-center pb-5 border-b border-border">
-            <Avatar name={profile.full_name} size="xl" />
+            <div className="relative group">
+              <Avatar name={profile.full_name} src={profile.avatar_url} size="xl" />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                aria-label="Upload a new photo"
+                className="absolute inset-0 inline-flex items-center justify-center bg-ink/60 text-paper rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150"
+              >
+                <Camera size={20} aria-hidden="true" />
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleAvatarUpload}
+                className="hidden"
+                aria-hidden="true"
+              />
+            </div>
+            {avatarUploading ? (
+              <p className="text-xs text-muted mt-2 inline-flex items-center gap-1">
+                <span className="loading-spinner w-3 h-3" aria-hidden="true" />
+                Uploading…
+              </p>
+            ) : null}
+            {avatarError ? (
+              <p className="text-xs text-danger mt-2">{avatarError}</p>
+            ) : null}
             <p className="mt-3 text-base font-semibold text-ink">{profile.full_name}</p>
             <span className="badge badge-primary text-xs mt-1">Tourist</span>
             <p className="text-xs text-muted mt-1">{profile.email}</p>
+            {profile.avatar_url ? (
+              <button
+                type="button"
+                onClick={handleRemoveAvatar}
+                className="inline-flex items-center gap-1 mt-2 text-xs text-muted hover:text-danger"
+                aria-label="Remove avatar"
+              >
+                <X size={12} aria-hidden="true" /> Remove photo
+              </button>
+            ) : null}
           </div>
           <Link
             href="/tourist/dashboard"

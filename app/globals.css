@@ -377,6 +377,12 @@
     object-fit: cover;
   }
 
+  .avatar-xs {
+    width: 24px;
+    height: 24px;
+    font-size: 0.625rem;
+  }
+
   .avatar-sm {
     width: 32px;
     height: 32px;

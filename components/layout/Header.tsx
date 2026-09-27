@@ -19,7 +19,6 @@ const NAV_LINKS: Record<UserRole | 'guest', { path: string; label: string }[]> =
     { path: '/buddy/dashboard', label: 'Dashboard' },
     { path: '/buddy/requests', label: 'Requests' },
     { path: '/map', label: 'Map' },
-    { path: '/buddy/profile', label: 'Profile' },
   ],
   tourist: [
     { path: '/tourist/dashboard', label: 'Dashboard' },

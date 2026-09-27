@@ -5,12 +5,13 @@ import { type LucideIcon } from 'lucide-react';
 type AvatarProps = {
   name: string;
   src?: string | null;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   online?: boolean;
   className?: string;
 };
 
 const sizeMap = {
+  xs: 'avatar-xs',
   sm: 'avatar-sm',
   md: 'avatar-md',
   lg: 'avatar-lg',
@@ -19,6 +20,7 @@ const sizeMap = {
 } as const;
 
 const sizePx = {
+  xs: 24,
   sm: 32,
   md: 40,
   lg: 56,

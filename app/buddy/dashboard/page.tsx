@@ -59,6 +59,7 @@ export default function BuddyDashboardPage() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [reviewsCount, setReviewsCount] = useState(0)
   const [avgRating, setAvgRating] = useState<number | null>(null)
+  const [companionsByTrip, setCompanionsByTrip] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState(false)
 
@@ -78,6 +79,7 @@ export default function BuddyDashboardPage() {
           { data: t },
           { data: b },
           { data: myReviews },
+          { data: companions },
         ] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
           supabase
@@ -98,6 +100,10 @@ export default function BuddyDashboardPage() {
             .from('reviews')
             .select('rating')
             .eq('reviewee_id', user.id),
+          supabase
+            .from('trip_travelers')
+            .select('trip_id, role')
+            .in('role', ['companion']),
         ])
 
         setProfile(p ?? null)
@@ -105,6 +111,11 @@ export default function BuddyDashboardPage() {
         setRequests((c || []) as Connection[])
         setTrips((t || []) as Trip[])
         setReviewsCount((myReviews || []).length)
+        const compMap: Record<string, number> = {}
+        for (const row of companions || []) {
+          compMap[row.trip_id] = (compMap[row.trip_id] || 0) + 1
+        }
+        setCompanionsByTrip(compMap)
         if (myReviews && myReviews.length > 0) {
           const sum = myReviews.reduce((acc, r) => acc + (r.rating || 0), 0)
           setAvgRating(Math.round((sum / myReviews.length) * 10) / 10)
@@ -358,6 +369,8 @@ export default function BuddyDashboardPage() {
                 const name = t?.profile?.full_name || 'Traveler'
                 const stage = getConnectionStage('accepted')
                 const daysLeft = daysUntilExpiry(r.updated_at)
+                const tripId = trips.find((tt) => tt.tourist_id === r.tourist_id && tt.buddy_id === r.buddy_id)?.id
+                const extraTravelers = tripId ? companionsByTrip[tripId] || 0 : 0
                 return (
                   <li key={r.id} className="py-4">
                     <div className="flex items-center gap-3 flex-wrap">
@@ -366,6 +379,7 @@ export default function BuddyDashboardPage() {
                         <p className="text-sm font-medium truncate">{name}</p>
                         <p className="text-xs text-muted truncate">
                           {t?.nationality || '—'} · {t?.destination || 'Da Nang'}
+                          {extraTravelers > 0 ? ` · +${extraTravelers} co-traveler${extraTravelers === 1 ? '' : 's'}` : ''}
                         </p>
                       </div>
                       <span className={`badge badge-${stage.tone}`}>{stage.label}</span>

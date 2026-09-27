@@ -24,6 +24,7 @@ export default function TouristDashboardPage() {
   const [userLocation, setUserLocation] = useState(DEFAULT_LOCATION);
   const [hasGpsFix, setHasGpsFix] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [coBuddyCountByTrip, setCoBuddyCountByTrip] = useState<Record<string, number>>({});
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
     enabled: true,
@@ -56,7 +57,7 @@ export default function TouristDashboardPage() {
         return;
       }
 
-      const [{ data: p }, { data: t }, { data: c }, { data: buddyPins }, { count: rCount }] = await Promise.all([
+      const [{ data: p }, { data: t }, { data: c }, { data: buddyPins }, { count: rCount }, { data: coBuddies }] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
         supabase
           .from('trips')
@@ -81,6 +82,10 @@ export default function TouristDashboardPage() {
           .from('reviews')
           .select('id', { count: 'exact', head: true })
           .eq('reviewer_id', user.id),
+        supabase
+          .from('trip_buddies')
+          .select('trip_id, role')
+          .in('role', ['co-buddy']),
       ])
 
       setProfile(p ?? null)
@@ -88,6 +93,11 @@ export default function TouristDashboardPage() {
       setConnections((c || []) as Connection[])
       setBuddies(buddyPins ?? [])
       setReviewsCount(rCount ?? 0)
+      const coMap: Record<string, number> = {}
+      for (const row of coBuddies || []) {
+        coMap[row.trip_id] = (coMap[row.trip_id] || 0) + 1
+      }
+      setCoBuddyCountByTrip(coMap)
     } catch (err) {
       // Silent failure — UI already shows skeleton during load
     } finally {
@@ -385,6 +395,8 @@ export default function TouristDashboardPage() {
                   const avatarUrl = buddy?.profile?.avatar_url
                   const stage = getConnectionStage(c.status)
                   const daysLeft = c.status === 'accepted' ? daysUntilExpiry(c.updated_at) : null
+                  const tripId = trips.find((tt) => tt.buddy_id === buddy?.id && tt.tourist_id === c.tourist_id)?.id
+                  const extraBuddies = tripId ? coBuddyCountByTrip[tripId] || 0 : 0
                   return (
                     <li key={c.id} className="py-3">
                       <div className="flex items-center gap-3 min-w-0">
@@ -393,6 +405,7 @@ export default function TouristDashboardPage() {
                           <p className="text-sm font-medium truncate">{name}</p>
                           <p className="text-xs text-muted truncate">
                             {buddy?.location_city ?? 'Da Nang'}
+                            {extraBuddies > 0 ? ` · +${extraBuddies} co-buddy${extraBuddies === 1 ? '' : 'ies'}` : ''}
                             {daysLeft !== null ? ` · ${expiryLabel(daysLeft)}` : ''}
                           </p>
                         </div>
