@@ -175,15 +175,23 @@ SUPABASE_DB_PORT=5432
 - Plus legacy keys: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `POSTGRES_*`
 - ⚠️ **Past mistake**: a previous session accidentally pasted a JWT (`eyJ...`) into `NEXT_PUBLIC_SUPABASE_URL`. If you see similar symptoms (HTML renders but client-side Supabase errors), `vercel env rm` then re-add with the correct URL.
 
-## Database State (as of 2026-09-25)
+## Database State (as of 2026-09-27, after test-data cleanup + orphan-table drop)
 
-### Tables & Rows
-- `auth.users`: 17 rows (9 seed + 7 test rows from sessions)
-- `public.profiles`: 17 rows (FK to auth.users.id)
-- `public.tourists`: 4 rows
-- `public.buddies`: 12 rows
-- `public.connections`, `trips`, `trip_stops`, `conversations`, `messages`, `location_updates`, `reviews` — all present
+### Rows (live production)
+- `auth.users`: **9 rows** (all seed; see "Seed Accounts" below)
+- `public.profiles`: **9 rows** (1:1 with auth.users, FK cascade)
+- `public.tourists`: 3 rows | `public.buddies`: 6 rows
+- `public.connections`: 4 | `public.conversations`: 2 | `public.messages`: 9
+- `public.trips`: 4 | `public.trip_stops`: 8 | `public.reviews`: 1
+- `public.location_updates`: 15 | `public.message_reactions`: 0
+- `public.trip_travelers`: 3 | `public.trip_buddies`: 2
+- All remaining public tables (`trip_days`, `trip_bookings`, `trip_budget`, `trip_packing_items`, `trip_activity`): 0 rows but preserved (used by the itinerary planner)
 - All tables have RLS enabled (forced=false)
+
+### Public schema: 20 objects (down from 24 as of 2026-09-27)
+- 14 tables: profiles, tourists, buddies, connections, conversations, messages, reviews, location_updates, trips, trip_stops, trip_days, trip_bookings, trip_budget, trip_packing_items, trip_activity, trip_travelers, trip_buddies, message_reactions
+- 3 views: safe_profiles, shared_trip_view
+- Orphan tables DROPPED on 2026-09-27: call_logs, call_signals, email_verifications, safe_reviews (none referenced by current app code; see `supabase/migrations/2026-09-27-drop-orphan-tables.sql`)
 
 ### Auth Triggers
 - `on_auth_user_created` trigger on `auth.users` → inserts into `public.profiles`
@@ -203,11 +211,11 @@ SUPABASE_DB_PORT=5432
   node -e "..." # see scripts/diag-tourists-grants.mjs
   ```
 
-### Email Verification (Custom 6-digit OTP)
-- Flow: `/register` → `POST /api/auth/signup-admin` (no auto-confirm, returns userId) → email sent → user lands on `/verify-email?email=...` → enters 6-digit code → `POST /api/auth/verify-otp` → confirms email + upserts profile.
-- Codes are bcrypt-hashed in `public.email_verifications` (15 min TTL, 5 attempts, then forced resend via `POST /api/auth/resend-otp`).
-- Email delivery: `utils/email.ts` → Resend (`RESEND_API_KEY` + `EMAIL_FROM` env vars). **Without `RESEND_API_KEY`** the sender logs to console / Vercel runtime logs as a stub — useful for local dev or testing without a paid Resend account.
-- See `utils/otp.ts`, `app/api/auth/verify-otp/route.ts`, `app/api/auth/resend-otp/route.ts`, `app/verify-email/page.tsx`.
+### Email Verification (DEPRECATED 2026-09-27 — table dropped)
+- The OTP-flow path (`/api/auth/signup-admin` → email → `/verify-email` → `/api/auth/verify-otp` → `/api/auth/resend-otp`) was deprecated on 2026-09-26 when the simplified sign-up was introduced. The `public.email_verifications` table was dropped on 2026-09-27 alongside `call_logs`, `call_signals`, and `safe_reviews` — none were referenced by the current `/api/auth/signup` endpoint.
+- Active flow: `/register` → `POST /api/auth/signup` (auto-confirm) → client calls `signInWithPassword()` → dashboard.
+- The `/api/auth/verify-otp` and `/api/auth/resend-otp` route files still exist on disk for historical reference but are no longer called from any UI route. Safe to delete in a future cleanup.
+- See: `app/api/auth/signup/route.ts`, `app/api/auth/signup-admin/route.ts`, `utils/otp.ts` (still valid for whoever re-introduces an OTP flow).
 
 ### Data Types (column types differ from what you might assume)
 - `tourists.interests`: `TEXT[]` (PostgreSQL array), NOT `jsonb`. Insert with `ARRAY['food','photo']::text[]`
