@@ -27,6 +27,7 @@ interface BuddyMarker {
   lat: number
   lng: number
   is_online: boolean
+  avatar_url?: string | null
 }
 
 export default function MapPage() {
@@ -34,17 +35,32 @@ export default function MapPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [shareLocation, setShareLocation] = useState(false)
+  // FIX (2026-09-27): auth state must come from the Supabase session, NOT from
+  // the geolocation permission grant. Previously, users who denied or timed
+  // out on geolocation were incorrectly flagged as "not signed in" even when
+  // their auth cookie was valid.
   const [signedIn, setSignedIn] = useState(false)
 
+  // Geolocation — used ONLY to position the user's dot on the map.
   const userLocation = useLocationWatcher({
-    onGranted: () => setSignedIn(true),
-    onDenied: () => setSignedIn(false),
     writeToDb: false,
   })
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
-    enabled: shareLocation,
+    enabled: shareLocation && signedIn,
   })
+
+  // Check auth session once on mount + listen for changes.
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      setSignedIn(!!data.user)
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSignedIn(!!session?.user)
+    })
+    return () => sub.subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -52,7 +68,7 @@ export default function MapPage() {
       const { data } = await supabase
         .from('buddies')
         .select(
-          'id, location_city, latitude, longitude, languages, hourly_rate, profile:safe_profiles(full_name)',
+          'id, location_city, latitude, longitude, languages, hourly_rate, profile:safe_profiles(full_name, avatar_url)',
         )
         .eq('location_city', 'Da Nang')
         .not('latitude', 'is', null)
@@ -70,6 +86,7 @@ export default function MapPage() {
             lat: b.latitude,
             lng: b.longitude,
             is_online: false,
+            avatar_url: b.profile?.avatar_url ?? null,
           }))
         setBuddies(mapped)
       }
@@ -210,9 +227,18 @@ export default function MapPage() {
               <X size={14} aria-hidden="true" />
             </button>
             <div className="flex items-center gap-3 mb-3">
-              <span className="avatar avatar-lg" aria-hidden="true">
-                {selected.name.charAt(0)}
-              </span>
+              {selected.avatar_url ? (
+                <img
+                  src={selected.avatar_url}
+                  alt={`${selected.name} avatar`}
+                  className="avatar avatar-lg"
+                  style={{ width: 56, height: 56, objectFit: 'cover' }}
+                />
+              ) : (
+                <span className="avatar avatar-lg" aria-hidden="true">
+                  {selected.name.charAt(0)}
+                </span>
+              )}
               <div>
                 <p className="text-base font-semibold text-ink">{selected.name}</p>
                 <p className="text-xs text-muted">
@@ -227,13 +253,13 @@ export default function MapPage() {
             <div className="flex gap-2">
               <Link
                 href={`/tourist/buddy/${selected.id}`}
-                className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+                className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
               >
                 Profile
               </Link>
               <Link
                 href={`/chat?buddy=${selected.id}`}
-                className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+                className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
               >
                 <MessageCircle size={14} className="mr-1" aria-hidden="true" />
                 Message

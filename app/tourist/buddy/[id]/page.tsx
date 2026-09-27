@@ -6,8 +6,9 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { ConnectionStatus } from '@/lib/types'
-import { MapPin, Star, AlertTriangle, MessageCircle, Phone, Send, Hourglass, X, CircleDot } from 'lucide-react'
+import { MapPin, Star, AlertTriangle, MessageCircle, Phone, Send, Hourglass, X, CircleDot, MapIcon, Pencil } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
+import { labelFor } from '@/lib/specialties'
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
 
@@ -23,6 +24,7 @@ interface BuddyData {
   longitude: number
   languages: string[]
   specialties: string[]
+  favorite_places: string[]
   hourly_rate: number | null
   rating_avg: number | null
   trips_completed: number
@@ -44,10 +46,14 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
   const [buddy, setBuddy] = useState<BuddyData | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [connection, setConnection] = useState<{ status: ConnectionStatus; id: string } | null>(null)
+  const [eligibleTrips, setEligibleTrips] = useState<{ id: string; title: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [reviewSubmitting, setReviewSubmitting] = useState<string | null>(null)
+  const [reviewRating, setReviewRating] = useState(5)
+  const [reviewComment, setReviewComment] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -79,6 +85,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
         longitude: b.longitude ?? DEFAULT_LOCATION.lng,
         languages: b.languages ?? [],
         specialties: b.specialties ?? [],
+        favorite_places: b.favorite_places ?? [],
         hourly_rate: b.hourly_rate ?? null,
         rating_avg: b.rating_avg ?? null,
         trips_completed: b.trips_completed ?? 0,
@@ -112,6 +119,21 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
         })),
       )
       if (c) setConnection({ id: c.id, status: c.status as ConnectionStatus })
+
+      // Load eligible trips (completed, buddy=this one, by current tourist) so the
+      // user can leave a review right from the public profile.
+      if (me) {
+        const { data: trips } = await supabase
+          .from('trips')
+          .select('id, title')
+          .eq('tourist_id', me.id)
+          .eq('buddy_id', id)
+          .eq('status', 'completed')
+          .order('updated_at', { ascending: false })
+          .limit(3)
+        if (!cancelled && trips) setEligibleTrips(trips)
+      }
+
       setLoading(false)
     }
     load()
@@ -179,6 +201,44 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
       return
     }
     router.push(`/chat/${created.id}`)
+  }
+
+  async function submitReview(tripId: string) {
+    if (!buddy) return
+    const me = await getCurrentUser()
+    if (!me) {
+      router.push('/login')
+      return
+    }
+    if (reviewComment.length > 500) return
+    setReviewSubmitting(tripId)
+    setError('')
+    const supabase = createClient()
+    const { error: insErr } = await supabase.from('reviews').insert({
+      trip_id: tripId,
+      reviewer_id: me.id,
+      reviewee_id: buddy.id,
+      rating: reviewRating,
+      comment: reviewComment.trim() || null,
+    })
+    setReviewSubmitting(null)
+    if (insErr) {
+      setError('Could not post review: ' + insErr.message)
+      return
+    }
+    setReviews([
+      {
+        id: crypto.randomUUID(),
+        rating: reviewRating,
+        comment: reviewComment.trim() || null,
+        created_at: new Date().toISOString(),
+        reviewer_name: null,
+      },
+      ...reviews,
+    ])
+    setEligibleTrips(eligibleTrips.filter((t) => t.id !== tripId))
+    setReviewComment('')
+    setReviewRating(5)
   }
 
   if (loading) {
@@ -267,7 +327,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
                     <span className="text-sm text-muted">Not set yet</span>
                   ) : (
                     buddy.specialties.map((s) => (
-                      <span key={s} className="badge badge-neutral text-xs">{s}</span>
+                      <span key={s} className="badge badge-neutral text-xs">{labelFor(s)}</span>
                     ))
                   )}
                 </dd>
@@ -284,6 +344,94 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
               </div>
             </dl>
           </article>
+
+          {/* Favorite places */}
+          {buddy.favorite_places.length > 0 ? (
+            <section className="bg-surface border border-border rounded-sm p-6" aria-labelledby="fav-places-title">
+              <header className="mb-3">
+                <h2 id="fav-places-title" className="text-section-title">
+                  Where {buddy.full_name.split(' ')[0]} takes travelers
+                </h2>
+                <p className="text-sm text-muted">
+                  {buddy.favorite_places.length} place{buddy.favorite_places.length === 1 ? '' : 's'} pinned across Da Nang.
+                </p>
+              </header>
+              <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {buddy.favorite_places.map((slug) => (
+                  <li
+                    key={slug}
+                    className="flex items-center gap-2 border border-border rounded-sm px-3 py-2 bg-paper"
+                  >
+                    <MapIcon size={14} className="text-primary flex-shrink-0" aria-hidden="true" />
+                    <span className="text-xs font-medium text-ink truncate">{labelFor(slug)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {/* Leave a review (if applicable) */}
+          {eligibleTrips.length > 0 ? (
+            <section className="bg-surface border border-border rounded-sm p-6" aria-labelledby="leave-review-title">
+              <header className="mb-3">
+                <h2 id="leave-review-title" className="text-section-title">
+                  Leave a review
+                </h2>
+                <p className="text-sm text-muted">
+                  Help other travelers — share how the trip with {buddy.full_name.split(' ')[0]} went.
+                </p>
+              </header>
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-semibold text-ink mb-1">Your rating</legend>
+                <div className="flex gap-1" role="radiogroup" aria-label="Star rating">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setReviewRating(n)}
+                      aria-checked={reviewRating === n}
+                      role="radio"
+                      className="p-0"
+                    >
+                      <Star
+                        size={28}
+                        fill={n <= reviewRating ? 'currentColor' : 'none'}
+                        strokeWidth={1.5}
+                        className={n <= reviewRating ? 'text-warning' : 'text-border-strong hover:text-muted'}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  ))}
+                </div>
+                <label className="form-label" htmlFor="review-comment">
+                  Comment (optional, 500 chars)
+                </label>
+                <textarea
+                  id="review-comment"
+                  rows={3}
+                  maxLength={500}
+                  className="form-input form-textarea"
+                  placeholder="What worked well? What could be better?"
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                />
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
+                  {eligibleTrips.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => submitReview(t.id)}
+                      disabled={reviewSubmitting === t.id}
+                      className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
+                    >
+                      <Pencil size={14} aria-hidden="true" />
+                      {reviewSubmitting === t.id ? 'Posting…' : `Post review for "${t.title.length > 24 ? t.title.slice(0, 24) + '…' : t.title}"`}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            </section>
+          ) : null}
 
           {/* Reviews */}
           <section className="bg-surface border border-border rounded-sm" aria-labelledby="reviews-title">

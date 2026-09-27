@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import {
   User,
@@ -14,9 +14,14 @@ import {
   Briefcase,
   Copy,
   Eye,
+  Camera,
+  Upload,
+  X,
+  Map as MapIcon,
 } from 'lucide-react'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import { Avatar } from '@/components/ui/Avatar'
+import { SPECIALTIES, SPECIALTY_LABELS, FAVORITE_PLACES, PLACE_LABELS, labelFor } from '@/lib/specialties'
 
 const LANGS = [
   'English',
@@ -28,30 +33,18 @@ const LANGS = [
   'Russian',
   'Spanish',
 ]
-const SPECIALTIES = [
-  'Beach',
-  'Food',
-  'Photography',
-  'History',
-  'Culture',
-  'Nature',
-  'Adventure',
-  'Diving',
-  'Trekking',
-  'Nightlife',
-  'Shopping',
-  'Coffee',
-  'Cooking',
-  'Art',
-]
+const SPECIALTY_LIST = SPECIALTIES.map((s) => SPECIALTY_LABELS[s])
+const PLACE_LIST = FAVORITE_PLACES.map((p) => PLACE_LABELS[p])
+const PLACE_SLUGS = FAVORITE_PLACES
 
-type Tab = 'profile' | 'reviews' | 'specialties' | 'account'
+type Tab = 'profile' | 'reviews' | 'specialties' | 'favorites' | 'account'
 
 const PHONE_REGEX = /^[+]?[\d\s\-()]{8,20}$/
 
 const TABS: { id: Tab; label: string; icon: typeof User }[] = [
   { id: 'profile', label: 'Profile', icon: User },
   { id: 'specialties', label: 'Specialties & languages', icon: Compass },
+  { id: 'favorites', label: 'Favorite places', icon: MapIcon },
   { id: 'reviews', label: 'Reviews', icon: Star },
   { id: 'account', label: 'Account', icon: Settings },
 ]
@@ -63,6 +56,7 @@ interface BuddyData {
   longitude: number | null
   languages: string[]
   specialties: string[]
+  favorite_places: string[]
   hourly_rate: number
   bio: string | null
   is_available: boolean
@@ -88,6 +82,9 @@ export default function BuddyProfileEditPage() {
   const [pwMsg, setPwMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [pwSaving, setPwSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+  const fileRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     load()
@@ -118,6 +115,7 @@ export default function BuddyProfileEditPage() {
         setBuddy({
           ...b,
           hourly_rate: b.hourly_rate || 15,
+          favorite_places: b.favorite_places || [],
         })
       }
       setReviews(
@@ -147,11 +145,23 @@ export default function BuddyProfileEditPage() {
   }
   function toggleSpecialty(s: string) {
     if (!buddy) return
+    // Map display label → slug before saving.
+    const slug = (Object.entries(SPECIALTY_LABELS).find(([, v]) => v === s)?.[0] ?? s) as string
     setBuddy({
       ...buddy,
-      specialties: buddy.specialties.includes(s)
-        ? buddy.specialties.filter((x) => x !== s)
-        : [...buddy.specialties, s],
+      specialties: buddy.specialties.includes(slug)
+        ? buddy.specialties.filter((x) => x !== slug)
+        : [...buddy.specialties, slug],
+    })
+  }
+  function toggleFavorite(label: string) {
+    if (!buddy) return
+    const slug = PLACE_SLUGS.find((p) => PLACE_LABELS[p] === label) ?? label
+    setBuddy({
+      ...buddy,
+      favorite_places: buddy.favorite_places.includes(slug)
+        ? buddy.favorite_places.filter((x) => x !== slug)
+        : [...buddy.favorite_places, slug],
     })
   }
 
@@ -206,6 +216,7 @@ export default function BuddyProfileEditPage() {
         bio: buddy.bio || null,
         languages: buddy.languages,
         specialties: buddy.specialties,
+        favorite_places: buddy.favorite_places || [],
         is_available: buddy.is_available,
       })
       .eq('id', buddy.id)
@@ -216,6 +227,53 @@ export default function BuddyProfileEditPage() {
     }
     setSavedAt(Date.now())
     setTimeout(() => setSavedAt(null), 3000)
+  }
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !buddy) return
+    setAvatarError('')
+    // Basic validation
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setAvatarError('Use PNG, JPG, or WebP.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Max size is 5 MB.')
+      return
+    }
+    setAvatarUploading(true)
+    const supabase = createClient()
+    const ext = file.name.split('.').pop()
+    const path = `${buddy.id}/${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, contentType: file.type })
+    if (upErr) {
+      setAvatarError(upErr.message)
+      setAvatarUploading(false)
+      return
+    }
+    const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
+    const publicUrl = pub.publicUrl
+    const { error: upProfileErr } = await supabase
+      .from('profiles')
+      .update({ avatar_url: publicUrl })
+      .eq('id', buddy.id)
+    setAvatarUploading(false)
+    if (upProfileErr) {
+      setAvatarError(upProfileErr.message)
+      return
+    }
+    setBuddy({ ...buddy, profile: { ...buddy.profile, avatar_url: publicUrl } })
+  }
+
+  async function handleRemoveAvatar() {
+    if (!buddy || !buddy.profile.avatar_url) return
+    if (!confirm('Remove your custom avatar?')) return
+    const supabase = createClient()
+    await supabase.from('profiles').update({ avatar_url: null }).eq('id', buddy.id)
+    setBuddy({ ...buddy, profile: { ...buddy.profile, avatar_url: null } })
   }
 
   async function handleChangePassword(e: React.FormEvent<HTMLFormElement>) {
@@ -318,16 +376,54 @@ export default function BuddyProfileEditPage() {
         {/* Sidebar */}
         <aside className="border border-border rounded-sm bg-surface p-5 h-fit">
           <div className="flex flex-col items-center text-center pb-5 border-b border-border">
-            <Avatar name={buddy.profile.full_name} size="xl" />
+            <div className="relative group">
+              <Avatar name={buddy.profile.full_name} src={buddy.profile.avatar_url} size="xl" />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                aria-label="Upload a new photo"
+                className="absolute inset-0 inline-flex items-center justify-center bg-ink/60 text-paper rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150"
+              >
+                <Camera size={20} aria-hidden="true" />
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleAvatarUpload}
+                className="hidden"
+                aria-hidden="true"
+              />
+            </div>
+            {avatarUploading ? (
+              <p className="text-xs text-muted mt-2 inline-flex items-center gap-1">
+                <span className="loading-spinner w-3 h-3" aria-hidden="true" />
+                Uploading…
+              </p>
+            ) : null}
+            {avatarError ? (
+              <p className="text-xs text-danger mt-2">{avatarError}</p>
+            ) : null}
             <p className="mt-3 text-base font-semibold text-ink">{buddy.profile.full_name}</p>
             <span className="badge badge-primary text-xs mt-1">Local buddy</span>
             <p className="text-xs text-muted mt-1">{buddy.location_city}</p>
-            <div className="mt-3">
+            <div className="mt-3 flex items-center gap-1">
               <span
                 className={`badge ${buddy.is_available ? 'badge-success' : 'badge-neutral'} text-xs`}
               >
                 {buddy.is_available ? 'Accepting travelers' : 'Hidden'}
               </span>
+              {buddy.profile.avatar_url ? (
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  className="inline-flex items-center justify-center w-7 h-7 rounded-sm text-muted hover:bg-paper hover:text-danger"
+                  aria-label="Remove avatar"
+                  title="Remove avatar"
+                >
+                  <X size={12} aria-hidden="true" />
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -592,8 +688,10 @@ export default function BuddyProfileEditPage() {
               <fieldset className="form-group">
                 <legend className="form-label">Specialties</legend>
                 <div className="flex flex-wrap gap-2">
-                  {SPECIALTIES.map((s) => {
-                    const active = buddy.specialties.includes(s)
+                  {SPECIALTY_LIST.map((s) => {
+                    const active = buddy.specialties.some(
+                      (slug) => SPECIALTY_LABELS[slug as keyof typeof SPECIALTY_LABELS] === s,
+                    )
                     return (
                       <button
                         key={s}
@@ -611,6 +709,61 @@ export default function BuddyProfileEditPage() {
                   })}
                 </div>
               </fieldset>
+            </section>
+          ) : null}
+
+          {activeTab === 'favorites' ? (
+            <section>
+              <header className="flex items-center justify-between mb-4 pb-4 border-b border-border">
+                <div>
+                  <h2 className="text-section-title">Favorite places in Da Nang</h2>
+                  <p className="text-sm text-muted mt-1">
+                    {buddy.favorite_places.length}/15 selected. Pin 3+ to stand out in traveler search.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
+                >
+                  <Save size={14} aria-hidden="true" />
+                  {saving ? 'Saving…' : 'Save changes'}
+                </button>
+              </header>
+              {savedAt ? (
+                <div className="alert alert-success mb-4" role="status">
+                  <Check size={16} aria-hidden="true" />
+                  <span>Saved successfully.</span>
+                </div>
+              ) : null}
+              <fieldset className="form-group">
+                <legend className="form-label">Where do you take travelers?</legend>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {PLACE_LIST.map((label) => {
+                    const slug = PLACE_SLUGS.find((p) => PLACE_LABELS[p] === label)
+                    const active = slug ? buddy.favorite_places.includes(slug) : false
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => toggleFavorite(label)}
+                        className={`text-left px-3 py-2 text-sm rounded-sm border transition-colors duration-150 ${
+                          active
+                            ? 'bg-primary text-paper border-primary'
+                            : 'bg-paper text-ink border-border hover:border-border-strong'
+                        }`}
+                      >
+                        <MapIcon size={12} className="inline mr-2 align-middle" aria-hidden="true" />
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </fieldset>
+              <p className="text-xs text-muted mt-3">
+                These show on your public profile and feed the buddy map discovery.
+              </p>
             </section>
           ) : null}
 

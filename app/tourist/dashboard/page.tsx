@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/utils/supabase/auth';
-import { Briefcase, Users, Clock, Send, MapPin, Calendar, User, Search, Map as MapIcon, MessageCircle, UserCircle } from 'lucide-react';
+import { Briefcase, Users, Clock, Send, MapPin, Calendar, User, Search, Map as MapIcon, MessageCircle, UserCircle, Compass, Phone } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/Avatar';
 import type { Profile, Trip, Connection } from '@/lib/types';
 import { useLiveUserLocations } from '@/hooks/useLiveUserLocations';
+import { getConnectionStage, daysUntilExpiry, expiryLabel } from '@/lib/connection-stages';
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false });
 
@@ -381,30 +382,47 @@ export default function TouristDashboardPage() {
                 {connections.slice(0, 5).map((c) => {
                   const buddy = c.buddy as any
                   const name = buddy?.profile?.full_name ?? 'Buddy'
-                  const tone = c.status === 'accepted' ? 'success' : c.status === 'declined' ? 'danger' : 'warning'
+                  const avatarUrl = buddy?.profile?.avatar_url
+                  const stage = getConnectionStage(c.status)
+                  const daysLeft = c.status === 'accepted' ? daysUntilExpiry(c.updated_at) : null
                   return (
-                    <li key={c.id} className="py-3 flex items-center justify-between gap-3">
+                    <li key={c.id} className="py-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <Avatar name={name} size="md" />
-                        <div className="min-w-0">
+                        <Avatar name={name} src={avatarUrl} size="md" online={c.status === 'accepted'} />
+                        <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium truncate">{name}</p>
                           <p className="text-xs text-muted truncate">
                             {buddy?.location_city ?? 'Da Nang'}
+                            {daysLeft !== null ? ` · ${expiryLabel(daysLeft)}` : ''}
                           </p>
                         </div>
+                        <span className={`badge badge-${stage.tone}`}>{stage.stage}</span>
+                        <Link
+                          href={`/chat?buddy=${buddy?.id}`}
+                          aria-label={`Message ${name}`}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-sm hover:bg-paper text-muted hover:text-ink"
+                        >
+                          <MessageCircle size={16} aria-hidden="true" />
+                        </Link>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`badge badge-${tone}`}>{c.status}</span>
-                        {c.status === 'accepted' ? (
+                      {c.status === 'accepted' ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-2 pl-12">
                           <Link
-                            href={`/chat?buddy=${buddy?.id}`}
-                            aria-label={`Message ${name}`}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-sm hover:bg-paper text-muted hover:text-ink"
+                            href={`/chat?buddy=${buddy?.id}&call=1`}
+                            className="inline-flex items-center gap-1 h-7 px-2.5 text-xs font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                           >
-                            <MessageCircle size={16} aria-hidden="true" />
+                            <Phone size={11} aria-hidden="true" />
+                            Call
                           </Link>
-                        ) : null}
-                      </div>
+                          <Link
+                            href={`/itinerary/${c.id}`}
+                            className="inline-flex items-center gap-1 h-7 px-2.5 text-xs font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+                          >
+                            <Compass size={11} aria-hidden="true" />
+                            Itinerary
+                          </Link>
+                        </div>
+                      ) : null}
                     </li>
                   )
                 })}

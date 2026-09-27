@@ -3,6 +3,7 @@
 
 export type UserRole = 'tourist' | 'buddy' | 'admin'
 export type ConnectionStatus = 'pending' | 'accepted' | 'declined'
+export type ConnectionLifecycle = 'search' | 'active' | 'ended'
 export type TripStatus = 'planning' | 'confirmed' | 'completed' | 'cancelled'
 
 export interface Profile {
@@ -48,6 +49,7 @@ export interface Buddy {
   rating_avg: number
   trips_completed: number
   bio: string | null
+  favorite_places: string[]
   created_at: string
   updated_at: string
   // Joined
@@ -59,7 +61,13 @@ export interface Connection {
   tourist_id: string
   buddy_id: string
   status: ConnectionStatus
+  lifecycle: ConnectionLifecycle
   message: string | null
+  accepted_at: string | null
+  ended_at: string | null
+  end_reason: string | null
+  renewed_by_tourist_at: string | null
+  renewed_by_buddy_at: string | null
   created_at: string
   updated_at: string
   // Joined
@@ -77,12 +85,16 @@ export interface Trip {
   end_date: string | null
   status: TripStatus
   notes: string | null
+  itinerary_notes: string | null
+  itinerary_updated_by: string | null
+  itinerary_updated_at: string | null
   created_at: string
   updated_at: string
   // Joined
   tourist?: Tourist
   buddy?: Buddy
   trip_stops?: TripStop[]
+  itinerary_editor?: Profile
 }
 
 export interface TripStop {

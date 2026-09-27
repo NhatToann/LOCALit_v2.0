@@ -1,0 +1,27 @@
+fix(css): wrap custom CSS in @layer base/components so Tailwind utilities win
+
+Root cause: globals.css had ~470 lines of custom CSS (reset, .container-page,
+.card, .badge, .form-input, .faq-*, ...) sitting OUTSIDE any @layer.
+
+In Tailwind v4, rules outside @layer are placed in the implicit default layer
+which has the highest cascade priority — so custom CSS was overriding utility
+classes like .mx-auto, .px-6, .py-12, .flex, etc. Result: every page rendered
+with browser-default styles (no spacing, no container, no typography) and the
+hero background image was stretched into a 1px stripe because its parent had
+no padding/margin.
+
+Fix:
+- Reset rules (html, body, *, a, button, input, h1-h6, focus-visible,
+  prefers-reduced-motion) → @layer base
+- Component classes (skip-link, container-page, text-display, card, badge,
+  avatar, lang-chip, loading-spinner, skeleton, empty-state, alert, form-*,
+  progress-steps, faq-*, scrollbar) → @layer components
+
+Now `.mx-auto`, `.px-6`, `.py-12` correctly win over the component-level
+`.container-page` defaults (the standard utility-overrides-components order
+in Tailwind v4).
+
+Verified: mobile 390x844 + desktop 1280x900 renders of /, /login, /register,
+/forgot-password all show the flat, anti-slop design system as intended.
+
+Build: 26 routes, 0 TS errors, ~13s.

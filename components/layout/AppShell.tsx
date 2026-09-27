@@ -3,6 +3,8 @@
 import { usePathname } from 'next/navigation';
 import Header from './Header';
 import Footer from './Footer';
+import DaNangBackdrop from './DaNangBackdrop';
+import MiniChatWindow from '@/components/chat/MiniChatWindow';
 
 const ROLE_LAYOUTS = ['/tourist', '/buddy'];
 const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
@@ -19,14 +21,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (inRoleLayout) {
     return (
       <>
+        <DaNangBackdrop />
         {children}
         <Footer />
+        <MiniChatWindow />
       </>
     );
   }
 
   return (
     <>
+      <DaNangBackdrop />
       <Header />
       <main
         id="main-content"
@@ -35,6 +40,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <Footer />
+      <MiniChatWindow />
     </>
   );
 }
