@@ -23,6 +23,8 @@ import {
   Waves,
   Mountain,
   Sparkles,
+  Plus,
+  Calendar,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import type { Profile, Connection, Trip, TripStop } from '@/lib/types'
@@ -30,6 +32,7 @@ import { Avatar, EmptyState } from '@/components/ui/Avatar'
 import { getConnectionStage, daysUntilExpiry, expiryLabel } from '@/lib/connection-stages'
 import { labelFor } from '@/lib/specialties'
 import { CATEGORY_ICONS } from '@/lib/popular-stops'
+import { effectiveTransport, TRANSPORT_LABEL, TRANSPORT_ICONS, isTransport } from '@/lib/transport'
 
 const PLACE_ICON: Record<string, typeof Waves> = {
   beach: Waves,
@@ -62,6 +65,8 @@ export default function BuddyDashboardPage() {
   const [avgRating, setAvgRating] = useState<number | null>(null)
   const [companionsByTrip, setCompanionsByTrip] = useState<Record<string, number>>({})
   const [stopsByTrip, setStopsByTrip] = useState<Record<string, TripStop[]>>({})
+  const [buddyDefaultTransport, setBuddyDefaultTransport] = useState<string | null>(null)
+  const [expandedTrips, setExpandedTrips] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState(false)
 
@@ -75,13 +80,13 @@ export default function BuddyDashboardPage() {
           return
         }
 
-        const [
-          { data: p },
+        const [{ data: p },
           { data: c },
           { data: t },
           { data: b },
           { data: myReviews },
           { data: companions },
+          { data: buddySelf },
         ] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
           supabase
@@ -106,6 +111,7 @@ export default function BuddyDashboardPage() {
             .from('trip_travelers')
             .select('trip_id, role')
             .in('role', ['companion']),
+          supabase.from('buddies').select('transport').eq('id', user.id).maybeSingle(),
         ])
 
         setProfile(p ?? null)
@@ -113,6 +119,9 @@ export default function BuddyDashboardPage() {
         setRequests((c || []) as Connection[])
         setTrips((t || []) as Trip[])
         setReviewsCount((myReviews || []).length)
+        setBuddyDefaultTransport(
+          buddySelf?.transport && isTransport(buddySelf.transport) ? buddySelf.transport : null,
+        )
         const compMap: Record<string, number> = {}
         for (const row of companions || []) {
           compMap[row.trip_id] = (compMap[row.trip_id] || 0) + 1
@@ -501,18 +510,34 @@ export default function BuddyDashboardPage() {
             UPCOMING TRIPS
             ============================================================ */}
         <section className="border border-border rounded-sm bg-surface" aria-labelledby="upcoming-title">
-          <header className="px-6 py-4 border-b border-border">
-            <h2 id="upcoming-title" className="text-lg font-semibold">
-              Upcoming trips
-            </h2>
-            <p className="text-sm text-muted">Trips you are guiding.</p>
+          <header className="px-6 py-4 border-b border-border flex items-start justify-between gap-3">
+            <div>
+              <h2 id="upcoming-title" className="text-lg font-semibold">
+                Upcoming trips
+              </h2>
+              <p className="text-sm text-muted">Trips you are guiding.</p>
+            </div>
+            <Link
+              href="/buddy/trips/new"
+              className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover flex-shrink-0"
+            >
+              <Plus size={12} aria-hidden="true" /> New plan
+            </Link>
           </header>
           <div className="p-6">
             {trips.length === 0 ? (
               <EmptyState
                 icon={Compass}
                 title="No trips booked yet"
-                description="Accept a request to start planning."
+                description="Accept a request to start planning, or start a new plan for one of your travelers."
+                action={
+                  <Link
+                    href="/buddy/trips/new"
+                    className="inline-flex items-center gap-1 h-9 px-4 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+                  >
+                    <Plus size={13} aria-hidden="true" /> New plan
+                  </Link>
+                }
               />
             ) : (
               <ul className="divide-y divide-border">
@@ -533,8 +558,13 @@ export default function BuddyDashboardPage() {
                       r.buddy_id === trip.buddy_id,
                   )
                   const connId = conn?.id ?? null
-                  const stops = (stopsByTrip[trip.id] || []).slice(0, 4)
-                  const remaining = (stopsByTrip[trip.id] || []).length - stops.length
+                  const allStops = stopsByTrip[trip.id] || []
+                  const expanded = expandedTrips[trip.id] ?? false
+                  const visibleStops = expanded ? allStops : allStops.slice(0, 4)
+                  const remaining = allStops.length - visibleStops.length
+                  const firstStopWithTime = allStops.find((s) => s.planned_time)
+                  const firstTimeLabel = firstStopWithTime?.planned_time?.slice(0, 5) ?? null
+                  const companions = companionsByTrip[trip.id] ?? 0
                   return (
                     <li key={trip.id} className="py-4 px-2 -mx-2">
                       {/* Header row — links to the full itinerary */}
@@ -551,20 +581,43 @@ export default function BuddyDashboardPage() {
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium truncate">{trip.title}</p>
                             <p className="text-xs text-muted mt-0.5 truncate">
-                              {trip.destination}
-                              {trip.start_date ? ` · ${new Date(trip.start_date).toLocaleDateString('en-US')}` : ''}
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin size={10} className="flex-shrink-0" aria-hidden="true" />
+                                {trip.destination || 'Da Nang'}
+                              </span>
+                              {trip.start_date ? (
+                                <>
+                                  {' · '}
+                                  <span className="inline-flex items-center gap-1">
+                                    <Calendar size={10} className="flex-shrink-0" aria-hidden="true" />
+                                    {new Date(trip.start_date).toLocaleDateString('en-US')}
+                                  </span>
+                                </>
+                              ) : null}
+                              {firstTimeLabel ? (
+                                <>
+                                  {' · '}
+                                  <span className="inline-flex items-center gap-1 font-mono">
+                                    <Clock size={10} className="flex-shrink-0" aria-hidden="true" />
+                                    {firstTimeLabel}
+                                  </span>
+                                </>
+                              ) : null}
                               {` · ${name}`}
+                              {companions > 0 ? ` +${companions}` : ''}
                             </p>
                           </div>
                           <span className={`badge badge-${tone} flex-shrink-0`}>{trip.status}</span>
                         </Link>
                       </div>
 
-                      {/* Planned stops preview — address + time, click to edit */}
-                      {stops.length > 0 ? (
+                      {/* Planned stops preview — icon, time, transport, address */}
+                      {allStops.length > 0 ? (
                         <ol className="mt-3 ml-5 border-l-2 border-border pl-3 space-y-1.5">
-                          {stops.map((s) => {
+                          {visibleStops.map((s) => {
                             const Icon = CATEGORY_ICONS[s.category ?? 'sight']
+                            const transport = effectiveTransport(s.transport, buddyDefaultTransport)
+                            const TransportIcon = TRANSPORT_ICONS[transport]
                             return (
                               <li key={s.id}>
                                 <Link
@@ -583,6 +636,11 @@ export default function BuddyDashboardPage() {
                                   ) : (
                                     <span className="text-subtle italic w-12 flex-shrink-0">—</span>
                                   )}
+                                  <TransportIcon
+                                    size={11}
+                                    className="text-muted flex-shrink-0"
+                                    aria-label={`Transport: ${TRANSPORT_LABEL[transport]}`}
+                                  />
                                   <span className="flex-1 min-w-0 truncate text-ink">
                                     {s.address || s.name}
                                   </span>
@@ -595,14 +653,25 @@ export default function BuddyDashboardPage() {
                               </li>
                             )
                           })}
-                          {remaining > 0 ? (
+                          {remaining > 0 || (allStops.length > 4 && !expanded) ? (
                             <li>
-                              <Link
-                                href={connId ? `/itinerary/${connId}` : '#'}
-                                className="text-[11px] text-muted hover:text-primary px-1.5 py-1"
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedTrips((prev) => ({
+                                    ...prev,
+                                    [trip.id]: !prev[trip.id],
+                                  }))
+                                }
+                                aria-expanded={expanded}
+                                className="text-[11px] text-muted hover:text-primary px-1.5 py-1 inline-flex items-center gap-1"
                               >
-                                +{remaining} more stop{remaining === 1 ? '' : 's'}
-                              </Link>
+                                {expanded ? (
+                                  <>Show less</>
+                                ) : (
+                                  <>+{remaining} more stop{remaining === 1 ? '' : 's'}</>
+                                )}
+                              </button>
                             </li>
                           ) : null}
                         </ol>

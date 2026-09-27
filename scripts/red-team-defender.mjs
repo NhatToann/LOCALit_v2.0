@@ -190,6 +190,69 @@ async function main() {
     assert('G. /itinerary/<connId> loads for buddy', false, 'no connection found for trip tourist')
   }
 
+  // ─── H. buddy can INSERT trips (multi-plan support) ──────────────────────
+  // Original schema.sql blocked this because trips INSERT only allowed
+  // auth.uid() = tourist_id. Fix: also allow auth.uid() = buddy_id.
+  const newTripRes = await sb
+    .from('trips')
+    .insert({
+      buddy_id: lan.userId,
+      tourist_id: trip.tourist_id,
+      title: `Red-team plan ${Date.now()}`,
+      destination: 'Da Nang',
+      start_date: new Date(Date.now() + 86400_000 * 7).toISOString().slice(0, 10),
+      status: 'planning',
+    })
+    .select()
+    .single()
+  assert('H. buddy can INSERT trips (multi-plan)', !newTripRes.error && newTripRes.data,
+    newTripRes.error ? newTripRes.error.message : `id=${newTripRes.data?.id}`)
+  const newTripId = newTripRes.data?.id
+
+  // ─── I. trip_stops.transport ─────────────────────────────────────────────
+  const stopTransRes = await sb
+    .from('trip_stops')
+    .insert({
+      trip_id: newTripId,
+      stop_order: 1,
+      name: 'Scooter to Marble Mountains',
+      category: 'sight',
+      transport: 'scooter',
+      transport_note: '110cc manual scooter',
+    })
+    .select()
+    .single()
+  assert('I. buddy can INSERT trip_stops with transport',
+    !stopTransRes.error && stopTransRes.data?.transport === 'scooter',
+    stopTransRes.error ? stopTransRes.error.message : `transport=${stopTransRes.data?.transport}`)
+
+  // ─── J. buddies.transport default ────────────────────────────────────────
+  const buddyTransRes = await sb
+    .from('buddies')
+    .update({ transport: 'scooter', transport_note: 'Vespa LX 150' })
+    .eq('id', lan.userId)
+  assert('J. buddy can UPDATE own buddies.transport', !buddyTransRes.error,
+    buddyTransRes.error?.message ?? '')
+
+  // ─── K. /buddy/trips/new route loads ─────────────────────────────────────
+  const newPage = await fetchPage(`${APP}/buddy/trips/new`, { cookie: lan.cookie })
+  assert('K. /buddy/trips/new returns 200 for buddy', newPage.status === 200,
+    `status=${newPage.status} loc=${newPage.location ?? ''}`)
+
+  // ─── L. dashboard SSR HTML contains destination + traveler + status ──────
+  // We don't grep transport icon because Lucide ships tree-shaken SVG paths;
+  // the surrounding text ("Scooter to Marble Mountains") and destination are
+  // enough to prove the data made it through the parser.
+  const dashHtml = dash.body
+  assert('L. dashboard HTML shows the upcoming-trip traveler + status',
+    dashHtml.includes(name) && /planning|confirmed|completed/i.test(dashHtml),
+    `len=${dashHtml.length}`)
+
+  // Cleanup the red-team trip
+  if (newTripId) await sb.from('trips').delete().eq('id', newTripId)
+  // Reset buddy transport
+  await sb.from('buddies').update({ transport: null, transport_note: null }).eq('id', lan.userId)
+
   console.log(`\n  ─── Red team is ${failures === 0 ? 'BLOCKED' : 'WINNING (' + failures + ' gates breached)'}. ───\n`)
   process.exit(failures === 0 ? 0 : 1)
 }

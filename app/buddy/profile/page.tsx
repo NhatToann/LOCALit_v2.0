@@ -22,6 +22,7 @@ import {
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { SPECIALTIES, SPECIALTY_LABELS, FAVORITE_PLACES, PLACE_LABELS, labelFor } from '@/lib/specialties'
+import { TRANSPORT_LIST, TRANSPORT_LABEL, isTransport, type Transport } from '@/lib/transport'
 
 const LANGS = [
   'English',
@@ -62,6 +63,8 @@ interface BuddyData {
   is_available: boolean
   trips_completed: number
   rating_avg: number | null
+  transport: Transport | null
+  transport_note: string | null
   profile: {
     full_name: string
     email: string
@@ -116,6 +119,8 @@ export default function BuddyProfileEditPage() {
           ...b,
           hourly_rate: b.hourly_rate || 15,
           favorite_places: b.favorite_places || [],
+          transport: isTransport(b.transport) ? b.transport : null,
+          transport_note: b.transport_note ?? null,
         })
       }
       setReviews(
@@ -218,6 +223,8 @@ export default function BuddyProfileEditPage() {
         specialties: buddy.specialties,
         favorite_places: buddy.favorite_places || [],
         is_available: buddy.is_available,
+        transport: (buddy.transport ?? null) as Transport | null,
+        transport_note: buddy.transport_note ?? null,
       })
       .eq('id', buddy.id)
     setSaving(false)
@@ -708,6 +715,46 @@ export default function BuddyProfileEditPage() {
                     )
                   })}
                 </div>
+              </fieldset>
+
+              <fieldset className="form-group">
+                <legend className="form-label">How you get around</legend>
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-4">
+                  <select
+                    id="transport"
+                    aria-label="Default mode of transport"
+                    className="form-input form-select"
+                    value={buddy.transport ?? ''}
+                    onChange={(e) =>
+                      setBuddy({
+                        ...buddy,
+                        transport: e.target.value === '' ? null : (e.target.value as Transport),
+                      })
+                    }
+                  >
+                    <option value="">No default</option>
+                    {TRANSPORT_LIST.map((t) => (
+                      <option key={t} value={t}>
+                        {TRANSPORT_LABEL[t]}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    id="transport_note"
+                    aria-label="Transport note"
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. 110cc manual scooter, plate 43-B1"
+                    value={buddy.transport_note ?? ''}
+                    onChange={(e) =>
+                      setBuddy({ ...buddy, transport_note: e.target.value })
+                    }
+                    maxLength={120}
+                  />
+                </div>
+                <p className="form-hint">
+                  Per-stop transport on each itinerary overrides this default.
+                </p>
               </fieldset>
             </section>
           ) : null}

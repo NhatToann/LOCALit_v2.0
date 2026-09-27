@@ -94,6 +94,9 @@ CREATE TABLE public.buddies (
   is_available BOOLEAN NOT NULL DEFAULT true,
   rating_avg DECIMAL(3,2) DEFAULT 0,
   trips_completed INTEGER DEFAULT 0,
+  transport TEXT
+    CHECK (transport IN ('walk','scooter','taxi','bike','car','bus','boat','grab','cyclo','other')),
+  transport_note TEXT,
   bio TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -187,9 +190,12 @@ CREATE POLICY "Trips visible to owner and assigned buddy"
     OR auth.uid() = buddy_id
   );
 
-CREATE POLICY "Tourists can create trips"
+CREATE POLICY "Trip participants can create trips"
   ON public.trips FOR INSERT
-  WITH CHECK (auth.uid() = tourist_id);
+  WITH CHECK (
+    auth.uid() = tourist_id
+    OR auth.uid() = buddy_id
+  );
 
 CREATE POLICY "Owner and buddy can update trip"
   ON public.trips FOR UPDATE
@@ -198,9 +204,12 @@ CREATE POLICY "Owner and buddy can update trip"
     OR auth.uid() = buddy_id
   );
 
-CREATE POLICY "Tourists can delete own trips"
+CREATE POLICY "Trips manageable by tourist or assigned buddy"
   ON public.trips FOR DELETE
-  USING (auth.uid() = tourist_id);
+  USING (
+    auth.uid() = tourist_id
+    OR auth.uid() = buddy_id
+  );
 
 -- ============================================================
 -- TRIP_STOPS
@@ -214,6 +223,9 @@ CREATE TABLE public.trip_stops (
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
   notes TEXT,
+  transport TEXT
+    CHECK (transport IN ('walk','scooter','taxi','bike','car','bus','boat','grab','cyclo','other')),
+  transport_note TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

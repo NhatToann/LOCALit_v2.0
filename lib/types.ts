@@ -48,6 +48,8 @@ export interface Buddy {
   is_available: boolean
   rating_avg: number
   trips_completed: number
+  transport: import('./transport').Transport | null
+  transport_note: string | null
   bio: string | null
   favorite_places: string[]
   created_at: string
@@ -119,6 +121,8 @@ export interface TripStop {
   category: 'food' | 'sight' | 'transport' | 'stay' | 'activity' | 'other' | null
   photo_url: string | null
   est_cost_cents: number | null
+  transport: import('./transport').Transport | null
+  transport_note: string | null
   created_at: string
 }
 

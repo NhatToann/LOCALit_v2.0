@@ -13,6 +13,7 @@ import {
   Edit3,
 } from 'lucide-react'
 import { CATEGORY_ICONS } from '@/lib/popular-stops'
+import { TRANSPORT_LIST, TRANSPORT_LABEL, TRANSPORT_DEFAULT, isTransport, type Transport } from '@/lib/transport'
 
 const MapFullscreen = dynamic(
   () => import('@/components/itinerary/MapFullscreen'),
@@ -52,6 +53,7 @@ export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
 
   useEffect(() => {
     load()
+    loadBuddyTransport()
   }, [trip.id])
 
   // After data loads, honour ?stop=...&pick=1 by jumping to the right day
@@ -83,6 +85,20 @@ export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
       supabase.removeChannel(ch)
     }
   }, [trip.id])
+
+  const [buddyTransport, setBuddyTransport] = useState<Transport | null>(null)
+
+  async function loadBuddyTransport() {
+    const supabase = createClient()
+    const { data: b } = await supabase
+      .from('buddies')
+      .select('transport')
+      .eq('id', me.id)
+      .maybeSingle()
+    if (b?.transport && isTransport(b.transport)) {
+      setBuddyTransport(b.transport)
+    }
+  }
 
   async function load() {
     const supabase = createClient()
@@ -177,6 +193,7 @@ export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
         stop_order: orderInDay,
         name: 'New stop',
         category: 'sight',
+        transport: buddyTransport ?? TRANSPORT_DEFAULT,
       })
       .select()
       .single()
@@ -353,6 +370,7 @@ export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
                     stop={s}
                     canEdit={canEdit}
                     highlighted={highlightStopId === s.id}
+                    buddyDefault={buddyTransport}
                     onChange={(patch) => updateStop(s, patch)}
                     onRemove={() => removeStop(s.id)}
                     onPick={() => setPicker({ stopId: s.id, dayId: activeDay.id })}
@@ -429,6 +447,7 @@ function StopRow({
   stop,
   canEdit,
   highlighted,
+  buddyDefault,
   onChange,
   onRemove,
   onPick,
@@ -436,6 +455,7 @@ function StopRow({
   stop: TripStop
   canEdit: boolean
   highlighted?: boolean
+  buddyDefault: Transport | null
   onChange: (patch: Partial<TripStop>) => void
   onRemove: () => void
   onPick: () => void
@@ -470,7 +490,7 @@ function StopRow({
     >
       <div className="flex items-start gap-2">
         <Icon size={14} className="text-primary mt-2 flex-shrink-0" aria-hidden="true" />
-        <div className="flex-1 grid grid-cols-1 sm:grid-cols-[1fr_120px_120px] gap-2">
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-[1fr_120px_120px_140px] gap-2">
           <input
             type="text"
             value={nameDraft}
@@ -506,6 +526,23 @@ function StopRow({
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>
                 {c}
+              </option>
+            ))}
+          </select>
+          <select
+            value={stop.transport ?? ''}
+            onChange={(e) =>
+              onChange({ transport: e.target.value === '' ? null : (e.target.value as Transport) })
+            }
+            disabled={!canEdit}
+            className="form-input form-select"
+            aria-label="How you get there"
+            title="How you get to this stop"
+          >
+            <option value="">Inherit ({buddyDefault ? TRANSPORT_LABEL[buddyDefault] : TRANSPORT_LABEL[TRANSPORT_DEFAULT]})</option>
+            {TRANSPORT_LIST.map((t) => (
+              <option key={t} value={t}>
+                {TRANSPORT_LABEL[t]}
               </option>
             ))}
           </select>
