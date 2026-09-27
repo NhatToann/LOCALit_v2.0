@@ -227,6 +227,7 @@ SUPABASE_DB_PORT=5432
 - The `signupId` is a UUID (unguessable) treated as a bearer secret between `/start` and `/complete`.
 - See: `app/api/auth/signup/{start,verify-otp,resend-otp,complete}/route.ts`, `utils/otp.ts`, `supabase/migrations/2026-09-27-restore-email-verifications.sql`.
 - ⚠️ **Resend test-mode restriction**: `EMAIL_FROM=onboarding@resend.dev` (default) can only send to the Resend account owner email. To send OTP to arbitrary recipients, verify a domain at https://resend.com/domains and set `EMAIL_FROM=noreply@yourdomain.com`.
+- 🛠️ **Dev preview mode** (test-only, currently ENABLED in production for testing): set `OTP_PREVIEW=true` to make `/api/auth/signup/start` and `/resend-otp` echo the OTP code in the response under the `__devCode` field (instead of sending an email). Set `OTP_PREVIEW_ALLOW_REUSED=1` additionally to bypass the duplicate-email check (so you can re-register the same address during testing without manually cleaning the DB). **MUST be unset before public launch** — anyone hitting `/start` could then complete signup without ever checking the email.
 - DELETED (replaced by `/signup/*` routes): `app/api/auth/signup/route.ts`, `app/api/auth/signup-admin/route.ts`, `app/api/auth/verify-otp/route.ts`, `app/api/auth/resend-otp/route.ts`, `app/verify-email/page.tsx`.
 
 ### Data Types (column types differ from what you might assume)
