@@ -46,7 +46,38 @@
  * Dark palette (cool, not warm — keeps body text readable on `bg-paper`).
  * Tokens overridden here are applied to every element that uses
  * `bg-paper` / `bg-surface` / `text-ink` / `bg-success-bg` / etc.
+ *
+ * NOTE: Tailwind v4's `@theme` block generates utility classes
+ * (`text-ink` → `color: var(--color-ink)`) but does NOT emit a `:root`
+ * declaration with the variable values — that's our job below and
+ * above (the `:root` block re-states the light tokens from `@theme`
+ * so `var(--color-ink)` resolves correctly even before Tailwind is
+ * evaluated at runtime).
  */
+:root {
+  --color-primary: #FF6B35;
+  --color-primary-hover: #E55A2B;
+  --color-ink: #0F0F0F;
+  --color-paper: #FAFAF7;
+  --color-surface: #FFFFFF;
+  --color-border: #E5E5E0;
+  --color-border-strong: #D4D4D0;
+  --color-muted: #737373;
+  --color-subtle: #A3A3A3;
+  --color-success: #166534;
+  --color-success-bg: #DCFCE7;
+  --color-warning: #92400E;
+  --color-warning-bg: #FEF3C7;
+  --color-danger: #991B1B;
+  --color-danger-bg: #FEE2E2;
+  --color-info: #075985;
+  --color-info-bg: #E0F2FE;
+  --color-success-border: #BBF7D0;
+  --color-danger-border: #FECACA;
+  --color-info-border: #BAE6FD;
+  --color-warning-border: #FDE68A;
+}
+
 :root.dark {
   --color-success-border: #14532D;
   --color-danger-border: #7F1D1D;
@@ -240,6 +271,7 @@
     line-height: 1.1;
     letter-spacing: -0.02em;
     font-weight: 600;
+    color: var(--color-ink);
   }
 
   @media (max-width: 768px) {
@@ -253,6 +285,7 @@
     line-height: 1.15;
     letter-spacing: -0.02em;
     font-weight: 600;
+    color: var(--color-ink);
   }
 
   @media (min-width: 768px) {
@@ -266,6 +299,7 @@
     line-height: 1.2;
     letter-spacing: -0.01em;
     font-weight: 600;
+    color: var(--color-ink);
   }
 
   @media (min-width: 768px) {
