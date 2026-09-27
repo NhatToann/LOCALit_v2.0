@@ -51,3 +51,7 @@ next-env.d.ts
 
 # local DB password scratch file
 .dbpw
+
+# Debug artifacts
+buckets.json
+page.html
