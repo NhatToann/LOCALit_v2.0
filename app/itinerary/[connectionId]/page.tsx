@@ -373,7 +373,10 @@ export default function SharedItineraryPage({ params }: PageProps) {
         />
         <div
           className="absolute inset-0"
-          style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 100%)' }}
+          style={{
+            background:
+              'linear-gradient(90deg, color-mix(in srgb, var(--color-paper) 95%, transparent) 0%, color-mix(in srgb, var(--color-paper) 70%, transparent) 100%)',
+          }}
           aria-hidden="true"
         />
         <div className="relative p-6 lg:p-8">

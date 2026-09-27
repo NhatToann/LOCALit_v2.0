@@ -42,27 +42,32 @@
   --color-warning-border: #FDE68A;
 }
 
+/*
+ * Dark palette (cool, not warm — keeps body text readable on `bg-paper`).
+ * Tokens overridden here are applied to every element that uses
+ * `bg-paper` / `bg-surface` / `text-ink` / `bg-success-bg` / etc.
+ */
 :root.dark {
   --color-success-border: #14532D;
   --color-danger-border: #7F1D1D;
-  --color-info-border: #075985;
-  --color-warning-border: #78350F;
+  --color-info-border: #0E4F75;
+  --color-warning-border: #5C2A0B;
 
-  /* Brand slightly desaturated for dark surfaces */
-  --color-primary: #FF7A4A;
-  --color-primary-hover: #FF9168;
+  /* Brand slightly desaturated so it doesn't punch through dark surfaces */
+  --color-primary: #FF8A5C;
+  --color-primary-hover: #FF9F77;
 
-  /* Neutrals (warm-dark, not pure black/white) */
-  --color-ink: #F5F5F2;
-  --color-paper: #0E0E10;
-  --color-surface: #17171A;
-  --color-border: #2A2A2E;
-  --color-border-strong: #3A3A3F;
-  --color-muted: #A3A3A3;
-  --color-subtle: #737373;
+  /* Neutrals (cool-dark, high contrast for body text) */
+  --color-ink: #EDEDEA;
+  --color-paper: #0A0A0C;
+  --color-surface: #131316;
+  --color-border: #26262B;
+  --color-border-strong: #393941;
+  --color-muted: #9A9A9F;
+  --color-subtle: #6B6B72;
 
-  /* Semantic (lighter fg on darker bg) */
-  --color-success: #4ADE80;
+  /* Semantic (lighter fg on dark bg) */
+  --color-success: #22C55E;
   --color-success-bg: #052E16;
   --color-warning: #FBBF24;
   --color-warning-bg: #422006;
@@ -71,8 +76,8 @@
   --color-info: #38BDF8;
   --color-info-bg: #082F49;
 
-  /* Focus ring uses paper as inner halo */
-  --shadow-focus: 0 0 0 2px #0E0E10, 0 0 0 4px #FF7A4A;
+  /* Focus ring uses paper as inner halo so the brand color stays visible */
+  --shadow-focus: 0 0 0 2px #0A0A0C, 0 0 0 4px #FF8A5C;
 
   color-scheme: dark;
 }

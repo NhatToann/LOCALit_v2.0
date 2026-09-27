@@ -29,18 +29,27 @@ export async function signUp(email: string, password: string, fullName: string, 
       },
     },
   })
+  if (!error && data.user) {
+    notifyAuthChanged()
+  }
   return { data, error }
 }
 
 export async function signIn(email: string, password: string) {
   const supabase = getBrowserClient()
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (!error && data.user) {
+    notifyAuthChanged()
+  }
   return { data, error }
 }
 
 export async function signOut() {
   const supabase = getBrowserClient()
   const { error } = await supabase.auth.signOut()
+  if (!error) {
+    notifyAuthChanged()
+  }
   return { error }
 }
 
@@ -63,6 +72,18 @@ export async function getCurrentUser() {
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) return null
   return user
+}
+
+/**
+ * Fires a window-level event so listeners (e.g. AppShell's AuthAwareHeader)
+ * can immediately re-evaluate auth state without waiting for
+ * `onAuthStateChange` to fire (which can be delayed when the SDK has just
+ * written a fresh cookie on the same tick as the redirect).
+ */
+function notifyAuthChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('localit-auth-changed'))
+  }
 }
 
 export async function getUserProfile(userId: string) {

@@ -34,76 +34,88 @@ export function useMessageStream(
   useEffect(() => {
     if (!conversationId) return
     const supabase = createClient()
-    const channel = supabase
-      .channel(`conv-${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const next = payload.new as Message
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === next.id)) return prev
-            // Replace optimistic if any (by sender+content+recent)
-            const recent = prev.find(
-              (m) =>
-                m.id.startsWith('tmp-') &&
-                m.sender_id === next.sender_id &&
-                m.content === next.content,
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    try {
+      channel = supabase
+        .channel(`conv-${conversationId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            const next = payload.new as Message
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === next.id)) return prev
+              const recent = prev.find(
+                (m) =>
+                  m.id.startsWith('tmp-') &&
+                  m.sender_id === next.sender_id &&
+                  m.content === next.content,
+              )
+              if (recent) return prev.map((m) => (m.id === recent.id ? next : m))
+              return [...prev, next]
+            })
+          },
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            const next = payload.new as Message
+            setMessages((prev) => prev.map((m) => (m.id === next.id ? next : m)))
+          },
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'message_reactions',
+          },
+          (payload) => {
+            const r = payload.new as MessageReaction
+            setReactions((prev) =>
+              prev.some((x) => x.id === r.id) ? prev : [...prev, r],
             )
-            if (recent) return prev.map((m) => (m.id === recent.id ? next : m))
-            return [...prev, next]
-          })
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const next = payload.new as Message
-          setMessages((prev) => prev.map((m) => (m.id === next.id ? next : m)))
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'message_reactions',
-        },
-        (payload) => {
-          const r = payload.new as MessageReaction
-          setReactions((prev) =>
-            prev.some((x) => x.id === r.id) ? prev : [...prev, r],
-          )
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'message_reactions',
-        },
-        (payload) => {
-          const r = payload.old as MessageReaction
-          setReactions((prev) => prev.filter((x) => x.id !== r.id))
-        },
-      )
-      .subscribe()
+          },
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'message_reactions',
+          },
+          (payload) => {
+            const r = payload.old as MessageReaction
+            setReactions((prev) => prev.filter((x) => x.id !== r.id))
+          },
+        )
+        .subscribe((status, err) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn('[useMessageStream] channel error', err)
+          }
+        })
+      channelRef.current = channel
+    } catch (e) {
+      console.warn('[useMessageStream] subscribe threw', e)
+    }
 
-    channelRef.current = channel
     return () => {
-      supabase.removeChannel(channel)
+      try {
+        if (channel) supabase.removeChannel(channel)
+      } catch {
+        /* swallow */
+      }
       channelRef.current = null
     }
   }, [conversationId])

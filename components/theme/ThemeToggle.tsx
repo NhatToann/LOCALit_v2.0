@@ -1,41 +1,45 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTheme } from '@teispace/next-themes'
 import { Sun, Moon, Monitor } from 'lucide-react'
-import {
-  type Theme,
-  getStoredTheme,
-  setStoredTheme,
-  applyTheme,
-} from '@/lib/theme'
 import { createClient } from '@/utils/supabase/auth'
+
+type Choice = 'light' | 'dark' | 'system'
 
 interface Props {
   userId: string | null
 }
 
-const OPTIONS: Array<{ id: Theme; label: string; Icon: typeof Sun }> = [
+const OPTIONS: Array<{ id: Choice; label: string; Icon: typeof Sun }> = [
   { id: 'light', label: 'Light', Icon: Sun },
   { id: 'dark', label: 'Dark', Icon: Moon },
   { id: 'system', label: 'System', Icon: Monitor },
 ]
 
 export default function ThemeToggle({ userId }: Props) {
-  const [theme, setTheme] = useState<Theme>('system')
-
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  // Avoid hydration mismatch — next-themes returns `undefined` until mounted.
+  const [mounted, setMounted] = useState(false)
   useEffect(() => {
-    setTheme(getStoredTheme())
+    setMounted(true)
   }, [])
 
-  async function pick(next: Theme) {
+  async function pick(next: Choice) {
     setTheme(next)
-    setStoredTheme(next)
-    applyTheme(next)
     if (userId) {
-      const supabase = createClient()
-      await supabase.from('profiles').update({ theme_pref: next }).eq('id', userId)
+      // Server-side mirror so the user's preference sticks across devices.
+      // Failures are silent — localStorage is the source of truth on this device.
+      try {
+        const supabase = createClient()
+        await supabase.from('profiles').update({ theme_pref: next }).eq('id', userId)
+      } catch {
+        /* network blip — next page load will retry */
+      }
     }
   }
+
+  const current: Choice = (mounted && (theme as Choice)) || 'system'
 
   return (
     <div
@@ -49,7 +53,7 @@ export default function ThemeToggle({ userId }: Props) {
       <div className="flex items-center gap-1 border border-border rounded-sm p-0.5 bg-paper">
         {OPTIONS.map((o) => {
           const Icon = o.Icon
-          const active = theme === o.id
+          const active = current === o.id
           return (
             <button
               key={o.id}
@@ -68,6 +72,13 @@ export default function ThemeToggle({ userId }: Props) {
           )
         })}
       </div>
+      <p
+        className="text-[10px] text-subtle mt-1.5"
+        aria-live="polite"
+        suppressHydrationWarning
+      >
+        {mounted ? `Active: ${resolvedTheme}` : 'Loading…'}
+      </p>
     </div>
   )
 }

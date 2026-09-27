@@ -8,39 +8,21 @@ import {
   Plus,
   X,
   Trash2,
-  Sunrise,
-  Sun,
-  Moon,
+  MapPin,
+  Edit3,
 } from 'lucide-react'
-import {
-  BUCKETS,
-  bucketOf,
-  defaultTimeForBucket,
-  type Bucket,
-} from '@/lib/day-buckets'
 import { CATEGORY_ICONS } from '@/lib/popular-stops'
 
-const StopMapPicker = dynamic(() => import('@/components/itinerary/StopMapPicker'), {
-  ssr: false,
-})
+const MapFullscreen = dynamic(
+  () => import('@/components/itinerary/MapFullscreen'),
+  { ssr: false },
+)
 
 interface Props {
   trip: Trip
   canEdit: boolean
   me: Profile
   onLogActivity: (verb: string, payload?: Record<string, unknown>) => void
-}
-
-const BUCKET_ICONS: Record<Bucket, typeof Sunrise> = {
-  morning: Sunrise,
-  afternoon: Sun,
-  evening: Moon,
-}
-
-const BUCKET_LABEL: Record<Bucket, string> = {
-  morning: 'Morning',
-  afternoon: 'Afternoon',
-  evening: 'Evening',
 }
 
 const CATEGORIES: Array<NonNullable<TripStop['category']>> = [
@@ -57,7 +39,10 @@ export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
   const [stops, setStops] = useState<TripStop[]>([])
   const [loading, setLoading] = useState(true)
   const [activeDayId, setActiveDayId] = useState<string | null>(null)
-  const [pickerOpenFor, setPickerOpenFor] = useState<Bucket | null>(null)
+  const [picker, setPicker] = useState<{
+    stopId: string | null
+    dayId: string
+  } | null>(null)
 
   useEffect(() => {
     load()
@@ -158,6 +143,31 @@ export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
 
   // ---- Stop CRUD ----
 
+  async function addStop(dayId: string) {
+    if (!canEdit) return
+    const supabase = createClient()
+    const orderInDay = stops.filter((s) => s.day_id === dayId).length
+    const { data, error } = await supabase
+      .from('trip_stops')
+      .insert({
+        trip_id: trip.id,
+        day_id: dayId,
+        stop_order: orderInDay,
+        name: 'New stop',
+        category: 'sight',
+      })
+      .select()
+      .single()
+    if (error) {
+      alert('Could not add stop: ' + error.message)
+      return
+    }
+    onLogActivity('added_stop', { stop_id: data?.id })
+    await load()
+    // Open the picker for the new stop right away
+    if (data) setPicker({ stopId: data.id, dayId })
+  }
+
   async function updateStop(stop: TripStop, patch: Partial<TripStop>) {
     if (!canEdit) return
     const supabase = createClient()
@@ -183,240 +193,199 @@ export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
   const activeDayOrder = activeDay ? days.findIndex((d) => d.id === activeDay.id) : 0
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4">
-      <div className="space-y-3">
-        {/* Day pills */}
-        <div
-          role="tablist"
-          aria-label="Days"
-          className="flex items-center gap-2 flex-wrap"
-        >
-          {days.map((day, idx) => {
-            const isActive = day.id === activeDayId
-            return (
-              <button
-                key={day.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => setActiveDayId(day.id)}
-                className={`inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm border ${
-                  isActive
-                    ? 'bg-primary text-paper border-primary'
-                    : 'bg-surface text-ink border-border hover:border-border-strong'
-                }`}
-              >
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-sm bg-paper text-ink text-[10px] font-semibold">
-                  {idx + 1}
-                </span>
-                <span className="truncate max-w-[160px]">{day.title}</span>
-              </button>
-            )
-          })}
+    <div className="space-y-3">
+      {/* Day pills */}
+      <div
+        role="tablist"
+        aria-label="Days"
+        className="flex items-center gap-2 flex-wrap"
+      >
+        {days.map((day, idx) => {
+          const isActive = day.id === activeDayId
+          return (
+            <button
+              key={day.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveDayId(day.id)}
+              className={`inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm border ${
+                isActive
+                  ? 'bg-primary text-paper border-primary'
+                  : 'bg-surface text-ink border-border hover:border-border-strong'
+              }`}
+            >
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-sm bg-paper text-ink text-[10px] font-semibold">
+                {idx + 1}
+              </span>
+              <span className="truncate max-w-[160px]">{day.title}</span>
+            </button>
+          )
+        })}
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={addDay}
+            className="inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm border border-dashed border-border-strong text-muted hover:text-ink hover:border-primary"
+          >
+            <Plus size={13} aria-hidden="true" /> Add day
+          </button>
+        ) : null}
+      </div>
+
+      {!activeDay ? (
+        <div className="border border-dashed border-border rounded-sm p-8 text-center bg-paper">
+          <p className="text-sm text-muted mb-3">
+            No days yet. Break the trip into days to organize stops.
+          </p>
           {canEdit ? (
             <button
               type="button"
               onClick={addDay}
-              className="inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm border border-dashed border-border-strong text-muted hover:text-ink hover:border-primary"
+              className="inline-flex items-center gap-1 h-9 px-4 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
             >
-              <Plus size={13} aria-hidden="true" /> Add day
+              <Plus size={13} aria-hidden="true" /> Add Day 1
             </button>
           ) : null}
         </div>
-
-        {!activeDay ? (
-          <div className="border border-dashed border-border rounded-sm p-8 text-center bg-paper">
-            <p className="text-sm text-muted mb-3">
-              No days yet. Break the trip into days to organize stops.
-            </p>
-            {canEdit ? (
-              <button
-                type="button"
-                onClick={addDay}
-                className="inline-flex items-center gap-1 h-9 px-4 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
-              >
-                <Plus size={13} aria-hidden="true" /> Add Day 1
-              </button>
-            ) : null}
-          </div>
-        ) : (
-          <>
-            {/* Parent day form */}
-            <article className="border border-border rounded-sm bg-surface overflow-hidden">
-              <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-paper">
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-sm bg-primary text-paper text-xs font-semibold">
-                  {activeDayOrder + 1}
-                </span>
-                {canEdit ? (
-                  <input
-                    defaultValue={activeDay.title ?? ''}
-                    onBlur={(e) => renameDay(activeDay, e.target.value.trim())}
-                    aria-label="Day title"
-                    className="text-base font-semibold bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none flex-1 min-w-0"
-                  />
-                ) : (
-                  <h3 className="text-base font-semibold flex-1">{activeDay.title}</h3>
-                )}
-                {canEdit ? (
-                  <button
-                    type="button"
-                    onClick={() => deleteDay(activeDay.id)}
-                    aria-label="Delete day"
-                    className="text-muted hover:text-danger"
-                  >
-                    <Trash2 size={14} aria-hidden="true" />
-                  </button>
-                ) : null}
-              </header>
-              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-xs text-muted">Date</span>
-                  <input
-                    type="date"
-                    defaultValue={activeDay.date ?? ''}
-                    onChange={(e) =>
-                      updateDayDate(activeDay, e.target.value || null)
-                    }
-                    disabled={!canEdit}
-                    className="form-input mt-1"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs text-muted">Notes for the day</span>
-                  <input
-                    type="text"
-                    defaultValue={activeDay.notes ?? ''}
-                    onBlur={(e) => {
-                      if (e.target.value !== (activeDay.notes ?? '')) {
-                        updateDayNotes(activeDay, e.target.value)
-                      }
-                    }}
-                    disabled={!canEdit}
-                    placeholder="e.g. Easy day, indoor backup if it rains"
-                    className="form-input mt-1"
-                  />
-                </label>
-              </div>
-            </article>
-
-            {/* Child bucket forms */}
-            <div className="space-y-3">
-              {BUCKETS.map((b) => {
-                const bucketStops = activeDayStops.filter(
-                  (s) => bucketOf(s.planned_time) === b,
-                )
-                const Icon = BUCKET_ICONS[b]
-                return (
-                  <section
-                    key={b}
-                    aria-label={`${BUCKET_LABEL[b]} stops`}
-                    className="border border-border rounded-sm bg-paper overflow-hidden"
-                  >
-                    <header className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-surface">
-                      <h4 className="text-sm font-semibold flex items-center gap-2">
-                        <Icon size={14} className="text-primary" aria-hidden="true" />
-                        {BUCKET_LABEL[b]}
-                      </h4>
-                      <span className="text-[11px] text-muted">
-                        {bucketStops.length} stop{bucketStops.length === 1 ? '' : 's'}
-                      </span>
-                    </header>
-                    <ul className="px-4 py-3 space-y-2">
-                      {bucketStops.length === 0 ? (
-                        <li className="text-xs text-muted italic py-2">
-                          No {BUCKET_LABEL[b].toLowerCase()} stops yet
-                        </li>
-                      ) : (
-                        bucketStops.map((s) => (
-                          <StopRow
-                            key={s.id}
-                            stop={s}
-                            canEdit={canEdit}
-                            onChange={(patch) => updateStop(s, patch)}
-                            onRemove={() => removeStop(s.id)}
-                          />
-                        ))
-                      )}
-                    </ul>
-                    {canEdit ? (
-                      <footer className="border-t border-border px-4 py-2 bg-paper">
-                        <button
-                          type="button"
-                          onClick={() => setPickerOpenFor(b)}
-                          className="inline-flex items-center gap-1 h-7 px-2.5 text-xs font-medium rounded-sm bg-transparent text-primary border border-primary hover:bg-primary hover:text-paper"
-                        >
-                          <Plus size={11} aria-hidden="true" /> Add {BUCKET_LABEL[b].toLowerCase()} stop
-                        </button>
-                      </footer>
-                    ) : null}
-                  </section>
-                )
-              })}
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Map picker sidebar */}
-      <aside
-        className="border border-border rounded-sm bg-surface overflow-hidden lg:sticky lg:top-20 self-start"
-        aria-label="Add a stop"
-      >
-        {activeDay && pickerOpenFor ? (
-          <StopMapPicker
-            tripId={trip.id}
-            dayId={activeDay.id}
-            dayOrder={activeDayOrder}
-            existingStops={activeDayStops}
-            onAdded={(s) => {
-              // Force bucket by setting planned_time
-              const t = defaultTimeForBucket(pickerOpenFor)
-              updateStop(s, { planned_time: t })
-              setPickerOpenFor(null)
-            }}
-            onCancel={() => setPickerOpenFor(null)}
-          />
-        ) : (
-          <div className="flex flex-col">
-            <header className="px-4 py-3 border-b border-border">
-              <p className="text-eyebrow text-muted mb-1">Map</p>
-              <p className="text-xs text-subtle">
-                Click <strong className="text-ink">Add morning / afternoon / evening stop</strong> below to drop a pin.
-              </p>
-            </header>
-            <div className="p-4 space-y-2">
-              {canEdit && activeDay ? (
-                BUCKETS.map((b) => {
-                  const Icon = BUCKET_ICONS[b]
-                  return (
-                    <button
-                      key={b}
-                      type="button"
-                      onClick={() => setPickerOpenFor(b)}
-                      className="w-full flex items-center gap-2 h-10 px-3 text-sm rounded-sm border border-border-strong bg-paper text-ink hover:border-primary hover:text-primary"
-                    >
-                      <Icon size={13} aria-hidden="true" />
-                      Add {BUCKET_LABEL[b].toLowerCase()} stop
-                    </button>
-                  )
-                })
+      ) : (
+        <>
+          {/* Parent day form */}
+          <article className="border border-border rounded-sm bg-surface overflow-hidden">
+            <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-paper">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-sm bg-primary text-paper text-xs font-semibold">
+                {activeDayOrder + 1}
+              </span>
+              {canEdit ? (
+                <input
+                  defaultValue={activeDay.title ?? ''}
+                  onBlur={(e) => renameDay(activeDay, e.target.value.trim())}
+                  aria-label="Day title"
+                  className="text-base font-semibold bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none flex-1 min-w-0"
+                />
               ) : (
-                <p className="text-xs text-muted">
-                  Sign in as a trip participant to add stops.
-                </p>
+                <h3 className="text-base font-semibold flex-1">{activeDay.title}</h3>
               )}
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => deleteDay(activeDay.id)}
+                  aria-label="Delete day"
+                  className="text-muted hover:text-danger"
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                </button>
+              ) : null}
+            </header>
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-xs text-muted">Date</span>
+                <input
+                  type="date"
+                  defaultValue={activeDay.date ?? ''}
+                  onChange={(e) =>
+                    updateDayDate(activeDay, e.target.value || null)
+                  }
+                  disabled={!canEdit}
+                  className="form-input mt-1"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs text-muted">Notes for the day</span>
+                <input
+                  type="text"
+                  defaultValue={activeDay.notes ?? ''}
+                  onBlur={(e) => {
+                    if (e.target.value !== (activeDay.notes ?? '')) {
+                      updateDayNotes(activeDay, e.target.value)
+                    }
+                  }}
+                  disabled={!canEdit}
+                  placeholder="e.g. Easy day, indoor backup if it rains"
+                  className="form-input mt-1"
+                />
+              </label>
             </div>
-            {activeDay ? (
-              <footer className="px-4 py-3 border-t border-border">
-                <p className="text-[11px] text-subtle">
-                  Day {activeDayOrder + 1}: {activeDayStops.length} stop
-                  {activeDayStops.length === 1 ? '' : 's'} on the map.
-                </p>
+          </article>
+
+          {/* Stops list — free time, no bucket pills */}
+          <section
+            aria-label={`Stops for ${activeDay.title}`}
+            className="border border-border rounded-sm bg-paper overflow-hidden"
+          >
+            <header className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-surface">
+              <h4 className="text-sm font-semibold">Stops</h4>
+              <span className="text-[11px] text-muted">
+                {activeDayStops.length} stop{activeDayStops.length === 1 ? '' : 's'} · time is free
+              </span>
+            </header>
+            <ul className="px-4 py-3 space-y-2">
+              {activeDayStops.length === 0 ? (
+                <li className="text-xs text-muted italic py-2">
+                  No stops yet. Add one below.
+                </li>
+              ) : (
+                activeDayStops.map((s) => (
+                  <StopRow
+                    key={s.id}
+                    stop={s}
+                    canEdit={canEdit}
+                    onChange={(patch) => updateStop(s, patch)}
+                    onRemove={() => removeStop(s.id)}
+                    onPick={() => setPicker({ stopId: s.id, dayId: activeDay.id })}
+                  />
+                ))
+              )}
+            </ul>
+            {canEdit ? (
+              <footer className="border-t border-border px-4 py-2 bg-paper">
+                <button
+                  type="button"
+                  onClick={() => addStop(activeDay.id)}
+                  className="inline-flex items-center gap-1 h-7 px-2.5 text-xs font-medium rounded-sm bg-transparent text-primary border border-primary hover:bg-primary hover:text-paper"
+                >
+                  <Plus size={11} aria-hidden="true" /> Add stop
+                </button>
               </footer>
             ) : null}
-          </div>
-        )}
-      </aside>
+          </section>
+        </>
+      )}
+
+      {/* Map picker modal */}
+      {picker ? (
+        <MapFullscreen
+          initialLat={
+            picker.stopId
+              ? stops.find((s) => s.id === picker.stopId)?.latitude ?? undefined
+              : undefined
+          }
+          initialLng={
+            picker.stopId
+              ? stops.find((s) => s.id === picker.stopId)?.longitude ?? undefined
+              : undefined
+          }
+          onCancel={() => setPicker(null)}
+          onPick={(loc) => {
+            if (picker.stopId) {
+              updateStop(
+                stops.find((s) => s.id === picker.stopId!)!,
+                {
+                  latitude: loc.lat,
+                  longitude: loc.lng,
+                  address: loc.address,
+                  name:
+                    stops.find((s) => s.id === picker.stopId)?.name &&
+                    stops.find((s) => s.id === picker.stopId)!.name !== 'New stop'
+                      ? stops.find((s) => s.id === picker.stopId)!.name
+                      : loc.address.split(',')[0]?.trim() || 'New stop',
+                },
+              )
+            }
+            setPicker(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -426,13 +395,16 @@ function StopRow({
   canEdit,
   onChange,
   onRemove,
+  onPick,
 }: {
   stop: TripStop
   canEdit: boolean
   onChange: (patch: Partial<TripStop>) => void
   onRemove: () => void
+  onPick: () => void
 }) {
   const Icon = CATEGORY_ICONS[stop.category ?? 'sight']
+  const hasLocation = stop.latitude !== null && stop.longitude !== null
   return (
     <li className="border border-border rounded-sm bg-surface p-3 space-y-2">
       <div className="flex items-start gap-2">
@@ -487,9 +459,33 @@ function StopRow({
           </button>
         ) : null}
       </div>
-      {stop.address ? (
-        <p className="text-[11px] text-muted pl-6">{stop.address}</p>
-      ) : null}
+
+      {/* Location row */}
+      <div className="pl-6 flex items-start gap-2">
+        <MapPin
+          size={12}
+          className={hasLocation ? 'text-primary mt-0.5 flex-shrink-0' : 'text-subtle mt-0.5 flex-shrink-0'}
+          aria-hidden="true"
+        />
+        <div className="flex-1 min-w-0">
+          {hasLocation ? (
+            <p className="text-[11px] text-muted line-clamp-1">{stop.address}</p>
+          ) : (
+            <p className="text-[11px] text-subtle italic">No location picked yet</p>
+          )}
+        </div>
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={onPick}
+            className="inline-flex items-center gap-1 h-6 px-2 text-[11px] rounded-sm bg-transparent text-primary border border-primary hover:bg-primary hover:text-paper"
+          >
+            <Edit3 size={10} aria-hidden="true" />
+            {hasLocation ? 'Change' : 'Pick location'}
+          </button>
+        ) : null}
+      </div>
+
       {canEdit ? (
         <details className="pl-6">
           <summary className="text-[11px] text-muted cursor-pointer hover:text-ink">

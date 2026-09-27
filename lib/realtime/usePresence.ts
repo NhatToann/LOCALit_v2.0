@@ -29,37 +29,56 @@ export function usePresence(
   useEffect(() => {
     if (!channelName || !me) return
     const supabase = createClient()
-    const channel = supabase.channel(channelName, {
-      config: { presence: { key: me.user_id } },
-    })
-    channelRef.current = channel
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    try {
+      channel = supabase.channel(channelName, {
+        config: { presence: { key: me.user_id } },
+      })
+      channelRef.current = channel
 
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState() as Record<string, PresenceUser[]>
-        const flat: PresenceUser[] = []
-        for (const key of Object.keys(state)) {
-          for (const entry of state[key] || []) flat.push(entry)
-        }
-        setUsers(flat)
-      })
-      .subscribe(async (status: string) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({
-            user_id: me.user_id,
-            full_name: me.full_name ?? '',
-            online_at: new Date().toISOString(),
-          })
-        }
-      })
+      channel
+        .on('presence', { event: 'sync' }, () => {
+          try {
+            const state = channel!.presenceState() as Record<string, PresenceUser[]>
+            const flat: PresenceUser[] = []
+            for (const key of Object.keys(state)) {
+              for (const entry of state[key] || []) flat.push(entry)
+            }
+            setUsers(flat)
+          } catch (e) {
+            console.warn('[usePresence] presenceState threw', e)
+          }
+        })
+        .subscribe(async (status: string, err?: Error) => {
+          if (status === 'SUBSCRIBED') {
+            try {
+              await channel!.track({
+                user_id: me.user_id,
+                full_name: me.full_name ?? '',
+                online_at: new Date().toISOString(),
+              })
+            } catch (e) {
+              console.warn('[usePresence] track threw', e)
+            }
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn('[usePresence] channel error', err)
+          }
+        })
+    } catch (e) {
+      console.warn('[usePresence] subscribe threw', e)
+    }
 
     // heartbeat every 25s
     const hb = setInterval(() => {
-      channel.track({
-        user_id: me.user_id,
-        full_name: me.full_name ?? '',
-        online_at: new Date().toISOString(),
-      })
+      try {
+        channel?.track({
+          user_id: me.user_id,
+          full_name: me.full_name ?? '',
+          online_at: new Date().toISOString(),
+        })
+      } catch {
+        /* swallow */
+      }
     }, 25_000)
 
     return () => {
@@ -68,7 +87,7 @@ export function usePresence(
         channelRef.current = null
       }
       try {
-        supabase.removeChannel(channel)
+        if (channel) supabase.removeChannel(channel)
       } catch {
         // Channel may already be gone during fast remounts.
       }

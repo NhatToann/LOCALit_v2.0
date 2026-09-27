@@ -1,6 +1,7 @@
 // Day buckets: morning | afternoon | evening, derived from planned_time.
-// Shared by DaysTab (editor) and PlanTab (summary) so the same row
-// shows the same bucket in both views.
+// Used ONLY by the read-only PlanTab summary (Day-by-day section). The
+// DaysTab editor no longer assigns buckets — stops carry a free time
+// and PlanTab groups them by inspecting that time.
 
 export type Bucket = 'morning' | 'afternoon' | 'evening'
 
@@ -13,17 +14,4 @@ export function bucketOf(time?: string | null): Bucket {
   if (h < 12) return 'morning'
   if (h < 17) return 'afternoon'
   return 'evening'
-}
-
-// Default planned_time when adding a stop into a given bucket.
-// Returns 'HH:MM:SS'.
-export function defaultTimeForBucket(b: Bucket): string {
-  switch (b) {
-    case 'morning':
-      return '09:00:00'
-    case 'afternoon':
-      return '13:00:00'
-    case 'evening':
-      return '18:30:00'
-  }
 }

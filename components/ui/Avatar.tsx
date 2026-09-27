@@ -36,14 +36,15 @@ function initials(name: string): string {
 }
 
 function colorFromName(name: string): string {
-  let hash = 0;
+  let hash = 0
   for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
   }
-  // Brand-aligned flat palette. No rainbow saturation per design tokens.
-  const palette = ['#FF6B35', '#0F0F0F', '#92400E', '#166534', '#075985', '#7C2D12'];
-  const idx = Math.abs(hash) % palette.length;
-  return palette[idx];
+  // Brand-aligned flat palette. Avoids neutral greys that would
+  // disappear against the dark-mode paper/surface backgrounds.
+  const palette = ['#FF6B35', '#92400E', '#166534', '#075985', '#7C2D12', '#5B21B6']
+  const idx = Math.abs(hash) % palette.length
+  return palette[idx]
 }
 
 /**

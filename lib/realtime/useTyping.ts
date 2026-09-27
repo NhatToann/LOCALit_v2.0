@@ -25,23 +25,43 @@ export function useTyping(conversationId: string | null, myUserId: string | null
   useEffect(() => {
     if (!conversationId || !myUserId) return
     const supabase = createClient()
-    const channel = supabase.channel(`typing-${conversationId}`, {
-      config: { broadcast: { self: false } },
-    })
-    channelRef.current = channel
-
-    channel
-      .on('broadcast', { event: 'typing' }, ({ payload }) => {
-        if (!payload || payload.user_id === myUserId) return
-        setPeers((prev) => {
-          const without = prev.filter((p) => p.user_id !== payload.user_id)
-          return [...without, { user_id: payload.user_id, at: Date.now(), full_name: peerNames?.[payload.user_id] }]
-        })
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    try {
+      channel = supabase.channel(`typing-${conversationId}`, {
+        config: { broadcast: { self: false } },
       })
-      .subscribe()
+      channelRef.current = channel
+      channel
+        .on('broadcast', { event: 'typing' }, ({ payload }) => {
+          if (!payload || payload.user_id === myUserId) return
+          setPeers((prev) => {
+            const without = prev.filter((p) => p.user_id !== payload.user_id)
+            return [
+              ...without,
+              {
+                user_id: payload.user_id,
+                at: Date.now(),
+                full_name: peerNames?.[payload.user_id],
+              },
+            ]
+          })
+        })
+        .subscribe((status, err) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            // Non-fatal — typing indicator is best-effort.
+            console.warn('[useTyping] channel error', err)
+          }
+        })
+    } catch (e) {
+      console.warn('[useTyping] subscribe threw', e)
+    }
 
     return () => {
-      supabase.removeChannel(channel)
+      try {
+        if (channel) supabase.removeChannel(channel)
+      } catch {
+        /* swallow */
+      }
       channelRef.current = null
       setPeers([])
     }
@@ -60,11 +80,15 @@ export function useTyping(conversationId: string | null, myUserId: string | null
     const now = Date.now()
     if (now - lastSentRef.current < 1500) return
     lastSentRef.current = now
-    channelRef.current.send({
-      type: 'broadcast',
-      event: 'typing',
-      payload: { user_id: myUserId, at: now },
-    })
+    try {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { user_id: myUserId, at: now },
+      })
+    } catch (e) {
+      console.warn('[useTyping] send threw', e)
+    }
   }, [myUserId])
 
   return { typingPeers: peers, notifyTyping }

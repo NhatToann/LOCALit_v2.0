@@ -485,8 +485,9 @@ function avatarColor(seed: string): string {
   for (let i = 0; i < seed.length; i++) {
     hash = seed.charCodeAt(i) + ((hash << 5) - hash)
   }
-  // Brand-aligned flat palette. No rainbow saturation.
-  const palette = ['#FF6B35', '#0F0F0F', '#92400E', '#166534', '#075985', '#7C2D12']
+  // Brand-aligned flat palette. Avoids neutral greys so avatars stay
+  // visible in dark mode (the dark paper colour is ~#0A0A0C).
+  const palette = ['#FF6B35', '#92400E', '#166534', '#075985', '#7C2D12', '#5B21B6']
   const idx = Math.abs(hash) % palette.length
   return palette[idx]
 }

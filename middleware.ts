@@ -53,6 +53,15 @@ export async function middleware(request: NextRequest) {
 
   // If not on auth/public routes and not logged in, redirect to login
   if (!isAuthRoute && !isPublicRoute && !isVerifyEmailRoute && !user) {
+    // DEBUG (2026-09-27): trace why `/map` redirected despite a valid session.
+    // The Supabase server client in Next 16 sometimes returns null even when
+    // the cookie is present because the cookie `path` is set to `/` but the
+    // request URL is a domain alias. We log to surface this in vercel logs.
+    console.warn('[middleware] redirect to /login', {
+      pathname,
+      hasUser: !!user,
+      cookies: request.cookies.getAll().map((c) => c.name),
+    })
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirectTo', pathname)
