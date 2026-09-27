@@ -211,11 +211,23 @@ SUPABASE_DB_PORT=5432
   node -e "..." # see scripts/diag-tourists-grants.mjs
   ```
 
-### Email Verification (DEPRECATED 2026-09-27 — table dropped)
-- The OTP-flow path (`/api/auth/signup-admin` → email → `/verify-email` → `/api/auth/verify-otp` → `/api/auth/resend-otp`) was deprecated on 2026-09-26 when the simplified sign-up was introduced. The `public.email_verifications` table was dropped on 2026-09-27 alongside `call_logs`, `call_signals`, and `safe_reviews` — none were referenced by the current `/api/auth/signup` endpoint.
-- Active flow: `/register` → `POST /api/auth/signup` (auto-confirm) → client calls `signInWithPassword()` → dashboard.
-- The `/api/auth/verify-otp` and `/api/auth/resend-otp` route files still exist on disk for historical reference but are no longer called from any UI route. Safe to delete in a future cleanup.
-- See: `app/api/auth/signup/route.ts`, `app/api/auth/signup-admin/route.ts`, `utils/otp.ts` (still valid for whoever re-introduces an OTP flow).
+### Email Verification (OTP at Step 1 of Signup — 2026-09-27)
+- The sign-up flow now requires email verification BEFORE creating the auth.users row.
+- The `public.email_verifications` table was re-created on 2026-09-27 (was dropped earlier that day) with a new schema keyed by email instead of user_id.
+- Active flow (4 steps):
+ 1. **`/register` Step 0** (Personal info: name, phone, email, password, terms) → submit
+ 2. **`POST /api/auth/signup/start`** (5 req/min/IP) → server hashes password, generates 6-digit OTP, inserts row in `email_verifications`, sends code by Resend. Returns `{ signupId, email, expiresInSeconds }`.
+ 3. **`/register` Step 1** (Verify email: 6 individual digit boxes, paste support, 60s resend cooldown) → user enters code
+ 4. **`POST /api/auth/signup/verify-otp`** (10 req/min/IP) → server checks bcrypt-hashed code, sets `verified_at`. On success, advance to next step.
+ 5. **`/register` Step 2** (Choose role: Tourist / Buddy) → skip if `?role=` was provided
+ 6. **`/register` Step 3** (Tags & bio: nationality/interests/languages for tourist, or city/specialties/bio for buddy)
+ 7. **`POST /api/auth/signup/complete`** (10 req/min/IP) → server validates `verified_at IS NOT NULL` + `consumed_at IS NULL`, creates `auth.users` (with `email_confirm: true` since user already proved ownership), inserts profile + tourist/buddy, sets `consumed_at`. Returns `{ userId, email }`.
+ 8. Client calls `signInWithPassword()` → redirect to dashboard.
+- Resend: `POST /api/auth/signup/resend-otp` (3 req/min/IP) invalidates prior code and issues a new one.
+- The `signupId` is a UUID (unguessable) treated as a bearer secret between `/start` and `/complete`.
+- See: `app/api/auth/signup/{start,verify-otp,resend-otp,complete}/route.ts`, `utils/otp.ts`, `supabase/migrations/2026-09-27-restore-email-verifications.sql`.
+- ⚠️ **Resend test-mode restriction**: `EMAIL_FROM=onboarding@resend.dev` (default) can only send to the Resend account owner email. To send OTP to arbitrary recipients, verify a domain at https://resend.com/domains and set `EMAIL_FROM=noreply@yourdomain.com`.
+- DELETED (replaced by `/signup/*` routes): `app/api/auth/signup/route.ts`, `app/api/auth/signup-admin/route.ts`, `app/api/auth/verify-otp/route.ts`, `app/api/auth/resend-otp/route.ts`, `app/verify-email/page.tsx`.
 
 ### Data Types (column types differ from what you might assume)
 - `tourists.interests`: `TEXT[]` (PostgreSQL array), NOT `jsonb`. Insert with `ARRAY['food','photo']::text[]`
@@ -225,8 +237,12 @@ SUPABASE_DB_PORT=5432
 - `profiles.role`: `user_role` enum (`tourist` | `buddy` | `admin`)
 
 ### Seed Accounts
+These are pre-created via direct DB insert (bypassing the OTP flow) so they can be used for testing without an inbox:
 - Buddy: `lan.pham@localit.dev` / `password123`
 - Tourist: `john.doe@example.com` / `password123`
+- See `scripts/seed-accounts.mjs` for the full list of 9 seed users.
+
+To register a NEW account via the UI, the user must complete OTP verification (see "Email Verification" section above). Resend's test mode restricts sending to the account-owner email (`darklunatv@gmail.com`) only — see warning there.
 
 ## CLI Tooling on This Machine
 
