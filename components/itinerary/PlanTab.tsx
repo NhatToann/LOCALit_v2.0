@@ -9,6 +9,7 @@ import {
   Moon,
   Backpack,
   Pencil,
+  Trash2,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import type { Trip, TripDay, TripStop, TripPackingItem, Profile } from '@/lib/types'
@@ -58,6 +59,22 @@ export default function PlanTab({ trip, canEdit, me, onLogActivity, onTripUpdate
     setStops((s as TripStop[]) || [])
     setPacking((p as TripPackingItem[]) || [])
     setLoading(false)
+  }
+
+  async function removeStop(stopId: string) {
+    if (!canEdit) return
+    const supabase = createClient()
+    const target = stops.find((s) => s.id === stopId)
+    // Optimistic remove so the UI feels instant even if the DB delete is slow.
+    setStops((prev) => prev.filter((s) => s.id !== stopId))
+    const { error } = await supabase.from('trip_stops').delete().eq('id', stopId)
+    if (error) {
+      console.warn('[PlanTab] removeStop failed', error)
+      // Roll back on failure
+      if (target) setStops((prev) => [...prev, target].sort((a, b) => a.stop_order - b.stop_order))
+      return
+    }
+    onLogActivity('removed_stop', { stop_id: stopId })
   }
 
   const scheduleSave = useCallback(
@@ -184,7 +201,7 @@ export default function PlanTab({ trip, canEdit, me, onLogActivity, onTripUpdate
                                 return (
                                   <li
                                     key={s.id}
-                                    className="flex items-start gap-3 border border-border rounded-sm bg-paper px-3 py-2"
+                                    className="flex items-start gap-3 border border-border rounded-sm bg-paper px-3 py-2 group"
                                   >
                                     <CatIcon
                                       size={14}
@@ -200,9 +217,23 @@ export default function PlanTab({ trip, canEdit, me, onLogActivity, onTripUpdate
                                       ) : null}
                                     </div>
                                     {s.planned_time ? (
-                                      <span className="text-[11px] text-muted whitespace-nowrap font-mono">
+                                      <span className="text-[11px] text-muted whitespace-nowrap font-mono mt-0.5">
                                         {s.planned_time.slice(0, 5)}
                                       </span>
+                                    ) : null}
+                                    {canEdit ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (confirm(`Remove "${s.name}" from this day?`)) {
+                                            removeStop(s.id)
+                                          }
+                                        }}
+                                        aria-label={`Remove ${s.name}`}
+                                        className="text-subtle hover:text-danger opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity mt-0.5"
+                                      >
+                                        <Trash2 size={12} aria-hidden="true" />
+                                      </button>
                                     ) : null}
                                   </li>
                                 )

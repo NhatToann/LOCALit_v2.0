@@ -25,10 +25,11 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
-import type { Profile, Connection, Trip } from '@/lib/types'
+import type { Profile, Connection, Trip, TripStop } from '@/lib/types'
 import { Avatar, EmptyState } from '@/components/ui/Avatar'
 import { getConnectionStage, daysUntilExpiry, expiryLabel } from '@/lib/connection-stages'
 import { labelFor } from '@/lib/specialties'
+import { CATEGORY_ICONS } from '@/lib/popular-stops'
 
 const PLACE_ICON: Record<string, typeof Waves> = {
   beach: Waves,
@@ -60,6 +61,7 @@ export default function BuddyDashboardPage() {
   const [reviewsCount, setReviewsCount] = useState(0)
   const [avgRating, setAvgRating] = useState<number | null>(null)
   const [companionsByTrip, setCompanionsByTrip] = useState<Record<string, number>>({})
+  const [stopsByTrip, setStopsByTrip] = useState<Record<string, TripStop[]>>({})
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState(false)
 
@@ -116,6 +118,25 @@ export default function BuddyDashboardPage() {
           compMap[row.trip_id] = (compMap[row.trip_id] || 0) + 1
         }
         setCompanionsByTrip(compMap)
+
+        // Load stops for upcoming trips so the dashboard can show a full
+        // day-by-day preview with address + time. Cheap query — limits to
+        // the 5 most relevant trips on this view.
+        const tripList = (t || []) as Trip[]
+        if (tripList.length > 0) {
+          const tripIds = tripList.slice(0, 5).map((x) => x.id)
+          const { data: stopsData } = await supabase
+            .from('trip_stops')
+            .select('*')
+            .in('trip_id', tripIds)
+            .order('stop_order', { ascending: true })
+          const stopsMap: Record<string, TripStop[]> = {}
+          for (const s of (stopsData || []) as TripStop[]) {
+            if (!stopsMap[s.trip_id]) stopsMap[s.trip_id] = []
+            stopsMap[s.trip_id].push(s)
+          }
+          setStopsByTrip(stopsMap)
+        }
         if (myReviews && myReviews.length > 0) {
           const sum = myReviews.reduce((acc, r) => acc + (r.rating || 0), 0)
           setAvgRating(Math.round((sum / myReviews.length) * 10) / 10)
@@ -506,36 +527,98 @@ export default function BuddyDashboardPage() {
                         : trip.status === 'cancelled'
                           ? 'danger'
                           : 'warning'
-                  // Find the connection row that owns this trip. The trip may not
-                  // exist yet (planning stage), so fall back to looking up the
-                  // tourist's most recent accepted connection.
                   const conn = requests.find(
                     (r) =>
                       r.tourist_id === trip.tourist_id &&
                       r.buddy_id === trip.buddy_id,
                   )
                   const connId = conn?.id ?? null
+                  const stops = (stopsByTrip[trip.id] || []).slice(0, 4)
+                  const remaining = (stopsByTrip[trip.id] || []).length - stops.length
                   return (
-                    <li key={trip.id}>
-                      <Link
-                        href={connId ? `/itinerary/${connId}` : `/chat?buddy=${trip.buddy_id ?? ''}`}
-                        className="flex items-center justify-between gap-3 py-3 px-2 -mx-2 rounded-sm hover:bg-paper transition-colors duration-150"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{trip.title}</p>
-                          <p className="text-xs text-muted mt-0.5 truncate">
-                            {trip.destination}
-                            {trip.start_date ? ` · ${new Date(trip.start_date).toLocaleDateString('en-US')}` : ''}
-                          </p>
-                          <p className="text-xs text-muted mt-0.5 truncate">{name}</p>
-                        </div>
-                        <span className={`badge badge-${tone}`}>{trip.status}</span>
-                        <Compass
-                          size={14}
-                          className="text-subtle flex-shrink-0"
-                          aria-hidden="true"
-                        />
-                      </Link>
+                    <li key={trip.id} className="py-4 px-2 -mx-2">
+                      {/* Header row — links to the full itinerary */}
+                      <div className="flex items-center justify-between gap-3">
+                        <Link
+                          href={connId ? `/itinerary/${connId}` : `/chat?buddy=${trip.buddy_id ?? ''}`}
+                          className="flex items-center gap-3 min-w-0 flex-1"
+                        >
+                          <Compass
+                            size={14}
+                            className="text-subtle flex-shrink-0"
+                            aria-hidden="true"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{trip.title}</p>
+                            <p className="text-xs text-muted mt-0.5 truncate">
+                              {trip.destination}
+                              {trip.start_date ? ` · ${new Date(trip.start_date).toLocaleDateString('en-US')}` : ''}
+                              {` · ${name}`}
+                            </p>
+                          </div>
+                          <span className={`badge badge-${tone} flex-shrink-0`}>{trip.status}</span>
+                        </Link>
+                      </div>
+
+                      {/* Planned stops preview — address + time, click to edit */}
+                      {stops.length > 0 ? (
+                        <ol className="mt-3 ml-5 border-l-2 border-border pl-3 space-y-1.5">
+                          {stops.map((s) => {
+                            const Icon = CATEGORY_ICONS[s.category ?? 'sight']
+                            return (
+                              <li key={s.id}>
+                                <Link
+                                  href={
+                                    connId
+                                      ? `/itinerary/${connId}?stop=${s.id}&pick=1`
+                                      : `/chat?buddy=${trip.buddy_id ?? ''}`
+                                  }
+                                  className="flex items-center gap-2 text-xs hover:bg-paper rounded-sm px-1.5 py-1 -mx-1.5 transition-colors group"
+                                >
+                                  <Icon size={12} className="text-primary flex-shrink-0" aria-hidden="true" />
+                                  {s.planned_time ? (
+                                    <span className="font-mono text-muted w-12 flex-shrink-0">
+                                      {s.planned_time.slice(0, 5)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-subtle italic w-12 flex-shrink-0">—</span>
+                                  )}
+                                  <span className="flex-1 min-w-0 truncate text-ink">
+                                    {s.address || s.name}
+                                  </span>
+                                  <Pencil
+                                    size={11}
+                                    className="text-subtle opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                </Link>
+                              </li>
+                            )
+                          })}
+                          {remaining > 0 ? (
+                            <li>
+                              <Link
+                                href={connId ? `/itinerary/${connId}` : '#'}
+                                className="text-[11px] text-muted hover:text-primary px-1.5 py-1"
+                              >
+                                +{remaining} more stop{remaining === 1 ? '' : 's'}
+                              </Link>
+                            </li>
+                          ) : null}
+                        </ol>
+                      ) : (
+                        <p className="text-[11px] text-muted italic mt-2 ml-5">
+                          No stops planned yet.{' '}
+                          {connId ? (
+                            <Link
+                              href={`/itinerary/${connId}?pick=1`}
+                              className="text-primary hover:underline"
+                            >
+                              Add one →
+                            </Link>
+                          ) : null}
+                        </p>
+                      )}
                     </li>
                   )
                 })}

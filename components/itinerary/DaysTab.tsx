@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/auth'
 import type { Trip, TripDay, TripStop, Profile } from '@/lib/types'
 import dynamic from 'next/dynamic'
@@ -35,6 +36,10 @@ const CATEGORIES: Array<NonNullable<TripStop['category']>> = [
 ]
 
 export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
+  const searchParams = useSearchParams()
+  const targetStopId = searchParams?.get('stop') ?? null
+  const autoPick = searchParams?.get('pick') === '1'
+
   const [days, setDays] = useState<TripDay[]>([])
   const [stops, setStops] = useState<TripStop[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,10 +48,27 @@ export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
     stopId: string | null
     dayId: string
   } | null>(null)
+  const [highlightStopId, setHighlightStopId] = useState<string | null>(null)
 
   useEffect(() => {
     load()
   }, [trip.id])
+
+  // After data loads, honour ?stop=...&pick=1 by jumping to the right day
+  // and (optionally) auto-opening the map picker for it. The dashboard
+  // uses these query params to deep-link into a specific stop.
+  useEffect(() => {
+    if (loading || !targetStopId) return
+    const stop = stops.find((s) => s.id === targetStopId)
+    if (!stop) return
+    if (stop.day_id) setActiveDayId(stop.day_id)
+    if (autoPick && stop.day_id) {
+      setPicker({ stopId: stop.id, dayId: stop.day_id })
+    }
+    setHighlightStopId(stop.id)
+    const t = setTimeout(() => setHighlightStopId(null), 4000)
+    return () => clearTimeout(t)
+  }, [loading, targetStopId, autoPick, stops])
 
   // Realtime: stops + days
   useEffect(() => {
@@ -330,6 +352,7 @@ export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
                     key={s.id}
                     stop={s}
                     canEdit={canEdit}
+                    highlighted={highlightStopId === s.id}
                     onChange={(patch) => updateStop(s, patch)}
                     onRemove={() => removeStop(s.id)}
                     onPick={() => setPicker({ stopId: s.id, dayId: activeDay.id })}
@@ -390,34 +413,73 @@ export default function DaysTab({ trip, canEdit, me, onLogActivity }: Props) {
   )
 }
 
+function useHighlightedScroll(stopId: string, highlighted?: boolean) {
+  const ref = useRef<HTMLLIElement | null>(null)
+  useEffect(() => {
+    if (!highlighted || !ref.current) return
+    const t = setTimeout(() => {
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 80)
+    return () => clearTimeout(t)
+  }, [highlighted, stopId])
+  return ref
+}
+
 function StopRow({
   stop,
   canEdit,
+  highlighted,
   onChange,
   onRemove,
   onPick,
 }: {
   stop: TripStop
   canEdit: boolean
+  highlighted?: boolean
   onChange: (patch: Partial<TripStop>) => void
   onRemove: () => void
   onPick: () => void
 }) {
   const Icon = CATEGORY_ICONS[stop.category ?? 'sight']
   const hasLocation = stop.latitude !== null && stop.longitude !== null
+
+  // The stop row holds local state for the editable text fields so that
+  // updates from the map picker (which writes via `updateStop`) immediately
+  // reflect in the visible input. The state re-seeds whenever the stop
+  // changes identity (different id) or the upstream server value changes.
+  const [nameDraft, setNameDraft] = useState(stop.name)
+  const [notesDraft, setNotesDraft] = useState(stop.notes ?? '')
+  useEffect(() => {
+    setNameDraft(stop.name)
+  }, [stop.id, stop.name])
+  useEffect(() => {
+    setNotesDraft(stop.notes ?? '')
+  }, [stop.id, stop.notes])
+
+  // Scroll into view when this stop is the target of a deep-link.
+  // Defer to the next frame so layout (active day switch) is settled first.
+  const rowRef = useHighlightedScroll(stop.id, highlighted)
+
   return (
-    <li className="border border-border rounded-sm bg-surface p-3 space-y-2">
+    <li
+      id={`stop-${stop.id}`}
+      ref={rowRef}
+      className={`border rounded-sm bg-surface p-3 space-y-2 transition-colors duration-500 ${
+        highlighted ? 'border-primary ring-2 ring-primary/30' : 'border-border'
+      }`}
+    >
       <div className="flex items-start gap-2">
         <Icon size={14} className="text-primary mt-2 flex-shrink-0" aria-hidden="true" />
         <div className="flex-1 grid grid-cols-1 sm:grid-cols-[1fr_120px_120px] gap-2">
           <input
             type="text"
-            defaultValue={stop.name}
-            onBlur={(e) =>
-              e.target.value.trim() && e.target.value !== stop.name
-                ? onChange({ name: e.target.value.trim() })
-                : undefined
-            }
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={() => {
+              const v = nameDraft.trim()
+              if (v && v !== stop.name) onChange({ name: v })
+              else if (!v) setNameDraft(stop.name)
+            }}
             disabled={!canEdit}
             className="form-input"
             aria-label="Stop name"
@@ -492,12 +554,11 @@ function StopRow({
             Notes for this stop
           </summary>
           <textarea
-            defaultValue={stop.notes ?? ''}
-            onBlur={(e) =>
-              e.target.value !== (stop.notes ?? '')
-                ? onChange({ notes: e.target.value })
-                : undefined
-            }
+            value={notesDraft}
+            onChange={(e) => setNotesDraft(e.target.value)}
+            onBlur={() => {
+              if (notesDraft !== (stop.notes ?? '')) onChange({ notes: notesDraft })
+            }}
             rows={2}
             maxLength={500}
             placeholder="Reservation number, what to order, who to ask for…"

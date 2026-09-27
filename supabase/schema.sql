@@ -235,9 +235,19 @@ CREATE POLICY "Trip owner can manage stops"
     EXISTS (
       SELECT 1 FROM public.trips t
       WHERE t.id = trip_id
-      AND auth.uid() = t.tourist_id
+      AND (auth.uid() = t.tourist_id OR auth.uid() = t.buddy_id)
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.trips t
+      WHERE t.id = trip_id
+      AND (auth.uid() = t.tourist_id OR auth.uid() = t.buddy_id)
     )
   );
+
+GRANT ALL ON public.trip_stops TO authenticated;
+GRANT ALL ON public.trip_stops TO service_role;
 
 -- ============================================================
 -- CONVERSATIONS

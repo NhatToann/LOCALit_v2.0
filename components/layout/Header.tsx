@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import { Menu, User, Search, LogOut, X, MapPin } from 'lucide-react';
 import { createClient } from '@/utils/supabase/auth';
-import ThemeToggle from '@/components/theme/ThemeToggle';
 import { useRouter } from 'next/navigation';
 
 type UserRole = 'tourist' | 'buddy';
@@ -155,7 +154,6 @@ export default function Header({ userRole, userName, userId }: HeaderProps) {
                       Find a Buddy
                     </Link>
                   ) : null}
-                  <ThemeToggle userId={userId ?? null} />
                   <div className="h-px bg-border my-1" role="separator" />
                   <button
                     onClick={handleSignOut}
