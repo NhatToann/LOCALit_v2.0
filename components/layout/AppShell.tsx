@@ -5,97 +5,31 @@ import Header from './Header';
 import Footer from './Footer';
 import DaNangBackdrop from './DaNangBackdrop';
 import MiniChatWindow from '@/components/chat/MiniChatWindow';
-import { useEffect, useState } from 'react';
-import { createClient } from '@/utils/supabase/auth';
+import IncomingCallWatcher from '@/components/chat/IncomingCallWatcher';
+import { useAuthUser } from '@/lib/auth/useAuthUser';
 
 const ROLE_LAYOUTS = ['/tourist', '/buddy'];
-const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password', '/reset-password', '/verify-email'];
+const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
 
 function AuthAwareHeader() {
-  const [role, setRole] = useState<'tourist' | 'buddy' | null>(null)
-  const [name, setName] = useState<string | undefined>(undefined)
-  const [userId, setUserId] = useState<string | undefined>(undefined)
-  const [attempt, setAttempt] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (cancelled) return
-        if (!user) {
-          setRole(null)
-          setName(undefined)
-          setUserId(undefined)
-          return
-        }
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, role')
-          .eq('id', user.id)
-          .single()
-        if (cancelled) return
-        if (profile?.role === 'tourist' || profile?.role === 'buddy') {
-          setRole(profile.role)
-          setName(profile.full_name ?? undefined)
-          setUserId(user.id)
-        }
-      } catch {
-        // Swallow — the timeout fallback below will retry
-      }
-    }
-    load()
-    // Re-run on Supabase session change events
-    const sub = createClient().auth.onAuthStateChange(() => load())
-    // Re-run when a sibling component manually signals that auth changed
-    // (e.g. after signIn() — see utils/supabase/auth.ts).
-    const onLocalChange = () => load()
-    window.addEventListener('localit-auth-changed', onLocalChange)
-    return () => {
-      cancelled = true
-      sub.data.subscription.unsubscribe()
-      window.removeEventListener('localit-auth-changed', onLocalChange)
-    }
-  }, [])
-
-  // Fallback: if the header is still in guest state after 3 s (e.g. opened
-  // directly in a new tab where onAuthStateChange doesn't fire), retry once.
-  useEffect(() => {
-    if (role) return
-    const id = setTimeout(() => setAttempt((n) => n + 1), 3000)
-    return () => clearTimeout(id)
-  }, [role])
-
-  useEffect(() => {
-    if (role || attempt === 0) return
-    let cancelled = false
-    async function retry() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (cancelled || !user) return
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name, role')
-        .eq('id', user.id)
-        .single()
-      if (cancelled) return
-      if (profile?.role === 'tourist' || profile?.role === 'buddy') {
-        setRole(profile.role)
-        setName(profile.full_name ?? undefined)
-        setUserId(user.id)
-      }
-    }
-    retry()
-    return () => {
-      cancelled = true
-    }
-  }, [attempt, role])
+  const auth = useAuthUser()
+  const role = auth?.role ?? null
+  const name = auth?.fullName
+  const userId = auth?.userId
 
   if (role) {
     return <Header userRole={role} userName={name} userId={userId} />
   }
   return <Header />
+}
+
+/**
+ * Runs alongside MiniChatWindow so the user gets notified of an
+ * incoming voice call no matter which page they're on.
+ */
+function GlobalIncomingCallWatcher() {
+  const auth = useAuthUser()
+  return <IncomingCallWatcher currentUserId={auth?.userId ?? null} />
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -114,6 +48,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {children}
         <Footer />
         <MiniChatWindow />
+        <GlobalIncomingCallWatcher />
       </>
     );
   }
@@ -130,6 +65,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <Footer />
       <MiniChatWindow />
+      <GlobalIncomingCallWatcher />
     </>
   );
 }

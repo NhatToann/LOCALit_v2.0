@@ -33,7 +33,13 @@ import { useMessageStream } from '@/lib/realtime/useMessageStream'
 import { useTyping } from '@/lib/realtime/useTyping'
 import { usePresence } from '@/lib/realtime/usePresence'
 import { uploadChatAttachment } from '@/lib/attachments/upload'
-import { startOutgoingCall, type CallClient, type CallMode, type CallState } from '@/lib/webrtc/call-client'
+import {
+  startOutgoingCall,
+  acceptIncomingCall,
+  type CallClient,
+  type CallMode,
+  type CallState,
+} from '@/lib/webrtc/call-client'
 import CallModal from '@/components/chat/CallModal'
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '🔥', '🙏']
@@ -87,6 +93,9 @@ function ChatInner() {
   const [callClient, setCallClient] = useState<CallClient | null>(null)
   const [callMode, setCallMode] = useState<CallMode>('voice')
   const [callState, setCallState] = useState<CallState>('idle')
+  /** True if we are the caller. False if we are the callee who accepted
+   *  an incoming call. Controls which CallModal buttons are shown. */
+  const [isOutgoing, setIsOutgoing] = useState(true)
   const lastSentRef = useRef<number>(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
@@ -112,13 +121,17 @@ function ChatInner() {
 
   // Auto-trigger voice call when ?buddy=X&call=1 (or call=voice) present.
   // Legacy ?call=video is treated as voice (no video support anymore).
+  // Legacy auto-call trigger: ?buddy=X&call=1 means "open conversation
+  // with X and immediately call them". Replaced by IncomingCallWatcher
+  // for the receive path; this only handles the dial-via-deeplink case.
   useEffect(() => {
-    if (callParam && buddyParam && myId) {
+    if (callParam === '1' && buddyParam && myId) {
       // Wait for active conversation to exist before kicking off the call
       const id = setTimeout(() => startCall('voice'), 600)
       router.replace('/chat')
       return () => clearTimeout(id)
     }
+    return undefined
   }, [callParam, buddyParam, myId])
 
   useEffect(() => {
@@ -553,6 +566,7 @@ function ChatInner() {
     if (callClient) return
     setCallMode(mode)
     setCallState('calling')
+    setIsOutgoing(true)
     setError('')
     try {
       const { client } = await startOutgoingCall({
@@ -562,14 +576,46 @@ function ChatInner() {
         myName,
         peerName: activeConv.partner_name,
         mode,
+        onState: (s) => setCallState(s),
+        onError: (e) => setError(e.message),
+        onLocalStream: () => undefined,
+        onRemoteStream: () => undefined,
       })
-      // Wire callbacks
-      const wrapped = Object.create(client) as CallClient
-      wrapped['opts'].onState = (s: CallState) => setCallState(s)
-      wrapped['opts'].onError = (e: Error) => setError(e.message)
-      setCallClient(wrapped)
+      setCallClient(client)
     } catch (e) {
       setError('Could not start call: ' + (e as Error).message)
+      setCallState('failed')
+      setTimeout(() => setCallState('idle'), 2500)
+    }
+  }
+
+  /**
+   * Accept an incoming call. Triggered by:
+   *   - /chat?call=<pendingCallId> deep-link from IncomingCallWatcher
+   *   - In-page Accept button (future)
+   */
+  async function acceptCall(pendingCallId: string) {
+    if (!activeConv || !myId || callClient) return
+    setCallMode('voice')
+    setIsOutgoing(false)
+    setError('')
+    try {
+      const { client } = await acceptIncomingCall({
+        conversationId: activeConv.id,
+        myId,
+        peerId: activeConv.partner_id,
+        myName,
+        peerName: activeConv.partner_name,
+        mode: 'voice',
+        pendingCallId,
+        onState: (s) => setCallState(s),
+        onError: (e) => setError(e.message),
+        onLocalStream: () => undefined,
+        onRemoteStream: () => undefined,
+      })
+      setCallClient(client)
+    } catch (e) {
+      setError('Could not accept call: ' + (e as Error).message)
       setCallState('failed')
       setTimeout(() => setCallState('idle'), 2500)
     }
@@ -580,6 +626,43 @@ function ChatInner() {
     setCallClient(null)
     setTimeout(() => setCallState('idle'), 1000)
   }
+
+  // When navigating in via ?call=<pendingCallId>, the pending_calls row
+  // tells us which conversation this call belongs to. Look it up, set
+  // activeId accordingly, then call acceptIncomingCall once the
+  // conversation is loaded.
+  useEffect(() => {
+    if (!callParam || !myId || callClient) return
+    const isCallerParam =
+      callParam === '1' || callParam === 'voice' || callParam === 'video'
+    if (isCallerParam) return
+    let cancelled = false
+    void (async () => {
+      const supabase = createClient()
+      const { data: row, error } = await supabase
+        .from('pending_calls')
+        .select('conversation_id, callee_id, status')
+        .eq('id', callParam)
+        .single()
+      if (cancelled || error || !row) return
+      if (row.callee_id !== myId) return
+      if (row.status !== 'ringing') {
+        // Already handled by another tab or by a decline elsewhere.
+        router.replace('/chat')
+        return
+      }
+      // Switch to the matching conversation if needed.
+      if (activeId !== row.conversation_id) {
+        setActiveId(row.conversation_id)
+        return // The activeId-change effect below will pick up and accept.
+      }
+      void acceptCall(callParam)
+      router.replace('/chat')
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [callParam, myId, callClient, activeId])
 
   // Search filter
   const filteredMessages = useMemo(() => {
@@ -1072,7 +1155,7 @@ function ChatInner() {
           mode={callMode}
           partnerName={activeConv.partner_name}
           partnerAvatar={activeConv.partner_avatar}
-          isOutgoing
+          isOutgoing={isOutgoing}
           state={callState}
           onEnd={endCall}
         />

@@ -250,6 +250,10 @@ export default function MiniChatWindow() {
   function startCall() {
     if (!active) return
     setOpen(false)
+    // Direct to /chat with the conversation pre-selected; the chat page
+    // will pick up `?call=1&buddy=<id>` and invoke startOutgoingCall
+    // once the conversation is loaded. The receiver-side flow uses
+    // `?call=<pendingCallId>` from IncomingCallWatcher.
     router.push(`/chat?buddy=${active.counterpart_id}&call=1`)
   }
 
