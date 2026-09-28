@@ -1,14 +1,15 @@
 /**
- * WebRTC STUN/TURN configuration.
+ * WebRTC ICE configuration (STUN + TURN).
  *
  * Strategy:
- *   - Always include Google public STUN servers (free).
- *   - If Twilio NTS env vars are set, fetch short-lived credentials from
- *     /api/webrtc/turn and use them. Otherwise fall back to STUN-only
- *     (which works ~70% of the time on consumer networks).
+ *   - Always include public STUN (free).
+ *   - If the server has TURN credentials (TURN_URL etc. configured),
+ *     /api/webrtc/turn returns them with `source: "coturn"` and the
+ *     browser falls back to relay when STUN fails.
  *
  * References:
- *   - Twilio Network Traversal Service docs:
+ *   - coturn docs: https://github.com/coturn/coturn
+ *   - HMAC auth-secret scheme (Twilio-compatible):
  *     https://www.twilio.com/docs/stun-turn/api
  */
 
@@ -20,43 +21,64 @@ export interface TurnServer {
 
 export interface IceConfig {
   iceServers: TurnServer[]
-  iceTransportPolicy?: 'all' | 'relay'
+  /** 'coturn' when server returned TURN credentials, 'stun-only' otherwise. */
+  source: 'coturn' | 'stun-only'
+  /** Seconds until the TURN credential expires. undefined for STUN. */
+  ttl?: number
 }
 
-export const DEFAULT_STUN: TurnServer[] = [
+const DEFAULT_STUN: TurnServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun.cloudflare.com:3478' },
 ]
 
-const FALLBACK_ICE_CONFIG: IceConfig = {
+const FALLBACK: IceConfig = {
   iceServers: DEFAULT_STUN,
+  source: 'stun-only',
 }
 
 let cachedTtl = 0
-let cachedConfig: IceConfig = FALLBACK_ICE_CONFIG
+let cachedConfig: IceConfig = FALLBACK
 
 /**
  * Fetch ICE config — short-lived cache (~50 min) so we don't spam the
- * credentials endpoint on every call.
+ * credentials endpoint on every call. The server TTL defaults to 3600 s;
+ * we refresh a few minutes early so we never hand the browser an expired
+ * credential.
  */
 export async function getIceConfig(force = false): Promise<IceConfig> {
   const now = Date.now()
-  if (!force && cachedConfig !== FALLBACK_ICE_CONFIG && now < cachedTtl) {
+  if (!force && cachedConfig !== FALLBACK && now < cachedTtl) {
     return cachedConfig
   }
   try {
-    const res = await fetch('/api/webrtc/turn', { method: 'POST' })
+    const res = await fetch('/api/webrtc/turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
     if (!res.ok) throw new Error(`TURN fetch failed: ${res.status}`)
-    const data = await res.json()
-    if (data.iceServers && Array.isArray(data.iceServers) && data.iceServers.length > 0) {
-      cachedConfig = { iceServers: data.iceServers }
-      cachedTtl = now + 50 * 60 * 1000
+    const data = (await res.json()) as IceConfig
+    if (
+      Array.isArray(data.iceServers) &&
+      data.iceServers.length > 0 &&
+      data.source === 'coturn'
+    ) {
+      cachedConfig = data
+      // Refresh slightly before server TTL elapses.
+      const refreshMs = Math.max(60_000, (data.ttl ?? 3600) * 1000 - 10 * 60 * 1000)
+      cachedTtl = now + refreshMs
       return cachedConfig
     }
-    return FALLBACK_ICE_CONFIG
+    return FALLBACK
   } catch {
-    return FALLBACK_ICE_CONFIG
+    return FALLBACK
   }
+}
+
+/** Test-only: clear the cache so subsequent getIceConfig() re-fetches. */
+export function __resetIceConfigCache(): void {
+  cachedConfig = FALLBACK
+  cachedTtl = 0
 }

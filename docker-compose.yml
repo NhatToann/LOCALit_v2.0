@@ -1,0 +1,48 @@
+# LOCALit dev infra — coturn TURN server for cross-network voice calls.
+#
+# Run:  docker compose -f docker-compose.yml up -d coturn
+# Stop: docker compose -f docker-compose.yml down
+#
+# The credentials served by /api/webrtc/turn are derived server-side from
+# COTURN_STATIC_AUTH_SECRET using the same HMAC-SHA1 scheme coturn
+# verifies with use-auth-secret. Username format: <unix-ts-expiry>:<user>
+# Password: base64(HMAC-SHA1(secret, username)).
+#
+# Local dev notes:
+#   - The "realm" must match the coturn container's realm (LOCAL).
+#   - Listening on UDP+TCP 3478 + TLS 5349 (certs not wired in dev).
+#   - The min-port / max-port range matches the relay allocation pool.
+#
+# Production notes:
+#   - Replace realm with your real domain (e.g. turn.localit.dev).
+#   - Mount real certs into /etc/coturn/certs for turns://.
+#   - See docs/coturn-setup.md for Fly.io / VPS deployment.
+
+version: "3.9"
+
+services:
+  coturn:
+    image: coturn/coturn:4.6
+    container_name: localit-coturn
+    restart: unless-stopped
+    network_mode: host
+    command: >
+      -n
+      --realm=LOCAL
+      --listening-port=3478
+      --tls-listening-port=5349
+      --min-port=49160
+      --max-port=49200
+      --use-auth-secret
+      --static-auth-secret=dev-coturn-secret-change-me
+      --no-cli
+      --no-tls
+      --no-dtls
+      --fingerprint
+      --no-multicast-peers
+      --verbose
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "3478"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

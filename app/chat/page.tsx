@@ -96,6 +96,11 @@ function ChatInner() {
   /** True if we are the caller. False if we are the callee who accepted
    *  an incoming call. Controls which CallModal buttons are shown. */
   const [isOutgoing, setIsOutgoing] = useState(true)
+  /** Hidden <audio> element ref. Receives the remote MediaStream from the
+   *  WebRTC peer via srcObject so the browser plays the peer's audio.
+   *  Without this, the connection reaches 'connected' state but no audio
+   *  plays — see fix 2026-09-28 (Bug 1: "connected but no audio"). */
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
   const lastSentRef = useRef<number>(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
@@ -558,6 +563,34 @@ function ChatInner() {
     }
   }
 
+  /**
+   * Attach the remote MediaStream from the WebRTC peer to the hidden
+   * <audio> element so the browser plays the peer's voice.
+   *
+   * Bug 1 (2026-09-28): previously the callback was `() => undefined`,
+   * so the stream was captured into a local var on call-client but never
+   * reached an audio element — calls were 'connected' but completely
+   * silent. `audio.play()` requires a user gesture in most browsers; the
+   * accept/decline/answer click already provides that gesture, so this
+   * fires inside the gesture's microtask window and works without an
+   * explicit user click on the <audio>.
+   */
+  function attachRemoteAudio(stream: MediaStream) {
+    const el = remoteAudioRef.current
+    if (!el) return
+    if (el.srcObject !== stream) {
+      el.srcObject = stream
+    }
+    el.muted = false
+    const playPromise = el.play()
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch((err: unknown) => {
+        // eslint-disable-next-line no-console
+        if (process.env.NODE_ENV !== 'production') console.warn('[chat] audio.play() rejected:', err)
+      })
+    }
+  }
+
   async function startCall(mode: CallMode) {
     if (!activeConv || !myId) {
       setError('Open a conversation first.')
@@ -579,7 +612,7 @@ function ChatInner() {
         onState: (s) => setCallState(s),
         onError: (e) => setError(e.message),
         onLocalStream: () => undefined,
-        onRemoteStream: () => undefined,
+        onRemoteStream: attachRemoteAudio,
       })
       setCallClient(client)
     } catch (e) {
@@ -611,7 +644,7 @@ function ChatInner() {
         onState: (s) => setCallState(s),
         onError: (e) => setError(e.message),
         onLocalStream: () => undefined,
-        onRemoteStream: () => undefined,
+        onRemoteStream: attachRemoteAudio,
       })
       setCallClient(client)
     } catch (e) {
@@ -622,6 +655,11 @@ function ChatInner() {
   }
 
   function endCall() {
+    // Detach the remote stream so the audio element stops playing once
+    // the call ends and the next call starts clean.
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null
+    }
     callClient?.end()
     setCallClient(null)
     setTimeout(() => setCallState('idle'), 1000)
@@ -1160,6 +1198,23 @@ function ChatInner() {
           onEnd={endCall}
         />
       ) : null}
+
+      {/*
+        Hidden <audio> sink for the active call's remote MediaStream.
+        The WebRTC peer fires ontrack with the peer's voice; we attach
+        it here via srcObject so the browser plays it. Rendered at all
+        times (not only during callState !== 'idle') so the ref is
+        attached to a live DOM element by the time the stream arrives.
+        autoplay + muted=false: the accept/answer click satisfies the
+        user-gesture requirement that browsers enforce on autoplay.
+      */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        aria-hidden="true"
+        className="hidden"
+      />
     </div>
   )
 }

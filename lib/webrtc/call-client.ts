@@ -36,6 +36,7 @@
  */
 
 import { createClient } from '@/utils/supabase/auth'
+import { getIceConfig } from '@/lib/webrtc/ice-config'
 
 export type CallMode = 'voice'
 
@@ -61,6 +62,13 @@ export interface CallClientOptions {
   isInitiator?: boolean
   /** Existing pending_calls row id, set when accepting an incoming call. */
   pendingCallId?: string
+  /**
+   * Optional override for the ICE server list. When omitted, the client
+   * fetches fresh credentials from /api/webrtc/turn via getIceConfig().
+   * The override is mainly for tests and for callers that already have
+   * a cached config (e.g. dialer pre-warmed a config before the call).
+   */
+  iceServers?: RTCIceServer[]
   onState?: (s: CallState) => void
   onError?: (e: Error) => void
   onLocalStream?: (s: MediaStream) => void
@@ -83,7 +91,19 @@ type Signal =
   | { kind: 'ice'; from: string; candidate: RTCIceCandidateInit }
   | { kind: 'bye'; from: string; duration_seconds?: number }
 
-const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }]
+const DEBUG_TAG = '[call]'
+/** Production builds drop these. Diagnostic logs violate the no-console
+ *  rule in docs/design.md only when left on in prod; gate them here. */
+function dlog(...args: unknown[]): void {
+  if (process.env.NODE_ENV === 'production') return
+  // eslint-disable-next-line no-console
+  console.debug(DEBUG_TAG, ...args)
+}
+function dwarn(...args: unknown[]): void {
+  if (process.env.NODE_ENV === 'production') return
+  // eslint-disable-next-line no-console
+  console.warn(DEBUG_TAG, ...args)
+}
 
 function fmtDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -119,8 +139,7 @@ async function logCallEvent(
       .eq('id', conversationId)
   } catch (err) {
     // Logging failure must never crash the call — best-effort.
-    // eslint-disable-next-line no-console
-    console.warn('[call-client] could not log call_event:', err)
+    dwarn('could not log call_event:', err)
   }
 }
 
@@ -132,6 +151,7 @@ async function attachPeer(params: {
   supabase: ReturnType<typeof createClient>
   conversationId: string
   myId: string
+  iceServers: RTCIceServer[]
   onLocalStream: (s: MediaStream) => void
   onRemoteStream: (s: MediaStream) => void
   onState: (s: CallState) => void
@@ -157,14 +177,17 @@ async function attachPeer(params: {
 
   function ensurePeer(): RTCPeerConnection {
     if (pc) return pc
-    pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+    pc = new RTCPeerConnection({ iceServers: params.iceServers })
+    dlog('peer constructed with', params.iceServers.length, 'ice server(s)')
     pc.ontrack = (ev) => {
+      dlog('ontrack', ev.track.kind, 'streams:', ev.streams.length)
       if (!remoteStream) remoteStream = new MediaStream()
       remoteStream.addTrack(ev.track)
       params.onRemoteStream(remoteStream)
     }
     pc.onicecandidate = (ev) => {
       if (ev.candidate && ev.candidate.candidate) {
+        dlog('ice candidate', ev.candidate.candidate.slice(0, 60), '...')
         channel.send({
           type: 'broadcast',
           event: 'signal',
@@ -174,9 +197,15 @@ async function attachPeer(params: {
             candidate: ev.candidate.toJSON(),
           },
         })
+      } else {
+        dlog('ice gathering complete')
       }
     }
+    pc.oniceconnectionstatechange = () => {
+      dlog('iceConnectionState ->', pc?.iceConnectionState)
+    }
     pc.onconnectionstatechange = () => {
+      dlog('connectionState ->', pc?.connectionState)
       if (!pc) return
       if (pc.connectionState === 'connected') {
         params.onState('connected')
@@ -188,6 +217,7 @@ async function attachPeer(params: {
         // The 'disconnected' state can be transient (ICE restart) —
         // only treat 'failed' and 'closed' as terminal.
         if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+          dlog('connection terminal:', pc.connectionState)
           params.onState('failed')
         }
       }
@@ -234,10 +264,9 @@ async function attachPeer(params: {
         const peer = ensurePeer()
         try {
           await peer.addIceCandidate(sig.candidate)
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn('[call-client] addIceCandidate failed', err)
-        }
+} catch (err) {
+        dwarn('addIceCandidate failed', err)
+      }
       }
     } catch (err) {
       params.onError(err as Error)
@@ -363,6 +392,7 @@ export async function startOutgoingCall(
   let pendingCallId: string | null = null
 
   function setState(s: CallState) {
+    dlog('state', state, '->', s, '(outgoing)')
     state = s
     onState(s)
   }
@@ -395,10 +425,20 @@ export async function startOutgoingCall(
   // attachPeer handles the WebRTC side (setRemoteDescription on incoming
   // offer SDP, etc.); we use a separate "meta" channel for control
   // events like 'accepted', 'declined', 'busy' that don't carry SDP.
+
+  // Fetch ICE config (STUN + TURN credentials if configured). Cached for
+  // 50 min in ice-config.ts so this is essentially free for back-to-back
+  // calls. Bug 2 (2026-09-28): previously we used a hardcoded single
+  // STUN entry, which fails on symmetric NAT. With TURN credentials
+  // present, coturn relays media and the call succeeds cross-network.
+  const iceConfig = await getIceConfig()
+  dlog('ice config:', iceConfig.source, iceConfig.iceServers.length, 'servers')
+
   peer = await attachPeer({
     supabase,
     conversationId: opts.conversationId,
     myId: opts.myId,
+    iceServers: opts.iceServers ?? iceConfig.iceServers,
     onLocalStream,
     onRemoteStream,
     onState: (s) => {
@@ -577,6 +617,7 @@ export async function acceptIncomingCall(
   let peer: PeerHandle | null = null
 
   function setState(s: CallState) {
+    dlog('state', state, '->', s, '(incoming)')
     state = s
     onState(s)
   }
@@ -613,10 +654,16 @@ export async function acceptIncomingCall(
   })
 
   // 3-5. Attach peer & send offer
+  // Bug 2 (2026-09-28): same TURN wiring as startOutgoingCall — fetch
+  // ICE config (STUN + coturn credentials) before opening the peer.
+  const iceConfig = await getIceConfig()
+  dlog('ice config:', iceConfig.source, iceConfig.iceServers.length, 'servers')
+
   peer = await attachPeer({
     supabase,
     conversationId: opts.conversationId,
     myId: opts.myId,
+    iceServers: opts.iceServers ?? iceConfig.iceServers,
     onLocalStream,
     onRemoteStream,
     onState: (s) => {
