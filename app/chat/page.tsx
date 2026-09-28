@@ -8,7 +8,6 @@ import {
   Send,
   Search,
   Phone,
-  Video,
   Paperclip,
   Smile,
   X,
@@ -111,12 +110,12 @@ function ChatInner() {
     }
   }, [convParam, myId, conversations.length])
 
-  // Auto-trigger call when ?buddy=X&call=1 present
+  // Auto-trigger voice call when ?buddy=X&call=1 (or call=voice) present.
+  // Legacy ?call=video is treated as voice (no video support anymore).
   useEffect(() => {
     if (callParam && buddyParam && myId) {
-      const mode: CallMode = callParam === 'video' ? 'video' : 'voice'
       // Wait for active conversation to exist before kicking off the call
-      const id = setTimeout(() => startCall(mode), 600)
+      const id = setTimeout(() => startCall('voice'), 600)
       router.replace('/chat')
       return () => clearTimeout(id)
     }
@@ -283,21 +282,34 @@ function ChatInner() {
 
   const { messages } = useMessageStream(activeId, initialMessages, initialReactions)
 
-  // Realtime updates on conversation list (new messages → refresh sidebar)
+  // Realtime updates on conversation list (new messages → refresh sidebar).
+  // Debounced so a burst of inserts collapses into one round-trip.
   useEffect(() => {
     if (!myId) return
     const supabase = createClient()
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const refresh = () => {
+      if (timer) return
+      timer = setTimeout(() => {
+        timer = null
+        void loadConversations(myId)
+      }, 1000)
+    }
     const channel = supabase
       .channel(`conv-list-${myId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations' },
-        () => {
-          loadConversations(myId)
-        },
+        refresh,
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        refresh,
       )
       .subscribe()
     return () => {
+      if (timer) clearTimeout(timer)
       supabase.removeChannel(channel)
     }
   }, [myId])
@@ -397,15 +409,43 @@ function ChatInner() {
     const existing = initialReactions.find(
       (r) => r.message_id === messageId && r.user_id === myId && r.emoji === emoji,
     )
+    // Optimistic toggle: update local state immediately so the UI
+    // responds without waiting for a re-fetch. Realtime subscription
+    // will reconcile any other-user actions.
     if (existing) {
-      await supabase.from('message_reactions').delete().eq('id', existing.id)
+      setInitialReactions((prev) => prev.filter((r) => r.id !== existing.id))
+      const { error: delErr } = await supabase
+        .from('message_reactions')
+        .delete()
+        .eq('id', existing.id)
+      if (delErr) {
+        // Roll back on failure
+        setInitialReactions((prev) => [...prev, existing])
+      }
     } else {
-      await supabase
+      const optimisticId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const optimistic: MessageReaction = {
+        id: optimisticId,
+        message_id: messageId,
+        user_id: myId,
+        emoji,
+        created_at: new Date().toISOString(),
+      }
+      setInitialReactions((prev) => [...prev, optimistic])
+      const { data, error: insErr } = await supabase
         .from('message_reactions')
         .insert({ message_id: messageId, user_id: myId, emoji })
+        .select('*')
+        .single()
+      if (insErr || !data) {
+        setInitialReactions((prev) => prev.filter((r) => r.id !== optimisticId))
+      } else {
+        setInitialReactions((prev) =>
+          prev.map((r) => (r.id === optimisticId ? (data as MessageReaction) : r)),
+        )
+      }
     }
     setEmojiFor(null)
-    loadMessages(activeId!)
   }
 
   async function handlePin(messageId: string) {
@@ -691,14 +731,6 @@ function ChatInner() {
                   className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
                 >
                   <Phone size={15} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => startCall('video')}
-                  aria-label="Start video call"
-                  className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-                >
-                  <Video size={15} aria-hidden="true" />
                 </button>
               </header>
 
@@ -1009,14 +1041,6 @@ function ChatInner() {
                   <Phone size={13} aria-hidden="true" />
                   Voice call
                 </button>
-                <button
-                  type="button"
-                  onClick={() => startCall('video')}
-                  className="inline-flex items-center gap-2 h-9 px-3 text-sm rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-                >
-                  <Video size={13} aria-hidden="true" />
-                  Video call
-                </button>
                 <Link
                   href={
                     myRole === 'buddy'
@@ -1115,6 +1139,26 @@ function MessageBubble({
 }) {
   const time = new Date(message.created_at)
   const timeLabel = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+
+  // System-event bubble (e.g. voice call log) — render as a centered,
+  // muted pill so it does not look like a normal user message.
+  if (message.message_type === 'call_event') {
+    return (
+      <li className="flex items-center justify-center my-1">
+        <span
+          className="inline-flex items-center gap-2 px-3 py-1 text-[11px] font-medium text-muted bg-paper border border-border rounded-sm"
+          title={new Date(message.created_at).toLocaleString('en-US')}
+        >
+          <Phone size={11} aria-hidden="true" className="text-subtle" />
+          <span>{message.content}</span>
+          <span aria-hidden="true">·</span>
+          <time dateTime={message.created_at} className="font-mono tracking-tight">
+            {timeLabel}
+          </time>
+        </span>
+      </li>
+    )
+  }
 
   if (message.deleted_at) {
     return (

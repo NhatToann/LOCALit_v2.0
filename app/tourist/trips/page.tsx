@@ -13,6 +13,7 @@ export default function TripsPage() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterValue>('all')
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -20,12 +21,15 @@ export default function TripsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('trips')
         .select('*, buddy:buddies(*, profile:profiles(*))')
         .eq('tourist_id', user.id)
         .order('start_date', { ascending: true })
 
+      if (error) {
+        setLoadError(error.message)
+      }
       setTrips((data as Trip[]) || [])
       setLoading(false)
     }
@@ -36,6 +40,23 @@ export default function TripsPage() {
     return (
       <div className="container-page py-16 text-center">
         <div className="loading-spinner mx-auto" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="container-page py-16">
+        <div className="alert alert-error mb-4" role="alert">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="ml-auto inline-flex items-center h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     )
   }

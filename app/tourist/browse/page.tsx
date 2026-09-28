@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, Suspense } from 'react'
+import { useEffect, useState, useMemo, Suspense, useCallback } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
@@ -27,11 +27,14 @@ interface BuddyItem {
 }
 
 const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'top-rated', label: 'Top Rated' },
-  { id: 'near-me', label: 'Near Me' },
-  { id: 'available', label: 'Available Now' },
-] as const
+    { id: 'all', label: 'All' },
+    { id: 'top-rated', label: 'Top Rated' },
+    { id: 'near-me', label: 'Near Me' },
+    { id: 'available', label: 'Available Now' },
+    { id: 'saved', label: 'Saved' },
+  ] as const
+
+const SAVED_KEY = 'localit:savedBuddies'
 
 const LANGUAGES = ['English', 'Vietnamese', 'Japanese', 'Korean', 'French', 'Mandarin', 'Russian']
 
@@ -44,6 +47,18 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   const lat2 = toRad(b.lat)
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
   return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+function readSaved(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(SAVED_KEY)
+    if (!raw) return []
+    const arr = JSON.parse(raw)
+    return Array.isArray(arr) ? arr.filter((x: unknown) => typeof x === 'string') : []
+  } catch {
+    return []
+  }
 }
 
 function BrowseContent() {
@@ -59,9 +74,31 @@ function BrowseContent() {
   const [destinationFilter, setDestinationFilter] = useState<string>(destinationQuery)
   const [expandedBuddyId, setExpandedBuddyId] = useState<string | null>(null)
   const [savedBuddies, setSavedBuddies] = useState<string[]>([])
+  const [savedHydrated, setSavedHydrated] = useState(false)
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>({ lat: 16.0544, lng: 108.2023 })
   const [shareLocation, setShareLocation] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  // Hydrate saved buddies from localStorage on mount
+  useEffect(() => {
+    setSavedBuddies(readSaved())
+    setSavedHydrated(true)
+  }, [])
+
+  // Persist on every change (after hydration) so we don't overwrite with []
+  useEffect(() => {
+    if (!savedHydrated) return
+    try {
+      window.localStorage.setItem(SAVED_KEY, JSON.stringify(savedBuddies))
+    } catch {
+      /* quota or private mode — silently ignore */
+    }
+  }, [savedBuddies, savedHydrated])
+
+  const toggleSave = useCallback((id: string) => {
+    setSavedBuddies((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }, [])
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
     enabled: shareLocation,
@@ -130,7 +167,7 @@ function BrowseContent() {
           })
         setBuddies(mapped)
       } catch (err) {
-        // silent — UI shows skeleton during load
+        setLoadError((err as Error).message || 'Could not load buddies.')
       } finally {
         setLoading(false)
       }
@@ -163,15 +200,13 @@ function BrowseContent() {
       list.sort((a, b) => haversineKm(userLocation, { lat: a.latitude, lng: a.longitude }) - haversineKm(userLocation, { lat: b.latitude, lng: b.longitude }))
     } else if (activeFilter === 'available') {
       list = list.filter((b) => b.is_online)
+    } else if (activeFilter === 'saved') {
+      list = list.filter((b) => savedBuddies.includes(b.id))
     }
     return list
-  }, [buddies, destinationFilter, languageFilter, activeFilter, userLocation])
+  }, [buddies, destinationFilter, languageFilter, activeFilter, userLocation, savedBuddies])
 
   const selectedBuddy = filtered.find((b) => b.id === selectedMapId) ?? null
-
-  function toggleSave(id: string) {
-    setSavedBuddies(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-  }
 
   return (
     <div className="container-page py-8">
@@ -326,6 +361,18 @@ function BrowseContent() {
 
       {/* Buddy list */}
       <section aria-label="Buddies list">
+        {loadError ? (
+          <div className="alert alert-error mb-4" role="alert">
+            <span>{loadError}</span>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="ml-auto inline-flex items-center h-8 px-3 text-xs font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
         {loading ? (
           <div className="text-center py-16">
             <div className="loading-spinner mx-auto" />
@@ -333,9 +380,15 @@ function BrowseContent() {
         ) : filtered.length === 0 ? (
           <div className="border border-border rounded-sm p-12 text-center bg-surface">
             <Users size={48} className="mx-auto text-subtle mb-3" aria-hidden="true" />
-            <h3 className="text-lg font-semibold mb-2">No buddies found</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {activeFilter === 'saved'
+                ? 'You have not saved any buddies yet'
+                : 'No buddies found'}
+            </h3>
             <p className="text-sm text-muted mb-4">
-              Try removing filters or searching for Da Nang areas like My Khe Beach, Han River, or Son Tra.
+              {activeFilter === 'saved'
+                ? 'Tap Save on a buddy to keep them here for next time.'
+                : 'Try removing filters or searching for Da Nang areas like My Khe Beach, Han River, or Son Tra.'}
             </p>
             <Link
               href="/tourist/browse"

@@ -25,6 +25,7 @@ export default function TouristDashboardPage() {
   const [hasGpsFix, setHasGpsFix] = useState(false);
   const [loading, setLoading] = useState(true);
   const [coBuddyCountByTrip, setCoBuddyCountByTrip] = useState<Record<string, number>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
     enabled: true,
@@ -47,6 +48,32 @@ export default function TouristDashboardPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // Realtime refresh: when the user gets a new connection request,
+  // confirms a trip, or any buddy flips online/offline, refetch the
+  // dashboard slices. Debounced to coalesce a burst into one round-trip.
+  useEffect(() => {
+    if (!profile?.id) return
+    const supabase = createClient()
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const refresh = () => {
+      if (timer) return
+      timer = setTimeout(() => {
+        timer = null
+        load()
+      }, 1200)
+    }
+    const channel = supabase
+      .channel(`dash-${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'connections' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'buddies' }, refresh)
+      .subscribe()
+    return () => {
+      if (timer) clearTimeout(timer)
+      supabase.removeChannel(channel)
+    }
+  }, [profile?.id])
 
   async function load() {
     try {
@@ -99,7 +126,7 @@ export default function TouristDashboardPage() {
       }
       setCoBuddyCountByTrip(coMap)
     } catch (err) {
-      // Silent failure — UI already shows skeleton during load
+      setLoadError((err as Error).message || 'Could not load dashboard.')
     } finally {
       setLoading(false)
     }
@@ -109,6 +136,23 @@ export default function TouristDashboardPage() {
     return (
       <div className="container-page py-16 text-center">
         <div className="loading-spinner mx-auto" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="container-page py-16">
+        <div className="alert alert-error mb-4" role="alert">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="ml-auto inline-flex items-center h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     )
   }

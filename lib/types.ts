@@ -217,7 +217,7 @@ export interface Message {
   sender_id: string
   content: string
   is_read: boolean
-  message_type: 'text' | 'image' | 'file' | 'location' | 'system'
+  message_type: 'text' | 'image' | 'file' | 'location' | 'system' | 'call_event'
   reply_to_id: string | null
   edited_at: string | null
   deleted_at: string | null

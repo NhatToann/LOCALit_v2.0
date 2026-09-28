@@ -338,11 +338,64 @@ export default function TouristProfilePage() {
 
   const firstName = profile.full_name.split(' ')[0]
 
+  // Profile completeness score: how many slots are filled out of N total.
+  const fields: { filled: boolean; hint: string }[] = [
+    { filled: !!profile.avatar_url, hint: 'avatar' },
+    { filled: profile.full_name.trim().length >= 2, hint: 'name' },
+    { filled: !!profile.phone, hint: 'phone' },
+    { filled: !!tourist.nationality, hint: 'nationality' },
+    { filled: !!tourist.date_of_birth, hint: 'date of birth' },
+    { filled: !!(profile.bio && profile.bio.length >= 30), hint: 'bio' },
+    { filled: tourist.interests.length >= 3, hint: '3+ interests' },
+    { filled: tourist.languages.length >= 1, hint: '1+ language' },
+    { filled: !!tourist.budget_range, hint: 'budget' },
+  ]
+  const filledCount = fields.filter((f) => f.filled).length
+  const completenessPct = Math.round((filledCount / fields.length) * 100)
+  const missingHints = fields.filter((f) => !f.filled).map((f) => f.hint)
+
   return (
     <div className="container-page py-8">
       <header className="mb-6">
         <p className="text-eyebrow text-primary mb-2">Account</p>
         <h1 className="text-page-title">My profile</h1>
+        <p className="text-sm text-muted mt-1 max-w-prose">
+          Buddies see this when deciding whether to accept your connection
+          request. Aim for 80% or higher.
+        </p>
+        <div className="mt-3 max-w-md">
+          <div
+            className="flex items-center justify-between text-xs mb-1"
+            aria-live="polite"
+          >
+            <span className="text-muted">Profile completeness</span>
+            <strong
+              className={
+                completenessPct >= 80
+                  ? 'text-success'
+                  : completenessPct >= 50
+                    ? 'text-warning'
+                    : 'text-danger'
+              }
+            >
+              {completenessPct}%
+            </strong>
+          </div>
+          <div className="h-2 bg-paper border border-border rounded-sm overflow-hidden">
+            <div
+              className={`h-full ${completenessPct >= 80 ? 'bg-success' : completenessPct >= 50 ? 'bg-warning' : 'bg-danger'}`}
+              style={{ width: `${completenessPct}%` }}
+              aria-hidden="true"
+            />
+          </div>
+          {missingHints.length > 0 ? (
+            <p className="text-xs text-muted mt-2">
+              Missing: {missingHints.join(', ')}.
+            </p>
+          ) : (
+            <p className="text-xs text-success mt-2">All set.</p>
+          )}
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">

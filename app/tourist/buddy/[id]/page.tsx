@@ -530,14 +530,23 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
             ) : null}
 
             {connection?.status === 'accepted' ? (
-              <button
-                type="button"
-                onClick={openChat}
-                className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover w-full"
-              >
-                <MessageCircle size={16} aria-hidden="true" />
-                Open conversation
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={openChat}
+                  className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover w-full"
+                >
+                  <MessageCircle size={16} aria-hidden="true" />
+                  Open conversation
+                </button>
+                <Link
+                  href={`/chat?buddy=${buddy.id}&call=1`}
+                  className="inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper w-full"
+                >
+                  <Phone size={16} aria-hidden="true" />
+                  Start voice call
+                </Link>
+              </div>
             ) : null}
 
             {error ? (

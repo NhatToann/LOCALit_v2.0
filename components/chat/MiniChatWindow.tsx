@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { X, MessageCircle, Send, Phone, Video, Smile, Reply, ChevronDown, Minus } from 'lucide-react'
+import { X, MessageCircle, Send, Phone, Smile, Reply, ChevronDown, Minus } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { usePathname } from 'next/navigation'
 import { useMessageStream } from '@/lib/realtime/useMessageStream'
@@ -247,10 +247,10 @@ export default function MiniChatWindow() {
     router.push(`/chat?buddy=${active.counterpart_id}`)
   }
 
-  function startCall(mode: 'voice' | 'video') {
+  function startCall() {
     if (!active) return
     setOpen(false)
-    router.push(`/chat?buddy=${active.counterpart_id}&call=${mode === 'video' ? 'video' : '1'}`)
+    router.push(`/chat?buddy=${active.counterpart_id}&call=1`)
   }
 
   if (hidden || !authed) return null
@@ -310,19 +310,11 @@ export default function MiniChatWindow() {
           <>
             <button
               type="button"
-              onClick={() => startCall('voice')}
+              onClick={() => startCall()}
               aria-label="Voice call"
               className="inline-flex items-center justify-center w-7 h-7 rounded-sm text-paper/80 hover:bg-primary-hover hover:text-paper"
             >
               <Phone size={13} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={() => startCall('video')}
-              aria-label="Video call"
-              className="inline-flex items-center justify-center w-7 h-7 rounded-sm text-paper/80 hover:bg-primary-hover hover:text-paper"
-            >
-              <Video size={13} aria-hidden="true" />
             </button>
           </>
         ) : null}
