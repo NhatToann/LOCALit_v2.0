@@ -119,8 +119,10 @@ function BrowseContent() {
       try {
         const supabase = createClient()
         const { data } = await supabase
-          .from('buddies')
-          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, profile:safe_profiles(full_name, avatar_url, is_online)')
+          // Public discovery: read rounded coordinates from safe_buddies so anon
+          // callers (and any auth caller with stale cookies) actually see pins.
+          .from('safe_buddies')
+          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, profile:safe_profiles(full_name, avatar_url, is_online)')
           .eq('location_city', 'Da Nang')
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)

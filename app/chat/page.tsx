@@ -181,9 +181,9 @@ function ChatInner() {
         last_message_preview, last_message_at,
         last_read_at_by_tourist, last_read_at_by_buddy,
         pinned_message_id, typing_user_id,
-        tourist:tourists(profile:profiles(full_name, avatar_url, is_online, id)),
+        tourist:tourists(profile:safe_profiles(full_name, avatar_url, is_online, id)),
         buddy:buddies(location_city, hourly_rate, rating_avg, languages,
-                      profile:profiles(full_name, avatar_url, is_online, id))
+                      profile:safe_profiles(full_name, avatar_url, is_online, id))
       `,
       )
       .or(`tourist_id.eq.${uid},buddy_id.eq.${uid}`)

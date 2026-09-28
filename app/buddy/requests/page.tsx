@@ -61,7 +61,7 @@ export default function BuddyRequestsPage() {
       const [{ data }, { data: touristsData }, { data: existingConns }] = await Promise.all([
         supabase
           .from('connections')
-          .select('*, tourist:tourists(*, profile:profiles(*))')
+          .select('*, tourist:tourists(*, profile:safe_profiles(full_name, avatar_url, is_online))')
           .eq('buddy_id', user.id)
           .order('created_at', { ascending: false }),
         supabase

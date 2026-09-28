@@ -23,7 +23,7 @@ export default function TripsPage() {
 
       const { data, error } = await supabase
         .from('trips')
-        .select('*, buddy:buddies(*, profile:profiles(*))')
+        .select('*, buddy:buddies(*, profile:safe_profiles(full_name, avatar_url, is_online))')
         .eq('tourist_id', user.id)
         .order('start_date', { ascending: true })
 

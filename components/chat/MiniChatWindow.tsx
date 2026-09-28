@@ -83,13 +83,13 @@ export default function MiniChatWindow() {
     const [{ data: touristConvs }, { data: buddyConvs }] = await Promise.all([
       supabase
         .from('conversations')
-        .select('id, tourist_id, buddy_id, last_message_preview, last_message_at, updated_at, tourist:tourists(profile:profiles(full_name, avatar_url, id)), buddy:buddies(profile:profiles(full_name, avatar_url, id))')
+        .select('id, tourist_id, buddy_id, last_message_preview, last_message_at, updated_at, tourist:tourists(profile:safe_profiles(full_name, avatar_url, id)), buddy:buddies(profile:safe_profiles(full_name, avatar_url, id))')
         .eq('tourist_id', myUserId)
         .order('updated_at', { ascending: false })
         .limit(8),
       supabase
         .from('conversations')
-        .select('id, tourist_id, buddy_id, last_message_preview, last_message_at, updated_at, tourist:tourists(profile:profiles(full_name, avatar_url, id)), buddy:buddies(profile:profiles(full_name, avatar_url, id))')
+        .select('id, tourist_id, buddy_id, last_message_preview, last_message_at, updated_at, tourist:tourists(profile:safe_profiles(full_name, avatar_url, id)), buddy:buddies(profile:safe_profiles(full_name, avatar_url, id))')
         .eq('buddy_id', myUserId)
         .order('updated_at', { ascending: false })
         .limit(8),

@@ -56,14 +56,14 @@ export default function ManageCompanions({ tripId, myId, canManage, onChange }: 
       supabase
         .from('trip_travelers')
         .select(
-          'role, status, profile:profiles(id, full_name, avatar_url), tourist:tourists(nationality)',
+          'role, status, profile:safe_profiles(id, full_name, avatar_url), tourist:tourists(nationality)',
         )
         .eq('trip_id', tripId)
         .order('role', { ascending: true }),
       supabase
         .from('trip_buddies')
         .select(
-          'role, status, profile:profiles(id, full_name, avatar_url), buddy:buddies(specialties, hourly_rate)',
+          'role, status, profile:safe_profiles(id, full_name, avatar_url), buddy:buddies(specialties, hourly_rate)',
         )
         .eq('trip_id', tripId)
         .order('role', { ascending: true }),

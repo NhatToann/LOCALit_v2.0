@@ -21,7 +21,7 @@ export default function TripDetailPage() {
       const [{ data: t }, { data: s }] = await Promise.all([
         supabase
           .from('trips')
-          .select('*, buddy:buddies(*, profile:profiles(*))')
+          .select('*, buddy:buddies(*, profile:safe_profiles(full_name, avatar_url, is_online))')
           .eq('id', tripId)
           .single<Trip>(),
         supabase

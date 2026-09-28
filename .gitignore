@@ -55,3 +55,10 @@ next-env.d.ts
 # Debug artifacts
 buckets.json
 page.html
+
+# Dev server log (left behind by `npm run dev`)
+dev-server.log
+dev-server-err.log
+
+# Auth cookie scratch files used by probe scripts
+auth-cookie-*.txt

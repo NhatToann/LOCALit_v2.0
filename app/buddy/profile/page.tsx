@@ -101,14 +101,17 @@ export default function BuddyProfileEditPage() {
       if (!user) return
 
       const [{ data: b }, { data: r }] = await Promise.all([
+        // Own-row profile read: this page is reached only by the buddy
+        // themselves while signed in, so a direct read against
+        // public.profiles is appropriate and lets us show phone / bio / email.
         supabase
           .from('buddies')
-          .select('*, profile:profiles(full_name, email, avatar_url, phone, bio)')
+          .select('*')
           .eq('id', user.id)
           .maybeSingle<BuddyData>(),
         supabase
           .from('reviews')
-          .select('id, rating, comment, created_at, reviewer:profiles!reviewer_id(full_name)')
+          .select('id, rating, comment, created_at, reviewer:safe_profiles!reviewer_id(full_name)')
           .eq('reviewee_id', user.id)
           .order('created_at', { ascending: false })
           .limit(20),

@@ -56,7 +56,7 @@ export default function NewBuddyTripPage() {
       }
       const { data: rows } = await supabase
         .from('connections')
-        .select('id, tourist_id, tourist:tourists(id, profile:profiles(id, full_name, avatar_url))')
+        .select('id, tourist_id, tourist:tourists(id, profile:safe_profiles(id, full_name, avatar_url))')
         .eq('buddy_id', user.id)
         .eq('status', 'accepted')
       const opts: TravelerOption[] = []

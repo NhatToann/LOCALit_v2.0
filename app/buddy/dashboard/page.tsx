@@ -91,12 +91,12 @@ export default function BuddyDashboardPage() {
           supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
           supabase
             .from('connections')
-            .select('*, tourist:tourists(*, profile:profiles(*))')
+            .select('*, tourist:tourists(*, profile:safe_profiles(full_name, avatar_url, is_online))')
             .eq('buddy_id', user.id)
             .order('updated_at', { ascending: false }),
           supabase
             .from('trips')
-            .select('*, tourist:tourists(*, profile:profiles(*))')
+            .select('*, tourist:tourists(*, profile:safe_profiles(full_name, avatar_url, is_online))')
             .eq('buddy_id', user.id),
           supabase
             .from('buddies')

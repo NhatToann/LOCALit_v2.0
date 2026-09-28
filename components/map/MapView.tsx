@@ -68,9 +68,12 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
     async function load() {
       const supabase = createClient()
 
+      // Use safe_buddies (rounded coords) for public discovery — anon callers
+      // can't read buddies.latitude directly since the 2026-09-26 PII tighten.
+      // safe_buddies exposes the same shape the map pins need.
       const { data: buddyData } = await supabase
-        .from('buddies')
-        .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, profile:profiles(full_name, is_online)')
+        .from('safe_buddies')
+        .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, profile:safe_profiles(full_name, is_online)')
         .not('latitude', 'is', null)
         .not('longitude', 'is', null)
 
@@ -93,9 +96,11 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
       }
 
       try {
+        // location_updates: tourists' live positions, anon can only read buddy-owned rows.
+        // safe_profiles gives anon access to full_name/role/is_online (no PII).
         const { data: locs } = await supabase
           .from('location_updates')
-          .select('user_id, latitude, longitude, profile:profiles(role, full_name)')
+          .select('user_id, latitude, longitude, profile:safe_profiles(role, full_name)')
           .order('updated_at', { ascending: false })
           .limit(50)
 

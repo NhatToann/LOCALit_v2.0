@@ -61,11 +61,24 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
       const supabase = createClient()
       const me = await getCurrentUser()
 
-      const { data: b } = await supabase
-        .from('buddies')
-        .select('*, profile:profiles(full_name, avatar_url, phone, is_online)')
-        .eq('id', id)
-        .single()
+      // Buddy marketplace read: rounded coords via safe_buddies (anon-safe)
+      // + the profile fields every visitor needs (full_name, avatar_url,
+      // is_online). Phone stays behind an authenticated direct read since
+      // it's PII and must not leak to anon viewers of a shared profile link.
+      const [{ data: b }, { data: privateProfile }] = await Promise.all([
+        supabase
+          .from('safe_buddies')
+          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, rating_avg, is_available, bio, favorite_places, trips_completed, profile:safe_profiles(full_name, avatar_url, is_online)')
+          .eq('id', id)
+          .maybeSingle(),
+        me
+          ? supabase
+              .from('profiles')
+              .select('phone')
+              .eq('id', id)
+              .maybeSingle()
+          : Promise.resolve({ data: null } as any),
+      ])
 
       if (cancelled) return
       if (!b) {
@@ -78,7 +91,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
         full_name: (b.profile as any)?.full_name ?? 'Buddy',
         bio: b.bio ?? null,
         avatar_url: (b.profile as any)?.avatar_url ?? null,
-        phone: (b.profile as any)?.phone ?? null,
+        phone: (privateProfile as any)?.phone ?? null,
         is_online: (b.profile as any)?.is_online ?? false,
         location_city: b.location_city,
         latitude: b.latitude ?? DEFAULT_LOCATION.lat,
@@ -94,7 +107,7 @@ export default function BuddyProfilePage({ params }: { params: Promise<{ id: str
       const [{ data: r }, { data: c }] = await Promise.all([
         supabase
           .from('reviews')
-          .select('id, rating, comment, created_at, reviewer:profiles!reviewer_id(full_name)')
+          .select('id, rating, comment, created_at, reviewer:safe_profiles!reviewer_id(full_name)')
           .eq('reviewee_id', id)
           .order('created_at', { ascending: false })
           .limit(10),

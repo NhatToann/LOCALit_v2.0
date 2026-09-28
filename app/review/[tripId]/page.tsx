@@ -35,7 +35,7 @@ export default function ReviewPage() {
 
     const { data: tripData, error: tripErr } = await supabase
       .from('trips')
-      .select('*, buddy:buddies(id, profile:profiles(full_name))')
+      .select('*, buddy:buddies(id, profile:safe_profiles(full_name))')
       .eq('id', tripId)
       .single()
 

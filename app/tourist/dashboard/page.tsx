@@ -88,17 +88,17 @@ export default function TouristDashboardPage() {
         supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
         supabase
           .from('trips')
-          .select('*, buddy:buddies(id, location_city, latitude, longitude, profile:profiles(full_name, is_online))')
+          .select('*, buddy:buddies(id, location_city, latitude, longitude, profile:safe_profiles(full_name, is_online))')
           .eq('tourist_id', user.id)
           .order('created_at', { ascending: false }),
         supabase
           .from('connections')
-          .select('*, buddy:buddies(*, profile:profiles(full_name, is_online))')
+          .select('*, buddy:buddies(*, profile:safe_profiles(full_name, avatar_url, is_online))')
           .eq('tourist_id', user.id)
           .order('created_at', { ascending: false }),
         supabase
           .from('buddies')
-          .select('id, location_city, latitude, longitude, is_available, is_online, profile:profiles(full_name)')
+          .select('id, location_city, latitude, longitude, is_available, is_online, profile:safe_profiles(full_name, is_online)')
           .eq('location_city', 'Da Nang')
           .eq('is_available', true)
           .not('latitude', 'is', null)
@@ -169,7 +169,7 @@ export default function TouristDashboardPage() {
 
   const firstName = profile?.full_name?.split(' ')[0] || 'traveler'
   const nearbyCount = buddies.length + liveLocations.length
-  const onlineBuddies = buddies.filter((b) => b.is_online).slice(0, 5)
+  const onlineBuddies = buddies.filter((b: any) => b.profile?.is_online ?? b.is_online).slice(0, 5)
 
   return (
     <div className="container-page py-8 lg:py-12">
@@ -263,7 +263,7 @@ export default function TouristDashboardPage() {
                 >
                   <Avatar
                     name={b.profile?.full_name ?? 'Buddy'}
-                    online={b.is_online}
+                    online={(b.profile?.is_online ?? b.is_online) === true}
                     size="md"
                   />
                   <div className="flex-1 min-w-0">

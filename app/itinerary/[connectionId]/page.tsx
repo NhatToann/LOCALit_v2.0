@@ -70,7 +70,7 @@ export default function SharedItineraryPage({ params }: PageProps) {
     const { data: conn } = await supabase
       .from('connections')
       .select(
-        '*, tourist:tourists(*, profile:profiles(*)), buddy:buddies(*, profile:profiles(*))',
+        '*, tourist:tourists(*, profile:safe_profiles(full_name, avatar_url, is_online)), buddy:buddies(*, profile:safe_profiles(full_name, avatar_url, is_online))',
       )
       .eq('id', cid)
       .maybeSingle()
@@ -108,7 +108,7 @@ export default function SharedItineraryPage({ params }: PageProps) {
     const { data: trips } = await supabase
       .from('trips')
       .select(
-        '*, tourist:tourists(*, profile:profiles(*)), buddy:buddies(*, profile:profiles(*))',
+        '*, tourist:tourists(*, profile:safe_profiles(full_name, avatar_url, is_online)), buddy:buddies(*, profile:safe_profiles(full_name, avatar_url, is_online))',
       )
       .eq('tourist_id', resolved.tourist_id)
       .eq('buddy_id', resolved.buddy_id)
@@ -148,12 +148,12 @@ export default function SharedItineraryPage({ params }: PageProps) {
           .limit(20),
         supabase
           .from('trip_travelers')
-          .select('role, status, profile:profiles(id, full_name, avatar_url), tourist:tourists(nationality)')
+          .select('role, status, profile:safe_profiles(id, full_name, avatar_url), tourist:tourists(nationality)')
           .eq('trip_id', activeTrip.id)
           .order('role', { ascending: true }),
         supabase
           .from('trip_buddies')
-          .select('role, status, profile:profiles(id, full_name, avatar_url), buddy:buddies(specialties)')
+          .select('role, status, profile:safe_profiles(id, full_name, avatar_url), buddy:buddies(specialties)')
           .eq('trip_id', activeTrip.id)
           .order('role', { ascending: true }),
       ])
