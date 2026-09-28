@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Menu, User, Search, LogOut, X, MapPin } from 'lucide-react';
 import { createClient } from '@/utils/supabase/auth';
 import { useRouter } from 'next/navigation';
+import { NavHint } from './NavHint';
 
 type UserRole = 'tourist' | 'buddy';
 
@@ -98,12 +99,13 @@ export default function Header({ userRole, userName, userId }: HeaderProps) {
               <Link
                 key={link.path}
                 href={link.path}
-                className={`text-sm font-medium transition-colors duration-150 ${
+                className={`relative text-sm font-medium transition-colors duration-150 ${
                   active ? 'text-primary' : 'text-muted hover:text-ink'
                 }`}
                 aria-current={active ? 'page' : undefined}
               >
                 {link.label}
+                <NavHint />
               </Link>
             );
           })}
