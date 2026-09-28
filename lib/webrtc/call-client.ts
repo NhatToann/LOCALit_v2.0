@@ -1,42 +1,32 @@
 /**
- * LOCALit voice-call client (Phase 2, 2026-09-28).
+ * LOCALit voice-call client — Stringee SDK edition (2026-09-29).
  *
- * Architecture (post-fix):
+ * Migration history:
+ *   - 2026-09-28: Self-hosted coturn (lib/webrtc/ice-config.ts +
+ *     /api/webrtc/turn + docker-compose). Solved cross-network NAT
+ *     failures but required running a TURN server.
+ *   - 2026-09-29: Switched to managed Stringee CPaaS. The SDK
+ *     handles WebRTC peer connection, ICE gathering, TURN relay,
+ *     codec negotiation, and cross-network signaling through
+ *     Stringee's Singapore servers. We only need to:
+ *       1. Get an access token (POST /api/stringee/access-token)
+ *       2. Connect a StringeeClient to the server
+ *       3. Make / answer / hang up calls
  *
- *   ┌──────────┐                ┌──────────┐                ┌──────────┐
- *   │  Caller  │                │ Supabase │                │  Callee  │
- *   └────┬─────┘                └────┬─────┘                └────┬─────┘
- *        │                           │                           │
- *        │ 1. INSERT pending_calls   │                           │
- *        │  status='ringing'         │                           │
- *        ├──────────────────────────►│                           │
- *        │                           │ 2. Realtime INSERT event  │
- *        │                           ├──────────────────────────►│
- *        │                           │                           │ (popup shows)
- *        │                           │  ◄── 3. UPDATE status     │
- *        │                           │      'accepted'           │
- *        │                           │                           │
- *        │                           │  ◄── 4. broadcast offer  │
- *        │  ◄─── 5. broadcast ───────│       SDP                 │
- *        │                           │                           │
- *        │ 6. setRemoteDescription   │                           │
- *        │    + createAnswer         │                           │
- *        │    + broadcast answer ───►├──────► 7. setRemoteDesc   │
- *        │                           │                           │
- *        │ 8. ICE candidates flow over broadcast (both ways)     │
- *        │                           │                           │
- *        │ 9. connectionState = connected → onCallConnected     │
- *        │                           │                           │
- *        │ End: UPDATE status='cancelled' + log call_event       │
- *        │                           │                           │
- *
- * The `messages` table remains the single source of truth for the
- * conversation log. Each terminal state writes ONE row of
- * `message_type='call_event'`.
+ * Why we still use pending_calls in the DB:
+ *   The IncomingCallWatcher UI listens on the `pending_calls` table
+ *   for the "ringing" popup. Stringee's own `client.on('incomingcall')`
+ *   event is reliable but the IncomingCallWatcher is mounted globally
+ *   in AppShell — using the DB row keeps a single source of truth that
+ *   other dashboards (e.g. buddy/requests) can read without needing
+ *   the Stringee client connected. We just INSERT pending_calls on
+ *   dial, then the Stringee SDK carries the actual media/signaling.
  */
 
-import { createClient } from '@/utils/supabase/auth'
-import { getIceConfig } from '@/lib/webrtc/ice-config'
+import { createClient as createBrowserClient } from '@/utils/supabase/auth'
+
+const STRINGEE_SDK_URL =
+  'https://cdn.stringee.com/sdk/web/latest/stringee-web-sdk.min.js'
 
 export type CallMode = 'voice'
 
@@ -58,23 +48,18 @@ export interface CallClientOptions {
   myName: string
   peerName: string
   mode: CallMode
-  /** True when this side initiated the call (caller). False for callee. */
-  isInitiator?: boolean
   /** Existing pending_calls row id, set when accepting an incoming call. */
   pendingCallId?: string
   /**
-   * Optional override for the ICE server list. When omitted, the client
-   * fetches fresh credentials from /api/webrtc/turn via getIceConfig().
-   * The override is mainly for tests and for callers that already have
-   * a cached config (e.g. dialer pre-warmed a config before the call).
+   * The Stringee userId of the caller (== Supabase userId of the
+   * partner in this conversation). Used to look up the queued
+   * StringeeCall from the global incoming-call map when accepting.
    */
-  iceServers?: RTCIceServer[]
+  callerUserId?: string
   onState?: (s: CallState) => void
   onError?: (e: Error) => void
   onLocalStream?: (s: MediaStream) => void
   onRemoteStream?: (s: MediaStream) => void
-  /** Override for testing */
-  now?: () => number
 }
 
 export interface CallClient {
@@ -85,15 +70,7 @@ export interface CallClient {
   end: () => Promise<void>
 }
 
-type Signal =
-  | { kind: 'offer'; from: string; sdp: RTCSessionDescriptionInit }
-  | { kind: 'answer'; from: string; sdp: RTCSessionDescriptionInit }
-  | { kind: 'ice'; from: string; candidate: RTCIceCandidateInit }
-  | { kind: 'bye'; from: string; duration_seconds?: number }
-
-const DEBUG_TAG = '[call]'
-/** Production builds drop these. Diagnostic logs violate the no-console
- *  rule in docs/design.md only when left on in prod; gate them here. */
+const DEBUG_TAG = '[call:stringee]'
 function dlog(...args: unknown[]): void {
   if (process.env.NODE_ENV === 'production') return
   // eslint-disable-next-line no-console
@@ -111,17 +88,187 @@ function fmtDuration(seconds: number): string {
   return `${m} min ${String(s).padStart(2, '0')} s`
 }
 
-/** Append a single call_event row to the conversation log. */
+// ---------------------------------------------------------------------------
+// SDK loader
+// ---------------------------------------------------------------------------
+
+let sdkLoadingPromise: Promise<void> | null = null
+
+/**
+ * Dynamically load the Stringee SDK if it isn't on `window` yet.
+ *
+ * We can't `import 'stringee'` because:
+ *   - There's no official @types/stringee package
+ *   - The npm `stringee` package depends on a global we don't have at
+ *     build time
+ *   - The CDN script tag is the documented, supported path
+ *
+ * The script is idempotent — once loaded, subsequent calls resolve
+ * immediately so back-to-back calls don't re-fetch the ~600KB bundle.
+ */
+export function loadStringeeSdk(): Promise<void> {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Stringee SDK is browser-only'))
+  }
+  if (window.StringeeClient && window.StringeeCall) {
+    return Promise.resolve()
+  }
+  if (sdkLoadingPromise) return sdkLoadingPromise
+  sdkLoadingPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector(
+      `script[data-stringee-sdk="1"]`,
+    ) as HTMLScriptElement | null
+    if (existing) {
+      existing.addEventListener('load', () => resolve())
+      existing.addEventListener('error', () =>
+        reject(new Error('Failed to load Stringee SDK')),
+      )
+      return
+    }
+    const script = document.createElement('script')
+    script.src = STRINGEE_SDK_URL
+    script.async = true
+    script.dataset.stringeeSdk = '1'
+    script.onload = () => resolve()
+    script.onerror = () => {
+      sdkLoadingPromise = null
+      reject(new Error('Failed to load Stringee SDK'))
+    }
+    document.head.appendChild(script)
+  })
+  return sdkLoadingPromise
+}
+
+// ---------------------------------------------------------------------------
+// Access token cache
+// ---------------------------------------------------------------------------
+
+interface CachedToken {
+  accessToken: string
+  expiresAt: number
+}
+let cachedToken: CachedToken | null = null
+
+/**
+ * Fetch an access token from the server. The server verifies the
+ * caller has a Supabase session, then signs a JWT with the user's
+ * id. Cached until 60 s before expiry to avoid the round-trip on
+ * every call.
+ */
+export async function getStringeeAccessToken(): Promise<{
+  accessToken: string
+  expiresAt: number
+  userId: string
+}> {
+  const now = Math.floor(Date.now() / 1000)
+  if (cachedToken && cachedToken.expiresAt - 60 > now) {
+    return {
+      accessToken: cachedToken.accessToken,
+      expiresAt: cachedToken.expiresAt,
+      // userId is opaque to the client; recompute from the session
+      // when needed by callers.
+      userId: '',
+    }
+  }
+  const res = await fetch('/api/stringee/access-token', { method: 'POST' })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(
+      `Stringee token request failed: ${res.status} ${body.error ?? ''}`,
+    )
+  }
+  const body = (await res.json()) as {
+    accessToken: string
+    expiresAt: number
+    userId: string
+  }
+  cachedToken = { accessToken: body.accessToken, expiresAt: body.expiresAt }
+  return body
+}
+
+// ---------------------------------------------------------------------------
+// Global StringeeClient (one per page load)
+// ---------------------------------------------------------------------------
+
+let globalClient: StringeeClient | null = null
+let globalClientAuthedUserId: string | null = null
+
+/**
+ * Get or create the StringeeClient for this page load. Connects to
+ * Stringee on first use; subsequent calls reuse the same instance.
+ *
+ * Returns the authenticated StringeeClient and the userId that the
+ * SDK associated with the access token (returned in the `authen`
+ * event).
+ */
+export async function ensureStringeeClient(): Promise<{
+  client: StringeeClient
+  userId: string
+}> {
+  if (typeof window === 'undefined') {
+    throw new Error('Stringee client is browser-only')
+  }
+  await loadStringeeSdk()
+  if (globalClient && globalClientAuthedUserId) {
+    return { client: globalClient, userId: globalClientAuthedUserId }
+  }
+  const client = new window.StringeeClient()
+  globalClient = client
+
+  // Set up listeners BEFORE connect so we don't miss the authen event.
+  const authenPromise = new Promise<string>((resolve, reject) => {
+    const onAuthen = (res: { r: number; userId?: string; message?: string }) => {
+      if (res.r === 0 && res.userId) {
+        resolve(res.userId)
+      } else {
+        reject(
+          new Error(
+            `Stringee authen failed: ${res.message ?? `r=${res.r}`}`,
+          ),
+        )
+      }
+    }
+    // The TypeScript event overload above is the `on('authen', …)` we
+    // declared in types/stringee.d.ts. We bypass the typed surface so
+    // this can also fire correctly when the SDK is the CDN version
+    // (whose callback shape is `function(res) {...}` with `r: number`).
+    ;(client as unknown as { on: (e: string, cb: (r: { r: number; userId?: string; message?: string }) => void) => void }).on(
+      'authen',
+      onAuthen,
+    )
+    client.on('requestnewtoken', () => {
+      dlog('Stringee requested a new access token; invalidating cache')
+      cachedToken = null
+    })
+  })
+  client.on('disconnect', () => {
+    dlog('Stringee disconnected')
+    globalClient = null
+    globalClientAuthedUserId = null
+  })
+
+  const { accessToken } = await getStringeeAccessToken()
+  client.connect(accessToken)
+  const userId = await authenPromise
+  globalClientAuthedUserId = userId
+  dlog('Stringee client authenticated as', userId)
+  return { client, userId }
+}
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
 async function logCallEvent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof createBrowserClient>,
   conversationId: string,
-  callerId: string,
+  actorId: string,
   content: string,
   durationSeconds: number | null,
 ): Promise<void> {
   const payload: Record<string, unknown> = {
     conversation_id: conversationId,
-    sender_id: callerId,
+    sender_id: actorId,
     content,
     message_type: 'call_event',
   }
@@ -138,242 +285,94 @@ async function logCallEvent(
       })
       .eq('id', conversationId)
   } catch (err) {
-    // Logging failure must never crash the call — best-effort.
     dwarn('could not log call_event:', err)
   }
 }
 
 /**
- * Shared signal-handling logic used by both caller and callee.
- * Manages a single RTCPeerConnection over the broadcast channel.
+ * Wire a StringeeCall's events to our CallState callbacks. Returns
+ * a setter for `muted` so the caller can toggle mic.
  */
-async function attachPeer(params: {
-  supabase: ReturnType<typeof createClient>
-  conversationId: string
-  myId: string
-  iceServers: RTCIceServer[]
-  onLocalStream: (s: MediaStream) => void
-  onRemoteStream: (s: MediaStream) => void
-  onState: (s: CallState) => void
-  onError: (e: Error) => void
-  shouldHandleSignal: (sig: Signal) => boolean
-}): Promise<{
-  getPeer: () => RTCPeerConnection
-  acquireMic: () => Promise<MediaStream>
-  sendOffer: () => Promise<void>
-  sendAnswer: (remoteOffer: RTCSessionDescriptionInit) => Promise<void>
-  sendBye: (durationSeconds?: number) => void
-  toggleMute: () => boolean
-  close: () => Promise<void>
-}> {
-  const channel = params.supabase.channel(`call:${params.conversationId}`, {
-    config: { broadcast: { self: false } },
+function bindCallEvents(
+  call: StringeeCall,
+  hooks: {
+    onState: (s: CallState) => void
+    onLocalStream: (s: MediaStream) => void
+    onRemoteStream: (s: MediaStream) => void
+  },
+): { mute: (muted: boolean) => void } {
+  call.on('addlocalstream', (stream) => {
+    dlog('addlocalstream', stream.getTracks().length, 'track(s)')
+    hooks.onLocalStream(stream)
   })
-
-  let pc: RTCPeerConnection | null = null
-  let localStream: MediaStream | null = null
-  let remoteStream: MediaStream | null = null
-  let muted = false
-
-  function ensurePeer(): RTCPeerConnection {
-    if (pc) return pc
-    pc = new RTCPeerConnection({ iceServers: params.iceServers })
-    dlog('peer constructed with', params.iceServers.length, 'ice server(s)')
-    pc.ontrack = (ev) => {
-      dlog('ontrack', ev.track.kind, 'streams:', ev.streams.length)
-      if (!remoteStream) remoteStream = new MediaStream()
-      remoteStream.addTrack(ev.track)
-      params.onRemoteStream(remoteStream)
-    }
-    pc.onicecandidate = (ev) => {
-      if (ev.candidate && ev.candidate.candidate) {
-        dlog('ice candidate', ev.candidate.candidate.slice(0, 60), '...')
-        channel.send({
-          type: 'broadcast',
-          event: 'signal',
-          payload: {
-            kind: 'ice',
-            from: params.myId,
-            candidate: ev.candidate.toJSON(),
-          },
-        })
-      } else {
-        dlog('ice gathering complete')
-      }
-    }
-    pc.oniceconnectionstatechange = () => {
-      dlog('iceConnectionState ->', pc?.iceConnectionState)
-    }
-    pc.onconnectionstatechange = () => {
-      dlog('connectionState ->', pc?.connectionState)
-      if (!pc) return
-      if (pc.connectionState === 'connected') {
-        params.onState('connected')
-      } else if (
-        pc.connectionState === 'failed' ||
-        pc.connectionState === 'closed' ||
-        pc.connectionState === 'disconnected'
-      ) {
-        // The 'disconnected' state can be transient (ICE restart) —
-        // only treat 'failed' and 'closed' as terminal.
-        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-          dlog('connection terminal:', pc.connectionState)
-          params.onState('failed')
-        }
-      }
-    }
-    return pc
-  }
-
-  async function acquireMic(): Promise<MediaStream> {
-    if (localStream) return localStream
-    localStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: false,
-    })
-    params.onLocalStream(localStream)
-    return localStream
-  }
-
-  // Register broadcast listener BEFORE awaiting subscribe so no message is missed.
-  channel.on('broadcast', { event: 'signal' }, ({ payload }) => {
-    const sig = payload as Signal
-    if (!sig || sig.from === params.myId) return
-    if (!params.shouldHandleSignal(sig)) return
-    void handleSignal(sig)
+  call.on('addremotestream', (stream) => {
+    dlog('addremotestream', stream.getTracks().length, 'track(s)')
+    hooks.onRemoteStream(stream)
   })
-
-  async function handleSignal(sig: Signal) {
-    try {
-      if (sig.kind === 'offer') {
-        const peer = ensurePeer()
-        await peer.setRemoteDescription(sig.sdp)
-        const answer = await peer.createAnswer()
-        await peer.setLocalDescription(answer)
-        channel.send({
-          type: 'broadcast',
-          event: 'signal',
-          payload: { kind: 'answer', from: params.myId, sdp: answer },
-        })
-      } else if (sig.kind === 'answer') {
-        const peer = ensurePeer()
-        if (!peer.currentRemoteDescription) {
-          await peer.setRemoteDescription(sig.sdp)
-        }
-      } else if (sig.kind === 'ice') {
-        const peer = ensurePeer()
-        try {
-          await peer.addIceCandidate(sig.candidate)
-} catch (err) {
-        dwarn('addIceCandidate failed', err)
-      }
-      }
-    } catch (err) {
-      params.onError(err as Error)
+  // Stringee signaling codes (subset):
+  //   2 = connecting
+  //   3 = ringing (callee side)
+  //   4 = answered
+  //   5 = busy
+  //   6 = ended
+  //   7 = caller ended
+  //   8 = callee ended
+  //   20 = rejected
+  call.on('signalingstate', (state) => {
+    dlog('signalingstate', state.code, state.reason)
+    switch (state.code) {
+      case 2:
+        hooks.onState('connecting')
+        break
+      case 3:
+        hooks.onState('ringing')
+        break
+      case 4:
+        hooks.onState('connected')
+        break
+      case 5:
+        hooks.onState('failed')
+        break
+      case 6:
+      case 7:
+      case 8:
+      case 20:
+        hooks.onState('ended')
+        break
     }
-  }
-
-  // Expose sender for callers
-  const sendSignal = (payload: Signal) =>
-    channel.send({ type: 'broadcast', event: 'signal', payload })
-
-  // Subscribe to channel; return helpers after subscribe completes.
-  await new Promise<void>((resolve, reject) => {
-    let settled = false
-    const timeout = setTimeout(() => {
-      if (!settled) {
-        settled = true
-        reject(new Error('Channel subscribe timeout'))
-      }
-    }, 10_000)
-    channel.subscribe((status) => {
-      if (settled) return
-      if (status === 'SUBSCRIBED') {
-        settled = true
-        clearTimeout(timeout)
-        resolve()
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        settled = true
-        clearTimeout(timeout)
-        reject(new Error(`Channel ${status}`))
-      }
-    })
+  })
+  call.on('mediastate', (state) => {
+    dlog('mediastate', state.code, state.description ?? '')
+  })
+  call.on('error', (info) => {
+    dwarn('Stringee call error:', info)
   })
 
   return {
-    getPeer: ensurePeer,
-    acquireMic,
-    sendOffer: async (): Promise<void> => {
-      const peer = ensurePeer()
-      const stream = await acquireMic()
-      for (const t of stream.getTracks()) peer.addTrack(t, stream)
-      const offer = await peer.createOffer({ offerToReceiveAudio: true })
-      await peer.setLocalDescription(offer)
-      sendSignal({ kind: 'offer', from: params.myId, sdp: offer })
-    },
-    sendAnswer: async (remoteOffer: RTCSessionDescriptionInit): Promise<void> => {
-      const peer = ensurePeer()
-      const stream = await acquireMic()
-      for (const t of stream.getTracks()) peer.addTrack(t, stream)
-      await peer.setRemoteDescription(remoteOffer)
-      const answer = await peer.createAnswer()
-      await peer.setLocalDescription(answer)
-      sendSignal({ kind: 'answer', from: params.myId, sdp: answer })
-    },
-    sendBye: (durationSeconds?: number) =>
-      sendSignal({
-        kind: 'bye',
-        from: params.myId,
-        duration_seconds: durationSeconds,
-      }),
-    toggleMute: (): boolean => {
-      if (!localStream) {
-        // Acquire lazily so the user can mute even before talking.
-        void acquireMic().then((s) => {
-          muted = !muted
-          for (const t of s.getAudioTracks()) t.enabled = !muted
-        })
-        return false
-      }
-      muted = !muted
-      for (const t of localStream.getAudioTracks()) t.enabled = !muted
-      return muted
-    },
-    close: async () => {
+    mute: (muted: boolean) => {
       try {
-        localStream?.getTracks().forEach((t) => t.stop())
-      } catch {
-        /* noop */
+        call.mute(muted)
+      } catch (err) {
+        dwarn('mute toggle failed:', err)
       }
-      try {
-        pc?.close()
-      } catch {
-        /* noop */
-      }
-      try {
-        await params.supabase.removeChannel(channel)
-      } catch {
-        /* noop */
-      }
-      localStream = null
-      remoteStream = null
-      pc = null
     },
   }
 }
 
-type PeerHandle = Awaited<ReturnType<typeof attachPeer>>
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 /**
- * Start an outgoing (caller-side) voice call.
+ * Start an outgoing voice call.
  *
- * Flow:
- *   1. INSERT pending_calls row (status='ringing')
- *   2. Subscribe broadcast channel
- *   3. Wait for realtime UPDATE event: pending_calls.status = 'accepted'
- *   4. Wait for broadcast 'offer' SDP from callee
- *   5. setRemoteDescription + createAnswer + send via broadcast
- *   6. ICE + connect
+ * 1. INSERT pending_calls row (status='ringing') so the
+ *    IncomingCallWatcher shows the popup on the callee's screens.
+ * 2. Ensure StringeeClient is connected + authenticated.
+ * 3. new StringeeCall(client, from=myName, to=peerId) and makeCall().
+ * 4. When callee accepts, Stringee signals code=4 → we set state
+ *    to 'connected' and the chat page's onRemoteStream callback
+ *    attaches the stream to the <audio> element.
  */
 export async function startOutgoingCall(
   opts: CallClientOptions,
@@ -383,13 +382,13 @@ export async function startOutgoingCall(
   const onLocalStream = opts.onLocalStream ?? (() => {})
   const onRemoteStream = opts.onRemoteStream ?? (() => {})
 
-  const supabase = createClient()
+  const supabase = createBrowserClient()
   let state: CallState = 'calling'
   let connectedAt: number | null = null
-  let peer: PeerHandle | null = null
-  let callerId = opts.myId // who logs the row in messages
-  let ringTimer: ReturnType<typeof setTimeout> | null = null
+  let stringeeCall: StringeeCall | null = null
+  let muted = false
   let pendingCallId: string | null = null
+  let ended = false
 
   function setState(s: CallState) {
     dlog('state', state, '->', s, '(outgoing)')
@@ -397,14 +396,7 @@ export async function startOutgoingCall(
     onState(s)
   }
 
-  function clearRingTimer() {
-    if (ringTimer) {
-      clearTimeout(ringTimer)
-      ringTimer = null
-    }
-  }
-
-  // 1. Insert pending_calls row
+  // 1. DB row first so the watcher can find it.
   const { data: insertData, error: insertErr } = await supabase
     .from('pending_calls')
     .insert({
@@ -415,190 +407,190 @@ export async function startOutgoingCall(
     })
     .select('id')
     .single()
-
   if (insertErr || !insertData) {
     throw new Error('Could not start call: ' + (insertErr?.message ?? 'unknown'))
   }
   pendingCallId = insertData.id
 
-  // 2. Listen on broadcast channel for offer/answer/ice from callee.
-  // attachPeer handles the WebRTC side (setRemoteDescription on incoming
-  // offer SDP, etc.); we use a separate "meta" channel for control
-  // events like 'accepted', 'declined', 'busy' that don't carry SDP.
+  // 2. Connect Stringee client (idempotent).
+  const { client } = await ensureStringeeClient()
 
-  // Fetch ICE config (STUN + TURN credentials if configured). Cached for
-  // 50 min in ice-config.ts so this is essentially free for back-to-back
-  // calls. Bug 2 (2026-09-28): previously we used a hardcoded single
-  // STUN entry, which fails on symmetric NAT. With TURN credentials
-  // present, coturn relays media and the call succeeds cross-network.
-  const iceConfig = await getIceConfig()
-  dlog('ice config:', iceConfig.source, iceConfig.iceServers.length, 'servers')
+  // 3. Build the call. Stringee's `from` is a display alias shown to
+  // the callee; `to` is the callee's Stringee userId (== Supabase uid
+  // because we put `userId` in the JWT claim).
+  const call = new window.StringeeCall(client, opts.myName, opts.peerId, false)
+  stringeeCall = call
 
-  peer = await attachPeer({
-    supabase,
-    conversationId: opts.conversationId,
-    myId: opts.myId,
-    iceServers: opts.iceServers ?? iceConfig.iceServers,
-    onLocalStream,
-    onRemoteStream,
+  const { mute } = bindCallEvents(call, {
     onState: (s) => {
       if (s === 'connected') {
         connectedAt = Date.now()
         setState('connected')
-      } else if (s === 'failed') {
-        setState('failed')
+      } else if (s === 'ended') {
+        // On remote end, we still want to log the call event and
+        // close the modal. Don't call end() recursively.
+        void handleRemoteEnded()
+      } else {
+        setState(s)
       }
     },
-    onError,
-    shouldHandleSignal: (sig) => sig.kind === 'offer' || sig.kind === 'ice',
+    onLocalStream,
+    onRemoteStream,
   })
 
-  const metaChannel = supabase.channel(`call-meta:${opts.conversationId}`, {
-    config: { broadcast: { self: false } },
-  })
-  metaChannel.on('broadcast', { event: 'accepted' }, () => {
-    setState('connecting')
-    clearRingTimer()
-  })
-  metaChannel.on('broadcast', { event: 'declined' }, () => {
-    clearRingTimer()
-    setState('declined')
-    void logCallEvent(supabase, opts.conversationId, callerId, '📞 Voice call · declined', null)
-    void cleanup('decline')
-  })
-  metaChannel.on('broadcast', { event: 'busy' }, () => {
-    clearRingTimer()
-    setState('failed')
-    void logCallEvent(supabase, opts.conversationId, callerId, '📞 Voice call · busy', null)
-    void cleanup('busy')
-  })
-  await new Promise<void>((resolve) => {
-    metaChannel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') resolve()
-    })
-  })
-
-  // Ring timeout: 45s without accept → missed
-  ringTimer = setTimeout(async () => {
+  // Ring timeout: if callee doesn't accept in 45 s, mark missed.
+  const ringTimer = setTimeout(() => {
     if (state === 'calling') {
+      dlog('ring timeout; marking missed')
       setState('missed')
-      await supabase
-        .from('pending_calls')
-        .update({ status: 'expired' })
-        .eq('id', pendingCallId)
-      await logCallEvent(supabase, opts.conversationId, callerId, '📞 Voice call · missed', null)
-      await cleanup('missed')
+      void markPendingTerminal('expired')
+      void logCallEvent(
+        supabase,
+        opts.conversationId,
+        opts.myId,
+        '📞 Voice call · missed',
+        null,
+      )
+      void end()
     }
   }, 45_000)
 
-  async function cleanup(_reason: string) {
-    clearRingTimer()
-    if (peer) {
-      const p = peer
-      peer = null
-      await p.close()
-    }
+  async function markPendingTerminal(terminalStatus: string) {
+    if (!pendingCallId) return
     try {
-      await supabase.removeChannel(metaChannel)
-    } catch {
-      /* noop */
-    }
-    // Mark pending_calls as terminal so the watcher stops showing it.
-    if (pendingCallId && state !== 'connected') {
-      const termStatus =
-        state === 'missed' || state === 'declined' || state === 'ended' || state === 'failed'
-          ? state === 'ended'
-            ? 'cancelled'
-            : state
-          : 'cancelled'
       await supabase
         .from('pending_calls')
-        .update({ status: termStatus })
+        .update({ status: terminalStatus })
         .eq('id', pendingCallId)
-        .then(() => undefined, () => undefined)
+    } catch (err) {
+      dwarn('markPendingTerminal failed', err)
     }
   }
 
-  const client: CallClient = {
+  async function handleRemoteEnded() {
+    if (ended) return
+    ended = true
+    clearTimeout(ringTimer)
+    const dur = connectedAt
+      ? Math.max(0, Math.floor((Date.now() - connectedAt) / 1000))
+      : 0
+    if (state === 'connected' && dur > 0) {
+      await logCallEvent(
+        supabase,
+        opts.conversationId,
+        opts.myId,
+        `📞 Voice call · ${fmtDuration(dur)}`,
+        dur,
+      )
+    } else if (state === 'connected') {
+      await logCallEvent(
+        supabase,
+        opts.conversationId,
+        opts.myId,
+        '📞 Voice call · ended',
+        0,
+      )
+    }
+    if (pendingCallId) {
+      await markPendingTerminal('accepted')
+    }
+  }
+
+  async function end(): Promise<void> {
+    if (ended) return
+    ended = true
+    clearTimeout(ringTimer)
+    if (stringeeCall) {
+      await new Promise<void>((resolve) => {
+        try {
+          stringeeCall!.hangup(() => resolve())
+        } catch {
+          resolve()
+        }
+        // Safety net in case the callback never fires.
+        setTimeout(resolve, 2000)
+      })
+    }
+    const dur = connectedAt
+      ? Math.max(0, Math.floor((Date.now() - connectedAt) / 1000))
+      : 0
+    if (state === 'connected' && dur > 0) {
+      await logCallEvent(
+        supabase,
+        opts.conversationId,
+        opts.myId,
+        `📞 Voice call · ${fmtDuration(dur)}`,
+        dur,
+      )
+    } else if (state === 'connected') {
+      await logCallEvent(
+        supabase,
+        opts.conversationId,
+        opts.myId,
+        '📞 Voice call · ended',
+        0,
+      )
+    } else if (state === 'calling' || state === 'connecting') {
+      await logCallEvent(
+        supabase,
+        opts.conversationId,
+        opts.myId,
+        '📞 Voice call · cancelled',
+        null,
+      )
+    }
+    if (pendingCallId) {
+      const terminal = state === 'connected' ? 'accepted' : 'cancelled'
+      await markPendingTerminal(terminal)
+    }
+    setState('ended')
+  }
+
+  // 4. Kick off the call.
+  await new Promise<void>((resolve, reject) => {
+    try {
+      call.makeCall((res) => {
+        dlog('makeCall res', res)
+        if (res.r !== 0) {
+          reject(new Error(res.message ?? `makeCall failed (r=${res.r})`))
+        } else {
+          resolve()
+        }
+      })
+    } catch (err) {
+      reject(err as Error)
+    }
+  })
+
+  const clientObj: CallClient = {
     get state() {
       return state
     },
     accept: async () => {
-      // Caller side never receives accept UI; left as no-op for type compat.
+      // Caller side does not accept; this is a no-op for type compat.
     },
     decline: async () => {
       if (state !== 'calling') return
-      clearRingTimer()
       setState('declined')
-      metaChannel.send({
-        type: 'broadcast',
-        event: 'declined',
-        payload: {},
-      })
-      await supabase
-        .from('pending_calls')
-        .update({ status: 'cancelled' })
-        .eq('id', pendingCallId)
-      await logCallEvent(supabase, opts.conversationId, callerId, '📞 Voice call · cancelled', null)
-      await cleanup('decline')
+      await end()
     },
-    toggleMute: () => (peer ? peer.toggleMute() : false),
-    end: async () => {
-      const dur = connectedAt
-        ? Math.max(0, Math.floor((Date.now() - connectedAt) / 1000))
-        : 0
-      try {
-        metaChannel.send({
-          type: 'broadcast',
-          event: 'bye',
-          payload: { duration_seconds: dur },
-        })
-      } catch {
-        /* noop */
-      }
-      if (state === 'connected' && dur > 0) {
-        await logCallEvent(
-          supabase,
-          opts.conversationId,
-          callerId,
-          `📞 Voice call · ${fmtDuration(dur)}`,
-          dur,
-        )
-      } else if (state === 'connected') {
-        await logCallEvent(supabase, opts.conversationId, callerId, '📞 Voice call · ended', 0)
-      } else if (state === 'calling' || state === 'connecting') {
-        await logCallEvent(
-          supabase,
-          opts.conversationId,
-          callerId,
-          '📞 Voice call · cancelled',
-          null,
-        )
-      }
-      if (pendingCallId) {
-        await supabase
-          .from('pending_calls')
-          .update({ status: state === 'connected' ? 'accepted' : 'cancelled' })
-          .eq('id', pendingCallId)
-      }
-      setState('ended')
-      await cleanup('end')
+    toggleMute: () => {
+      muted = !muted
+      mute(muted)
+      return muted
     },
+    end,
   }
-
-  return { client, pendingCallId: pendingCallId! }
+  return { client: clientObj, pendingCallId: pendingCallId! }
 }
 
 /**
- * Accept an incoming (callee-side) voice call.
- *
- * Flow:
- *   1. UPDATE pending_calls.status = 'accepted'
- *   2. Broadcast 'accepted' event over `call-meta:<convId>` channel
- *   3. Subscribe `call:<convId>` broadcast channel
- *   4. acquireMic + createOffer + send via broadcast
- *   5. Wait for answer via attachPeer's internal handler
- *   6. ICE + connect
+ * Accept an incoming voice call. The Stringee call object is already
+ * created by `client.on('incomingcall', ...)` — we accept the one
+ * passed via the global handler by matching it on `toNumber` (== my
+ * userId). To keep the public API simple, the caller is responsible
+ * for having registered the global handler before this is called
+ * (see app/chat/page.tsx). If no match is found, we throw.
  */
 export async function acceptIncomingCall(
   opts: CallClientOptions,
@@ -611,10 +603,11 @@ export async function acceptIncomingCall(
   const onLocalStream = opts.onLocalStream ?? (() => {})
   const onRemoteStream = opts.onRemoteStream ?? (() => {})
 
-  const supabase = createClient()
+  const supabase = createBrowserClient()
   let state: CallState = 'connecting'
   let connectedAt: number | null = null
-  let peer: PeerHandle | null = null
+  let muted = false
+  let ended = false
 
   function setState(s: CallState) {
     dlog('state', state, '->', s, '(incoming)')
@@ -622,156 +615,265 @@ export async function acceptIncomingCall(
     onState(s)
   }
 
-  // 1. Update DB
+  // 1. Update DB so the watcher hides.
   const { error: updateErr } = await supabase
     .from('pending_calls')
     .update({ status: 'accepted' })
     .eq('id', opts.pendingCallId)
-    .eq('callee_id', opts.myId) // safety: only callee can mark accepted
-
+    .eq('callee_id', opts.myId)
   if (updateErr) {
     throw new Error('Could not accept call: ' + updateErr.message)
   }
 
-  // 2. Notify caller side that we accepted
-  const metaChannel = supabase.channel(`call-meta:${opts.conversationId}`, {
-    config: { broadcast: { self: false } },
-  })
-  metaChannel.on('broadcast', { event: 'bye' }, () => {
-    void endCall()
-  })
-  await new Promise<void>((resolve, reject) => {
-    metaChannel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') resolve()
-      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED')
-        reject(new Error(`Channel ${status}`))
-    })
-  })
-  metaChannel.send({
-    type: 'broadcast',
-    event: 'accepted',
-    payload: {},
-  })
+  // 2. Find the matching StringeeCall from the global incoming-call
+  // queue. We store the Stringee call keyed by the caller's userId
+  // (their Stringee `fromNumber`), which the caller is set to via
+  // the access-token JWT `userId` claim. The chat page passes the
+  // active conversation's partner_id as `callerUserId`.
+  const lookupKey = opts.callerUserId ?? opts.peerId
+  if (!lookupKey) {
+    throw new Error('acceptIncomingCall requires callerUserId or peerId')
+  }
+  const call = consumePendingStringeeCall(lookupKey)
+  if (!call) {
+    throw new Error('No matching Stringee call to accept (timeout?)')
+  }
 
-  // 3-5. Attach peer & send offer
-  // Bug 2 (2026-09-28): same TURN wiring as startOutgoingCall — fetch
-  // ICE config (STUN + coturn credentials) before opening the peer.
-  const iceConfig = await getIceConfig()
-  dlog('ice config:', iceConfig.source, iceConfig.iceServers.length, 'servers')
-
-  peer = await attachPeer({
-    supabase,
-    conversationId: opts.conversationId,
-    myId: opts.myId,
-    iceServers: opts.iceServers ?? iceConfig.iceServers,
-    onLocalStream,
-    onRemoteStream,
+  const { mute } = bindCallEvents(call, {
     onState: (s) => {
       if (s === 'connected') {
         connectedAt = Date.now()
         setState('connected')
-      } else if (s === 'failed') {
-        setState('failed')
+      } else if (s === 'ended') {
+        void handleRemoteEnded()
+      } else {
+        setState(s)
       }
     },
-    onError,
-    shouldHandleSignal: (sig) => sig.kind === 'answer' || sig.kind === 'ice',
+    onLocalStream,
+    onRemoteStream,
   })
 
-  // Create and send offer (callee side initiates WebRTC after accepting UI ring)
-  await peer.sendOffer()
-
-  async function endCall() {
-    const dur = connectedAt ? Math.max(0, Math.floor((Date.now() - connectedAt) / 1000)) : 0
-    if (peer) {
-      const p = peer
-      peer = null
-      await p.close()
-    }
-    try {
-      await supabase.removeChannel(metaChannel)
-    } catch {
-      /* noop */
-    }
+  async function handleRemoteEnded() {
+    if (ended) return
+    ended = true
+    const dur = connectedAt
+      ? Math.max(0, Math.floor((Date.now() - connectedAt) / 1000))
+      : 0
     if (state === 'connected' && dur > 0) {
       await logCallEvent(
         supabase,
         opts.conversationId,
-        opts.myId, // actor (callee) — matches auth.uid() for messages RLS
+        opts.myId,
         `📞 Voice call · ${fmtDuration(dur)}`,
         dur,
       )
     }
     if (opts.pendingCallId) {
-      await supabase
-        .from('pending_calls')
-        .update({ status: state === 'connected' ? 'accepted' : 'cancelled' })
-        .eq('id', opts.pendingCallId)
+      try {
+        await supabase
+          .from('pending_calls')
+          .update({ status: 'accepted' })
+          .eq('id', opts.pendingCallId)
+      } catch (err) {
+        dwarn('pending_calls final update failed', err)
+      }
+    }
+  }
+
+  async function end(): Promise<void> {
+    if (ended) return
+    ended = true
+    const c: StringeeCall = call!
+    try {
+      await new Promise<void>((resolve) => {
+        try {
+          c.hangup(() => resolve())
+        } catch {
+          resolve()
+        }
+        setTimeout(resolve, 2000)
+      })
+    } catch (err) {
+      dwarn('hangup threw', err)
+    }
+    const dur = connectedAt
+      ? Math.max(0, Math.floor((Date.now() - connectedAt) / 1000))
+      : 0
+    if (state === 'connected' && dur > 0) {
+      await logCallEvent(
+        supabase,
+        opts.conversationId,
+        opts.myId,
+        `📞 Voice call · ${fmtDuration(dur)}`,
+        dur,
+      )
+    }
+    if (opts.pendingCallId) {
+      try {
+        await supabase
+          .from('pending_calls')
+          .update({ status: state === 'connected' ? 'accepted' : 'cancelled' })
+          .eq('id', opts.pendingCallId)
+      } catch (err) {
+        dwarn('pending_calls final update failed', err)
+      }
     }
     setState('ended')
   }
 
-  const client: CallClient = {
+  // 3. Answer the call.
+  await new Promise<void>((resolve, reject) => {
+    try {
+      call.answer((res) => {
+        dlog('answer res', res)
+        if (res.r !== 0) {
+          reject(new Error(res.message ?? `answer failed (r=${res.r})`))
+        } else {
+          resolve()
+        }
+      })
+    } catch (err) {
+      reject(err as Error)
+    }
+  })
+
+  const clientObj: CallClient = {
     get state() {
       return state
     },
     accept: async () => {
-      // No-op; already accepting on construction.
+      // Already accepting on construction; no-op.
     },
     decline: async () => {
-      // No-op for callee after accept — they should call end().
+      // No-op for callee after answer.
     },
-    toggleMute: () => (peer ? peer.toggleMute() : false),
-    end: endCall,
+    toggleMute: () => {
+      muted = !muted
+      mute(muted)
+      return muted
+    },
+    end,
   }
-
-  return { client }
+  return { client: clientObj }
 }
 
 /**
  * Decline an incoming call (callee-side, before accepting).
- * Updates DB and logs call_event, but does NOT open a peer connection.
- *
- * sender_id for the call_event log is the actor (the callee who is
- * declining), not the original caller — required because the messages
- * table has WITH CHECK (auth.uid() = sender_id). Otherwise RLS would
- * silently drop the insert.
  */
 export async function declineIncomingCall(opts: {
-  supabase: ReturnType<typeof createClient>
+  supabase: ReturnType<typeof createBrowserClient>
   pendingCallId: string
   myId: string
   conversationId: string
   callerId: string
 }): Promise<void> {
+  // Mark DB row as declined.
   await opts.supabase
     .from('pending_calls')
     .update({ status: 'declined' })
     .eq('id', opts.pendingCallId)
     .eq('callee_id', opts.myId)
 
-  // Notify caller via broadcast
-  const metaChannel = opts.supabase.channel(`call-meta:${opts.conversationId}`, {
-    config: { broadcast: { self: false } },
-  })
-  await new Promise<void>((resolve) => {
-    metaChannel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') resolve()
-    })
-  })
-  metaChannel.send({ type: 'broadcast', event: 'declined', payload: {} })
+  // If we have a queued Stringee call for this caller, reject it.
+  const call = consumePendingStringeeCall(opts.callerId)
+  if (call) {
+    try {
+      await new Promise<void>((resolve) => {
+        try {
+          call.reject(() => resolve())
+        } catch {
+          resolve()
+        }
+        setTimeout(resolve, 2000)
+      })
+    } catch (err) {
+      dwarn('reject threw', err)
+    }
+  }
 
   await logCallEvent(
     opts.supabase,
     opts.conversationId,
-    opts.myId, // actor (callee) — must match auth.uid() for messages RLS
+    opts.myId, // actor (callee) — must match auth.uid() for RLS
     '📞 Voice call · declined',
     null,
   )
+}
 
-  try {
-    await opts.supabase.removeChannel(metaChannel)
-  } catch {
-    /* noop */
+// ---------------------------------------------------------------------------
+// Global incoming-call queue
+// ---------------------------------------------------------------------------
+
+declare global {
+  interface Window {
+    __localitStringeeIncomingCalls?: Map<string, IncomingCallEntry>
   }
+}
+
+function incomingMap(): Map<string, IncomingCallEntry> {
+  if (typeof window === 'undefined') return new Map()
+  if (!window.__localitStringeeIncomingCalls) {
+    window.__localitStringeeIncomingCalls = new Map()
+  }
+  return window.__localitStringeeIncomingCalls
+}
+
+function readPendingStringeeCall(conversationId: string): StringeeCall | null {
+  return incomingMap().get(conversationId)?.call ?? null
+}
+
+function consumePendingStringeeCall(conversationId: string): StringeeCall | null {
+  const entry = incomingMap().get(conversationId)
+  if (!entry) return null
+  incomingMap().delete(conversationId)
+  return entry.call
+}
+
+/**
+ * Register a one-time listener on the global StringeeClient that
+ * queues incoming StringeeCall objects keyed by the caller's
+ * userId (== fromNumber for app-to-app calls). The IncomingCallWatcher
+ * matches the queued call to a pending_calls row by caller_id.
+ *
+ * Returns a teardown function. In practice the global StringeeClient
+ * lives for the page lifetime so we don't aggressively tear down —
+ * the watcher just stops consuming from the map.
+ */
+export function startIncomingCallWatcher(
+  onIncomingCall: (entry: {
+    call: StringeeCall
+    callerUserId: string
+  }) => void,
+): () => void {
+  if (typeof window === 'undefined') return () => undefined
+  if (!globalClient) {
+    // The chat page might not have called ensureStringeeClient yet.
+    // Kick it off and re-register after the SDK is ready.
+    void ensureStringeeClient().then(() => {
+      startIncomingCallWatcher(onIncomingCall)
+    })
+    return () => undefined
+  }
+  const handler = (call: StringeeCall) => {
+    const caller = call.fromNumber ?? ''
+    dlog('incoming Stringee call from', caller)
+    incomingMap().set(caller, { call, receivedAt: Date.now() })
+    try {
+      onIncomingCall({ call, callerUserId: caller })
+    } catch (err) {
+      dwarn('onIncomingCall handler threw:', err)
+    }
+  }
+  ;(
+    globalClient as unknown as {
+      on: (e: string, cb: (c: StringeeCall) => void) => void
+    }
+  ).on('incomingcall', handler)
+  return () => undefined
+}
+
+/** Test/debug only — empty the incoming-call queue. */
+export function __resetIncomingCallsForTests(): void {
+  incomingMap().clear()
 }

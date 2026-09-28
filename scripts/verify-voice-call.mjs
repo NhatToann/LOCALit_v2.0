@@ -1,23 +1,22 @@
 /**
- * Smoke test for the voice-call plumbing.
+ * Smoke test for the voice-call plumbing (Stringee edition).
  *
  * What this verifies (server-side only — full WebRTC ICE negotiation
- * requires a real browser with RTCPeerConnection + getUserMedia, which
- * Node does not have):
- *   1. /api/webrtc/turn returns valid ICE servers (STUN always, TURN
- *      when env vars are set).
+ * requires a real browser with RTCPeerConnection + getUserMedia):
+ *   1. /api/stringee/access-token returns a valid JWT for an
+ *      authenticated Supabase user (and 401 for anonymous).
  *   2. Two seeded users can insert + accept a pending_calls row.
- *   3. The broadcast channel carries an 'accepted' event after accept.
+ *   3. The Realtime broadcast UPDATE event fires when the callee
+ *      accepts.
  *   4. Ending the call writes a call_event row in the messages table.
  *
  * Usage:
- *   $env:NEXT_PUBLIC_SUPABASE_URL="..."; \
- *   $env:NEXT_PUBLIC_SUPABASE_ANON_KEY="..."; \
- *   $env:API_BASE="http://localhost:3000"; \
+ *   $env:NEXT_PUBLIC_SUPABASE_URL="https://pqvnjgyqbxlylawwogjv.supabase.co"
+ *   $env:NEXT_PUBLIC_SUPABASE_ANON_KEY="sb_publishable_..."
+ *   $env:API_BASE="http://localhost:3000"
  *   node scripts/verify-voice-call.mjs
  *
- * Defaults to http://localhost:3000. For production pass
- *   $env:API_BASE="https://localit-nhattoann.vercel.app"
+ * For production, set API_BASE to the canonical Vercel URL.
  */
 import { createClient } from '@supabase/supabase-js'
 
@@ -26,7 +25,9 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!SUPABASE_URL || !SUPABASE_ANON) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY env vars.')
+  console.error(
+    'Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY env vars.',
+  )
   process.exit(1)
 }
 
@@ -51,18 +52,24 @@ function expect(cond, msg) {
 }
 
 async function signIn(email, password) {
-  const sb = createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession: false } })
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON, {
+    auth: { persistSession: false },
+  })
   const { data, error } = await sb.auth.signInWithPassword({ email, password })
   if (error || !data.session) {
-    throw new Error(`signIn failed for ${email}: ${error?.message ?? 'no session'}`)
+    throw new Error(
+      `signIn failed for ${email}: ${error?.message ?? 'no session'}`,
+    )
   }
   return { sb, userId: data.session.user.id, session: data.session }
 }
 
-async function fetchIceServers() {
-  const res = await fetch(`${API_BASE}/api/webrtc/turn`, { method: 'POST' })
-  if (!res.ok) throw new Error(`TURN endpoint returned ${res.status}`)
-  return await res.json()
+async function fetchStringeeToken(headers) {
+  const res = await fetch(`${API_BASE}/api/stringee/access-token`, {
+    method: 'POST',
+    headers,
+  })
+  return { status: res.status, body: await res.json().catch(() => ({})) }
 }
 
 async function findConversation(sb, myId, peerId) {
@@ -77,28 +84,19 @@ async function findConversation(sb, myId, peerId) {
 }
 
 async function main() {
-  console.log(`Smoke testing voice-call plumbing at ${API_BASE}`)
+  console.log(`Smoke testing Stringee voice-call plumbing at ${API_BASE}`)
 
-  // Step 1: TURN endpoint returns valid ICE config
-  console.log('\n--- /api/webrtc/turn ---')
-  const ice = await fetchIceServers()
-  expect(Array.isArray(ice.iceServers) && ice.iceServers.length > 0,
-    `iceServers is a non-empty array (got ${ice.iceServers?.length ?? 0})`)
-  expect(typeof ice.source === 'string' && ['coturn', 'stun-only'].includes(ice.source),
-    `source is 'coturn' or 'stun-only' (got '${ice.source}')`)
-  expect(ice.iceServers.some((s) => String(s.urls).startsWith('stun:')),
-    'at least one STUN server present')
-  if (ice.source === 'coturn') {
-    const turnEntry = ice.iceServers.find((s) => String(s.urls).startsWith('turn'))
-    expect(!!turnEntry, 'TURN server present when source=coturn')
-    expect(typeof turnEntry?.username === 'string' && turnEntry.username.includes(':'),
-      'TURN username has expiry:userid shape')
-    expect(typeof turnEntry?.credential === 'string' && turnEntry.credential.length > 0,
-      'TURN credential is a non-empty string')
-    expect(typeof ice.realm === 'string' && ice.realm.length > 0,
-      `realm is set (got '${ice.realm}')`)
-  } else {
-    console.log('  INFO  source=stun-only (TURN env vars not set); calls will fail on symmetric NAT')
+  // Step 1: Anonymous token request should be rejected (401).
+  console.log('\n--- /api/stringee/access-token (anonymous) ---')
+  const anon = await fetchStringeeToken({ 'content-type': 'application/json' })
+  expect(
+    anon.status === 401 || anon.status === 503,
+    `anonymous request rejected (got ${anon.status}, body: ${JSON.stringify(anon.body).slice(0, 60)}…)`,
+  )
+  if (anon.status === 503) {
+    console.log(
+      '  INFO  Stringee env vars not configured on this server; full token test below will be SKIPPED.',
+    )
   }
 
   // Step 2: Sign in both seed users
@@ -107,17 +105,49 @@ async function main() {
   const buddy = await signIn(accounts[1].email, accounts[1].password)
   expect(tourist.userId !== buddy.userId, 'two distinct user IDs')
 
-  // Step 3: Find or skip a conversation between them
+  // Step 3: Try to fetch a Stringee token with the tourist's session.
+  console.log('\n--- /api/stringee/access-token (authenticated) ---')
+  const touristToken = await fetchStringeeToken({
+    'content-type': 'application/json',
+    authorization: `Bearer ${tourist.session.access_token}`,
+  })
+  if (touristToken.status === 503) {
+    console.log(
+      '  SKIP  Stringee not configured server-side; access-token test inconclusive.',
+    )
+  } else {
+    expect(
+      touristToken.status === 200,
+      `authenticated request returned 200 (got ${touristToken.status})`,
+    )
+    expect(
+      typeof touristToken.body.accessToken === 'string' &&
+        touristToken.body.accessToken.split('.').length === 3,
+      `accessToken is a JWT (3 dot-separated parts)`,
+    )
+    expect(
+      touristToken.body.userId === tourist.userId,
+      `JWT userId matches session (got '${touristToken.body.userId}')`,
+    )
+    expect(
+      typeof touristToken.body.expiresAt === 'number' &&
+        touristToken.body.expiresAt > Math.floor(Date.now() / 1000),
+      `expiresAt is a future unix timestamp`,
+    )
+  }
+
+  // Step 4: Find or skip a conversation between them
   console.log('\n--- Conversation ---')
-  let conv = await findConversation(tourist.sb, tourist.userId, buddy.userId)
+  const conv = await findConversation(tourist.sb, tourist.userId, buddy.userId)
   if (!conv) {
-    console.log('  SKIP  no conversation exists between john.doe and lan.pham — ' +
-      'seed-accounts.mjs does not create one. Run scripts/verify-chat-e2e.mjs first.')
+    console.log(
+      '  SKIP  no conversation exists between john.doe and lan.pham — seed-accounts.mjs does not create one.',
+    )
     return summary()
   }
   expect(!!conv.id, `conversation exists (id=${conv.id?.slice(0, 8)}…)`)
 
-  // Step 4: Caller inserts pending_calls row (the action the dialer takes)
+  // Step 5: Caller inserts pending_calls row
   console.log('\n--- Insert pending_calls ---')
   const { data: pc, error: pcErr } = await tourist.sb
     .from('pending_calls')
@@ -132,21 +162,24 @@ async function main() {
   expect(!pcErr && pc?.id, `pending_calls inserted (id=${pc?.id?.slice(0, 8)}…)`)
   expect(pc?.status === 'ringing', `initial status is 'ringing' (got '${pc?.status}')`)
 
-  // Step 5: Subscribe to the Realtime channel as the buddy, then accept as buddy.
-  // We subscribe FIRST so the UPDATE event is captured deterministically.
+  // Step 6: Subscribe to Realtime as buddy, then accept as buddy.
   console.log('\n--- Realtime UPDATE event ---')
   let updateSeen = null
   const channel = buddy.sb
     .channel(`test-pending:${pc.id}`)
     .on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'pending_calls', filter: `id=eq.${pc.id}` },
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'pending_calls',
+        filter: `id=eq.${pc.id}`,
+      },
       (payload) => {
         updateSeen = payload.new
       },
     )
     .subscribe()
-  // Wait for subscribe
   await new Promise((r) => setTimeout(r, 800))
 
   const { error: acceptErr } = await buddy.sb
@@ -156,12 +189,14 @@ async function main() {
     .eq('callee_id', buddy.userId)
   expect(!acceptErr, 'callee accepted without error')
 
-  // Wait for the realtime event
   await new Promise((r) => setTimeout(r, 1500))
-  expect(updateSeen?.status === 'accepted', `realtime UPDATE delivered status='accepted'`)
+  expect(
+    updateSeen?.status === 'accepted',
+    `realtime UPDATE delivered status='accepted'`,
+  )
   await buddy.sb.removeChannel(channel)
 
-  // Step 6: Log a call_event message (what endCall() does on real connection)
+  // Step 7: Log a call_event message (what endCall() does)
   console.log('\n--- Log call_event ---')
   const { error: msgErr } = await tourist.sb.from('messages').insert({
     conversation_id: conv.id,
@@ -172,7 +207,6 @@ async function main() {
   })
   expect(!msgErr, 'call_event message inserted')
 
-  // Verify it landed
   const { data: callRows } = await tourist.sb
     .from('messages')
     .select('id, message_type, content')
@@ -180,10 +214,11 @@ async function main() {
     .eq('message_type', 'call_event')
     .order('created_at', { ascending: false })
     .limit(1)
-  expect(callRows && callRows.length === 1 && callRows[0].content.includes('Voice call'),
-    `call_event row readable by tourist (latest: '${callRows?.[0]?.content?.slice(0, 40)}…')`)
+  expect(
+    callRows && callRows.length === 1 && callRows[0].content.includes('Voice call'),
+    `call_event row readable by tourist (latest: '${callRows?.[0]?.content?.slice(0, 40)}…')`,
+  )
 
-  // Step 7: Terminate the pending_calls row
   console.log('\n--- Terminate pending_calls ---')
   const { error: endErr } = await tourist.sb
     .from('pending_calls')

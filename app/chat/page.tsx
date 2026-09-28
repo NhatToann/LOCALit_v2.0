@@ -641,6 +641,7 @@ function ChatInner() {
         peerName: activeConv.partner_name,
         mode: 'voice',
         pendingCallId,
+        callerUserId: activeConv.partner_id,
         onState: (s) => setCallState(s),
         onError: (e) => setError(e.message),
         onLocalStream: () => undefined,
