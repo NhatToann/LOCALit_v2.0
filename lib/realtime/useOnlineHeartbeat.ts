@@ -68,6 +68,8 @@ async function callSetOnline(isOnline: boolean): Promise<void> {
 }
 
 export function useOnlineHeartbeat(currentUserId: string | null): void {
+  // eslint-disable-next-line no-console
+  console.log('[presence] hook rendered with userId=', currentUserId)
   // Refs survive strict-mode double-mount without re-creating intervals.
   const lastOnlineAtRef = useRef<number>(0)
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
