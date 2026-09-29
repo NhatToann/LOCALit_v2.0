@@ -415,10 +415,13 @@ export async function startOutgoingCall(
   // 2. Connect Stringee client (idempotent).
   const { client } = await ensureStringeeClient()
 
-  // 3. Build the call. Stringee's `from` is a display alias shown to
-  // the callee; `to` is the callee's Stringee userId (== Supabase uid
-  // because we put `userId` in the JWT claim).
-  const call = new window.StringeeCall(client, opts.myName, opts.peerId, false)
+  // 3. Build the call. For app-to-app calls, `from` MUST be the
+  // caller's Stringee User ID (== our Supabase auth.users.id, baked
+  // into the JWT's `userId` claim). Passing the display name
+  // ("John Doe") instead causes Stringee to return
+  // FROM_NUMBER_NOT_FOUND (error code 4) because no such alias
+  // exists on the project. `to` is the callee's Stringee User ID.
+  const call = new window.StringeeCall(client, opts.myId, opts.peerId, false)
   stringeeCall = call
 
   const { mute } = bindCallEvents(call, {
