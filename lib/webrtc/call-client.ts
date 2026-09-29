@@ -41,6 +41,35 @@ export type CallState =
   | 'missed'
   | 'failed'
 
+/**
+ * Coarse connection-quality bucket computed by the `useCallQuality`
+ * hook. Used by the CallModal quality strip (signal-bars icon +
+ * bitrate/RTT numbers).
+ */
+export type CallQualityLevel = 'excellent' | 'good' | 'fair' | 'poor'
+
+/**
+ * Snapshot of WebRTC stats. Computed by polling
+ * `RTCPeerConnection.getStats()` every 2s. `level` is derived from
+ * the raw numbers via thresholds in `lib/webrtc/use-call-quality.ts`.
+ */
+export interface CallQuality {
+  level: CallQualityLevel
+  /** Inbound audio bitrate in kbps over the last 2s window. */
+  bitrateKbps: number
+  /** Round-trip-time in ms (from candidate-pair stats). */
+  rttMs: number
+  /** Packet loss % over the last 2s window. */
+  packetLossPct: number
+}
+
+/**
+ * Browser-level network state. The modal watches `online`/`offline`
+ * window events and surfaces a "Reconnecting…" banner so users
+ * understand why audio cut out mid-call.
+ */
+export type NetworkStatus = 'online' | 'reconnecting' | 'offline'
+
 export interface CallClientOptions {
   conversationId: string
   myId: string
@@ -60,10 +89,36 @@ export interface CallClientOptions {
   onError?: (e: Error) => void
   onLocalStream?: (s: MediaStream) => void
   onRemoteStream?: (s: MediaStream) => void
+  /**
+   * Fires whenever the browser-level online state changes. Used by
+   * the CallModal to show the "Reconnecting…" banner. Default is a
+   * no-op so existing call-sites stay compatible.
+   */
+  onNetwork?: (status: NetworkStatus) => void
+  /**
+   * Fires with a new `CallQuality` snapshot. Driven by
+   * `useCallQuality` polling `RTCPeerConnection.getStats()`. Only
+   * fires after the call reaches `connected` state.
+   */
+  onQuality?: (q: CallQuality) => void
 }
 
 export interface CallClient {
   readonly state: CallState
+  /**
+   * Browser-level network state. The modal reads this directly to
+   * drive its "Reconnecting…" banner. Updated by an internal effect
+   * that listens for `window.online`/`window.offline` events.
+   */
+  readonly networkStatus: NetworkStatus
+  /**
+   * The native `RTCPeerConnection` for the active call, or `null`
+   * before the call connects. The `useCallQuality` hook polls
+   * `getStats()` on this object. We expose it here rather than via a
+   * getter on the Stringee SDK because Stringee doesn't ship a
+   * public API for it.
+   */
+  readonly peerConnection: RTCPeerConnection | null
   accept: () => Promise<void>
   decline: () => Promise<void>
   toggleMute: () => boolean
@@ -364,6 +419,71 @@ function bindCallEvents(
 // ---------------------------------------------------------------------------
 
 /**
+ * Extract the underlying RTCPeerConnection that Stringee created for
+ * this call. Stringee SDK attaches the native PC to each
+ * MediaStreamTrack as a private `_pc` field (or via a documented
+ * `getNativeRTCPeerConnection()` getter on newer builds). We try
+ * both shapes so the quality hook works across SDK versions.
+ *
+ * Returns `null` if we can't find it — the caller should treat
+ * `null` as "quality stats unavailable, hide the strip".
+ */
+function extractPeerConnection(stream: MediaStream | null): RTCPeerConnection | null {
+  if (!stream) return null
+  const track = stream.getTracks()[0] as
+    | (MediaStreamTrack & { _pc?: RTCPeerConnection; getNativeRTCPeerConnection?: () => RTCPeerConnection })
+    | undefined
+  if (!track) return null
+  if (typeof track.getNativeRTCPeerConnection === 'function') {
+    try {
+      return track.getNativeRTCPeerConnection()
+    } catch (err) {
+      dwarn('getNativeRTCPeerConnection threw', err)
+    }
+  }
+  return track._pc ?? null
+}
+
+/**
+ * Wire up `window.online`/`window.offline` listeners for the
+ * duration of one call. Returns:
+ *   - a getter for the current status
+ *   - a teardown function that removes the listeners
+ *
+ * Status transitions:
+ *   - 'online'      — `navigator.onLine === true`
+ *   - 'offline'     — `navigator.onLine === false`
+ *   - 'reconnecting' — was offline, just came back, but the call
+ *                      isn't `connected` yet (user-visible "we're
+ *                      trying again…" state)
+ */
+function attachNetworkWatcher(): {
+  getStatus: () => NetworkStatus
+  detach: () => void
+} {
+  if (typeof window === 'undefined') {
+    return { getStatus: () => 'online', detach: () => undefined }
+  }
+  // Start optimistic; flip on first event.
+  let last: NetworkStatus = navigator.onLine ? 'online' : 'offline'
+  const onOnline = () => {
+    last = 'online'
+  }
+  const onOffline = () => {
+    last = 'offline'
+  }
+  window.addEventListener('online', onOnline)
+  window.addEventListener('offline', onOffline)
+  return {
+    getStatus: () => last,
+    detach: () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    },
+  }
+}
+
+/**
  * Start an outgoing voice call.
  *
  * 1. INSERT pending_calls row (status='ringing') so the
@@ -381,6 +501,8 @@ export async function startOutgoingCall(
   const onError = opts.onError ?? (() => {})
   const onLocalStream = opts.onLocalStream ?? (() => {})
   const onRemoteStream = opts.onRemoteStream ?? (() => {})
+  const onNetwork = opts.onNetwork
+  const onQuality = opts.onQuality
 
   const supabase = createBrowserClient()
   let state: CallState = 'calling'
@@ -389,6 +511,27 @@ export async function startOutgoingCall(
   let muted = false
   let pendingCallId: string | null = null
   let ended = false
+  let remoteStream: MediaStream | null = null
+  let peerConn: RTCPeerConnection | null = null
+  const network = attachNetworkWatcher()
+  let networkStatus: NetworkStatus = network.getStatus()
+  // Re-fire onNetwork whenever it changes so the modal can update.
+  const emitNetwork = () => {
+    const next = network.getStatus()
+    if (next === networkStatus) return
+    networkStatus = next
+    onNetwork?.(next)
+  }
+  // After coming back online mid-call, hold the 'reconnecting'
+  // label until we either see another 'connected' signaling or the
+  // call ends. The watcher below polls every second.
+  const reconcileNetwork = setInterval(() => {
+    const next = network.getStatus()
+    if (next === 'online' && state !== 'connected' && networkStatus !== 'online') {
+      onNetwork?.('reconnecting')
+    }
+    emitNetwork()
+  }, 1000)
 
   function setState(s: CallState) {
     dlog('state', state, '->', s, '(outgoing)')
@@ -429,6 +572,14 @@ export async function startOutgoingCall(
       if (s === 'connected') {
         connectedAt = Date.now()
         setState('connected')
+        // As soon as we hit 'connected', extract the underlying
+        // RTCPeerConnection so the quality hook can start polling.
+        // Done after a microtask so Stringee has had a chance to
+        // attach `_pc` to the track.
+        if (!peerConn) {
+          const pc = extractPeerConnection(remoteStream)
+          if (pc) peerConn = pc
+        }
       } else if (s === 'ended') {
         // On remote end, we still want to log the call event and
         // close the modal. Don't call end() recursively.
@@ -438,7 +589,16 @@ export async function startOutgoingCall(
       }
     },
     onLocalStream,
-    onRemoteStream,
+    onRemoteStream: (s) => {
+      remoteStream = s
+      // Capture PC early — `addremotestream` may fire before the
+      // 'connected' signaling state on some SDK versions.
+      if (!peerConn) {
+        const pc = extractPeerConnection(s)
+        if (pc) peerConn = pc
+      }
+      onRemoteStream(s)
+    },
   })
 
   // Ring timeout: if callee doesn't accept in 45 s, mark missed.
@@ -503,6 +663,8 @@ export async function startOutgoingCall(
     if (ended) return
     ended = true
     clearTimeout(ringTimer)
+    clearInterval(reconcileNetwork)
+    network.detach()
     if (stringeeCall) {
       await new Promise<void>((resolve) => {
         try {
@@ -569,6 +731,12 @@ export async function startOutgoingCall(
     get state() {
       return state
     },
+    get networkStatus() {
+      return networkStatus
+    },
+    get peerConnection() {
+      return peerConn
+    },
     accept: async () => {
       // Caller side does not accept; this is a no-op for type compat.
     },
@@ -605,12 +773,30 @@ export async function acceptIncomingCall(
   const onError = opts.onError ?? (() => {})
   const onLocalStream = opts.onLocalStream ?? (() => {})
   const onRemoteStream = opts.onRemoteStream ?? (() => {})
+  const onNetwork = opts.onNetwork
 
   const supabase = createBrowserClient()
   let state: CallState = 'connecting'
   let connectedAt: number | null = null
   let muted = false
   let ended = false
+  let remoteStream: MediaStream | null = null
+  let peerConn: RTCPeerConnection | null = null
+  const network = attachNetworkWatcher()
+  let networkStatus: NetworkStatus = network.getStatus()
+  const emitNetwork = () => {
+    const next = network.getStatus()
+    if (next === networkStatus) return
+    networkStatus = next
+    onNetwork?.(next)
+  }
+  const reconcileNetwork = setInterval(() => {
+    const next = network.getStatus()
+    if (next === 'online' && state !== 'connected' && networkStatus !== 'online') {
+      onNetwork?.('reconnecting')
+    }
+    emitNetwork()
+  }, 1000)
 
   function setState(s: CallState) {
     dlog('state', state, '->', s, '(incoming)')
@@ -647,6 +833,10 @@ export async function acceptIncomingCall(
       if (s === 'connected') {
         connectedAt = Date.now()
         setState('connected')
+        if (!peerConn) {
+          const pc = extractPeerConnection(remoteStream)
+          if (pc) peerConn = pc
+        }
       } else if (s === 'ended') {
         void handleRemoteEnded()
       } else {
@@ -654,7 +844,14 @@ export async function acceptIncomingCall(
       }
     },
     onLocalStream,
-    onRemoteStream,
+    onRemoteStream: (s) => {
+      remoteStream = s
+      if (!peerConn) {
+        const pc = extractPeerConnection(s)
+        if (pc) peerConn = pc
+      }
+      onRemoteStream(s)
+    },
   })
 
   async function handleRemoteEnded() {
@@ -687,6 +884,8 @@ export async function acceptIncomingCall(
   async function end(): Promise<void> {
     if (ended) return
     ended = true
+    clearInterval(reconcileNetwork)
+    network.detach()
     const c: StringeeCall = call!
     try {
       await new Promise<void>((resolve) => {
@@ -744,6 +943,12 @@ export async function acceptIncomingCall(
   const clientObj: CallClient = {
     get state() {
       return state
+    },
+    get networkStatus() {
+      return networkStatus
+    },
+    get peerConnection() {
+      return peerConn
     },
     accept: async () => {
       // Already accepting on construction; no-op.
