@@ -68,7 +68,6 @@ export default function BuddyDashboardPage() {
   const [buddyDefaultTransport, setBuddyDefaultTransport] = useState<string | null>(null)
   const [expandedTrips, setExpandedTrips] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
-  const [toggling, setToggling] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -161,16 +160,6 @@ export default function BuddyDashboardPage() {
     load()
   }, [])
 
-  async function toggleAvailability() {
-    if (!profile) return
-    setToggling(true)
-    const supabase = createClient()
-    const newStatus = !profile.is_online
-    await supabase.from('profiles').update({ is_online: newStatus, last_seen: new Date().toISOString() }).eq('id', profile.id)
-    setProfile({ ...profile, is_online: newStatus })
-    setToggling(false)
-  }
-
   if (loading) {
     return (
       <div className="container-page py-16 text-center">
@@ -235,14 +224,18 @@ export default function BuddyDashboardPage() {
                 : `You are all caught up. Time to plan something fun in ${city}.`}
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={toggleAvailability}
-                disabled={toggling}
-                aria-pressed={profile?.is_online ?? false}
-                className={`inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm border transition-colors duration-150 ${
+              {/* Presence indicator — driven automatically by the
+                  GlobalOnlineHeartbeat hook in AppShell (RPC
+                  public.set_online_status, 30s cadence). No manual
+                  toggle: user presence is purely a function of whether
+                  this browser tab is currently active. */}
+              <span
+                aria-live="polite"
+                aria-label={profile?.is_online ? 'You are online' : 'You are offline'}
+                className={`inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm border ${
                   profile?.is_online
-                    ? 'bg-success-bg text-success border-success-bg hover:bg-success hover:text-paper'
-                    : 'bg-transparent text-ink border-border-strong hover:bg-paper'
+                    ? 'bg-success-bg text-success border-success-bg'
+                    : 'bg-transparent text-muted border-border'
                 }`}
               >
                 <span
@@ -250,7 +243,7 @@ export default function BuddyDashboardPage() {
                   aria-hidden="true"
                 />
                 {profile?.is_online ? 'Accepting requests' : 'Currently offline'}
-              </button>
+              </span>
               <Link
                 href={`/tourist/buddy/${profile?.id}`}
                 className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"

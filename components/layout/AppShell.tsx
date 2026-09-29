@@ -7,6 +7,7 @@ import DaNangBackdrop from './DaNangBackdrop';
 import MiniChatWindow from '@/components/chat/MiniChatWindow';
 import IncomingCallWatcher from '@/components/chat/IncomingCallWatcher';
 import { useAuthUser } from '@/lib/auth/useAuthUser';
+import { useOnlineHeartbeat } from '@/lib/realtime/useOnlineHeartbeat';
 
 const ROLE_LAYOUTS = ['/tourist', '/buddy'];
 const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
@@ -32,6 +33,18 @@ function GlobalIncomingCallWatcher() {
   return <IncomingCallWatcher currentUserId={auth?.userId ?? null} />
 }
 
+/**
+ * Mounts the online-heartbeat RPC. The hook itself owns the
+ * setInterval / visibility / beforeunload listeners. Mounting at the
+ * AppShell level means any authenticated page drives the heartbeat,
+ * not just /chat.
+ */
+function GlobalOnlineHeartbeat() {
+  const auth = useAuthUser()
+  useOnlineHeartbeat(auth?.userId ?? null)
+  return null
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const inRoleLayout = ROLE_LAYOUTS.some((p) => pathname.startsWith(p));
@@ -49,6 +62,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Footer />
         <MiniChatWindow />
         <GlobalIncomingCallWatcher />
+        <GlobalOnlineHeartbeat />
       </>
     );
   }
@@ -66,6 +80,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Footer />
       <MiniChatWindow />
       <GlobalIncomingCallWatcher />
+      <GlobalOnlineHeartbeat />
     </>
   );
 }
