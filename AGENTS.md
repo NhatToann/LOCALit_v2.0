@@ -465,6 +465,86 @@ The `animate-call-pulse-ring` utility lives in `app/globals.css` under `@layer c
 - We previously ran a self-hosted coturn TURN server (`lib/webrtc/ice-config.ts` + `/api/webrtc/turn`). That code is deprecated as of 2026-09-29; Stringee ships its own STUN/TURN (`stun:210.245.91.48:3478`, `turn:210.245.91.48:3478?transport=udp`).
 - Outgoing calls INSERT into `pending_calls` first, then call the SDK. Incoming calls hit `StringeeClient.on('incomingcall')` and resolve via the `pending_calls` row + `acceptIncomingCall()`.
 
+## Online Presence (2026-09-30 — Phase 1 heartbeat rewrite)
+
+The marketplace had no working auto-presence before this rewrite:
+`profiles.is_online` was read by 12+ queries (browse, map, chat,
+chat-header, voice-call gate) but was never set automatically.
+Tourists logged in and stayed "offline" forever; buddies had a
+manual toggle that stuck at "online" after they closed the tab.
+
+### How presence works now (single source of truth = DB)
+
+```
+┌──────────────┐                              ┌────────────────────────┐
+│ Browser tab  │  mount → RPC(true)          │ public.profiles        │
+│ (authenticated)│  heartbeat 30s → RPC(true)│ is_online  last_seen   │
+│              │  hidden>5m → RPC(false)    │  ↑           ↑         │
+│              │  beforeunload → RPC(false) │  └──── cron job every 5m
+│              │  signout → RPC(false)      │  flips rows where      │
+└──────────────┘                              │  last_seen < now()-90s │
+                                              └────────────────────────┘
+```
+
+**RPC `public.set_online_status(p_is_online boolean)`** — `SECURITY
+DEFINER`. The client doesn't need direct UPDATE on `profiles`. The
+function checks `auth.uid()` and refuses anything else (42501).
+
+**Hook `lib/realtime/useOnlineHeartbeat.ts`** — mounted by
+`<GlobalOnlineHeartbeat />` in `AppShell` so it runs on every
+authenticated page (not just `/chat`). Responsibilities:
+- Mount → `set_online_status(true)`
+- Heartbeat every **30 s** while tab is visible
+- `visibilitychange` → if hidden, start a 5-min timer; if visible
+  again, reset and call `set_online_status(true)` immediately
+- `beforeunload` → fetch+keepalive (best-effort)
+- `localit-auth-changed` → `set_online_status(false)` + stop
+  heartbeat (sign-out path)
+
+**Cron `localit-mark-stale-offline`** — runs `*/5 * * * *` (every 5
+min). Calls `public.mark_stale_users_offline()` which flips
+`is_online=false` where `last_seen < now() - 90s`. Defensive: catches
+browsers that crash, lose network, or never fire `beforeunload`.
+
+**`buddy/dashboard` manual toggle removed.** The presence badge is
+now a passive indicator — driven by the heartbeat. Per user
+decision on 2026-09-30 (heartbeat-driven, no manual override).
+
+### Phase 2 — Realtime presence channel (separate PR)
+
+Currently presence sync goes DB → next-page-load (browse/map/chat).
+For chat header and voice-call button, the data is "stale" by up to
+30 s. Phase 2 adds a `presence-global` Realtime channel that all
+authenticated users track on, so the UI flips in sub-second time
+without waiting for the next page navigation.
+
+### How to verify locally
+
+```bash
+# 1. Apply the migration (idempotent)
+node scripts\apply-migration.mjs supabase\migrations\2026-09-30-online-status-heartbeat.sql
+
+# 2. Run the Playwright presence suite (11 checks)
+cmd /c "scripts\run-presence-test.bat"
+```
+
+### Vercel alias gotcha (2026-09-30)
+
+⚠️ The canonical aliases `localit-nhattoann.vercel.app` and
+`localit-vn.vercel.app` were pointing at a 5-day-old deployment
+(manual `vercel alias set` from a previous session). Production
+deploys via `vercel --prod --yes` create a new hash URL but do NOT
+auto-move the canonical alias. **Always re-point the alias after a
+deploy** if you want users to hit the new code:
+
+```bash
+vercel alias set <latest-hash>-nhattoann.vercel.app localit-nhattoann.vercel.app
+vercel alias set <latest-hash>-nhattoann.vercel.app localit-vn.vercel.app
+```
+
+Otherwise tests against the canonical URL hit stale code. Use
+`vercel ls --prod` to find the latest hash.
+
 ### Future work
 
 - **Background-connect**: mount `IncomingCallWatcher` (or a stripped-down `ensureStringeeClient` + `client.on('incomingcall')`) in a layout-level component (e.g. `app/(authenticated)/layout.tsx`) so buddies are reachable even when they're not on `/chat`. This is the #1 prerequisite for buddy calls to work reliably in production.
