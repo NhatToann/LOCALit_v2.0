@@ -391,6 +391,84 @@ When user returns, ask if they want to:
 6. Image uploads (Supabase Storage)
 7. Payments (Stripe)
 8. i18n (English primary, Vietnamese secondary)
+9. **Voice calls — background-connect Stringee for buddies** (see "Stringee Voice Calls" section below). Current behavior: buddies must have `/chat` open in some browser to be reachable; otherwise inbound calls fail with `FROM_NUMBER_NOT_FOUND` (`toType=external`).
+
+## Stringee Voice Calls (2026-09-29)
+
+**Stack**: `StringeeClient` SDK loaded from CDN, JWT signed server-side at `POST /api/stringee/access-token`. See `lib/webrtc/call-client.ts` and `app/api/stringee/access-token/route.ts`.
+
+### Critical behavior to remember
+
+- **Both parties MUST be actively connected** to receive/make calls. Stringee CPaaS de-registers a user when their `StringeeClient.disconnect()` fires or when their session ends.
+- `toType=internal` ⇒ both are in the project and the call will deliver. `toType=external` ⇒ the `to` user is not currently connected; **Stringee returns `r=4, message=FROM_NUMBER_NOT_FOUND`** and the call fails.
+- For app-to-app calls, `from` MUST be the **Stringee User ID = Supabase auth.users.id**. Passing the display name triggers the same `FROM_NUMBER_NOT_FOUND` error.
+- The `IncomingCallWatcher` (`app/chat/page.tsx` + `lib/webrtc/call-client.ts`) only mounts on the `/chat` route. Buddies who never visit `/chat` are not reachable.
+
+### Presence gate (UI safety)
+
+The Start voice call button in `/chat` is **gated by Supabase Realtime presence** (`usePresence` on the conversation channel — `lib/realtime/usePresence.ts`). When the partner is offline:
+- The button is rendered `disabled` with `PhoneOff` icon instead of `Phone` and a tooltip "Buddy is offline".
+- `startCall()` rejects with `Cannot call: buddy is offline.` before any SDK call.
+- Auto-call deeplinks (`?buddy=X&call=1`) defer to the same `startCall()` gate, so they surface the same inline error rather than firing a call that would immediately fail with `FROM_NUMBER_NOT_FOUND`.
+
+### Call UI (CallModal)
+
+`components/chat/CallModal.tsx` is a WhatsApp-style voice-call sheet with these per-state visuals:
+
+| State | Visual | Buttons |
+|---|---|---|
+| `calling` / `ringing` (outgoing) / `connecting` | Avatar with two staggered `animate-call-pulse-ring` rings | `Mute` (disabled until connected) · `Speaker` · `End` |
+| `connected` | Quality strip: `SignalHigh/Medium/Low` icon + level label + `bitrateKbps` + `rttMs` (mono font) | `Mute` · `Speaker` · `End` |
+| `ringing` (incoming) | Pulsing avatar, green "Incoming call" headline | Big `Accept` (success) · big `Decline` (danger) |
+| `declined` | Avatar dimmed + `PhoneOff` overlay, "Call declined" headline | `Close` (auto-dismiss 2.5s) |
+| `missed` | Avatar + `PhoneMissed` overlay, "No answer" headline | `Call again` · `Close` (auto-dismiss 3s) |
+| `ended` | Avatar dimmed, "Call ended · MM:SS" headline | `Close` (auto-dismiss 1.5s) |
+| `failed` | Avatar + `PhoneOff` overlay, error.message | `Close` (auto-dismiss 3.5s) |
+
+Network banner (`bg-warning-bg text-warning`, `Loader2 animate-spin` icon) shows when `navigator.onLine === false` mid-call. Reverts to `online` when the browser reconnects; if the call hasn't reached `connected` yet, the modal briefly shows "Reconnecting…".
+
+### Live connection quality (`useCallQuality`)
+
+`lib/webrtc/use-call-quality.ts` polls `RTCPeerConnection.getStats()` every 2s and reports a `CallQuality` snapshot:
+- `bitrateKbps` from inbound audio `bytesReceived` delta
+- `packetLossPct` from `packetsLost` / `packetsReceived` delta
+- `rttMs` from candidate-pair `currentRoundTripTime * 1000`
+
+Level thresholds:
+- `excellent` — bitrate ≥ 50 kbps, loss < 2%, RTT < 80 ms
+- `good` — bitrate ≥ 30 kbps, loss < 5%, RTT < 150 ms
+- `fair` — bitrate ≥ 16 kbps, loss < 10%, RTT < 250 ms
+- `poor` — anything else (badge animates `pulse`)
+
+If Stringee SDK doesn't expose the underlying `RTCPeerConnection` (no `_pc` field on the track, no `getNativeRTCPeerConnection()` getter), the quality strip stays hidden — UI is graceful.
+
+### Speaker toggle
+
+`CallModal` exposes a `Speaker` button that calls `audio.setSinkId(...)` on the chat page's hidden `<audio>` element. Chromium-based browsers support it; on Firefox/Safari the button renders `disabled` with a tooltip explaining the limitation. Default sink is `''` (system default); toggling to `'default'` is a no-op identity change but documents the user's intent.
+
+### Pulse animation (custom utility)
+
+The `animate-call-pulse-ring` utility lives in `app/globals.css` under `@layer components` and is keyed off `call-pulse-ring`. Two rings expand and fade over 1.5s with a 0.6s stagger, giving a WhatsApp-style "I'm dialing" cue without any decorative chrome.
+
+### How to make a buddy reachable for a test call
+
+1. Open a separate browser/tab as the buddy (`lan.pham@localit.dev` / `password123`).
+2. Navigate to `/chat` (even an empty chat page is enough — the SDK auto-connects).
+3. Keep that tab open in the background.
+4. From the caller side, click Start voice call — `toType` will now be `internal` and `makeCall` will return `r=0, message=SUCCESS`.
+
+### Common pitfalls
+
+- **"FROM_NUMBER_NOT_FOUND" still appearing after the user is signed in**: usually means the buddy's `StringeeClient` is not currently connected. Open their `/chat` tab and retry.
+- **Debug logs are stripped in production** — `dlog`/`dwarn` in `lib/webrtc/call-client.ts` are gated by `process.env.NODE_ENV !== 'production'`. Add temporary `console.log` calls when debugging live issues.
+- The Stringee SDK is loaded from `https://cdn.stringee.com/sdk/web/latest/stringee-web-sdk.min.js`. Types live in `types/stringee.d.ts` (lightweight local stub).
+- We previously ran a self-hosted coturn TURN server (`lib/webrtc/ice-config.ts` + `/api/webrtc/turn`). That code is deprecated as of 2026-09-29; Stringee ships its own STUN/TURN (`stun:210.245.91.48:3478`, `turn:210.245.91.48:3478?transport=udp`).
+- Outgoing calls INSERT into `pending_calls` first, then call the SDK. Incoming calls hit `StringeeClient.on('incomingcall')` and resolve via the `pending_calls` row + `acceptIncomingCall()`.
+
+### Future work
+
+- **Background-connect**: mount `IncomingCallWatcher` (or a stripped-down `ensureStringeeClient` + `client.on('incomingcall')`) in a layout-level component (e.g. `app/(authenticated)/layout.tsx`) so buddies are reachable even when they're not on `/chat`. This is the #1 prerequisite for buddy calls to work reliably in production.
+- **Push notifications** when the buddy tab is closed (Stringee supports FCM/APNs via their server APIs).
 
 ## Session Etiquette
 

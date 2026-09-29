@@ -8,6 +8,7 @@ import {
   Send,
   Search,
   Phone,
+  PhoneOff,
   Paperclip,
   Smile,
   X,
@@ -125,10 +126,15 @@ function ChatInner() {
   }, [convParam, myId, conversations.length])
 
   // Auto-trigger voice call when ?buddy=X&call=1 (or call=voice) present.
-  // Legacy ?call=video is treated as voice (no video support anymore).
+// Legacy ?call=video is treated as voice (no video support anymore).
   // Legacy auto-call trigger: ?buddy=X&call=1 means "open conversation
   // with X and immediately call them". Replaced by IncomingCallWatcher
   // for the receive path; this only handles the dial-via-deeplink case.
+  //
+  // Safety: startCall() gates on `isPartnerOnline` (computed later in
+  // the component) and surfaces an inline error if the buddy is
+  // offline. We don't pre-check here to avoid referencing
+  // `isPartnerOnline` before its declaration.
   useEffect(() => {
     if (callParam === '1' && buddyParam && myId) {
       // Wait for active conversation to exist before kicking off the call
@@ -596,6 +602,14 @@ function ChatInner() {
       setError('Open a conversation first.')
       return
     }
+    // Presence gate: don't try to call a buddy who isn't connected
+    // to Supabase Realtime — the call would fail with
+    // FROM_NUMBER_NOT_FOUND because their StringeeClient isn't
+    // registered with the project (see AGENTS.md).
+    if (!isPartnerOnline) {
+      setError('Cannot call: buddy is offline.')
+      return
+    }
     if (callClient) return
     setCallMode(mode)
     setCallState('calling')
@@ -849,10 +863,17 @@ function ChatInner() {
                 <button
                   type="button"
                   onClick={() => startCall('voice')}
-                  aria-label="Start voice call"
-                  className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+                  disabled={!isPartnerOnline}
+                  aria-label={isPartnerOnline ? 'Start voice call' : 'Call unavailable — buddy offline'}
+                  aria-disabled={!isPartnerOnline}
+                  title={isPartnerOnline ? undefined : 'Buddy is offline'}
+                  className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 >
-                  <Phone size={15} aria-hidden="true" />
+                  {isPartnerOnline ? (
+                    <Phone size={15} aria-hidden="true" />
+                  ) : (
+                    <PhoneOff size={15} aria-hidden="true" />
+                  )}
                 </button>
               </header>
 
@@ -1158,9 +1179,17 @@ function ChatInner() {
                 <button
                   type="button"
                   onClick={() => startCall('voice')}
-                  className="inline-flex items-center gap-2 h-9 px-3 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+                  disabled={!isPartnerOnline}
+                  aria-label={isPartnerOnline ? 'Voice call' : 'Call unavailable — buddy offline'}
+                  aria-disabled={!isPartnerOnline}
+                  title={isPartnerOnline ? undefined : 'Buddy is offline'}
+                  className="inline-flex items-center gap-2 h-9 px-3 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary"
                 >
-                  <Phone size={13} aria-hidden="true" />
+                  {isPartnerOnline ? (
+                    <Phone size={13} aria-hidden="true" />
+                  ) : (
+                    <PhoneOff size={13} aria-hidden="true" />
+                  )}
                   Voice call
                 </button>
                 <Link
@@ -1196,6 +1225,7 @@ function ChatInner() {
           partnerAvatar={activeConv.partner_avatar}
           isOutgoing={isOutgoing}
           state={callState}
+          audioRef={remoteAudioRef}
           onEnd={endCall}
         />
       ) : null}
