@@ -37,9 +37,9 @@ const HIDDEN_OFFLINE_AFTER_MS = 5 * 60_000 // 5 min hidden → set offline
 const RPC_NAME = 'set_online_status'
 
 function dlog(...args: unknown[]): void {
-  if (process.env.NODE_ENV === 'production') return
+  // Temporarily ALWAYS log so we can debug production heartbeat.
   // eslint-disable-next-line no-console
-  console.debug('[presence]', ...args)
+  console.log('[presence]', ...args)
 }
 
 /**
