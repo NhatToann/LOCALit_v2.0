@@ -1080,9 +1080,15 @@ async function ensureInboundChannel(userId: string): Promise<void> {
   // Start the polling fallback. Even if realtime events arrive,
   // polling also catches any rows the realtime path missed (e.g.
   // during a transient WS reconnect).
+  if (DEBUG_CALL) {
+    // eslint-disable-next-line no-console
+    console.log('[dlog] ensureInboundChannel: starting poller for', userId)
+  }
   void (async () => {
+    let ticks = 0
     while (!stop) {
       await new Promise((r) => setTimeout(r, 500))
+      ticks++
       try {
         await pollOnce()
       } catch (e) {
@@ -1091,6 +1097,14 @@ async function ensureInboundChannel(userId: string): Promise<void> {
           console.log('[dlog] inbound poll loop ERR', (e as Error).message)
         }
       }
+      if (DEBUG_CALL && ticks === 3) {
+        // eslint-disable-next-line no-console
+        console.log('[dlog] poll loop alive after 3 ticks')
+      }
+    }
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] poll loop stopped for', userId)
     }
   })()
 
