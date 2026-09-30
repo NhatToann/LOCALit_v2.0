@@ -745,9 +745,11 @@ function ChatInner() {
   // to be set before calling acceptCall. But on a fresh /chat?call=X
   // navigation, the conversations query was still in-flight and the
   // early return fired → no modal. acceptCall now reads the row
-  // directly so it can complete the accept regardless.
+  // directly so it can complete the accept regardless. We also wait
+  // for `loading=false` (set at the end of init()) so myId is
+  // guaranteed to be populated.
   useEffect(() => {
-    if (!callParam || !myId || callClient) return
+    if (!callParam || loading || !myId || callClient) return
     const isCallerParam =
       callParam === '1' || callParam === 'voice' || callParam === 'video'
     if (isCallerParam) return
@@ -775,7 +777,7 @@ function ChatInner() {
     return () => {
       cancelled = true
     }
-  }, [callParam, myId, callClient])
+  }, [callParam, loading, myId, callClient])
 
   // Search filter
   const filteredMessages = useMemo(() => {
