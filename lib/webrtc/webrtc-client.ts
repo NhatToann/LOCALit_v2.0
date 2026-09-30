@@ -263,9 +263,20 @@ function buildPeerConnection(
 
   // ICE candidates come back asynchronously as the browser gathers
   // them. We push them to the peer via signaling.
-  pc.onicecandidate = (event) => {
+  /**
+ * Diagnostic logging — gated behind `NEXT_PUBLIC_CALL_DEBUG=1` so it
+ * stays out of normal user sessions but can be flipped on for a
+ * reproduction test via Vercel env vars (no code change needed).
+ */
+const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
+
+pc.onicecandidate = (event) => {
     if (event.candidate) {
       hooks.onIceCandidate(event.candidate.toJSON())
+      if (DEBUG_CALL) {
+        // eslint-disable-next-line no-console
+        console.log('[dlog] local ICE', event.candidate.candidate?.slice(0, 60))
+      }
     }
   }
 
@@ -275,7 +286,25 @@ function buildPeerConnection(
   }
 
   pc.onconnectionstatechange = () => {
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] pc.connectionState', pc.connectionState)
+    }
     hooks.onConnectionStateChange(pc.connectionState)
+  }
+
+  pc.oniceconnectionstatechange = () => {
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] pc.iceConnectionState', pc.iceConnectionState)
+    }
+  }
+
+  pc.onicegatheringstatechange = () => {
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] pc.iceGatheringState', pc.iceGatheringState)
+    }
   }
 
   let localStream: MediaStream | null = null
