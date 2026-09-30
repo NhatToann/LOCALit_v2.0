@@ -138,11 +138,30 @@ interface SignalingMessage {
 
 const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
 
-async function sendSignaling(toUserId: string, msg: SignalingMessage): Promise<void> {
-  if (DEBUG_CALL) {
-    // eslint-disable-next-line no-console
-    console.log('[dlog] sendSignaling', msg.type, '→', toUserId, 'callId=', msg.callId)
-  }
+/**
+ * Per-target outbound channels — persistent for the lifetime of a
+ * call. Holding the channel open (instead of creating-then-removing
+ * on every send) is what lets Supabase Realtime broadcast actually
+ * reach the peer: the realtime gateway only fans out broadcasts
+ * between currently-subscribed members. Ephemeral channels that
+ * subscribe → send → unsubscribe immediately are unreliable
+ * (observed in repro 2026-09-30: caller sent 12 ICE candidates
+ * successfully but the callee never received any of them).
+ *
+ * Cleanup: `releaseOutboundChannel(target)` is called from
+ * finalize()/end() so the channel is removed exactly once when the
+ * call terminates.
+ */
+const outboundChannels = new Map<
+  string,
+  ReturnType<ReturnType<typeof createBrowserClient>['channel']>
+>()
+
+async function acquireOutboundChannel(
+  toUserId: string,
+): Promise<ReturnType<ReturnType<typeof createBrowserClient>['channel']>> {
+  const existing = outboundChannels.get(toUserId)
+  if (existing) return existing
   const supabase = createBrowserClient()
   const channel = supabase.channel(`calls:${toUserId}`, {
     config: { broadcast: { self: false, ack: false } },
@@ -151,14 +170,54 @@ async function sendSignaling(toUserId: string, msg: SignalingMessage): Promise<v
     channel.subscribe((status) => {
       if (DEBUG_CALL) {
         // eslint-disable-next-line no-console
-        console.log('[dlog] sendSignaling subscribe', status, 'channel', `calls:${toUserId}`)
+        console.log(
+          '[dlog] acquireOutboundChannel subscribe',
+          status,
+          'channel',
+          `calls:${toUserId}`,
+        )
       }
       if (status === 'SUBSCRIBED') resolve()
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+      if (
+        status === 'CHANNEL_ERROR' ||
+        status === 'TIMED_OUT' ||
+        status === 'CLOSED'
+      ) {
         resolve()
       }
     })
   })
+  outboundChannels.set(toUserId, channel)
+  return channel
+}
+
+async function releaseOutboundChannel(toUserId: string): Promise<void> {
+  const channel = outboundChannels.get(toUserId)
+  if (!channel) return
+  outboundChannels.delete(toUserId)
+  try {
+    const supabase = createBrowserClient()
+    await supabase.removeChannel(channel)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function sendSignaling(toUserId: string, msg: SignalingMessage): Promise<void> {
+  if (DEBUG_CALL) {
+    // eslint-disable-next-line no-console
+    console.log('[dlog] sendSignaling', msg.type, '→', toUserId, 'callId=', msg.callId)
+  }
+  let channel: ReturnType<ReturnType<typeof createBrowserClient>['channel']>
+  try {
+    channel = await acquireOutboundChannel(toUserId)
+  } catch (err) {
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] sendSignaling acquire ERR', msg.type, (err as Error).message)
+    }
+    throw err
+  }
   try {
     await channel.send({
       type: 'broadcast',
@@ -174,14 +233,23 @@ async function sendSignaling(toUserId: string, msg: SignalingMessage): Promise<v
       // eslint-disable-next-line no-console
       console.log('[dlog] sendSignaling send ERR', msg.type, (err as Error).message)
     }
-    throw err
-  } finally {
-    try {
-      await supabase.removeChannel(channel)
-    } catch {
-      /* ignore */
+    // If the persistent channel died (CLOSED/ERROR) drop it so the
+    // next call acquires a fresh one.
+    if (
+      err instanceof Error &&
+      /(CLOSED|CHANNEL_ERROR|TIMED_OUT)/i.test(err.message)
+    ) {
+      await releaseOutboundChannel(toUserId)
     }
+    throw err
   }
+}
+
+/**
+ * Test/debug only — clear cached outbound channels.
+ */
+export function __resetOutboundChannels(): void {
+  outboundChannels.clear()
 }
 
 /**
@@ -397,6 +465,7 @@ export async function startOutgoingCall(
       pendingCallId,
       s === 'connected' ? 'accepted' : s === 'calling' ? 'cancelled' : 'expired',
     )
+    void releaseOutboundChannel(opts.peerId)
   }
 
   async function end(): Promise<void> {
@@ -646,6 +715,7 @@ export async function acceptIncomingCall(
     pcTeardown?.()
     network.detach()
     void updatePendingTerminal(callId, state === 'connected' ? 'accepted' : 'cancelled')
+    void releaseOutboundChannel(callerId)
     emit('ended')
   }
 

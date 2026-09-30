@@ -300,6 +300,13 @@ async function main() {
   console.log('[repro] buddy navigates to /chat')
   await ensureSignedIn(buddyPage, buddySession)
   await buddyPage.waitForTimeout(2000)
+  const buddyCookies = await buddyCtx.cookies()
+  console.log(`  buddy has ${buddyCookies.length} cookies`)
+  for (const c of buddyCookies) {
+    if (c.name.includes('auth-token')) {
+      console.log(`    ${c.name} (len ${c.value.length})`)
+    }
+  }
 
   console.log('[repro] tourist navigates to /chat with conversation id')
   await ensureSignedIn(touristPage, touristSession)
