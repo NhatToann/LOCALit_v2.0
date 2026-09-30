@@ -85,10 +85,13 @@ export async function POST(req: NextRequest) {
 
   const apiKey = getSecret('LIVEKIT_API_KEY')
   const apiSecret = getSecret('LIVEKIT_API_SECRET')
-  const wsUrl =
-    process.env.NEXT_PUBLIC_LIVEKIT_URL ||
-    process.env.LIVEKIT_URL ||
-    ''
+  // Server-only env var. The client receives the wsUrl from this
+  // response — it doesn't need to read it directly. We deliberately
+  // ignore NEXT_PUBLIC_LIVEKIT_URL because Next.js inlines public
+  // vars at build time, and an outdated build cache could ship a
+  // stale (truncated) value to the browser. Server-side read is
+  // always authoritative.
+  const wsUrl = process.env.LIVEKIT_URL || ''
   if (!apiKey || !apiSecret || !wsUrl) {
     return NextResponse.json(
       { error: 'LiveKit is not configured on this server' },
