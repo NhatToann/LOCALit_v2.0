@@ -31,58 +31,29 @@ function admin() {
   })
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const sb = admin()
-    const url = new URL(req.url)
-    const create = url.searchParams.get('create') === '1'
-    // Find seeded John↔Lan conversation (any direction)
-    const { data: convs } = await sb
+    // Find seeded John↔Lan conversation
+    const { data: conv } = await sb
       .from('conversations')
       .select(
         'id, tourist_id, buddy_id, tourist:profiles!conversations_tourist_id_fkey(id, full_name), buddy:profiles!conversations_buddy_id_fkey(id, full_name)',
       )
-      .or(
-        'and(tourist_id.eq.aaaa1111-1111-1111-1111-111111111111,buddy_id.eq.11111111-1111-1111-1111-111111111111),and(tourist_id.eq.11111111-1111-1111-1111-111111111111,buddy_id.eq.aaaa1111-1111-1111-1111-111111111111)',
-      )
+      .eq('tourist_id', 'aaaa1111-1111-1111-1111-111111111111')
+      .eq('buddy_id', '11111111-1111-1111-1111-111111111111')
       .order('created_at', { ascending: false })
       .limit(1)
-    let conv = convs?.[0] ?? null
-    if (!conv && create) {
-      // Create a conversation with tourist_id=John, buddy_id=Lan
-      const { data: created, error: createErr } = await sb
-        .from('conversations')
-        .insert({
-          tourist_id: 'aaaa1111-1111-1111-1111-111111111111',
-          buddy_id: '11111111-1111-1111-1111-111111111111',
-        })
-        .select('id, tourist_id, buddy_id')
-        .single()
-      if (createErr || !created) {
-        return NextResponse.json(
-          { error: 'failed to create conv: ' + (createErr?.message ?? 'unknown') },
-          { status: 500 },
-        )
-      }
-      conv = created
-    }
+      .maybeSingle()
     if (!conv) {
-      return NextResponse.json(
-        {
-          error:
-            'no John↔Lan conversation. Pass ?create=1 to auto-create one.',
-        },
-        { status: 404 },
-      )
+      return NextResponse.json({ error: 'no John↔Lan conversation' }, { status: 404 })
     }
-    const touristProfile = (conv as { tourist?: { full_name?: string | null } }).tourist
-    const buddyProfile = (conv as { buddy?: { full_name?: string | null } }).buddy
     return NextResponse.json({
-      conversationId: (conv as { id: string }).id,
+      conversationId: conv.id,
       callerId: 'aaaa1111-1111-1111-1111-111111111111',
-      callerName: touristProfile?.full_name ?? 'John Doe',
+      callerName: (conv.tourist as { full_name?: string | null })?.full_name ?? 'John Doe',
       calleeId: '11111111-1111-1111-1111-111111111111',
-      calleeName: buddyProfile?.full_name ?? 'Lan Pham',
+      calleeName: (conv.buddy as { full_name?: string | null })?.full_name ?? 'Lan Pham',
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
