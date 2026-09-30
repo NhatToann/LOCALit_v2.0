@@ -24,6 +24,8 @@ import { useIncomingCall, type IncomingCall } from '@/lib/realtime/useIncomingCa
 import { declineIncomingCall } from '@/lib/webrtc/webrtc-client'
 import { Avatar } from '@/components/ui/Avatar'
 
+const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
+
 interface Props {
   currentUserId: string | null
 }
@@ -33,6 +35,16 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [declineBusy, setDeclineBusy] = useState(false)
+
+  useEffect(() => {
+    if (DEBUG_CALL && incoming) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] IncomingCallWatcher: incoming detected', {
+        pendingCallId: incoming.pendingCallId,
+        callerName: incoming.callerName,
+      })
+    }
+  }, [incoming])
 
   // If we're already on /chat with the matching ?call= param, hide the popup
   // (the chat page will show its own CallModal).
@@ -45,11 +57,19 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
 
   async function handleAccept() {
     if (!incoming) return
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] IncomingCallWatcher: handleAccept', incoming.pendingCallId)
+    }
     router.push(`/chat?call=${incoming.pendingCallId}`)
   }
 
   async function handleDecline() {
     if (!incoming || declineBusy) return
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] IncomingCallWatcher: handleDecline', incoming.pendingCallId)
+    }
     setDeclineBusy(true)
     try {
       const supabase = createClient()

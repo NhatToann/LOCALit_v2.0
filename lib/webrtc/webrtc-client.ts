@@ -136,7 +136,13 @@ interface SignalingMessage {
   candidate?: RTCIceCandidateInit
 }
 
+const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
+
 async function sendSignaling(toUserId: string, msg: SignalingMessage): Promise<void> {
+  if (DEBUG_CALL) {
+    // eslint-disable-next-line no-console
+    console.log('[dlog] sendSignaling', msg.type, '→', toUserId, 'callId=', msg.callId)
+  }
   const supabase = createBrowserClient()
   const channel = supabase.channel(`calls:${toUserId}`, {
     config: { broadcast: { self: false, ack: false } },
@@ -268,8 +274,6 @@ function buildPeerConnection(
  * stays out of normal user sessions but can be flipped on for a
  * reproduction test via Vercel env vars (no code change needed).
  */
-const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
-
 pc.onicecandidate = (event) => {
     if (event.candidate) {
       hooks.onIceCandidate(event.candidate.toJSON())
@@ -566,6 +570,14 @@ export async function startOutgoingCall(
 export async function acceptIncomingCall(
   opts: CallClientOptions,
 ): Promise<{ client: CallClient }> {
+  if (DEBUG_CALL) {
+    // eslint-disable-next-line no-console
+    console.log('[dlog] acceptIncomingCall called', {
+      callId: opts.pendingCallId,
+      myId: opts.myId,
+      peerId: opts.peerId,
+    })
+  }
   if (!opts.pendingCallId) {
     throw new Error('acceptIncomingCall requires pendingCallId')
   }
@@ -781,6 +793,10 @@ let inboundChannel: ReturnType<ReturnType<typeof createBrowserClient>['channel']
 let inboundUserId: string | null = null
 
 async function ensureInboundChannel(userId: string): Promise<void> {
+  if (DEBUG_CALL) {
+    // eslint-disable-next-line no-console
+    console.log('[dlog] ensureInboundChannel', userId)
+  }
   if (inboundChannel && inboundUserId === userId) return
   if (inboundChannel) {
     try {
@@ -799,6 +815,10 @@ async function ensureInboundChannel(userId: string): Promise<void> {
   channel.on('broadcast', { event: 'signal' }, (raw) => {
     const msg = raw.payload as SignalingMessage | null
     if (!msg) return
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] inboundChannel recv', msg.type, 'callId=', msg.callId)
+    }
     for (const sub of inboundSubscribers) {
       try {
         sub(msg)

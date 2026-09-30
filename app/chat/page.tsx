@@ -52,6 +52,7 @@ import { activeCallStore } from '@/lib/realtime/useActiveCallStore'
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '🔥', '🙏']
 const MAX_MESSAGE_LEN = 1000
 const EDIT_WINDOW_MS = 15 * 60 * 1000
+const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
 
 interface ConvSummary {
   id: string
@@ -652,6 +653,16 @@ function ChatInner() {
   }
 
   async function startCall(mode: CallMode) {
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] startCall invoked', {
+        mode,
+        activeConvId: activeConv?.id,
+        partnerId: activeConv?.partner_id,
+        isPartnerOnline,
+        callClientExists: !!callClient,
+      })
+    }
     if (!activeConv || !myId) {
       setError('Open a conversation first.')
       return
@@ -747,6 +758,14 @@ function ChatInner() {
    *   has loaded yet.
    */
   async function acceptCall(pendingCallId: string) {
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] acceptCall invoked', {
+        pendingCallId,
+        myId,
+        callClientExists: !!callClient,
+      })
+    }
     if (!myId || callClient) return
     setCallMode('voice')
     setIsOutgoing(false)
@@ -890,6 +909,10 @@ function ChatInner() {
   // guaranteed to be populated.
   useEffect(() => {
     if (!callParam || loading || !myId || callClient) return
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] chat deep-link effect', { callParam, loading, myId })
+    }
     const isCallerParam =
       callParam === '1' || callParam === 'voice' || callParam === 'video'
     if (isCallerParam) return

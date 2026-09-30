@@ -18,6 +18,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/auth'
 
+const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
+
 export interface IncomingCall {
   pendingCallId: string
   conversationId: string
@@ -110,6 +112,10 @@ export function useIncomingCall(currentUserId: string | null): IncomingCall | nu
             status: string
             created_at: string
           }
+          if (DEBUG_CALL) {
+            // eslint-disable-next-line no-console
+            console.log('[dlog] useIncomingCall INSERT', row.id, 'status', row.status)
+          }
           if (row.status !== 'ringing') return
           // Only show if there isn't already an incoming call surfaced.
           setIncoming((cur) => cur ?? null)
@@ -135,6 +141,11 @@ export function useIncomingCall(currentUserId: string | null): IncomingCall | nu
         },
       )
       .subscribe()
+
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] useIncomingCall subscribed', currentUserId)
+    }
 
     return () => {
       cancelled = true
