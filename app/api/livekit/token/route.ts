@@ -31,7 +31,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server'
 import { AccessToken } from 'livekit-server-sdk'
-import { jwtVerify } from 'jose'
+import { createClient as createServerSupabase } from '@/utils/supabase/server'
 import { rateLimit, getClientIp } from '@/utils/rate-limit'
 
 export const dynamic = 'force-dynamic'
@@ -45,57 +45,27 @@ function getSecret(name: string): string | null {
 }
 
 async function getAuthenticatedUserId(req: NextRequest): Promise<string | null> {
-  // 1) SSR cookie session — try the @supabase/ssr cookie value
-  //    directly. The cookie is NOT HttpOnly (httpOnly=false) so the
-  //    request object can read it.
-  const projectRef = (() => {
-    try {
-      return new URL(
-        process.env.NEXT_PUBLIC_SUPABASE_URL ??
-          'https://pqvnjgyqbxlylawwogjv.supabase.co',
-      ).hostname.split('.')[0]
-    } catch {
-      return null
-    }
-  })()
-  if (projectRef) {
-    const cookieName = `sb-${projectRef}-auth-token`
-    const cookie = req.cookies.get(cookieName)
-    if (cookie?.value) {
-      let value = decodeURIComponent(cookie.value)
-      if (value.startsWith('base64-')) value = value.slice('base64-'.length)
-      const b64 = value.replace(/-/g, '+').replace(/_/g, '/')
-      try {
-        const session = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'))
-        if (session?.access_token) return session.access_token
-      } catch {
-        /* fallthrough to localStorage path on the client */
-      }
-    }
+  // Use the SSR cookie-aware Supabase client. This validates the
+  // JWT signature against the Supabase project's JWT secret (via
+  // the REST API), so we don't need to roll our own jose verifier
+  // here — getUser() handles cookie decoding, refresh, and expiry.
+  try {
+    const supabase = await createServerSupabase()
+    const { data } = await supabase.auth.getUser()
+    if (data?.user?.id) return data.user.id
+  } catch {
+    /* fall through */
   }
 
-  // 2) Bearer access_token from the Authorization header. The chat
-  //    page's `createClient(@supabase/ssr)` will pass it through.
+  // Fallback: accept a Bearer access_token from the Authorization
+  // header. The browser will pass it when the calling code uses
+  // `supabase.functions.invoke` with the user's session.
   const auth = req.headers.get('authorization')
   if (auth?.startsWith('Bearer ')) {
-    return auth.slice('Bearer '.length).trim() || null
+    const token = auth.slice('Bearer '.length).trim()
+    if (token) return token
   }
   return null
-}
-
-async function userIdFromJwt(jwt: string): Promise<string | null> {
-  const secret = getSecret('SUPABASE_JWT_SECRET')
-  if (!secret) return null
-  try {
-    const { payload } = await jwtVerify(
-      jwt,
-      new TextEncoder().encode(secret),
-    )
-    const sub = payload.sub
-    return typeof sub === 'string' && sub.length > 0 ? sub : null
-  } catch {
-    return null
-  }
 }
 
 export async function POST(req: NextRequest) {
@@ -127,13 +97,16 @@ export async function POST(req: NextRequest) {
   }
 
   const jwt = await getAuthenticatedUserId(req)
+  // The supabase.auth.getUser() helper returns the user.id directly
+  // — no need to verify the JWT ourselves. The earlier `jwt` variable
+  // was renamed to make this clearer.
   if (!jwt) {
     return NextResponse.json(
       { error: 'Sign in to request a LiveKit token' },
       { status: 401 },
     )
   }
-  const userId = await userIdFromJwt(jwt)
+  const userId = jwt
   if (!userId) {
     return NextResponse.json(
       { error: 'Session token is invalid or expired' },
