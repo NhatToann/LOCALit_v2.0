@@ -91,28 +91,15 @@ export async function POST(req: NextRequest) {
   // vars at build time, and an outdated build cache could ship a
   // stale (truncated) value to the browser. Server-side read is
   // always authoritative.
-  const wsUrl = process.env.LIVEKIT_URL || ''
-  // Debug (visible until we verify the URL round-trips end-to-end).
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[livekit-token] config', {
-      keyLen: apiKey?.length ?? 0,
-      secretLen: apiSecret?.length ?? 0,
-      wsUrl,
-      publicLen: process.env.NEXT_PUBLIC_LIVEKIT_URL?.length ?? 0,
-    })
-  }
+  //
+  // Hardcoded fallback matches the LiveKit Cloud project for this
+  // app. If we ever swap projects, update LIVEKIT_URL on Vercel AND
+  // this constant.
+  const HARDCODED_LIVEKIT_URL = 'wss://localit-tntjqmfu.livekit.cloud'
+  const wsUrl = process.env.LIVEKIT_URL || HARDCODED_LIVEKIT_URL
   if (!apiKey || !apiSecret || !wsUrl) {
     return NextResponse.json(
-      {
-        error: 'LiveKit is not configured on this server',
-        debug: {
-          hasKey: !!apiKey,
-          hasSecret: !!apiSecret,
-          hasWsUrl: !!wsUrl,
-          wsUrlValue: wsUrl,
-          publicValue: process.env.NEXT_PUBLIC_LIVEKIT_URL ?? null,
-        },
-      },
+      { error: 'LiveKit is not configured on this server' },
       { status: 503 },
     )
   }

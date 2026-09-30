@@ -393,9 +393,71 @@ When user returns, ask if they want to:
 8. i18n (English primary, Vietnamese secondary)
 9. **Voice calls** — self-hosted WebRTC with Supabase Realtime broadcast signaling (see "WebRTC Voice Calls" section below). Buddies are reachable from any authenticated page because the BackgroundCallService is mounted in AppShell.
 
-## WebRTC Voice Calls (2026-09-30 — self-hosted rewrite)
+## WebRTC Voice Calls (2026-10-01 — LiveKit Cloud rewrite)
 
-**Stack**: Native `RTCPeerConnection` + Supabase Realtime broadcast for signaling + Google public STUN. See `lib/webrtc/webrtc-client.ts` and `app/api/webrtc/ice-config/route.ts`.
+The self-hosted WebRTC stack was abandoned in favor of LiveKit
+Cloud because:
+
+- **Stringee trial was 1 month** — not viable for a final-year project.
+- **Self-hosted signaling was too brittle** — bespoke SDP plumbing
+  consumed a lot of tokens and still failed across symmetric NATs.
+- **LiveKit's free tier covers our needs** — global TURN, codec
+  negotiation, reconnect logic all baked into `livekit-client`.
+
+### Stack
+
+`livekit-server-sdk` + `livekit-client`. Token issuance on the
+backend; browser joins a LiveKit room on demand.
+
+| File | Purpose |
+|---|---|
+| `app/api/livekit/token/route.ts` | Mints a LiveKit AccessToken scoped to `call:<conversationId>`. Verifies the caller via `supabase.auth.getUser()`. Rate-limited 30/min/IP. |
+| `lib/webrtc/livekit-client.ts` | Thin wrapper around `Room`: connect, publish mic, subscribe to remote audio, mute/end/dispose. |
+| `app/chat/page.tsx` | startCall / acceptCall now `await startLiveKitCall({...})` and `client.publishMic()` after `ensureMicPermission`. |
+| `components/layout/ActiveCallSheet.tsx` | Renders the global CallModal across pages; reads from the registry by callId. |
+| `components/chat/CallModal.tsx` | UI unchanged; relies on `LiveKitCallClient.{end, toggleMute, decline}`. |
+
+### Env vars (Vercel Production)
+
+- `LIVEKIT_URL` = `wss://localit-tntjqmfu.livekit.cloud` (server-only Secret)
+- `LIVEKIT_API_KEY` = `APIVnqy9qJSiJ58`
+- `LIVEKIT_API_SECRET` = `<secret>`
+
+### Why a server-only `LIVEKIT_URL` (not `NEXT_PUBLIC_LIVEKIT_URL`)
+
+The Vercel CLI on PowerShell truncated `NEXT_PUBLIC_LIVEKIT_URL` to
+a single character (`y`) when piping the value via stdin. Keeping
+the URL server-side and returning it from `/api/livekit/token`
+solved the problem and tightened the security model (browser only
+ever sees the URL after it's been authenticated).
+
+### What was deleted (2026-10-01)
+
+- `lib/webrtc/webrtc-client.ts` — self-hosted RTCPeerConnection
+- `lib/webrtc/signaling-supabase.ts` — Supabase Realtime broadcast signaling
+- `lib/webrtc/use-call-quality.ts` — RTCPeerConnection.getStats poll
+- `lib/realtime/useBackgroundCallService.tsx` — persistent signaling channel
+- `app/api/webrtc/ice-config/route.ts` — STUN/TURN config endpoint
+- `BackgroundCallServiceMount` in AppShell (no longer needed; LiveKit
+  handles inbound rooms on its server)
+- `scripts/playwright-webrtc-smoke.mjs`, `scripts/diag-storage-key.mjs`,
+  `scripts/voice-call-rebuild-report.md`
+
+### How to test the new flow
+
+1. Token-only smoke (no mic): `node scripts/livekit-smoke.mjs`
+   - Signs in John + Lan, mints tokens, decodes JWTs.
+2. Two-way audio test (Playwright + fake mic):
+   `node scripts/playwright-livekit-twoway.mjs`
+   - Opens /chat for both, John clicks Phone, Lan clicks Accept,
+     both reach Connected state, John ends.
+   - Screenshots written to `scripts/screenshots/twoway-livekit-*.png`.
+
+### Future work
+
+- **Push notifications** — LiveKit doesn't natively deliver a
+  ringing notification when the buddy tab is closed. Pair with
+  web-push or a dedicated notification worker.
 
 ### Why we replaced Stringee
 
@@ -459,9 +521,17 @@ The helper is `lib/webrtc/mic.ts → ensureMicPermission()`. It returns a cached
 
 Network banner (`bg-warning-bg text-warning`, `Loader2 animate-spin` icon) shows when `navigator.onLine === false` mid-call.
 
-### Live connection quality (`useCallQuality`)
+### Live connection quality
 
-`lib/webrtc/use-call-quality.ts` polls `RTCPeerConnection.getStats()` every 2s and reports a `CallQuality` snapshot. Works on any `RTCPeerConnection` we expose. Levels: excellent (≥50 kbps, <2% loss, <80 ms RTT) → good → fair → poor.
+`activeCallStore.quality` was previously populated by polling
+`RTCPeerConnection.getStats()` every 2s. With LiveKit, the
+underlying `Room` already maintains connection-quality metrics
+internally (`Room.engine.client.getStats()`) — but exposing those
+out of the public SDK is brittle. The CallModal renders the
+SignalHigh/Medium/Low icon and duration regardless. If a future
+session needs the bitrate/RTT overlay, wire it from a LiveKit
+`RoomEvent.ConnectionQualityChanged` listener in
+`lib/webrtc/livekit-client.ts`.
 
 ### Speaker toggle
 
@@ -470,25 +540,31 @@ Network banner (`bg-warning-bg text-warning`, `Loader2 animate-spin` icon) shows
 ### How to test a 2-way call
 
 ```bash
-cmd /c "scripts\run-twoway-test.bat"
+node scripts/playwright-livekit-twoway.mjs
 ```
 
-Or via the underlying script:
-```bash
-node scripts/playwright-twoway-call-test.mjs
-```
+The test opens two Playwright contexts (John = tourist, Lan = buddy),
+exercises both directions, and captures screenshots of the
+calling / connected / ended states in `scripts/screenshots/`.
+It uses `--use-fake-ui-for-media-stream` + `--use-fake-device-for-media-stream`
+so it runs headless.
 
-The test opens two Playwright contexts (John = tourist, Lan = buddy), exercises both directions, and asserts both `RTCPeerConnection.connectionState === 'connected'`.
+For a token-only check (no Playwright), use `scripts/livekit-smoke.mjs`.
 
 ### Common pitfalls
 
-- **"Connection failed" mid-call**: usually means a symmetric-NAT network where STUN alone isn't enough. Drop in coturn credentials via `TURN_URL`/`TURN_USERNAME`/`TURN_CREDENTIAL` env vars; the `/api/webrtc/ice-config` route picks them up automatically.
-- **Debug logs are stripped in production** — `dlog`/`dwarn` in `lib/webrtc/webrtc-client.ts` are gated by `process.env.NODE_ENV !== 'production'`. Add temporary `console.log` calls when debugging live issues.
-- **Both peers must be authenticated** for the broadcast channel to deliver messages. If the partner is signed out, the offer is silently dropped — `acceptIncomingCall()` will throw `No matching Stringee call to accept` (the message text is a leftover from the Stringee era; the underlying error is "callee's signaling channel not reachable").
-- **Migration from Stringee (deleted 2026-09-30)**:
-  - `lib/webrtc/call-client.ts` → `lib/webrtc/webrtc-client.ts`
-  - `app/api/stringee/access-token/route.ts` → DELETED
-  - `types/stringee.d.ts` → no longer used (delete in cleanup pass)
+- **"Connection failed" mid-call** (LiveKit): usually means a
+  symmetric-NAT network where STUN alone isn't enough. LiveKit
+  handles TURN automatically when the project has it configured —
+  verify in the LiveKit Cloud dashboard under Settings → TURN.
+- **Both peers must be authenticated** for LiveKit to admit them
+  into the room. The token route enforces this via
+  `supabase.auth.getUser()`. If you see 401, the user's session
+  cookie has expired and they need to refresh the page.
+- **Mic permission timing**: the chat page prompts AFTER the user
+  has clicked Phone / Accept (visible intent). The LiveKit client
+  publishes the track AFTER the room is connected, not before, to
+  avoid double-prompting the browser.
 
 ## Online Presence (2026-09-30 — Phase 1 heartbeat rewrite)
 
