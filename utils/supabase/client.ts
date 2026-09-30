@@ -24,27 +24,43 @@ import { createBrowserClient } from '@supabase/ssr'
 function bindRealtimeAuth(supabase: ReturnType<typeof createBrowserClient>) {
   if (typeof window === 'undefined') return
   try {
-    const stored = window.localStorage.getItem(
-      // key matches utils/supabase/auth.ts / @supabase/ssr storage layout
-      `sb-${new URL(supabase['supabaseUrl'] ?? '').hostname.split('.')[0]}-auth-token`,
-    )
+    const projectRef = new URL(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ??
+        'https://pqvnjgyqbxlylawwogjv.supabase.co',
+    ).hostname.split('.')[0]
+    const stored = window.localStorage.getItem(`sb-${projectRef}-auth-token`)
+    if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_CALL_DEBUG === '1') {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] bindRealtimeAuth: storage=', stored ? 'present' : 'missing')
+    }
     if (!stored) return
     // @supabase/ssr stores a base64-encoded JSON value OR a chunked
-    // base64 string (name = `sb-...-auth-token`, then
-    // `sb-...-auth-token.1`, `.2`, etc). We can rely on the canonical
-    // non-chunked key for the access_token because the JS chunking
-    // happens during cookie storage, not localStorage.
+    // base64 string. We can rely on the canonical non-chunked key for
+    // the access_token because the JS chunking happens during cookie
+    // storage, not localStorage.
     let payload: { access_token?: string } | null = null
     try {
+      // Try base64 first
       payload = JSON.parse(atob(stored))
     } catch {
-      payload = JSON.parse(stored)
+      try {
+        payload = JSON.parse(stored)
+      } catch {
+        return
+      }
     }
     if (payload?.access_token) {
       supabase.realtime.setAuth(payload.access_token)
+      if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_CALL_DEBUG === '1') {
+        // eslint-disable-next-line no-console
+        console.log('[dlog] bindRealtimeAuth: setAuth OK')
+      }
     }
-  } catch {
-    /* noop */
+  } catch (e) {
+    if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_CALL_DEBUG === '1') {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] bindRealtimeAuth ERR', (e as Error).message)
+    }
   }
 }
 
@@ -61,5 +77,18 @@ export function createClient() {
 
   const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
   bindRealtimeAuth(supabase)
+  // The session can be loaded asynchronously by @supabase/ssr AFTER
+  // createClient() returns. If we tried to setAuth only once at boot,
+  // we'd miss it. Re-bind on every auth state change so the realtime
+  // websocket always carries a fresh access_token.
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (session?.access_token) {
+      try {
+        supabase.realtime.setAuth(session.access_token)
+      } catch {
+        /* ignore */
+      }
+    }
+  })
   return supabase
 }
