@@ -19,7 +19,7 @@ import { chromium } from 'playwright'
 // canonical alias (localit-nhattoann.vercel.app) gates unauthenticated
 // visitors to the Vercel SSO login. The hash URL bypasses that for
 // previews and tests. See AGENTS.md "Vercel Deployment Protection".
-const PROD = process.env.LOCALIT_PROD_URL || 'https://localit-j0ejx2ruy-nhattoann.vercel.app'
+const PROD = process.env.LOCALIT_PROD_URL || 'https://localit-8y3hwd2u4-nhattoann.vercel.app'
 // Header that skips the SSO gate. Set in Vercel project → Deployment
 // Protection → "Protection Bypass for Automation".
 const BYPASS_HEADER = { 'x-vercel-protection-bypass': process.env.VERCEL_BYPASS_TOKEN || 'w6XAcwiXyFf9Pea8I6zwVONXAhc8Xs9A' }
@@ -56,22 +56,6 @@ async function signIn(page, email, password) {
 
 async function mintToken(page, roomName) {
   const resp = await page.evaluate(async function (args) {
-    // Diagnostic: capture auth source so we can debug 401s.
-    var cookieName = 'sb-pqvnjgyqbxlylawwogjv-auth-token'
-    var cookieRaw = null
-    document.cookie.split(';').forEach(function (kv) {
-      var idx = kv.indexOf('=')
-      var k = idx >= 0 ? kv.slice(0, idx).trim() : kv.trim()
-      if (k === cookieName) cookieRaw = kv.slice(idx + 1).trim()
-    })
-    var storageToken = null
-    try {
-      var raw = localStorage.getItem('sb-pqvnjgyqbxlylawwogjv-auth-token')
-      if (raw) {
-        var parsed = JSON.parse(raw)
-        storageToken = parsed.access_token || null
-      }
-    } catch (e) {}
     var r = await fetch('/api/livekit/token', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -82,16 +66,10 @@ async function mintToken(page, roomName) {
     return {
       status: r.status,
       body: text,
-      diag: {
-        hasCookieRaw: !!cookieRaw,
-        cookieRawLen: cookieRaw ? cookieRaw.length : 0,
-        cookieRawPrefix: cookieRaw ? cookieRaw.slice(0, 12) : null,
-        hasStorageToken: !!storageToken,
-        storageTokenPrefix: storageToken ? storageToken.slice(0, 20) : null,
-      },
     }
   }, { roomName: roomName })
-  console.log('  token resp:', resp.status, 'cookie/storage:', JSON.stringify(resp.diag))
+  console.log('  raw resp:', resp.status, 'body length:', resp.body.length)
+  console.log('  full body:', resp.body)
   if (resp.status !== 200) {
     throw new Error('token mint failed: ' + resp.status + ' ' + resp.body)
   }
