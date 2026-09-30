@@ -39,22 +39,23 @@ export async function GET(req: NextRequest) {
     // Find seeded John↔Lan conversation (either direction)
     const { data: convs } = await sb
       .from('conversations')
-      .select(
-        'id, tourist_id, buddy_id, tourist:profiles!conversations_tourist_id_fkey(full_name), buddy:profiles!conversations_buddy_id_fkey(full_name)',
-      )
-      .or(
-        'and(tourist_id.eq.aaaa1111-1111-1111-1111-111111111111,buddy_id.eq.11111111-1111-1111-1111-111111111111),and(tourist_id.eq.11111111-1111-1111-1111-111111111111,buddy_id.eq.aaaa1111-1111-1111-1111-111111111111)',
-      )
+      .select('id, tourist_id, buddy_id')
+      .or('tourist_id.in.(aaaa1111-1111-1111-1111-111111111111,11111111-1111-1111-1111-111111111111)')
       .order('created_at', { ascending: false })
-      .limit(1)
+      .limit(10)
     type Conv = {
       id: string
       tourist_id: string
       buddy_id: string
-      tourist: { full_name: string | null }[] | null
-      buddy: { full_name: string | null }[] | null
     }
-    let conv: Conv | null = (convs?.[0] as Conv | undefined) ?? null
+    const matching = ((convs ?? []) as unknown as Conv[]).filter(
+      (c) =>
+        (c.tourist_id === 'aaaa1111-1111-1111-1111-111111111111' &&
+          c.buddy_id === '11111111-1111-1111-1111-111111111111') ||
+        (c.tourist_id === '11111111-1111-1111-1111-111111111111' &&
+          c.buddy_id === 'aaaa1111-1111-1111-1111-111111111111'),
+    )
+    let conv: Conv | null = matching[0] ?? null
     if (!conv && create) {
       // Try plain insert first
       const { error: ie } = await sb
@@ -73,7 +74,7 @@ export async function GET(req: NextRequest) {
           .limit(1)
         const found = re?.[0]
         if (found) {
-          conv = { ...(found as { id: string; tourist_id: string; buddy_id: string }), tourist: null, buddy: null }
+          conv = found as Conv
         }
       } else {
         return NextResponse.json({ error: 'insert failed: ' + ie.message }, { status: 500 })
@@ -82,14 +83,12 @@ export async function GET(req: NextRequest) {
     if (!conv) {
       return NextResponse.json({ error: 'no John↔Lan conversation' }, { status: 404 })
     }
-    const tp = Array.isArray(conv.tourist) ? conv.tourist[0] : conv.tourist
-    const bp = Array.isArray(conv.buddy) ? conv.buddy[0] : conv.buddy
     return NextResponse.json({
       conversationId: conv.id,
       callerId: 'aaaa1111-1111-1111-1111-111111111111',
-      callerName: tp?.full_name ?? 'John Doe',
+      callerName: 'John Doe',
       calleeId: '11111111-1111-1111-1111-111111111111',
-      calleeName: bp?.full_name ?? 'Lan Pham',
+      calleeName: 'Lan Pham',
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
