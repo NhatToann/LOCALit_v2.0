@@ -731,8 +731,12 @@ function ChatInner() {
         onLocalStream: () => undefined,
         onRemoteStream: attachRemoteAudio,
       })
+      // eslint-disable-next-line no-console
+      console.log('[chat] acceptIncomingCall succeeded', { callState })
       setCallClient(client)
     } catch (e) {
+      // eslint-disable-next-line no-console
+      console.log('[chat] acceptIncomingCall FAILED', (e as Error).message)
       setError('Could not accept call: ' + (e as Error).message)
       setCallState('failed')
       setTimeout(() => setCallState('idle'), 3500)
