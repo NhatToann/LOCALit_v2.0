@@ -149,6 +149,10 @@ async function sendSignaling(toUserId: string, msg: SignalingMessage): Promise<v
   })
   await new Promise<void>((resolve) => {
     channel.subscribe((status) => {
+      if (DEBUG_CALL) {
+        // eslint-disable-next-line no-console
+        console.log('[dlog] sendSignaling subscribe', status, 'channel', `calls:${toUserId}`)
+      }
       if (status === 'SUBSCRIBED') resolve()
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         resolve()
@@ -161,6 +165,16 @@ async function sendSignaling(toUserId: string, msg: SignalingMessage): Promise<v
       event: 'signal',
       payload: msg,
     })
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] sendSignaling sent OK', msg.type)
+    }
+  } catch (err) {
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] sendSignaling send ERR', msg.type, (err as Error).message)
+    }
+    throw err
   } finally {
     try {
       await supabase.removeChannel(channel)
@@ -829,6 +843,10 @@ async function ensureInboundChannel(userId: string): Promise<void> {
   })
   await new Promise<void>((resolve) => {
     channel.subscribe((status) => {
+      if (DEBUG_CALL) {
+        // eslint-disable-next-line no-console
+        console.log('[dlog] ensureInboundChannel subscribe', status, 'channel', `calls:${userId}`)
+      }
       if (status === 'SUBSCRIBED') resolve()
       if (
         status === 'CHANNEL_ERROR' ||
