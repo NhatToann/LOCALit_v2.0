@@ -80,6 +80,13 @@ async function main() {
   await tourist.page.goto('/chat')
   await tourist.page.waitForTimeout(3000)
 
+  // Dump window supabase client info to debug
+  const buddyInfo = await buddy.page.evaluate(() => {
+    const keys = Object.keys(window).filter(k => /supabase/i.test(k))
+    return { keys, hasSupabase: typeof window.__supabase_for_test }
+  })
+  console.log('  buddy window keys:', buddyInfo)
+
   // Now, from each browser, create a RAW supabase-js client (not ssr)
   // using the same access token, and verify they can broadcast.
   const testCode = `

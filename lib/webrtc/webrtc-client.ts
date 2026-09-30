@@ -203,45 +203,49 @@ async function releaseOutboundChannel(toUserId: string): Promise<void> {
   }
 }
 
+/**
+ * Send a signaling message to a peer.
+ *
+ * Why DB-backed instead of Supabase Realtime broadcast:
+ *   Realtime broadcast was unreliable in production — the WebSocket
+ *   kept falling back to REST long-polling (cookies don't carry the
+ *   access_token in the upgrade request), and broadcast messages
+ *   between peers were dropped silently. We now INSERT each message
+ *   into `webrtc_signals` and let the recipient pick it up via
+ *   postgres_changes INSERT events, which use the same Realtime
+ *   connection that powers the IncomingCallWatcher popup reliably.
+ *
+ *   See supabase/migrations/2026-09-30-webrtc-signals.sql for the
+ *   RLS + publication setup.
+ */
 async function sendSignaling(toUserId: string, msg: SignalingMessage): Promise<void> {
   if (DEBUG_CALL) {
     // eslint-disable-next-line no-console
     console.log('[dlog] sendSignaling', msg.type, '→', toUserId, 'callId=', msg.callId)
   }
-  let channel: ReturnType<ReturnType<typeof createBrowserClient>['channel']>
-  try {
-    channel = await acquireOutboundChannel(toUserId)
-  } catch (err) {
-    if (DEBUG_CALL) {
-      // eslint-disable-next-line no-console
-      console.log('[dlog] sendSignaling acquire ERR', msg.type, (err as Error).message)
-    }
-    throw err
+  const kind = msg.type
+  if (kind === 'ring') {
+    // 'ring' is only an in-protocol hint; no DB row needed.
+    return
   }
-  try {
-    await channel.send({
-      type: 'broadcast',
-      event: 'signal',
-      payload: msg,
-    })
+  const supabase = createBrowserClient()
+  const { error } = await supabase.from('webrtc_signals').insert({
+    call_id: msg.callId,
+    from_user_id: msg.from,
+    to_user_id: msg.to,
+    kind,
+    payload: msg.sdp ?? msg.candidate ?? {},
+  })
+  if (error) {
     if (DEBUG_CALL) {
       // eslint-disable-next-line no-console
-      console.log('[dlog] sendSignaling sent OK', msg.type)
+      console.log('[dlog] sendSignaling ERR', kind, error.message)
     }
-  } catch (err) {
-    if (DEBUG_CALL) {
-      // eslint-disable-next-line no-console
-      console.log('[dlog] sendSignaling send ERR', msg.type, (err as Error).message)
-    }
-    // If the persistent channel died (CLOSED/ERROR) drop it so the
-    // next call acquires a fresh one.
-    if (
-      err instanceof Error &&
-      /(CLOSED|CHANNEL_ERROR|TIMED_OUT)/i.test(err.message)
-    ) {
-      await releaseOutboundChannel(toUserId)
-    }
-    throw err
+    throw error
+  }
+  if (DEBUG_CALL) {
+    // eslint-disable-next-line no-console
+    console.log('[dlog] sendSignaling sent OK', kind)
   }
 }
 
@@ -465,7 +469,9 @@ export async function startOutgoingCall(
       pendingCallId,
       s === 'connected' ? 'accepted' : s === 'calling' ? 'cancelled' : 'expired',
     )
-    void releaseOutboundChannel(opts.peerId)
+    void (async () => {
+      await releaseOutboundChannel(opts.peerId).catch(() => undefined)
+    })()
   }
 
   async function end(): Promise<void> {
@@ -881,7 +887,13 @@ async function ensureInboundChannel(userId: string): Promise<void> {
     // eslint-disable-next-line no-console
     console.log('[dlog] ensureInboundChannel', userId)
   }
-  if (inboundChannel && inboundUserId === userId) return
+  if (inboundChannel && inboundUserId === userId) {
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] ensureInboundChannel: reuse existing')
+    }
+    return
+  }
   if (inboundChannel) {
     try {
       const supabase = createBrowserClient()
@@ -893,29 +905,67 @@ async function ensureInboundChannel(userId: string): Promise<void> {
     inboundSubscribers.length = 0
   }
   const supabase = createBrowserClient()
-  const channel = supabase.channel(`calls:${userId}`, {
-    config: { broadcast: { self: false, ack: false } },
-  })
-  channel.on('broadcast', { event: 'signal' }, (raw) => {
-    const msg = raw.payload as SignalingMessage | null
-    if (!msg) return
-    if (DEBUG_CALL) {
-      // eslint-disable-next-line no-console
-      console.log('[dlog] inboundChannel recv', msg.type, 'callId=', msg.callId)
-    }
-    for (const sub of inboundSubscribers) {
-      try {
-        sub(msg)
-      } catch {
-        /* swallow */
+  const channel = supabase.channel(`webrtc-signals:${userId}`)
+  channel.on(
+    'postgres_changes',
+    {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'webrtc_signals',
+      filter: `to_user_id=eq.${userId}`,
+    },
+    async (payload) => {
+      const row = payload.new as {
+        id: string
+        call_id: string
+        from_user_id: string
+        to_user_id: string
+        kind: string
+        payload: unknown
       }
-    }
-  })
+      if (DEBUG_CALL) {
+        // eslint-disable-next-line no-console
+        console.log('[dlog] inboundChannel recv', row.kind, 'callId=', row.call_id)
+      }
+      if (
+        row.kind !== 'offer' &&
+        row.kind !== 'answer' &&
+        row.kind !== 'ice-candidate' &&
+        row.kind !== 'bye'
+      ) {
+        return
+      }
+      const payloadObj = row.payload as { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit } | null
+      const msg: SignalingMessage = {
+        type: row.kind,
+        callId: row.call_id,
+        from: row.from_user_id,
+        to: row.to_user_id,
+        sdp: payloadObj?.sdp,
+        candidate: payloadObj?.candidate,
+      }
+      for (const sub of inboundSubscribers) {
+        try {
+          sub(msg)
+        } catch {
+          /* swallow */
+        }
+      }
+      // Best-effort: delete the row after delivering so it doesn't
+      // accumulate. If delete fails (e.g. RLS denies on someone
+      // else's row), just ignore — `expires_at` will clean it up.
+      try {
+        await supabase.from('webrtc_signals').delete().eq('id', row.id)
+      } catch {
+        /* ignore */
+      }
+    },
+  )
   await new Promise<void>((resolve) => {
     channel.subscribe((status) => {
       if (DEBUG_CALL) {
         // eslint-disable-next-line no-console
-        console.log('[dlog] ensureInboundChannel subscribe', status, 'channel', `calls:${userId}`)
+        console.log('[dlog] ensureInboundChannel subscribe', status, 'channel', `webrtc-signals:${userId}`)
       }
       if (status === 'SUBSCRIBED') resolve()
       if (

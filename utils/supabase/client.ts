@@ -53,7 +53,11 @@ function bindRealtimeAuth(supabase: ReturnType<typeof createBrowserClient>) {
       supabase.realtime.setAuth(payload.access_token)
       if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_CALL_DEBUG === '1') {
         // eslint-disable-next-line no-console
-        console.log('[dlog] bindRealtimeAuth: setAuth OK')
+        console.log(
+          '[dlog] bindRealtimeAuth: setAuth OK',
+          'token prefix',
+          payload.access_token.slice(0, 30),
+        )
       }
     }
   } catch (e) {
