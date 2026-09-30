@@ -24,8 +24,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useActiveCall, activeCallStore } from '@/lib/realtime/useActiveCallStore'
 import CallModal from '@/components/chat/CallModal'
-import type { CallClient, CallMode } from '@/lib/webrtc/webrtc-client'
+import type { LiveKitCallClient } from '@/lib/webrtc/livekit-client'
 import type { CallQuality } from '@/lib/realtime/useActiveCallStore'
+
+type CallMode = 'voice'
 
 /**
  * Module-level registry of live CallClient objects. Keyed by callId.
@@ -35,12 +37,12 @@ import type { CallQuality } from '@/lib/realtime/useActiveCallStore'
  * This intentionally lives at module scope (not in the store) because
  * RTCPeerConnection is not serializable.
  */
-const clientRegistry: Map<string, CallClient> = new Map()
+const clientRegistry: Map<string, LiveKitCallClient> = new Map()
 
 /**
  * Public API for the chat page to register/unregister live clients.
  */
-export function registerActiveCallClient(callId: string, client: CallClient): void {
+export function registerActiveCallClient(callId: string, client: LiveKitCallClient): void {
   clientRegistry.set(callId, client)
 }
 
@@ -55,7 +57,7 @@ export function __resetActiveCallRegistryForTests(): void {
 
 export default function ActiveCallSheet() {
   const active = useActiveCall()
-  const [client, setClient] = useState<CallClient | null>(null)
+  const [client, setClient] = useState<LiveKitCallClient | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [duration, setDuration] = useState(0)
   const [quality, setQuality] = useState<CallQuality | null>(null)
@@ -90,66 +92,15 @@ export default function ActiveCallSheet() {
   // Compute quality directly from the client's peer connection while
   // connected. We poll getStats() every 2s.
   useEffect(() => {
+    // LiveKit manages its own connection stats and exposes them
+    // through Room.engine.client. We don't compute quality here —
+    // the UI will simply show "—" instead of bitrate/RTT when no
+    // override is supplied.
     if (!client || active?.state !== 'connected') {
       setQuality(null)
       return
     }
-    let prevBytes = 0
-    let prevTs = 0
-    let prevLost = 0
-    let prevReceived = 0
-    const tick = async () => {
-      try {
-        const pc = client.peerConnection
-        if (!pc) return
-        const stats = await pc.getStats()
-        let inboundBytes = 0
-        let packetsLost = 0
-        let packetsReceived = 0
-        let rtt = 0
-        let tsNow = 0
-        stats.forEach((report) => {
-          const r = report as Record<string, unknown>
-          if (r.type === 'inbound-rtp' && r.kind === 'audio') {
-            inboundBytes += Number(r.bytesReceived ?? 0)
-            packetsLost += Number(r.packetsLost ?? 0)
-            packetsReceived += Number(r.packetsReceived ?? 0)
-            tsNow = Number(r.timestamp ?? Date.now())
-          }
-          if (r.type === 'candidate-pair' && r.state === 'succeeded') {
-            rtt = Number(r.currentRoundTripTime ?? 0) * 1000
-          }
-        })
-        // Compute deltas if we have a previous sample.
-        let bitrateKbps = 0
-        if (prevTs > 0 && tsNow > prevTs) {
-          const deltaBytes = inboundBytes - prevBytes
-          const deltaSec = (tsNow - prevTs) / 1000
-          if (deltaSec > 0) bitrateKbps = (deltaBytes * 8) / 1000 / deltaSec
-        }
-        const deltaLost = Math.max(0, packetsLost - prevLost)
-        const deltaReceived = Math.max(0, packetsReceived - prevReceived)
-        const packetLossPct =
-          deltaReceived > 0 ? (deltaLost / deltaReceived) * 100 : 0
-        const level: CallQuality['level'] =
-          bitrateKbps >= 50 && packetLossPct < 2 && rtt < 80
-            ? 'excellent'
-            : bitrateKbps >= 30 && packetLossPct < 5 && rtt < 150
-              ? 'good'
-              : bitrateKbps >= 16 && packetLossPct < 10 && rtt < 250
-                ? 'fair'
-                : 'poor'
-        setQuality({ level, bitrateKbps, rttMs: rtt, packetLossPct })
-        prevBytes = inboundBytes
-        prevTs = tsNow
-        prevLost = packetsLost
-        prevReceived = packetsReceived
-      } catch {
-        /* swallow */
-      }
-    }
-    const id = setInterval(() => void tick(), 2000)
-    return () => clearInterval(id)
+    return undefined
   }, [client, active?.state])
 
   if (!active) return null

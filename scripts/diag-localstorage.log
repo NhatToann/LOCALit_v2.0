@@ -1,0 +1,30 @@
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] useIncomingCall subscribed 11111111-1111-1111-1111-111111111111
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] warning Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+[console] log [dlog] bindRealtimeAuth: storage= missing
+
+localStorage keys after signin:
+{}
+
+sb-* keys: []

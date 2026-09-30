@@ -10,7 +10,6 @@ import ActiveCallSheet from '@/components/layout/ActiveCallSheet';
 import { useAuthUser } from '@/lib/auth/useAuthUser';
 import { useOnlineHeartbeat } from '@/lib/realtime/useOnlineHeartbeat';
 import { GlobalPresence } from '@/lib/realtime/useGlobalPresence';
-import { BackgroundCallService } from '@/lib/realtime/useBackgroundCallService';
 
 const ROLE_LAYOUTS = ['/tourist', '/buddy'];
 const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
@@ -61,16 +60,14 @@ function GlobalPresenceMount() {
 }
 
 /**
- * Mounts the background signaling service that routes inbound
- * WebRTC signaling (offer/answer/ICE/bye) from the Supabase Realtime
- * broadcast channel to the active call. Without this mount, buddies
- * on non-/chat pages cannot receive incoming offers and calls would
- * only work one direction (caller is on /chat, callee is on /chat).
+ * Note (2026-10-01 — LiveKit migration):
+ *   The previous self-hosted WebRTC stack required a long-lived
+ *   background signaling service to be mounted here so buddies on
+ *   non-/chat pages could receive incoming offers. LiveKit handles
+ *   that centrally on its server, so no equivalent background mount
+ *   is needed — incoming calls surface via the `pending_calls`
+ *   INSERT-driven IncomingCallWatcher.
  */
-function BackgroundCallServiceMount() {
-  const auth = useAuthUser()
-  return <BackgroundCallService userId={auth?.userId ?? null} />
-}
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -91,7 +88,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <GlobalIncomingCallWatcher />
         <GlobalOnlineHeartbeat />
         <GlobalPresenceMount />
-        <BackgroundCallServiceMount />
         <ActiveCallSheet />
       </>
     );
@@ -112,7 +108,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <GlobalIncomingCallWatcher />
       <GlobalOnlineHeartbeat />
       <GlobalPresenceMount />
-      <BackgroundCallServiceMount />
       <ActiveCallSheet />
     </>
   );

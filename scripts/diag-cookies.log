@@ -1,0 +1,6 @@
+cookies: 1
+  sb-pqvnjgyqbxlylawwogjv-auth-token (domain=localit-vn.vercel.app, httpOnly=false, sameSite=Lax) len=2585
+    value preview: base64-eyJhY2Nlc3NfdG9rZW4iOiJleUpoYkdjaU9pSkZVekkxTmlJc0ltdHBaQ0k2SWpjNVlqQmhORGhqTFdKaU9XTXRORE0wWlMwNFpqVmlMVFE0T0RFM
+
+localStorage:
+{}

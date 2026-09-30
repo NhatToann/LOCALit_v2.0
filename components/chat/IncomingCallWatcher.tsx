@@ -7,13 +7,10 @@
  * is inserted into pending_calls with status='ringing' and
  * callee_id=current user, it surfaces a small Accept / Decline card.
  *
- * - Accept: navigates to /chat?call=<pendingCallId> which the chat page
- *   handles by calling acceptIncomingCall(). The actual WebRTC
- *   peer-connection is created there using the self-hosted stack
- *   (lib/webrtc/webrtc-client.ts + Supabase Realtime broadcast for
- *   signaling).
- * - Decline: updates pending_calls.status='declined' and writes a
- *   call_event row to the messages table.
+ * Accept: navigates to /chat?call=<pendingCallId> which the chat page
+ *   handles by joining the LiveKit room.
+ * Decline: marks the pending_calls row as declined and dismisses the
+ *   popup. No voice session is created.
  */
 
 import { useEffect, useState } from 'react'
@@ -21,7 +18,6 @@ import { useRouter, usePathname } from 'next/navigation'
 import { Phone, PhoneOff } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { useIncomingCall, type IncomingCall } from '@/lib/realtime/useIncomingCall'
-import { declineIncomingCall } from '@/lib/webrtc/webrtc-client'
 import { Avatar } from '@/components/ui/Avatar'
 
 const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
@@ -73,13 +69,14 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
     setDeclineBusy(true)
     try {
       const supabase = createClient()
-      await declineIncomingCall({
-        supabase,
-        pendingCallId: incoming.pendingCallId,
-        myId: currentUserId!,
-        conversationId: incoming.conversationId,
-        callerId: incoming.callerId,
-      })
+      // LiveKit handles the actual room state. For decline we just
+      // mark the pending row so the caller's UI shows "declined".
+      const { error: updateErr } = await supabase
+        .from('pending_calls')
+        .update({ status: 'declined', ended_at: new Date().toISOString() })
+        .eq('id', incoming.pendingCallId)
+        .eq('callee_id', currentUserId!)
+      if (updateErr) throw updateErr
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('[IncomingCallWatcher] decline failed:', err)

@@ -33,17 +33,32 @@ import {
   PhoneMissed,
 } from 'lucide-react'
 import type {
-  CallClient,
-  CallMode,
-  CallQuality,
-  CallState,
-  NetworkStatus,
-} from '@/lib/webrtc/webrtc-client'
-import { useCallQuality } from '@/lib/webrtc/use-call-quality'
+  LiveKitCallClient,
+} from '@/lib/webrtc/livekit-client'
+// CallMode / CallState / CallQuality / NetworkStatus used to live in
+// @/lib/webrtc/webrtc-client. They're now defined locally here.
+type CallMode = 'voice'
+type CallState =
+  | 'idle'
+  | 'calling'
+  | 'ringing'
+  | 'connecting'
+  | 'connected'
+  | 'declined'
+  | 'missed'
+  | 'ended'
+  | 'failed'
+type CallQuality = {
+  level: 'excellent' | 'good' | 'fair' | 'poor'
+  bitrateKbps: number
+  rttMs: number
+  packetLossPct: number
+}
+type NetworkStatus = 'online' | 'reconnecting' | 'offline'
 import { Avatar } from '@/components/ui/Avatar'
 
 interface Props {
-  client: CallClient | null
+  client: LiveKitCallClient | null
   mode: CallMode
   partnerName: string
   partnerAvatar: string | null
@@ -153,7 +168,6 @@ export default function CallModal({
   const [muted, setMuted] = useState(false)
   const [speakerOn, setSpeakerOn] = useState(false)
   const [duration, setDuration] = useState(0)
-  const [quality, setQuality] = useState<CallQuality | null>(null)
   const [networkStatus, setNetworkStatus] = useState<NetworkStatus>(
     typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online',
   )
@@ -163,16 +177,11 @@ export default function CallModal({
   // timer doesn't fire while the user is reaching for it.
   const [closeHovered, setCloseHovered] = useState(false)
 
-  // Drive quality polling through the hook. The hook reads from
-  // `client.peerConnection` (set by the SDK after the call connects).
-  // If a qualityOverride is supplied (e.g. by ActiveCallSheet which
-  // doesn't own the client directly), use it instead.
-  useCallQuality(client?.peerConnection ?? null, (q) => {
-    if (qualityOverride) return // external source wins
-    setQuality(q)
-    onQuality?.(q)
-  })
-  const effectiveQuality = qualityOverride ?? quality
+  // Quality is now provided externally via `qualityOverride` (computed
+  // in ActiveCallSheet from getStats). LiveKit doesn't expose the raw
+  // RTCPeerConnection on its public API, so the legacy
+  // `useCallQuality(client.peerConnection)` path is gone.
+  const effectiveQuality = qualityOverride ?? null
 
   // Duration timer while connected — either external (ActiveCallSheet
   // computes from the startedAt timestamp) or local (increments each
@@ -211,7 +220,10 @@ export default function CallModal({
   }
 
   function handleAccept() {
-    void client?.accept()
+    // LiveKit connects on room.join — the accept flow already
+    // happens upstream in acceptCall(). The modal here just needs to
+    // dismiss the "ringing" state.
+    onEnd()
   }
 
   function handleDecline() {

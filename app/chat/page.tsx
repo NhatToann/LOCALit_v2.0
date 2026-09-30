@@ -35,13 +35,9 @@ import { useTyping } from '@/lib/realtime/useTyping'
 import { usePresence } from '@/lib/realtime/usePresence'
 import { uploadChatAttachment } from '@/lib/attachments/upload'
 import {
-  startOutgoingCall,
-  acceptIncomingCall,
-  declineIncomingCall,
-  type CallClient,
-  type CallMode,
-  type CallState,
-} from '@/lib/webrtc/webrtc-client'
+  startLiveKitCall,
+  type LiveKitCallClient,
+} from '@/lib/webrtc/livekit-client'
 import { ensureMicPermission } from '@/lib/webrtc/mic'
 import {
   registerActiveCallClient,
@@ -53,6 +49,21 @@ const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '🔥', '🙏']
 const MAX_MESSAGE_LEN = 1000
 const EDIT_WINDOW_MS = 15 * 60 * 1000
 const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
+
+// LiveKit-backed call state machine. Mirrors the prior WebRTC
+// CallState type so the rest of the chat page (CallModal, headlines,
+// auto-dismiss timers) keeps working without changes.
+type CallMode = 'voice'
+type CallState =
+  | 'idle'
+  | 'calling'
+  | 'ringing'
+  | 'connecting'
+  | 'connected'
+  | 'declined'
+  | 'missed'
+  | 'ended'
+  | 'failed'
 
 interface ConvSummary {
   id: string
@@ -98,7 +109,7 @@ function ChatInner() {
   const [searchQ, setSearchQ] = useState(qParam ?? '')
   const [uploading, setUploading] = useState(false)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
-  const [callClient, setCallClient] = useState<CallClient | null>(null)
+  const [callClient, setCallClient] = useState<LiveKitCallClient | null>(null)
   const [callMode, setCallMode] = useState<CallMode>('voice')
   const [callState, setCallState] = useState<CallState>('idle')
   /** True if we are the caller. False if we are the callee who accepted
@@ -178,7 +189,7 @@ function ChatInner() {
   }, [activeId])
 
   // When the call state transitions to 'ended' (via the onState callback
-  // from webrtc-client), reset our local CallClient pointer so the user
+  // from livekit-client), reset our local CallClient pointer so the user
   // can start a new call. The global ActiveCallSheet already calls
   // activeCallStore.setActive(null) from its onEnd handler, but it
   // doesn't know about this chat page's local callClient state — so we
@@ -671,7 +682,7 @@ function ChatInner() {
    * WebRTC peer connection. Without this the ActiveCallSheet has
    * no reference to the live client and would render an empty modal.
    */
-  function registerCallClient(callId: string, client: CallClient): void {
+  function registerCallClient(callId: string, client: LiveKitCallClient): void {
     registerActiveCallClient(callId, client)
   }
 
@@ -727,13 +738,33 @@ function ChatInner() {
     }
     let pendingCallId = ''
     try {
-      const out = await startOutgoingCall({
-        conversationId: activeConv.id,
+      // Insert a pending_calls row so the buddy's IncomingCallWatcher
+      // sees a ringing notification. LiveKit handles the actual voice
+      // transport; pending_calls is just the durable "someone is
+      // calling you" signal.
+      try {
+        const supabase = createClient()
+        const { data: row } = await supabase
+          .from('pending_calls')
+          .insert({
+            conversation_id: activeConv.id,
+            caller_id: myId,
+            callee_id: activeConv.partner_id,
+            status: 'ringing',
+          })
+          .select('id')
+          .single()
+        if (row?.id) pendingCallId = row.id
+      } catch (insertErr) {
+        if (DEBUG_CALL) {
+          console.log('[dlog] pending_calls insert failed', insertErr)
+        }
+      }
+      const roomName = `call:${activeConv.id}`
+      const client = await startLiveKitCall({
         myId,
-        peerId: activeConv.partner_id,
-        myName,
-        peerName: activeConv.partner_name,
-        mode,
+        roomName,
+        participantName: myName,
         onState: (s) => {
           setCallState(s)
           activeCallStore.patchActive({ state: s })
@@ -745,9 +776,10 @@ function ChatInner() {
         onLocalStream: () => undefined,
         onRemoteStream: attachRemoteAudio,
       })
-      pendingCallId = out.pendingCallId
-      setCallClient(out.client)
-      registerCallClient(pendingCallId, out.client)
+      await client.publishMic()
+      if (!pendingCallId) pendingCallId = client.callId
+      setCallClient(client)
+      registerActiveCallClient(pendingCallId, client)
       activeCallStore.setActive({
         callId: pendingCallId,
         conversationId: activeConv.id,
@@ -863,15 +895,11 @@ function ChatInner() {
     }
 
     try {
-      const { client } = await acceptIncomingCall({
-        conversationId,
+      const roomName = `call:${conversationId}`
+      const client = await startLiveKitCall({
         myId,
-        peerId,
-        myName,
-        peerName: partnerName,
-        mode: 'voice',
-        pendingCallId,
-        callerUserId: peerId,
+        roomName,
+        participantName: myName,
         onState: (s) => {
           setCallState(s)
           activeCallStore.patchActive({ state: s })
@@ -883,8 +911,9 @@ function ChatInner() {
         onLocalStream: () => undefined,
         onRemoteStream: attachRemoteAudio,
       })
+      await client.publishMic()
       setCallClient(client)
-      registerCallClient(pendingCallId, client)
+      registerActiveCallClient(pendingCallId, client)
       activeCallStore.setActive({
         callId: pendingCallId,
         conversationId,
@@ -911,16 +940,29 @@ function ChatInner() {
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null
     }
+    const callId = activeCallStore.getState().active?.callId ?? ''
     callClient?.end()
     if (callClient) {
-      unregisterCallClient(
-        (activeCallStore.getState().active?.callId) ?? '',
-      )
+      unregisterCallClient(callId)
     }
     setCallClient(null)
     setCallPartner(null)
     setTimeout(() => setCallState('idle'), 1000)
     activeCallStore.setActive(null)
+    // Mark the pending_calls row as ended so the partner's UI updates
+    // and `IncomingCallWatcher` doesn't re-surface it after refresh.
+    // Failures here are non-fatal (the row has a TTL anyway).
+    if (callId && /^[0-9a-f-]{8,128}$/i.test(callId)) {
+      void createClient()
+        .from('pending_calls')
+        .update({ status: 'ended', ended_at: new Date().toISOString() })
+        .eq('id', callId)
+        .then(({ error }) => {
+          if (error && DEBUG_CALL) {
+            console.log('[dlog] pending_calls end update failed', error.message)
+          }
+        })
+    }
   }
 
   // When navigating in via ?call=<pendingCallId>, the pending_calls row
