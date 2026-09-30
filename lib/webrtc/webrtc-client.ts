@@ -1083,7 +1083,14 @@ async function ensureInboundChannel(userId: string): Promise<void> {
   void (async () => {
     while (!stop) {
       await new Promise((r) => setTimeout(r, 500))
-      await pollOnce()
+      try {
+        await pollOnce()
+      } catch (e) {
+        if (DEBUG_CALL) {
+          // eslint-disable-next-line no-console
+          console.log('[dlog] inbound poll loop ERR', (e as Error).message)
+        }
+      }
     }
   })()
 
