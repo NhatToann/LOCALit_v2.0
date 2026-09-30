@@ -440,25 +440,10 @@ export async function startOutgoingCall(
     pc.addTrack(track, localStream)
   }
 
-  // 4. Create the offer and send it.
-  const offer = await pc.createOffer()
-  await pc.setLocalDescription(offer)
-  send({
-    type: 'ring',
-    callId: pendingCallId,
-    from: opts.myId,
-    to: opts.peerId,
-  })
-  send({
-    type: 'offer',
-    callId: pendingCallId,
-    from: opts.myId,
-    to: opts.peerId,
-    sdp: offer,
-  })
-  emit('ringing')
-
-  // 5. Ring timeout — if callee doesn't answer in 45 s, mark missed.
+  // 4. Subscribe to inbound signaling BEFORE creating the offer, so
+  // any answer/ice that arrives during setLocalDescription isn't
+  // dropped. This avoids the race where the callee replies faster
+  // than we attach our listener.
   const ringTimer = setTimeout(() => {
     if (state === 'ringing' || state === 'calling') {
       void logCallEvent(
@@ -473,7 +458,12 @@ export async function startOutgoingCall(
     }
   }, 45_000)
 
-  // 6. Subscribe to inbound signaling from the callee.
+  let signalingReady = false
+  const signalingReadyPromise = new Promise<void>((resolve) => {
+    signalingReady = true
+    resolve()
+  })
+
   void listenForInbound(opts.myId, async (msg) => {
     if (msg.callId !== pendingCallId) return
     if (msg.type === 'answer' && msg.sdp) {
@@ -496,6 +486,21 @@ export async function startOutgoingCall(
       emit('ended')
     }
   })
+
+  // 5. Create the offer and send it. Wait for inbound listener
+  // registration to settle so the very first ICE/answer packets
+  // aren't dropped.
+  await signalingReadyPromise
+  const offer = await pc.createOffer()
+  await pc.setLocalDescription(offer)
+  send({
+    type: 'offer',
+    callId: pendingCallId,
+    from: opts.myId,
+    to: opts.peerId,
+    sdp: offer,
+  })
+  emit('ringing')
 
   return {
     pendingCallId,

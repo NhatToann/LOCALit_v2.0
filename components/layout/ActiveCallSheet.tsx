@@ -3,16 +3,22 @@
 /**
  * ActiveCallSheet — globally-mounted call UI.
  *
- * Lives in AppShell so the call persists across page navigations
- * (previously the modal lived only in app/chat/page.tsx — leaving
- * /chat mid-call dropped the modal and stranded the user).
+ * Lives in AppShell so the call UI persists across page navigations.
  *
- * Reads state from useActiveCallStore. The store is updated by:
- *   - chat page's startCall() / acceptCall() for outgoing/incoming
- *   - BackgroundCallService for inbound signaling routing
+ * The WebRTC peer connection is owned by the chat page
+ * (startOutgoingCall/acceptIncomingCall in lib/webrtc/webrtc-client.ts).
+ * To share the client across components without prop drilling, we use
+ * a module-level Map keyed by callId. The chat page registers the
+ * client immediately after creating it, and unregisters it on
+ * end/decline. ActiveCallSheet polls this Map every 250ms when an
+ * active call exists.
  *
- * The actual WebRTC peer connection is owned by `client` from
- * lib/webrtc/webrtc-client.ts; this component just renders the UI.
+ * Why not put the client in useActiveCallStore?
+ *   The store uses useSyncExternalStore which requires a serializable
+ *   snapshot. CallClient holds a live RTCPeerConnection which is not
+ *   safe to clone or compare structurally. Keeping it in a side
+ *   Map (this file) avoids that pitfall while still allowing
+ *   cross-component access.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -21,6 +27,32 @@ import CallModal from '@/components/chat/CallModal'
 import type { CallClient, CallMode } from '@/lib/webrtc/webrtc-client'
 import type { CallQuality } from '@/lib/realtime/useActiveCallStore'
 
+/**
+ * Module-level registry of live CallClient objects. Keyed by callId.
+ * The chat page registers a client after creating it; ActiveCallSheet
+ * reads from this registry.
+ *
+ * This intentionally lives at module scope (not in the store) because
+ * RTCPeerConnection is not serializable.
+ */
+const clientRegistry: Map<string, CallClient> = new Map()
+
+/**
+ * Public API for the chat page to register/unregister live clients.
+ */
+export function registerActiveCallClient(callId: string, client: CallClient): void {
+  clientRegistry.set(callId, client)
+}
+
+export function unregisterActiveCallClient(callId: string): void {
+  clientRegistry.delete(callId)
+}
+
+/** Test/debug — clear the registry. */
+export function __resetActiveCallRegistryForTests(): void {
+  clientRegistry.clear()
+}
+
 export default function ActiveCallSheet() {
   const active = useActiveCall()
   const [client, setClient] = useState<CallClient | null>(null)
@@ -28,30 +60,21 @@ export default function ActiveCallSheet() {
   const [duration, setDuration] = useState(0)
   const [quality, setQuality] = useState<CallQuality | null>(null)
 
-  // When the active call changes, look up the CallClient from the
-  // chat page's local state. We do this via a window-level registry
-  // set by the chat page (avoids circular store ↔ hook coupling).
+  // Resolve the CallClient from the registry. Poll every 250ms while
+  // an active call exists because the client may be created
+  // asynchronously after the store is updated (Accept path).
   useEffect(() => {
     if (!active) {
       setClient(null)
       return
     }
-    const registry = (window as unknown as {
-      __localitCallClients?: Record<string, CallClient>
-    }).__localitCallClients
-    const c = registry?.[active.callId] ?? null
-    setClient(c)
-
-    // Periodically read the latest client from the registry (the chat
-    // page may attach it asynchronously after Accept).
-    const interval = setInterval(() => {
-      const reg = (window as unknown as {
-        __localitCallClients?: Record<string, CallClient>
-      }).__localitCallClients
-      const next = reg?.[active.callId] ?? null
-      setClient(next)
-    }, 500)
-    return () => clearInterval(interval)
+    const update = () => {
+      const c = clientRegistry.get(active.callId) ?? null
+      setClient((prev) => (prev === c ? prev : c))
+    }
+    update()
+    const id = setInterval(update, 250)
+    return () => clearInterval(id)
   }, [active?.callId])
 
   // Drive the duration timer.
@@ -64,14 +87,18 @@ export default function ActiveCallSheet() {
     return () => clearInterval(id)
   }, [active?.state, active?.startedAt])
 
-  // Pull quality from the client's polling. We rely on the chat page
-  // (which owns the CallClient) forwarding quality updates to the
-  // store via patchActive. For the ActiveCallSheet alone, we read
-  // directly from the client when mounted.
+  // Compute quality directly from the client's peer connection while
+  // connected. We poll getStats() every 2s.
   useEffect(() => {
-    if (!client) return
-    setQuality(null)
-    const id = setInterval(async () => {
+    if (!client || active?.state !== 'connected') {
+      setQuality(null)
+      return
+    }
+    let prevBytes = 0
+    let prevTs = 0
+    let prevLost = 0
+    let prevReceived = 0
+    const tick = async () => {
       try {
         const pc = client.peerConnection
         if (!pc) return
@@ -80,29 +107,30 @@ export default function ActiveCallSheet() {
         let packetsLost = 0
         let packetsReceived = 0
         let rtt = 0
-        let bytesPrev = 0
-        let tsPrev = 0
+        let tsNow = 0
         stats.forEach((report) => {
-          if (report.type === 'inbound-rtp' && report.kind === 'audio') {
-            inboundBytes += Number(report.bytesReceived ?? 0)
-            packetsLost += Number(report.packetsLost ?? 0)
-            packetsReceived += Number(report.packetsReceived ?? 0)
+          const r = report as Record<string, unknown>
+          if (r.type === 'inbound-rtp' && r.kind === 'audio') {
+            inboundBytes += Number(r.bytesReceived ?? 0)
+            packetsLost += Number(r.packetsLost ?? 0)
+            packetsReceived += Number(r.packetsReceived ?? 0)
+            tsNow = Number(r.timestamp ?? Date.now())
           }
-          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-            rtt = Number(report.currentRoundTripTime ?? 0) * 1000
-          }
-          // Also remember the last bytesReceived timestamp for delta
-          // computation. (We use a single-shot sample here; the
-          // dedicated useCallQuality hook in the chat page is more
-          // accurate.)
-          if (report.type === 'inbound-rtp') {
-            bytesPrev = Number(report.bytesReceived ?? 0)
-            tsPrev = Number(report.timestamp ?? 0)
+          if (r.type === 'candidate-pair' && r.state === 'succeeded') {
+            rtt = Number(r.currentRoundTripTime ?? 0) * 1000
           }
         })
-        const bitrateKbps = inboundBytes / 1000 // coarse
+        // Compute deltas if we have a previous sample.
+        let bitrateKbps = 0
+        if (prevTs > 0 && tsNow > prevTs) {
+          const deltaBytes = inboundBytes - prevBytes
+          const deltaSec = (tsNow - prevTs) / 1000
+          if (deltaSec > 0) bitrateKbps = (deltaBytes * 8) / 1000 / deltaSec
+        }
+        const deltaLost = Math.max(0, packetsLost - prevLost)
+        const deltaReceived = Math.max(0, packetsReceived - prevReceived)
         const packetLossPct =
-          packetsReceived > 0 ? (packetsLost / packetsReceived) * 100 : 0
+          deltaReceived > 0 ? (deltaLost / deltaReceived) * 100 : 0
         const level: CallQuality['level'] =
           bitrateKbps >= 50 && packetLossPct < 2 && rtt < 80
             ? 'excellent'
@@ -112,27 +140,26 @@ export default function ActiveCallSheet() {
                 ? 'fair'
                 : 'poor'
         setQuality({ level, bitrateKbps, rttMs: rtt, packetLossPct })
-        void bytesPrev
-        void tsPrev
+        prevBytes = inboundBytes
+        prevTs = tsNow
+        prevLost = packetsLost
+        prevReceived = packetsReceived
       } catch {
         /* swallow */
       }
-    }, 2000)
+    }
+    const id = setInterval(() => void tick(), 2000)
     return () => clearInterval(id)
-  }, [client])
+  }, [client, active?.state])
 
   if (!active) return null
 
   return (
     <>
-      {/* Hidden audio element for the remote stream — the chat page
-          also attaches its own, but we keep one here so the audio
-          survives when the user navigates away. The chat page's
-          startOutgoingCall/acceptIncomingCall set srcObject on
-          whichever <audio> is mounted in the active tree at the
-          time the track arrives; for cross-page survival we rely
-          on the chat page forwarding via the registry. */}
-      <audio ref={audioRef} className="hidden" aria-hidden="true" />
+      {/* Hidden audio sink. The chat page also attaches its own
+          <audio>; this one is used when the modal survives a page
+          navigation (chat page's audio element is unmounted). */}
+      <audio ref={audioRef} autoPlay playsInline className="hidden" aria-hidden="true" />
       <CallModal
         client={client}
         mode={'voice' as CallMode}

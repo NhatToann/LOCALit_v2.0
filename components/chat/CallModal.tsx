@@ -346,15 +346,20 @@ export default function CallModal({
             </p>
           ) : null}
 
-          {/* Subhead line — direction hint or "Dialing via Stringee" */}
+          {/* Direction hint — subhead line below the main headline */}
           {!isTerminal && isOutgoing && state === 'calling' ? (
-            <p className="text-xs text-subtle mt-0.5">Dialing via Stringee</p>
+            <p className="text-xs text-subtle mt-0.5">
+              Dialing {partnerFirstName}
+            </p>
           ) : null}
           {!isTerminal && isOutgoing && state === 'ringing' ? (
             <p className="text-xs text-subtle mt-0.5">Waiting for {partnerFirstName} to answer</p>
           ) : null}
           {!isTerminal && !isOutgoing && state === 'ringing' ? (
             <p className="text-xs text-subtle mt-0.5">{partnerName} is calling…</p>
+          ) : null}
+          {!isTerminal && state === 'connecting' ? (
+            <p className="text-xs text-subtle mt-0.5">Establishing connection…</p>
           ) : null}
 
           {/* Network status banner */}

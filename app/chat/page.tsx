@@ -43,6 +43,10 @@ import {
   type CallState,
 } from '@/lib/webrtc/webrtc-client'
 import { ensureMicPermission } from '@/lib/webrtc/mic'
+import {
+  registerActiveCallClient,
+  unregisterActiveCallClient,
+} from '@/components/layout/ActiveCallSheet'
 import { activeCallStore } from '@/lib/realtime/useActiveCallStore'
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '🔥', '🙏']
@@ -634,24 +638,17 @@ function ChatInner() {
   }
 
   /**
-   * Register a CallClient in a module-level registry so the global
+   * Register a CallClient in the module-level registry so the global
    * ActiveCallSheet (mounted in AppShell) can attach to the same
    * WebRTC peer connection. Without this the ActiveCallSheet has
    * no reference to the live client and would render an empty modal.
    */
   function registerCallClient(callId: string, client: CallClient): void {
-    const w = window as unknown as {
-      __localitCallClients?: Record<string, CallClient>
-    }
-    if (!w.__localitCallClients) w.__localitCallClients = {}
-    w.__localitCallClients[callId] = client
+    registerActiveCallClient(callId, client)
   }
 
   function unregisterCallClient(callId: string): void {
-    const w = window as unknown as {
-      __localitCallClients?: Record<string, CallClient>
-    }
-    if (w.__localitCallClients) delete w.__localitCallClients[callId]
+    unregisterActiveCallClient(callId)
   }
 
   async function startCall(mode: CallMode) {
@@ -660,9 +657,10 @@ function ChatInner() {
       return
     }
     // Presence gate: don't try to call a buddy who isn't connected
-    // to Supabase Realtime — the call would fail with
-    // FROM_NUMBER_NOT_FOUND because their StringeeClient isn't
-    // registered with the project (see AGENTS.md).
+    // to Supabase Realtime — the WebRTC signaling channel
+    // `calls:${userId}` would never reach them and the call would
+    // time out (see AGENTS.md "Stringee Voice Calls" section,
+    // replaced by self-hosted WebRTC 2026-09-30).
     if (!isPartnerOnline) {
       setError('Cannot call: buddy is offline.')
       return
@@ -869,11 +867,9 @@ function ChatInner() {
     }
     callClient?.end()
     if (callClient) {
-      const w = window as unknown as {
-        __localitCallClients?: Record<string, CallClient>
-      }
-      const all = w.__localitCallClients ?? {}
-      for (const id of Object.keys(all)) unregisterCallClient(id)
+      unregisterCallClient(
+        (activeCallStore.getState().active?.callId) ?? '',
+      )
     }
     setCallClient(null)
     setCallPartner(null)
