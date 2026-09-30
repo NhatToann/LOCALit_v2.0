@@ -640,22 +640,79 @@ function ChatInner() {
    * Accept an incoming call. Triggered by:
    *   - /chat?call=<pendingCallId> deep-link from IncomingCallWatcher
    *   - In-page Accept button (future)
+   *
+   * Implementation note (2026-09-30 — bug fix):
+   *   Previously this required `activeConv` to already be derived from
+   *   the conversations list. When Accept landed via /chat?call=X on a
+   *   fresh page mount, the conversations query was still in-flight,
+   *   `activeConv` was null, and the function returned silently —
+   *   leaving the callee with no CallModal at all. We now look up the
+   *   peer/partner details from the pending_calls row + myId directly,
+   *   so the accept can complete regardless of whether the chat list
+   *   has loaded yet.
    */
   async function acceptCall(pendingCallId: string) {
-    if (!activeConv || !myId || callClient) return
+    if (!myId || callClient) return
     setCallMode('voice')
     setIsOutgoing(false)
     setError('')
+    let peerId: string
+    let partnerName: string
+    let conversationId: string
+    try {
+      // Look up the pending_calls row to learn who the caller is.
+      // We also fetch the caller's profile so the modal can show the
+      // partner name even before the conversation list is loaded.
+      const supabase = createClient()
+      const { data: row, error: rowErr } = await supabase
+        .from('pending_calls')
+        .select('conversation_id, caller_id, callee_id, status')
+        .eq('id', pendingCallId)
+        .single()
+      if (rowErr || !row) {
+        throw new Error('Call record not found')
+      }
+      if (row.callee_id !== myId) {
+        throw new Error('This call is not addressed to you')
+      }
+      if (row.status === 'ended' || row.status === 'declined' || row.status === 'missed') {
+        throw new Error('Call already ' + row.status)
+      }
+      conversationId = row.conversation_id
+      peerId = row.caller_id
+      // Try to enrich partnerName from activeConv (if loaded) or from
+      // safe_profiles (as a fallback). Don't fail if neither resolves.
+      partnerName =
+        (activeConv && activeConv.id === conversationId ? activeConv.partner_name : null) ??
+        (await (async () => {
+          const { data: profile } = await supabase
+            .from('safe_profiles')
+            .select('full_name')
+            .eq('id', peerId)
+            .maybeSingle<{ full_name: string | null }>()
+          return profile?.full_name ?? 'Caller'
+        })())
+    } catch (e) {
+      setError('Could not accept call: ' + (e as Error).message)
+      setCallState('failed')
+      setTimeout(() => setCallState('idle'), 2500)
+      return
+    }
+    // Make sure the chat view shows the conversation the call belongs
+    // to. Without this the modal would render but the chat list could
+    // highlight a different thread.
+    if (activeId !== conversationId) setActiveId(conversationId)
+
     try {
       const { client } = await acceptIncomingCall({
-        conversationId: activeConv.id,
+        conversationId,
         myId,
-        peerId: activeConv.partner_id,
+        peerId,
         myName,
-        peerName: activeConv.partner_name,
+        peerName: partnerName,
         mode: 'voice',
         pendingCallId,
-        callerUserId: activeConv.partner_id,
+        callerUserId: peerId,
         onState: (s) => setCallState(s),
         onError: (e) => setError(e.message),
         onLocalStream: () => undefined,
@@ -665,7 +722,7 @@ function ChatInner() {
     } catch (e) {
       setError('Could not accept call: ' + (e as Error).message)
       setCallState('failed')
-      setTimeout(() => setCallState('idle'), 2500)
+      setTimeout(() => setCallState('idle'), 3500)
     }
   }
 
@@ -681,9 +738,14 @@ function ChatInner() {
   }
 
   // When navigating in via ?call=<pendingCallId>, the pending_calls row
-  // tells us which conversation this call belongs to. Look it up, set
-  // activeId accordingly, then call acceptIncomingCall once the
-  // conversation is loaded.
+  // tells us which conversation this call belongs to. Look it up,
+  // then call acceptIncomingCall.
+  //
+  // 2026-09-30 — bug fix: previously this effect required `activeId`
+  // to be set before calling acceptCall. But on a fresh /chat?call=X
+  // navigation, the conversations query was still in-flight and the
+  // early return fired → no modal. acceptCall now reads the row
+  // directly so it can complete the accept regardless.
   useEffect(() => {
     if (!callParam || !myId || callClient) return
     const isCallerParam =
@@ -704,18 +766,16 @@ function ChatInner() {
         router.replace('/chat')
         return
       }
-      // Switch to the matching conversation if needed.
-      if (activeId !== row.conversation_id) {
-        setActiveId(row.conversation_id)
-        return // The activeId-change effect below will pick up and accept.
-      }
+      // Highlight the matching conversation in the chat list (purely
+      // cosmetic — acceptCall doesn't depend on activeId anymore).
+      if (activeId !== row.conversation_id) setActiveId(row.conversation_id)
       void acceptCall(callParam)
       router.replace('/chat')
     })()
     return () => {
       cancelled = true
     }
-  }, [callParam, myId, callClient, activeId])
+  }, [callParam, myId, callClient])
 
   // Search filter
   const filteredMessages = useMemo(() => {
