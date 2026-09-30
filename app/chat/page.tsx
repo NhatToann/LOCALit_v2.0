@@ -177,6 +177,33 @@ function ChatInner() {
     if (activeId) loadMessages(activeId)
   }, [activeId])
 
+  // When the call state transitions to 'ended' (via the onState callback
+  // from webrtc-client), reset our local CallClient pointer so the user
+  // can start a new call. The global ActiveCallSheet already calls
+  // activeCallStore.setActive(null) from its onEnd handler, but it
+  // doesn't know about this chat page's local callClient state — so we
+  // observe the state transition here and clean up.
+  useEffect(() => {
+    if (callState === 'ended' && callClient) {
+      // Give the CallModal time to render the "ended" frame, then
+      // dismiss. 1500ms matches CallModal's auto-dismiss timer so the
+      // user sees the "Call ended · MM:SS" headline.
+      const id = setTimeout(() => {
+        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null
+        if (callClient) {
+          unregisterCallClient(
+            activeCallStore.getState().active?.callId ?? '',
+          )
+        }
+        setCallClient(null)
+        setCallPartner(null)
+        setCallState('idle')
+      }, 1500)
+      return () => clearTimeout(id)
+    }
+    return undefined
+  }, [callState, callClient])
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

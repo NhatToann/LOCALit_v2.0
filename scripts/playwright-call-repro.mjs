@@ -310,8 +310,24 @@ async function main() {
 
   console.log('[repro] tourist navigates to /chat with conversation id')
   await ensureSignedIn(touristPage, touristSession)
+  // First land on /chat so conversations load (the `?c=` only sets the
+  // active conversation AFTER conversations are hydrated).
+  await touristPage.goto('/chat')
+  await touristPage.waitForTimeout(2500)
+  // Click the conversation row matching the debug-route's id by
+  // looking up partner_name first, then clicking its <li>.
+  await touristPage.evaluate((convId) => {
+    // The conversation list shows partner_name. We don't have the
+    // name available here so click the first conversation in the
+    // list — debug-route creates a conversation between John and Lan
+    // so the first row is the right one.
+    const btn = document.querySelector('aside[aria-label="Conversations"] button')
+    if (btn) btn.click()
+    return !!btn
+  }, conv.conversationId)
+  await touristPage.waitForTimeout(1500)
   await touristPage.goto(`/chat?c=${conv.conversationId}`)
-  await touristPage.waitForTimeout(4000)
+  await touristPage.waitForTimeout(2000)
   await touristPage.screenshot({ path: 'scripts/screenshots/call-repro-pre-call.png', fullPage: true })
 
   // Call #1 — should connect
