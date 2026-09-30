@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/utils/supabase/auth'
+import { useIsOnline } from '@/lib/realtime/useGlobalPresence'
+import OnlineIndicator from '@/components/presence/OnlineIndicator'
 import { useLiveUserLocations } from '@/hooks/useLiveUserLocations'
 import { Map as MapIcon, MapPin, Star, ChevronDown, Heart, MessageCircle, X, Search, Users } from 'lucide-react'
 
@@ -476,17 +478,7 @@ function BrowseContent() {
                             <dt className="text-eyebrow text-muted mb-2">Hourly rate</dt>
                             <dd>
                               <strong className="text-ink">${Number(b.hourly_rate).toFixed(0)} USD / hour</strong>
-                              {b.is_online ? (
-                                <p className="mt-2">
-                                  <span className="badge badge-success">
-                                    <span
-                                      className="inline-block w-1.5 h-1.5 rounded-full bg-success mr-1"
-                                      aria-hidden="true"
-                                    />
-                                    Active now
-                                  </span>
-                                </p>
-                              ) : null}
+                              <OnlineIndicator userId={b.id} className="mt-2" />
                             </dd>
                           </div>
                         ) : null}

@@ -8,11 +8,12 @@
  * callee_id=current user, it surfaces a small Accept / Decline card.
  *
  * - Accept: navigates to /chat?call=<pendingCallId> which the chat page
- *   handles by calling acceptIncomingCall(). The actual StringeeCall
- *   object is fetched from the global incoming-call queue (keyed by
- *   the caller's userId) and answered there.
- * - Decline: updates pending_calls.status='declined', writes a
- *   call_event row to the messages table, and rejects the StringeeCall.
+ *   handles by calling acceptIncomingCall(). The actual WebRTC
+ *   peer-connection is created there using the self-hosted stack
+ *   (lib/webrtc/webrtc-client.ts + Supabase Realtime broadcast for
+ *   signaling).
+ * - Decline: updates pending_calls.status='declined' and writes a
+ *   call_event row to the messages table.
  */
 
 import { useEffect, useState } from 'react'
@@ -20,11 +21,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { Phone, PhoneOff } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { useIncomingCall, type IncomingCall } from '@/lib/realtime/useIncomingCall'
-import {
-  declineIncomingCall,
-  startIncomingCallWatcher,
-  ensureStringeeClient,
-} from '@/lib/webrtc/call-client'
+import { declineIncomingCall } from '@/lib/webrtc/webrtc-client'
 import { Avatar } from '@/components/ui/Avatar'
 
 interface Props {
@@ -36,24 +33,6 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [declineBusy, setDeclineBusy] = useState(false)
-
-  // Lazily connect the Stringee client when the user is signed in.
-  // Without this, incoming calls won't fire `incomingcall` events
-  // and the watcher can't pair DB rows with StringeeCall objects.
-  useEffect(() => {
-    if (!currentUserId) return
-    void ensureStringeeClient().catch((err) => {
-      // eslint-disable-next-line no-console
-      if (process.env.NODE_ENV !== 'production')
-        console.warn('[IncomingCallWatcher] Stringee connect failed:', err)
-    })
-    const stop = startIncomingCallWatcher(() => {
-      // The watcher doesn't render anything itself — the popup is
-      // driven by the `pending_calls` row, and the StringeeCall is
-      // queued for the chat page to pick up on Accept.
-    })
-    return () => stop()
-  }, [currentUserId])
 
   // If we're already on /chat with the matching ?call= param, hide the popup
   // (the chat page will show its own CallModal).

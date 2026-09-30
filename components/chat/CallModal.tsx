@@ -38,7 +38,7 @@ import type {
   CallQuality,
   CallState,
   NetworkStatus,
-} from '@/lib/webrtc/call-client'
+} from '@/lib/webrtc/webrtc-client'
 import { useCallQuality } from '@/lib/webrtc/use-call-quality'
 import { Avatar } from '@/components/ui/Avatar'
 
@@ -58,6 +58,15 @@ interface Props {
    * omitted the speaker button is disabled.
    */
   audioRef?: React.RefObject<HTMLAudioElement | null>
+  /**
+   * Quality snapshot computed externally (e.g. by ActiveCallSheet
+   * which doesn't have direct access to `useCallQuality` for the
+   * chat-page-owned CallClient). When omitted, the modal computes its
+   * own quality via `useCallQuality(client.peerConnection)`.
+   */
+  qualityOverride?: CallQuality | null
+  /** Duration in seconds, externally computed. */
+  durationOverride?: number
   onEnd: () => void
   onQuality?: (q: CallQuality) => void
 }
@@ -136,6 +145,8 @@ export default function CallModal({
   state,
   errorMessage,
   audioRef,
+  qualityOverride,
+  durationOverride,
   onEnd,
   onQuality,
 }: Props) {
@@ -154,20 +165,23 @@ export default function CallModal({
 
   // Drive quality polling through the hook. The hook reads from
   // `client.peerConnection` (set by the SDK after the call connects).
+  // If a qualityOverride is supplied (e.g. by ActiveCallSheet which
+  // doesn't own the client directly), use it instead.
   useCallQuality(client?.peerConnection ?? null, (q) => {
+    if (qualityOverride) return // external source wins
     setQuality(q)
     onQuality?.(q)
   })
+  const effectiveQuality = qualityOverride ?? quality
 
-  // Mirror the SDK's network status onto local state so the banner
-  // updates even if the parent doesn't pass `onNetwork` through.
+  // Duration timer while connected — either external (ActiveCallSheet
+  // computes from the startedAt timestamp) or local (increments each
+  // second once connected).
   useEffect(() => {
-    if (!client) return
-    setNetworkStatus(client.networkStatus)
-  }, [client, client?.networkStatus])
-
-  // Duration timer while connected.
-  useEffect(() => {
+    if (durationOverride !== undefined) {
+      setDuration(durationOverride)
+      return
+    }
     if (state === 'connected') {
       tickRef.current = setInterval(() => setDuration((d) => d + 1), 1000)
     } else {
@@ -177,7 +191,7 @@ export default function CallModal({
     return () => {
       if (tickRef.current) clearInterval(tickRef.current)
     }
-  }, [state])
+  }, [state, durationOverride])
 
   // Auto-dismiss after a terminal state. Skipped while the user is
   // hovering the Close button so they have time to click.
@@ -364,12 +378,12 @@ export default function CallModal({
           ) : null}
 
           {/* Quality strip — only visible once connected and we have a sample */}
-          {state === 'connected' && quality ? (
+          {state === 'connected' && effectiveQuality ? (
             <div
               className="mt-5 w-full flex items-center justify-center gap-2 px-3 py-2 border-t border-border bg-paper text-xs"
               aria-label="Call quality"
             >
-              <QualityBadge quality={quality} />
+              <QualityBadge quality={effectiveQuality} />
             </div>
           ) : null}
 
@@ -384,7 +398,7 @@ export default function CallModal({
         </div>
 
         {/* Quality strip (alternative placement — only if no quality data yet) */}
-        {state === 'connected' && !quality ? (
+        {state === 'connected' && !effectiveQuality ? (
           <div className="px-4 py-2 border-t border-border bg-paper text-center text-xs text-subtle">
             Connecting media…
           </div>

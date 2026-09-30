@@ -22,7 +22,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import type { CallQuality, CallQualityLevel } from './call-client'
+import type { CallQuality, CallQualityLevel } from './webrtc-client'
 
 const POLL_INTERVAL_MS = 2_000
 

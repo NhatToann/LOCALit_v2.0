@@ -6,8 +6,11 @@ import Footer from './Footer';
 import DaNangBackdrop from './DaNangBackdrop';
 import MiniChatWindow from '@/components/chat/MiniChatWindow';
 import IncomingCallWatcher from '@/components/chat/IncomingCallWatcher';
+import ActiveCallSheet from '@/components/layout/ActiveCallSheet';
 import { useAuthUser } from '@/lib/auth/useAuthUser';
 import { useOnlineHeartbeat } from '@/lib/realtime/useOnlineHeartbeat';
+import { GlobalPresence } from '@/lib/realtime/useGlobalPresence';
+import { BackgroundCallService } from '@/lib/realtime/useBackgroundCallService';
 
 const ROLE_LAYOUTS = ['/tourist', '/buddy'];
 const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
@@ -45,6 +48,30 @@ function GlobalOnlineHeartbeat() {
   return null
 }
 
+/**
+ * Mounts the global Realtime presence broadcast channel. While
+ * mounted it publishes `is_online=true` every 25 s and stores the
+ * snapshots in a module-level cache that any component can read via
+ * `usePresenceOf(userId)` / `useIsOnline(userId)`. This is the
+ * sub-second layer on top of the 30-s DB heartbeat.
+ */
+function GlobalPresenceMount() {
+  const auth = useAuthUser()
+  return <GlobalPresence userId={auth?.userId ?? null} />
+}
+
+/**
+ * Mounts the background signaling service that routes inbound
+ * WebRTC signaling (offer/answer/ICE/bye) from the Supabase Realtime
+ * broadcast channel to the active call. Without this mount, buddies
+ * on non-/chat pages cannot receive incoming offers and calls would
+ * only work one direction (caller is on /chat, callee is on /chat).
+ */
+function BackgroundCallServiceMount() {
+  const auth = useAuthUser()
+  return <BackgroundCallService userId={auth?.userId ?? null} />
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const inRoleLayout = ROLE_LAYOUTS.some((p) => pathname.startsWith(p));
@@ -63,6 +90,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <MiniChatWindow />
         <GlobalIncomingCallWatcher />
         <GlobalOnlineHeartbeat />
+        <GlobalPresenceMount />
+        <BackgroundCallServiceMount />
+        <ActiveCallSheet />
       </>
     );
   }
@@ -81,6 +111,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <MiniChatWindow />
       <GlobalIncomingCallWatcher />
       <GlobalOnlineHeartbeat />
+      <GlobalPresenceMount />
+      <BackgroundCallServiceMount />
+      <ActiveCallSheet />
     </>
   );
 }

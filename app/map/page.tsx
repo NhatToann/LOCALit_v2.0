@@ -85,13 +85,23 @@ export default function MapPage() {
             rating_avg: null,
             lat: b.latitude,
             lng: b.longitude,
-            is_online: false,
+            is_online: !!b.profile?.is_online,
             avatar_url: b.profile?.avatar_url ?? null,
           }))
         setBuddies(mapped)
       }
     }
     load()
+    // Refresh every 30s so the heartbeat-driven is_online updates
+    // without a page reload. The global presence broadcast (t2) is
+    // the sub-second layer; this 30s poll is the safety net for
+    // pages that don't subscribe to it directly.
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        load()
+      }
+    }, 30_000)
+    return () => clearInterval(interval)
   }, [])
 
   const selected = buddies.find((b) => b.id === selectedId)

@@ -37,11 +37,13 @@ import { uploadChatAttachment } from '@/lib/attachments/upload'
 import {
   startOutgoingCall,
   acceptIncomingCall,
+  declineIncomingCall,
   type CallClient,
   type CallMode,
   type CallState,
-} from '@/lib/webrtc/call-client'
-import CallModal from '@/components/chat/CallModal'
+} from '@/lib/webrtc/webrtc-client'
+import { ensureMicPermission } from '@/lib/webrtc/mic'
+import { activeCallStore } from '@/lib/realtime/useActiveCallStore'
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '🔥', '🙏']
 const MAX_MESSAGE_LEN = 1000
@@ -119,6 +121,20 @@ function ChatInner() {
   useEffect(() => {
     init()
   }, [])
+
+  // Periodically refresh the conversations list so the heartbeat-driven
+  // `is_partner_online` value (which comes from `profiles.is_online` on
+  // each conversation's partner) flips in under ~30s without a page
+  // reload. Without this, the buddy would show offline until the user
+  // navigates away and back. We only refresh while the tab is visible.
+  useEffect(() => {
+    if (!myId) return
+    const id = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      void loadConversations(myId)
+    }, 30_000)
+    return () => clearInterval(id)
+  }, [myId])
 
   useEffect(() => {
     if (buddyParam && myId) openConversationWithBuddy(buddyParam)
@@ -354,7 +370,20 @@ function ChatInner() {
   const { typingPeers, notifyTyping } = useTyping(activeId, myId, peerNames)
 
   const { presenceUsers } = usePresence(activeId ? `presence-conv-${activeId}` : null, myId ? { user_id: myId, full_name: myName } : null)
-  const isPartnerOnline = presenceUsers.some((u) => u.user_id !== myId)
+  // Layered presence signal:
+  //   - realtimeOnline: Supabase Realtime presence (sub-second, /chat only)
+  //   - heartbeatOnline: profiles.is_online from the DB heartbeat (works
+  //     on every page because GlobalOnlineHeartbeat updates it)
+  // Either signal being positive unlocks the phone button. This fixes
+  // the long-standing "buddy shows offline on non-/chat pages" bug
+  // (the realtime channel is mounted only on /chat, so visitors on
+  // /map, /browse, /profile, etc. saw `presenceUsers=[]`).
+  // activeConv is declared later in the component; compute it inline
+  // here so we can layer the heartbeat value into the gate.
+  const activeConvForPresence = conversations.find((c) => c.id === activeId)
+  const realtimeOnline = presenceUsers.some((u) => u.user_id !== myId)
+  const heartbeatOnline = !!activeConvForPresence?.is_partner_online
+  const isPartnerOnline = realtimeOnline || heartbeatOnline
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
@@ -604,6 +633,27 @@ function ChatInner() {
     }
   }
 
+  /**
+   * Register a CallClient in a module-level registry so the global
+   * ActiveCallSheet (mounted in AppShell) can attach to the same
+   * WebRTC peer connection. Without this the ActiveCallSheet has
+   * no reference to the live client and would render an empty modal.
+   */
+  function registerCallClient(callId: string, client: CallClient): void {
+    const w = window as unknown as {
+      __localitCallClients?: Record<string, CallClient>
+    }
+    if (!w.__localitCallClients) w.__localitCallClients = {}
+    w.__localitCallClients[callId] = client
+  }
+
+  function unregisterCallClient(callId: string): void {
+    const w = window as unknown as {
+      __localitCallClients?: Record<string, CallClient>
+    }
+    if (w.__localitCallClients) delete w.__localitCallClients[callId]
+  }
+
   async function startCall(mode: CallMode) {
     if (!activeConv || !myId) {
       setError('Open a conversation first.')
@@ -626,24 +676,60 @@ function ChatInner() {
       name: activeConv.partner_name,
       avatar: activeConv.partner_avatar,
     })
+    // Prompt for mic permission BEFORE the SDK triggers its own
+    // getUserMedia. We want the prompt to come after the user has
+    // clicked the Phone button (intent is clear) and the modal is
+    // visible (UX context).
     try {
-      const { client } = await startOutgoingCall({
+      await ensureMicPermission()
+    } catch (e) {
+      const msg = (e as Error).message
+      setError(msg)
+      setCallState('failed')
+      setTimeout(() => setCallState('idle'), 3000)
+      return
+    }
+    let pendingCallId = ''
+    try {
+      const out = await startOutgoingCall({
         conversationId: activeConv.id,
         myId,
         peerId: activeConv.partner_id,
         myName,
         peerName: activeConv.partner_name,
         mode,
-        onState: (s) => setCallState(s),
-        onError: (e) => setError(e.message),
+        onState: (s) => {
+          setCallState(s)
+          activeCallStore.patchActive({ state: s })
+        },
+        onError: (e) => {
+          setError(e.message)
+          activeCallStore.patchActive({ errorMessage: e.message })
+        },
         onLocalStream: () => undefined,
         onRemoteStream: attachRemoteAudio,
       })
-      setCallClient(client)
+      pendingCallId = out.pendingCallId
+      setCallClient(out.client)
+      registerCallClient(pendingCallId, out.client)
+      activeCallStore.setActive({
+        callId: pendingCallId,
+        conversationId: activeConv.id,
+        partnerId: activeConv.partner_id,
+        partnerName: activeConv.partner_name,
+        partnerAvatar: activeConv.partner_avatar,
+        isOutgoing: true,
+        state: 'calling',
+        networkStatus: 'online',
+        quality: null,
+        errorMessage: null,
+        startedAt: Date.now(),
+      })
     } catch (e) {
       setError('Could not start call: ' + (e as Error).message)
       setCallState('failed')
       setTimeout(() => setCallState('idle'), 2500)
+      activeCallStore.setActive(null)
     }
   }
 
@@ -669,6 +755,7 @@ function ChatInner() {
     setError('')
     let peerId: string
     let partnerName: string
+    let partnerAvatar: string | null
     let conversationId: string
     try {
       // Look up the pending_calls row to learn who the caller is.
@@ -704,7 +791,8 @@ function ChatInner() {
                 .maybeSingle<{ full_name: string | null; avatar_url: string | null }>()
             ).data
       partnerName = profile?.full_name ?? 'Caller'
-      setCallPartner({ name: partnerName, avatar: profile?.avatar_url ?? null })
+      partnerAvatar = profile?.avatar_url ?? null
+      setCallPartner({ name: partnerName, avatar: partnerAvatar })
     } catch (e) {
       setError('Could not accept call: ' + (e as Error).message)
       setCallState('failed')
@@ -716,6 +804,20 @@ function ChatInner() {
     // highlight a different thread.
     if (activeId !== conversationId) setActiveId(conversationId)
 
+    // Prompt for mic permission AFTER the user has clicked Accept
+    // (intent is clear) and the CallModal has been mounted (UX
+    // context). The native browser prompt will now appear over the
+    // modal so the user understands why access is being requested.
+    try {
+      await ensureMicPermission()
+    } catch (e) {
+      const msg = (e as Error).message
+      setError(msg)
+      setCallState('failed')
+      setTimeout(() => setCallState('idle'), 4000)
+      return
+    }
+
     try {
       const { client } = await acceptIncomingCall({
         conversationId,
@@ -726,17 +828,33 @@ function ChatInner() {
         mode: 'voice',
         pendingCallId,
         callerUserId: peerId,
-        onState: (s) => setCallState(s),
-        onError: (e) => setError(e.message),
+        onState: (s) => {
+          setCallState(s)
+          activeCallStore.patchActive({ state: s })
+        },
+        onError: (e) => {
+          setError(e.message)
+          activeCallStore.patchActive({ errorMessage: e.message })
+        },
         onLocalStream: () => undefined,
         onRemoteStream: attachRemoteAudio,
       })
-      // eslint-disable-next-line no-console
-      console.log('[chat] acceptIncomingCall succeeded', { callState })
       setCallClient(client)
+      registerCallClient(pendingCallId, client)
+      activeCallStore.setActive({
+        callId: pendingCallId,
+        conversationId,
+        partnerId: peerId,
+        partnerName,
+        partnerAvatar,
+        isOutgoing: false,
+        state: 'connecting',
+        networkStatus: 'online',
+        quality: null,
+        errorMessage: null,
+        startedAt: Date.now(),
+      })
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.log('[chat] acceptIncomingCall FAILED', (e as Error).message)
       setError('Could not accept call: ' + (e as Error).message)
       setCallState('failed')
       setTimeout(() => setCallState('idle'), 3500)
@@ -750,9 +868,17 @@ function ChatInner() {
       remoteAudioRef.current.srcObject = null
     }
     callClient?.end()
+    if (callClient) {
+      const w = window as unknown as {
+        __localitCallClients?: Record<string, CallClient>
+      }
+      const all = w.__localitCallClients ?? {}
+      for (const id of Object.keys(all)) unregisterCallClient(id)
+    }
     setCallClient(null)
     setCallPartner(null)
     setTimeout(() => setCallState('idle'), 1000)
+    activeCallStore.setActive(null)
   }
 
   // When navigating in via ?call=<pendingCallId>, the pending_calls row
@@ -1297,19 +1423,16 @@ function ChatInner() {
         ) : null}
       </div>
 
-      {(activeConv || callPartner) && callState !== 'idle' ? (
-        <CallModal
-          client={callClient}
-          mode={callMode}
-          partnerName={callPartner?.name ?? activeConv?.partner_name ?? 'Caller'}
-          partnerAvatar={callPartner?.avatar ?? activeConv?.partner_avatar ?? null}
-          isOutgoing={isOutgoing}
-          state={callState}
-          errorMessage={callState === 'failed' ? error : null}
-          audioRef={remoteAudioRef}
-          onEnd={endCall}
-        />
-      ) : null}
+      {/*
+        The chat page used to render its own CallModal here. With the
+        cross-page active-call store (lib/realtime/useActiveCallStore)
+        and the global ActiveCallSheet (components/layout/ActiveCallSheet
+        mounted in AppShell), the modal now lives at the AppShell level
+        so it persists when the user navigates away from /chat mid-call.
+        The chat page still owns the WebRTC peer connection (created by
+        startOutgoingCall/acceptIncomingCall) and forwards state updates
+        to the store; the global sheet reads the store to render.
+      */}
 
       {/*
         Hidden <audio> sink for the active call's remote MediaStream.

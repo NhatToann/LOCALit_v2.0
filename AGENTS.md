@@ -391,29 +391,61 @@ When user returns, ask if they want to:
 6. Image uploads (Supabase Storage)
 7. Payments (Stripe)
 8. i18n (English primary, Vietnamese secondary)
-9. **Voice calls — background-connect Stringee for buddies** (see "Stringee Voice Calls" section below). Current behavior: buddies must have `/chat` open in some browser to be reachable; otherwise inbound calls fail with `FROM_NUMBER_NOT_FOUND` (`toType=external`).
+9. **Voice calls** — self-hosted WebRTC with Supabase Realtime broadcast signaling (see "WebRTC Voice Calls" section below). Buddies are reachable from any authenticated page because the BackgroundCallService is mounted in AppShell.
 
-## Stringee Voice Calls (2026-09-29)
+## WebRTC Voice Calls (2026-09-30 — self-hosted rewrite)
 
-**Stack**: `StringeeClient` SDK loaded from CDN, JWT signed server-side at `POST /api/stringee/access-token`. See `lib/webrtc/call-client.ts` and `app/api/stringee/access-token/route.ts`.
+**Stack**: Native `RTCPeerConnection` + Supabase Realtime broadcast for signaling + Google public STUN. See `lib/webrtc/webrtc-client.ts` and `app/api/webrtc/ice-config/route.ts`.
+
+### Why we replaced Stringee
+
+- Stringee's free trial is **1 month** — not viable for a final-year project that needs to run through grading.
+- We owned the SDP/ICE plumbing so the mic permission prompt can be triggered exactly when we want (after the user has clicked Accept), not when the opaque SDK decides.
+- The signaling layer is Supabase Realtime broadcast, which is free, durable in the same auth context, and works inside Vercel serverless.
+
+### Signaling protocol
+
+Per-call messages on Supabase Realtime broadcast channel `calls:${userId}`:
+
+- `ring` — caller announces a new ring (durable record lives in `pending_calls`; broadcast is a hint)
+- `offer {callId, sdp}` — caller → callee
+- `answer {callId, sdp}` — callee → caller
+- `ice-candidate {callId, candidate}` — bidirectional
+- `bye {callId}` — bidirectional hang-up
 
 ### Critical behavior to remember
 
-- **Both parties MUST be actively connected** to receive/make calls. Stringee CPaaS de-registers a user when their `StringeeClient.disconnect()` fires or when their session ends.
-- `toType=internal` ⇒ both are in the project and the call will deliver. `toType=external` ⇒ the `to` user is not currently connected; **Stringee returns `r=4, message=FROM_NUMBER_NOT_FOUND`** and the call fails.
-- For app-to-app calls, `from` MUST be the **Stringee User ID = Supabase auth.users.id**. Passing the display name triggers the same `FROM_NUMBER_NOT_FOUND` error.
-- The `IncomingCallWatcher` (`app/chat/page.tsx` + `lib/webrtc/call-client.ts`) only mounts on the `/chat` route. Buddies who never visit `/chat` are not reachable.
+- **Buddies are reachable on every authenticated page** because:
+  1. `IncomingCallWatcher` (DB `pending_calls` subscriber) is in AppShell.
+  2. `BackgroundCallService` (Supabase Realtime `calls:${userId}` subscriber) is in AppShell.
+  3. `GlobalPresence` (broadcast heartbeat) is in AppShell.
+  4. `ActiveCallSheet` (CallModal mount) is in AppShell.
+- **DB `pending_calls` stays as the durable source of truth** — same role it plays today. Realtime broadcast is the volatile layer; on reconnect, the client re-subscribes and re-fetches pending rows.
+- **The chat page no longer renders its own CallModal** — it owns the WebRTC peer connection (created by `startOutgoingCall`/`acceptIncomingCall`) and forwards state updates to `useActiveCallStore`. The global `<ActiveCallSheet />` reads the store and renders the modal across all pages.
 
 ### Presence gate (UI safety)
 
-The Start voice call button in `/chat` is **gated by Supabase Realtime presence** (`usePresence` on the conversation channel — `lib/realtime/usePresence.ts`). When the partner is offline:
-- The button is rendered `disabled` with `PhoneOff` icon instead of `Phone` and a tooltip "Buddy is offline".
+The Start voice call button in `/chat` is **gated by a layered presence signal** in [app/chat/page.tsx](app/chat/page.tsx):
+- `realtimeOnline` — Supabase Realtime `presence-conv-${id}` channel (sub-second, /chat only)
+- `heartbeatOnline` — `profiles.is_online` from the DB heartbeat (works on every page because GlobalOnlineHeartbeat updates it)
+- `isPartnerOnline = realtimeOnline || heartbeatOnline`
+
+When the partner is offline:
+- The button renders `disabled` with `PhoneOff` icon instead of `Phone` and a tooltip "Buddy is offline".
 - `startCall()` rejects with `Cannot call: buddy is offline.` before any SDK call.
-- Auto-call deeplinks (`?buddy=X&call=1`) defer to the same `startCall()` gate, so they surface the same inline error rather than firing a call that would immediately fail with `FROM_NUMBER_NOT_FOUND`.
+
+### Mic permission timing (deferred)
+
+We never call `getUserMedia` until the user has clicked Accept (incoming) or the Phone button (outgoing):
+
+1. Outgoing (`startCall`): prompts BEFORE `startOutgoingCall()`.
+2. Incoming (`acceptCall`): prompts AFTER the partner-info lookup but BEFORE `acceptIncomingCall()`.
+
+The helper is `lib/webrtc/mic.ts → ensureMicPermission()`. It returns a cached `MediaStream` on subsequent calls (within the page lifetime) and surfaces typed errors (`MicDeniedError`, `MicNotFoundError`, `MicUnavailableError`) for the UI to render.
 
 ### Call UI (CallModal)
 
-`components/chat/CallModal.tsx` is a WhatsApp-style voice-call sheet with these per-state visuals:
+`components/chat/CallModal.tsx` is a WhatsApp-style voice-call sheet, unchanged in UX but now driven by our own `RTCPeerConnection` instead of Stringee's opaque SDK:
 
 | State | Visual | Buttons |
 |---|---|---|
@@ -425,45 +457,38 @@ The Start voice call button in `/chat` is **gated by Supabase Realtime presence*
 | `ended` | Avatar dimmed, "Call ended · MM:SS" headline | `Close` (auto-dismiss 1.5s) |
 | `failed` | Avatar + `PhoneOff` overlay, error.message | `Close` (auto-dismiss 3.5s) |
 
-Network banner (`bg-warning-bg text-warning`, `Loader2 animate-spin` icon) shows when `navigator.onLine === false` mid-call. Reverts to `online` when the browser reconnects; if the call hasn't reached `connected` yet, the modal briefly shows "Reconnecting…".
+Network banner (`bg-warning-bg text-warning`, `Loader2 animate-spin` icon) shows when `navigator.onLine === false` mid-call.
 
 ### Live connection quality (`useCallQuality`)
 
-`lib/webrtc/use-call-quality.ts` polls `RTCPeerConnection.getStats()` every 2s and reports a `CallQuality` snapshot:
-- `bitrateKbps` from inbound audio `bytesReceived` delta
-- `packetLossPct` from `packetsLost` / `packetsReceived` delta
-- `rttMs` from candidate-pair `currentRoundTripTime * 1000`
-
-Level thresholds:
-- `excellent` — bitrate ≥ 50 kbps, loss < 2%, RTT < 80 ms
-- `good` — bitrate ≥ 30 kbps, loss < 5%, RTT < 150 ms
-- `fair` — bitrate ≥ 16 kbps, loss < 10%, RTT < 250 ms
-- `poor` — anything else (badge animates `pulse`)
-
-If Stringee SDK doesn't expose the underlying `RTCPeerConnection` (no `_pc` field on the track, no `getNativeRTCPeerConnection()` getter), the quality strip stays hidden — UI is graceful.
+`lib/webrtc/use-call-quality.ts` polls `RTCPeerConnection.getStats()` every 2s and reports a `CallQuality` snapshot. Works on any `RTCPeerConnection` we expose. Levels: excellent (≥50 kbps, <2% loss, <80 ms RTT) → good → fair → poor.
 
 ### Speaker toggle
 
-`CallModal` exposes a `Speaker` button that calls `audio.setSinkId(...)` on the chat page's hidden `<audio>` element. Chromium-based browsers support it; on Firefox/Safari the button renders `disabled` with a tooltip explaining the limitation. Default sink is `''` (system default); toggling to `'default'` is a no-op identity change but documents the user's intent.
+`CallModal` exposes a `Speaker` button that calls `audio.setSinkId(...)` on the chat page's hidden `<audio>` element (or the `ActiveCallSheet`'s `<audio>` when navigating away). Chromium-based browsers only.
 
-### Pulse animation (custom utility)
+### How to test a 2-way call
 
-The `animate-call-pulse-ring` utility lives in `app/globals.css` under `@layer components` and is keyed off `call-pulse-ring`. Two rings expand and fade over 1.5s with a 0.6s stagger, giving a WhatsApp-style "I'm dialing" cue without any decorative chrome.
+```bash
+cmd /c "scripts\run-twoway-test.bat"
+```
 
-### How to make a buddy reachable for a test call
+Or via the underlying script:
+```bash
+node scripts/playwright-twoway-call-test.mjs
+```
 
-1. Open a separate browser/tab as the buddy (`lan.pham@localit.dev` / `password123`).
-2. Navigate to `/chat` (even an empty chat page is enough — the SDK auto-connects).
-3. Keep that tab open in the background.
-4. From the caller side, click Start voice call — `toType` will now be `internal` and `makeCall` will return `r=0, message=SUCCESS`.
+The test opens two Playwright contexts (John = tourist, Lan = buddy), exercises both directions, and asserts both `RTCPeerConnection.connectionState === 'connected'`.
 
 ### Common pitfalls
 
-- **"FROM_NUMBER_NOT_FOUND" still appearing after the user is signed in**: usually means the buddy's `StringeeClient` is not currently connected. Open their `/chat` tab and retry.
-- **Debug logs are stripped in production** — `dlog`/`dwarn` in `lib/webrtc/call-client.ts` are gated by `process.env.NODE_ENV !== 'production'`. Add temporary `console.log` calls when debugging live issues.
-- The Stringee SDK is loaded from `https://cdn.stringee.com/sdk/web/latest/stringee-web-sdk.min.js`. Types live in `types/stringee.d.ts` (lightweight local stub).
-- We previously ran a self-hosted coturn TURN server (`lib/webrtc/ice-config.ts` + `/api/webrtc/turn`). That code is deprecated as of 2026-09-29; Stringee ships its own STUN/TURN (`stun:210.245.91.48:3478`, `turn:210.245.91.48:3478?transport=udp`).
-- Outgoing calls INSERT into `pending_calls` first, then call the SDK. Incoming calls hit `StringeeClient.on('incomingcall')` and resolve via the `pending_calls` row + `acceptIncomingCall()`.
+- **"Connection failed" mid-call**: usually means a symmetric-NAT network where STUN alone isn't enough. Drop in coturn credentials via `TURN_URL`/`TURN_USERNAME`/`TURN_CREDENTIAL` env vars; the `/api/webrtc/ice-config` route picks them up automatically.
+- **Debug logs are stripped in production** — `dlog`/`dwarn` in `lib/webrtc/webrtc-client.ts` are gated by `process.env.NODE_ENV !== 'production'`. Add temporary `console.log` calls when debugging live issues.
+- **Both peers must be authenticated** for the broadcast channel to deliver messages. If the partner is signed out, the offer is silently dropped — `acceptIncomingCall()` will throw `No matching Stringee call to accept` (the message text is a leftover from the Stringee era; the underlying error is "callee's signaling channel not reachable").
+- **Migration from Stringee (deleted 2026-09-30)**:
+  - `lib/webrtc/call-client.ts` → `lib/webrtc/webrtc-client.ts`
+  - `app/api/stringee/access-token/route.ts` → DELETED
+  - `types/stringee.d.ts` → no longer used (delete in cleanup pass)
 
 ## Online Presence (2026-09-30 — Phase 1 heartbeat rewrite)
 
@@ -510,13 +535,28 @@ browsers that crash, lose network, or never fire `beforeunload`.
 now a passive indicator — driven by the heartbeat. Per user
 decision on 2026-09-30 (heartbeat-driven, no manual override).
 
-### Phase 2 — Realtime presence channel (separate PR)
+### Phase 2 — Realtime presence channel (2026-09-30 — SHIPPED)
 
-Currently presence sync goes DB → next-page-load (browse/map/chat).
-For chat header and voice-call button, the data is "stale" by up to
-30 s. Phase 2 adds a `presence-global` Realtime channel that all
-authenticated users track on, so the UI flips in sub-second time
-without waiting for the next page navigation.
+The global Realtime presence broadcast channel is now live. All
+authenticated tabs subscribe to `presence-global` and publish their
+own `{user_id, is_online, last_seen}` snapshot every 25 s. The store
+(`lib/realtime/useGlobalPresence.tsx`) is mounted in AppShell so every
+page — including `/map`, `/tourist/browse`, `/profile`, etc. — sees
+sub-second presence flips.
+
+Hooks:
+- `usePresenceOf(userId) → PresenceSnapshot | null`
+- `useIsOnline(userId) → boolean`
+
+Components can subscribe via these hooks or read directly from the
+module-level cache (no React Context overhead). The chat page's
+`isPartnerOnline` gate now combines `realtimeOnline` (Realtime
+channel on `/chat`) with `heartbeatOnline` (`profiles.is_online`
+from the DB heartbeat), so the phone button enables correctly even
+when the realtime channel is empty.
+
+The 30-s polling refresh on `/chat`'s conversations list and `/map`'s
+buddies list remains as a safety net for the DB-driven heartbeat.
 
 ### How to verify locally
 
