@@ -44,6 +44,7 @@
  */
 
 import { createClient as createBrowserClient } from '@/utils/supabase/auth'
+import { getSignalingSupabase } from './signaling-supabase'
 
 export type CallMode = 'voice'
 
@@ -162,7 +163,7 @@ async function acquireOutboundChannel(
 ): Promise<ReturnType<ReturnType<typeof createBrowserClient>['channel']>> {
   const existing = outboundChannels.get(toUserId)
   if (existing) return existing
-  const supabase = createBrowserClient()
+  const supabase = getSignalingSupabase()
   const channel = supabase.channel(`calls:${toUserId}`, {
     config: { broadcast: { self: false, ack: false } },
   })
@@ -196,7 +197,7 @@ async function releaseOutboundChannel(toUserId: string): Promise<void> {
   if (!channel) return
   outboundChannels.delete(toUserId)
   try {
-    const supabase = createBrowserClient()
+    const supabase = getSignalingSupabase()
     await supabase.removeChannel(channel)
   } catch {
     /* ignore */
@@ -228,7 +229,7 @@ async function sendSignaling(toUserId: string, msg: SignalingMessage): Promise<v
     // 'ring' is only an in-protocol hint; no DB row needed.
     return
   }
-  const supabase = createBrowserClient()
+  const supabase = getSignalingSupabase()
   const { error } = await supabase.from('webrtc_signals').insert({
     call_id: msg.callId,
     from_user_id: msg.from,
@@ -426,7 +427,7 @@ pc.onicecandidate = (event) => {
 export async function startOutgoingCall(
   opts: CallClientOptions,
 ): Promise<{ client: CallClient; pendingCallId: string }> {
-  const supabase = createBrowserClient()
+  const supabase = getSignalingSupabase()
 
   // 1. Insert pending_calls row first — durable record.
   const { data: insertData, error: insertErr } = await supabase
@@ -670,7 +671,7 @@ export async function acceptIncomingCall(
   if (!opts.pendingCallId) {
     throw new Error('acceptIncomingCall requires pendingCallId')
   }
-  const supabase = createBrowserClient()
+  const supabase = getSignalingSupabase()
   const callId = opts.pendingCallId
   const callerId = opts.callerUserId ?? opts.peerId
 
@@ -867,7 +868,7 @@ async function updatePendingTerminal(
   status: string,
 ): Promise<void> {
   try {
-    const supabase = createBrowserClient()
+    const supabase = getSignalingSupabase()
     await supabase
       .from('pending_calls')
       .update({ status })
@@ -896,7 +897,7 @@ async function ensureInboundChannel(userId: string): Promise<void> {
   }
   if (inboundChannel) {
     try {
-      const supabase = createBrowserClient()
+      const supabase = getSignalingSupabase()
       await supabase.removeChannel(inboundChannel)
     } catch {
       /* ignore */
@@ -922,7 +923,7 @@ async function ensureInboundChannel(userId: string): Promise<void> {
    *   happens to work for a given client, we deliver faster; if not,
    *   polling still gets the message through.
    */
-  const supabase = createBrowserClient()
+  const supabase = getSignalingSupabase()
   const channel = supabase.channel(`webrtc-signals:${userId}`)
 
   let lastSeenAt = new Date().toISOString()
