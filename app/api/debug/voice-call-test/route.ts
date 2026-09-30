@@ -56,26 +56,27 @@ export async function GET(req: NextRequest) {
     }
     let conv: Conv | null = (convs?.[0] as Conv | undefined) ?? null
     if (!conv && create) {
-      // Try to upsert via INSERT ... ON CONFLICT (works around the
-      // unique constraint if a row exists but was somehow filtered
-      // out of the SELECT above).
-      const { data: upserted, error: ue } = await sb
+      // Try plain insert first
+      const { error: ie } = await sb
         .from('conversations')
-        .upsert(
-          {
-            tourist_id: 'aaaa1111-1111-1111-1111-111111111111',
-            buddy_id: '11111111-1111-1111-1111-111111111111',
-          },
-          { onConflict: 'tourist_id,buddy_id', ignoreDuplicates: false },
-        )
-        .select('id, tourist_id, buddy_id, tourist:profiles!conversations_tourist_id_fkey(full_name), buddy:profiles!conversations_buddy_id_fkey(full_name)')
-        .limit(1)
-      if (ue) {
-        return NextResponse.json({ error: 'upsert failed: ' + ue.message }, { status: 500 })
-      }
-      const found = upserted?.[0] as unknown as Conv | undefined
-      if (found) {
-        conv = found
+        .insert({
+          tourist_id: 'aaaa1111-1111-1111-1111-111111111111',
+          buddy_id: '11111111-1111-1111-1111-111111111111',
+        })
+      if (!ie) {
+        // Insert succeeded — re-query to get the row
+        const { data: re } = await sb
+          .from('conversations')
+          .select('id, tourist_id, buddy_id')
+          .eq('tourist_id', 'aaaa1111-1111-1111-1111-111111111111')
+          .eq('buddy_id', '11111111-1111-1111-1111-111111111111')
+          .limit(1)
+        const found = re?.[0]
+        if (found) {
+          conv = { ...(found as { id: string; tourist_id: string; buddy_id: string }), tourist: null, buddy: null }
+        }
+      } else {
+        return NextResponse.json({ error: 'insert failed: ' + ie.message }, { status: 500 })
       }
     }
     if (!conv) {

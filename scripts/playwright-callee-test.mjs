@@ -62,8 +62,10 @@ const debugHeaders = {
   'x-vercel-protection-bypass': BYPASS,
 }
 
-async function debugGet() {
-  const res = await fetch(`${API_BASE}/api/debug/voice-call-test`, { headers: debugHeaders })
+async function debugGet(query = '') {
+  const res = await fetch(`${API_BASE}/api/debug/voice-call-test${query}`, {
+    headers: debugHeaders,
+  })
   if (!res.ok) throw new Error(`debug GET ${res.status}: ${await res.text()}`)
   return await res.json()
 }
@@ -82,9 +84,9 @@ async function main() {
   console.log(`\n=== Callee-side voice-call REAL e2e test ===`)
   console.log(`API_BASE: ${API_BASE}\n`)
 
-  // Look up conversation via debug API
-  const conv = await debugGet()
-  pass('debug API found John↔Lan conversation', `conv=${conv.conversationId}`)
+  // Look up conversation via debug API (auto-create if missing)
+  const conv = await debugGet('?create=1')
+  pass('debug API found/created John↔Lan conversation', `conv=${conv.conversationId}`)
   await debugPost({ action: 'clean-ringing' })
   pass('cleaned stale ringing rows')
 
