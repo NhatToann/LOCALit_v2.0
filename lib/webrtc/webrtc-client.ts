@@ -904,8 +904,91 @@ async function ensureInboundChannel(userId: string): Promise<void> {
     inboundChannel = null
     inboundSubscribers.length = 0
   }
+
+  /**
+   * Poll-based inbound delivery.
+   *
+   * Why polling instead of postgres_changes INSERT events:
+   *   The realtime websocket kept falling back to REST long-polling
+   *   (cookies don't carry the access_token in the WS upgrade), so
+   *   postgres_changes events silently never arrived. Polling hits
+   *   the REST endpoint, which DOES carry the auth cookie reliably.
+   *
+   *   Latency cost: 500 ms cadence. Acceptable for WebRTC signaling
+   *   where ICE candidates arrive in bursts at the start of the call
+   *   and the actual SDP offer/answer is the only one that has to
+   *   land within ~1 s of Accept. We belt-and-suspenders this by
+   *   also opening the postgres_changes channel — if realtime WS
+   *   happens to work for a given client, we deliver faster; if not,
+   *   polling still gets the message through.
+   */
   const supabase = createBrowserClient()
   const channel = supabase.channel(`webrtc-signals:${userId}`)
+
+  let lastSeenAt = new Date().toISOString()
+  let stop = false
+
+  async function pollOnce(): Promise<void> {
+    if (stop) return
+    try {
+      const { data, error } = await supabase
+        .from('webrtc_signals')
+        .select('id, call_id, from_user_id, to_user_id, kind, payload, created_at')
+        .eq('to_user_id', userId)
+        .gt('created_at', lastSeenAt)
+        .order('created_at', { ascending: true })
+        .limit(50)
+      if (error) {
+        if (DEBUG_CALL) {
+          // eslint-disable-next-line no-console
+          console.log('[dlog] inbound poll ERR', error.message)
+        }
+        return
+      }
+      if (!data || data.length === 0) return
+      for (const row of data) {
+        if (DEBUG_CALL) {
+          // eslint-disable-next-line no-console
+          console.log('[dlog] inbound poll recv', row.kind, 'callId=', row.call_id)
+        }
+        lastSeenAt = row.created_at
+        if (
+          row.kind !== 'offer' &&
+          row.kind !== 'answer' &&
+          row.kind !== 'ice-candidate' &&
+          row.kind !== 'bye'
+        ) {
+          continue
+        }
+        const payloadObj = row.payload as { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit } | null
+        const msg: SignalingMessage = {
+          type: row.kind,
+          callId: row.call_id,
+          from: row.from_user_id,
+          to: row.to_user_id,
+          sdp: payloadObj?.sdp,
+          candidate: payloadObj?.candidate,
+        }
+        for (const sub of inboundSubscribers) {
+          try {
+            sub(msg)
+          } catch {
+            /* swallow */
+          }
+        }
+        try {
+          await supabase.from('webrtc_signals').delete().eq('id', row.id)
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch {
+      /* swallow */
+    }
+  }
+
+  // Try postgres_changes first — if it works, great. Otherwise
+  // polling covers it.
   channel.on(
     'postgres_changes',
     {
@@ -922,10 +1005,11 @@ async function ensureInboundChannel(userId: string): Promise<void> {
         to_user_id: string
         kind: string
         payload: unknown
+        created_at: string
       }
       if (DEBUG_CALL) {
         // eslint-disable-next-line no-console
-        console.log('[dlog] inboundChannel recv', row.kind, 'callId=', row.call_id)
+        console.log('[dlog] inboundChannel recv (postgres_changes)', row.kind, 'callId=', row.call_id)
       }
       if (
         row.kind !== 'offer' &&
@@ -951,9 +1035,6 @@ async function ensureInboundChannel(userId: string): Promise<void> {
           /* swallow */
         }
       }
-      // Best-effort: delete the row after delivering so it doesn't
-      // accumulate. If delete fails (e.g. RLS denies on someone
-      // else's row), just ignore — `expires_at` will clean it up.
       try {
         await supabase.from('webrtc_signals').delete().eq('id', row.id)
       } catch {
@@ -961,11 +1042,17 @@ async function ensureInboundChannel(userId: string): Promise<void> {
       }
     },
   )
+
   await new Promise<void>((resolve) => {
     channel.subscribe((status) => {
       if (DEBUG_CALL) {
         // eslint-disable-next-line no-console
-        console.log('[dlog] ensureInboundChannel subscribe', status, 'channel', `webrtc-signals:${userId}`)
+        console.log(
+          '[dlog] ensureInboundChannel subscribe',
+          status,
+          'channel',
+          `webrtc-signals:${userId}`,
+        )
       }
       if (status === 'SUBSCRIBED') resolve()
       if (
@@ -979,6 +1066,23 @@ async function ensureInboundChannel(userId: string): Promise<void> {
   })
   inboundChannel = channel
   inboundUserId = userId
+
+  // Start the polling fallback. Even if realtime events arrive,
+  // polling also catches any rows the realtime path missed (e.g.
+  // during a transient WS reconnect).
+  void (async () => {
+    while (!stop) {
+      await new Promise((r) => setTimeout(r, 500))
+      await pollOnce()
+    }
+  })()
+
+  // Patch the channel so removing it stops the poller too.
+  const origRemove = channel.unsubscribe.bind(channel)
+  channel.unsubscribe = ((...args: unknown[]) => {
+    stop = true
+    return (origRemove as (...a: unknown[]) => Promise<unknown>)(...args)
+  }) as typeof channel.unsubscribe
 }
 
 async function listenForInbound(
