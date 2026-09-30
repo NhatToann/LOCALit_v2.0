@@ -19,7 +19,7 @@ import { chromium } from 'playwright'
 // canonical alias (localit-nhattoann.vercel.app) gates unauthenticated
 // visitors to the Vercel SSO login. The hash URL bypasses that for
 // previews and tests. See AGENTS.md "Vercel Deployment Protection".
-const PROD = process.env.LOCALIT_PROD_URL || 'https://localit-8y3hwd2u4-nhattoann.vercel.app'
+const PROD = process.env.LOCALIT_PROD_URL || 'https://localit-874nbkvj8-nhattoann.vercel.app'
 // Header that skips the SSO gate. Set in Vercel project → Deployment
 // Protection → "Protection Bypass for Automation".
 const BYPASS_HEADER = { 'x-vercel-protection-bypass': process.env.VERCEL_BYPASS_TOKEN || 'w6XAcwiXyFf9Pea8I6zwVONXAhc8Xs9A' }
@@ -88,6 +88,16 @@ function decodeJwt(token) {
   return JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'))
 }
 
+function jwtRoom(claims) {
+  // LiveKit encodes the room grant under `video.room`. If a future
+  // SDK version puts it elsewhere, this resolver keeps the test
+  // forward-compatible.
+  if (claims.video && typeof claims.video.room === 'string') {
+    return claims.video.room
+  }
+  return claims.room || null
+}
+
 ;(async () => {
   const browser = await chromium.launch({ headless: true })
   const johnCtx = await browser.newContext({ extraHTTPHeaders: BYPASS_HEADER })
@@ -103,13 +113,13 @@ function decodeJwt(token) {
     const johnClaims = decodeJwt(john.token)
     console.log('  wsUrl:', john.wsUrl)
     console.log('  identity:', john.identity)
-    console.log('  jwt.room:', johnClaims.room)
+    console.log('  jwt.video.room:', johnClaims.video && johnClaims.video.room)
     console.log('  jwt.sub:', johnClaims.sub)
 
     if (john.wsUrl !== 'wss://localit-tntjqmfu.livekit.cloud') {
       throw new Error('wsUrl mismatch: ' + john.wsUrl)
     }
-    if (johnClaims.room !== roomName) {
+    if (jwtRoom(johnClaims) !== roomName) {
       throw new Error('token room grant mismatch')
     }
     if (johnClaims.sub !== john.identity) {
@@ -125,12 +135,12 @@ function decodeJwt(token) {
     const lan = await mintToken(lanPage, roomName)
     const lanClaims = decodeJwt(lan.token)
     console.log('  identity:', lan.identity)
-    console.log('  jwt.room:', lanClaims.room)
+    console.log('  jwt.video.room:', lanClaims.video && lanClaims.video.room)
 
     if (lan.identity === john.identity) {
       throw new Error('expected different identities for two users')
     }
-    if (lanClaims.room !== roomName) {
+    if (jwtRoom(lanClaims) !== roomName) {
       throw new Error('Lan token room mismatch')
     }
 
