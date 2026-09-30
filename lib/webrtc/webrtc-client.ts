@@ -741,7 +741,15 @@ export async function acceptIncomingCall(
   opts.onLocalStream?.(localStream)
 
   // Build the PC.
+  if (DEBUG_CALL) {
+    // eslint-disable-next-line no-console
+    console.log('[dlog] acceptIncomingCall: about to getIceConfig + buildPeerConnection')
+  }
   const iceConfig = await getIceConfig()
+  if (DEBUG_CALL) {
+    // eslint-disable-next-line no-console
+    console.log('[dlog] acceptIncomingCall: got ice config, building PC. iceServers=', JSON.stringify(iceConfig.iceServers))
+  }
   const { pc, setMute, teardown } = buildPeerConnection(iceConfig, {
     onState: (s) => emit(s),
     onLocalStream: () => undefined,
@@ -778,7 +786,15 @@ export async function acceptIncomingCall(
   }
 
   // Listen for the offer and any ICE candidates from the caller.
+  if (DEBUG_CALL) {
+    // eslint-disable-next-line no-console
+    console.log('[dlog] acceptIncomingCall: about to call listenForInbound for myId=', opts.myId)
+  }
   void listenForInbound(opts.myId, async (msg) => {
+    if (DEBUG_CALL) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog] callee inbound received', msg.type, 'callId=', msg.callId, 'expect=', callId)
+    }
     if (msg.callId !== callId) return
     if (msg.type === 'offer' && msg.sdp) {
       pendingRemoteOffer = msg.sdp
@@ -926,8 +942,13 @@ async function ensureInboundChannel(userId: string): Promise<void> {
   const supabase = getSignalingSupabase()
   const channel = supabase.channel(`webrtc-signals:${userId}`)
 
-  let lastSeenAt = new Date().toISOString()
+  let lastSeenAt = new Date(Date.now() - 5_000).toISOString()
   let stop = false
+
+  if (DEBUG_CALL) {
+    // eslint-disable-next-line no-console
+    console.log('[dlog] ensureInboundChannel lastSeenAt initial=', lastSeenAt)
+  }
 
   async function pollOnce(): Promise<void> {
     if (stop) return
@@ -940,12 +961,13 @@ async function ensureInboundChannel(userId: string): Promise<void> {
         .gt('created_at', lastSeenAt)
         .order('created_at', { ascending: true })
         .limit(50)
-      if (DEBUG_CALL && (error || (data && data.length > 0))) {
+      if (DEBUG_CALL) {
         // eslint-disable-next-line no-console
         console.log(
           '[dlog] inbound poll',
-          error ? `ERR ${error.message}` : `recv ${data.length} rows`,
+          error ? `ERR ${error.message}` : `recv ${(data ?? []).length} rows`,
           `lastSeen=${lastSeenAt}`,
+          `subs=${inboundSubscribers.length}`,
         )
       }
       if (error) {
