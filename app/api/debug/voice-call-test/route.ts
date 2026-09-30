@@ -56,18 +56,27 @@ export async function GET(req: NextRequest) {
     }
     let conv: Conv | null = (convs?.[0] as Conv | undefined) ?? null
     if (!conv && create) {
-      const { data: created, error: ce } = await sb
+      // Try to upsert via INSERT ... ON CONFLICT (works around the
+      // unique constraint if a row exists but was somehow filtered
+      // out of the SELECT above).
+      const { data: upserted, error: ue } = await sb
         .from('conversations')
-        .insert({
-          tourist_id: 'aaaa1111-1111-1111-1111-111111111111',
-          buddy_id: '11111111-1111-1111-1111-111111111111',
-        })
-        .select('id, tourist_id, buddy_id')
-        .single()
-      if (ce) {
-        return NextResponse.json({ error: 'create failed: ' + ce.message }, { status: 500 })
+        .upsert(
+          {
+            tourist_id: 'aaaa1111-1111-1111-1111-111111111111',
+            buddy_id: '11111111-1111-1111-1111-111111111111',
+          },
+          { onConflict: 'tourist_id,buddy_id', ignoreDuplicates: false },
+        )
+        .select('id, tourist_id, buddy_id, tourist:profiles!conversations_tourist_id_fkey(full_name), buddy:profiles!conversations_buddy_id_fkey(full_name)')
+        .limit(1)
+      if (ue) {
+        return NextResponse.json({ error: 'upsert failed: ' + ue.message }, { status: 500 })
       }
-      conv = { ...(created as { id: string; tourist_id: string; buddy_id: string }), tourist: null, buddy: null }
+      const found = upserted?.[0] as unknown as Conv | undefined
+      if (found) {
+        conv = found
+      }
     }
     if (!conv) {
       return NextResponse.json({ error: 'no John↔Lan conversation' }, { status: 404 })
