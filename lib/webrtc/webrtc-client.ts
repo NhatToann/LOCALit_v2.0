@@ -798,10 +798,26 @@ export async function acceptIncomingCall(
     if (msg.callId !== callId) return
     if (msg.type === 'offer' && msg.sdp) {
       pendingRemoteOffer = msg.sdp
+      if (DEBUG_CALL) {
+        // eslint-disable-next-line no-console
+        console.log('[dlog] callee inbound: setRemoteDescription starting', JSON.stringify(msg.sdp).slice(0, 80))
+      }
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp))
+        if (DEBUG_CALL) {
+          // eslint-disable-next-line no-console
+          console.log('[dlog] callee inbound: setRemoteDescription OK, creating answer')
+        }
         const answer = await pc.createAnswer()
+        if (DEBUG_CALL) {
+          // eslint-disable-next-line no-console
+          console.log('[dlog] callee inbound: createAnswer OK, setLocalDescription starting')
+        }
         await pc.setLocalDescription(answer)
+        if (DEBUG_CALL) {
+          // eslint-disable-next-line no-console
+          console.log('[dlog] callee inbound: setLocalDescription OK, sending answer')
+        }
         send({
           type: 'answer',
           callId,
@@ -809,7 +825,15 @@ export async function acceptIncomingCall(
           to: callerId,
           sdp: answer,
         })
+        if (DEBUG_CALL) {
+          // eslint-disable-next-line no-console
+          console.log('[dlog] callee inbound: answer sent')
+        }
       } catch (err) {
+        if (DEBUG_CALL) {
+          // eslint-disable-next-line no-console
+          console.log('[dlog] callee inbound: ERR', (err as Error).message)
+        }
         opts.onError?.(err as Error)
         emit('failed')
       }
