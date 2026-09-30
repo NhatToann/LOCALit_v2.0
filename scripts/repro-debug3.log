@@ -1,0 +1,513 @@
+[repro] api=https://localit-vn.vercel.app
+[repro] signing in via Supabase Authâ€¦
+  buddy=11111111-1111-1111-1111-111111111111 tourist=aaaa1111-1111-1111-1111-111111111111
+[repro] marking both sides onlineâ€¦
+[repro] cleaning ringing + getting conversationâ€¦
+  conversation=347f782e-e6bc-4d2b-b3a4-7453d301dcba
+[repro] launching two browser instancesâ€¦
+[repro] buddy navigates to /chat
+[repro] driving /login form for lan.pham@localit.dev
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] useIncomingCall subscribed 11111111-1111-1111-1111-111111111111
+  [buddy:verbose] [dlog] useIncomingCall subscribed 11111111-1111-1111-1111-111111111111
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] warning Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  buddy has 1 cookies
+    sb-pqvnjgyqbxlylawwogjv-auth-token (len 2585)
+[repro] tourist navigates to /chat with conversation id
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+[repro] driving /login form for john.doe@example.com
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] useIncomingCall subscribed aaaa1111-1111-1111-1111-111111111111
+  [tourist:verbose] [dlog] useIncomingCall subscribed aaaa1111-1111-1111-1111-111111111111
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] warning Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] bindRealtimeAuth: storage= present
+  [tourist:verbose] [dlog] bindRealtimeAuth: storage= present
+  [tourist:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+[repro] call#1: tourist clicks Voice call
+  [tourist:console] log [dlog] startCall invoked {mode: voice, activeConvId: 347f782e-e6bc-4d2b-b3a4-7453d301dcba, partnerId: 11111111-1111-1111-1111-111111111111, isPartnerOnline: true, callClientExists: false}
+  [tourist:verbose] [dlog] startCall invoked {mode: voice, activeConvId: 347f782e-e6bc-4d2b-b3a4-7453d301dcba, partnerId: 11111111-1111-1111-1111-111111111111, isPartnerOnline: true, callClientExists: false}
+  [tourist:console] warning GoTrueClient@sb-pqvnjgyqbxlylawwogjv-auth-token:1 (2.117.1) 2026-09-30T16:51:45.278Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+  [buddy:console] log [dlog] useIncomingCall INSERT a1261ccc-55f4-42bf-b3db-14dfbd46a12d status ringing
+  [buddy:verbose] [dlog] useIncomingCall INSERT a1261ccc-55f4-42bf-b3db-14dfbd46a12d status ringing
+  [buddy:console] log [dlog] IncomingCallWatcher: incoming detected {pendingCallId: a1261ccc-55f4-42bf-b3db-14dfbd46a12d, callerName: John Doe}
+  [buddy:verbose] [dlog] IncomingCallWatcher: incoming detected {pendingCallId: a1261ccc-55f4-42bf-b3db-14dfbd46a12d, callerName: John Doe}
+  [tourist:console] log [dlog] ensureInboundChannel aaaa1111-1111-1111-1111-111111111111
+  [tourist:verbose] [dlog] ensureInboundChannel aaaa1111-1111-1111-1111-111111111111
+  [tourist:console] log [dlog] ensureInboundChannel lastSeenAt initial= 2026-09-30T16:51:40.983Z
+  [tourist:verbose] [dlog] ensureInboundChannel lastSeenAt initial= 2026-09-30T16:51:40.983Z
+  [tourist:console] log [dlog] sendSignaling offer â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling offer â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] pc.iceGatheringState gathering
+  [tourist:verbose] [dlog] pc.iceGatheringState gathering
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:3919377213 1 udp 2122129151 26.41.38.174 59937 typ
+  [tourist:verbose] [dlog] local ICE candidate:3919377213 1 udp 2122129151 26.41.38.174 59937 typ
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:26287148 1 udp 2121932543 192.168.1.103 59938 typ 
+  [tourist:verbose] [dlog] local ICE candidate:26287148 1 udp 2121932543 192.168.1.103 59938 typ 
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:1268262332 1 udp 2122255103 2001::14c9:d700:1c88:7
+  [tourist:verbose] [dlog] local ICE candidate:1268262332 1 udp 2122255103 2001::14c9:d700:1c88:7
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:3274668005 1 udp 2122199807 fdfd::1a29:26ae 59940 
+  [tourist:verbose] [dlog] local ICE candidate:3274668005 1 udp 2122199807 fdfd::1a29:26ae 59940 
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:29088486 1 udp 2122066175 2405:4802:95fc:ab80:1483
+  [tourist:verbose] [dlog] local ICE candidate:29088486 1 udp 2122066175 2405:4802:95fc:ab80:1483
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:3224785183 1 udp 2122000639 2405:4802:95fc:ab80:2c
+  [tourist:verbose] [dlog] local ICE candidate:3224785183 1 udp 2122000639 2405:4802:95fc:ab80:2c
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:389425065 1 tcp 1518149375 26.41.38.174 9 typ host
+  [tourist:verbose] [dlog] local ICE candidate:389425065 1 tcp 1518149375 26.41.38.174 9 typ host
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:4282108088 1 tcp 1517952767 192.168.1.103 9 typ ho
+  [tourist:verbose] [dlog] local ICE candidate:4282108088 1 tcp 1517952767 192.168.1.103 9 typ ho
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:3040014632 1 tcp 1518275327 2001::14c9:d700:1c88:7
+  [tourist:verbose] [dlog] local ICE candidate:3040014632 1 tcp 1518275327 2001::14c9:d700:1c88:7
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:1032168305 1 tcp 1518220031 fdfd::1a29:26ae 9 typ 
+  [tourist:verbose] [dlog] local ICE candidate:1032168305 1 tcp 1518220031 fdfd::1a29:26ae 9 typ 
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:4279307890 1 tcp 1518086399 2405:4802:95fc:ab80:14
+  [tourist:verbose] [dlog] local ICE candidate:4279307890 1 tcp 1518086399 2405:4802:95fc:ab80:14
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:1050445195 1 tcp 1518020863 2405:4802:95fc:ab80:2c
+  [tourist:verbose] [dlog] local ICE candidate:1050445195 1 tcp 1518020863 2405:4802:95fc:ab80:2c
+  [tourist:console] log [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:verbose] [dlog] sendSignaling ice-candidate â†’ 11111111-1111-1111-1111-111111111111 callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [tourist:console] log [dlog] local ICE candidate:3227470694 1 udp 1685724927 1.53.17.72 57368 typ s
+  [tourist:verbose] [dlog] local ICE candidate:3227470694 1 udp 1685724927 1.53.17.72 57368 typ s
+  [tourist:console] log [dlog] sendSignaling sent OK offer
+  [tourist:verbose] [dlog] sendSignaling sent OK offer
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] sendSignaling sent OK ice-candidate
+  [tourist:verbose] [dlog] sendSignaling sent OK ice-candidate
+  [tourist:console] log [dlog] ensureInboundChannel subscribe SUBSCRIBED channel webrtc-signals:aaaa1111-1111-1111-1111-111111111111
+  [tourist:verbose] [dlog] ensureInboundChannel subscribe SUBSCRIBED channel webrtc-signals:aaaa1111-1111-1111-1111-111111111111
+  [tourist:console] log [dlog] ensureInboundChannel: starting poller for aaaa1111-1111-1111-1111-111111111111
+  [tourist:verbose] [dlog] ensureInboundChannel: starting poller for aaaa1111-1111-1111-1111-111111111111
+[repro] call#1: waiting for buddy popup
+[repro] call#1: buddy clicks Accept
+  [buddy:console] log [dlog] IncomingCallWatcher: handleAccept a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [buddy:verbose] [dlog] IncomingCallWatcher: handleAccept a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [buddy:console] log [dlog] chat deep-link effect {callParam: a1261ccc-55f4-42bf-b3db-14dfbd46a12d, loading: false, myId: 11111111-1111-1111-1111-111111111111}
+  [buddy:verbose] [dlog] chat deep-link effect {callParam: a1261ccc-55f4-42bf-b3db-14dfbd46a12d, loading: false, myId: 11111111-1111-1111-1111-111111111111}
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:console] log [dlog] acceptCall invoked {pendingCallId: a1261ccc-55f4-42bf-b3db-14dfbd46a12d, myId: 11111111-1111-1111-1111-111111111111, callClientExists: false}
+  [buddy:verbose] [dlog] acceptCall invoked {pendingCallId: a1261ccc-55f4-42bf-b3db-14dfbd46a12d, myId: 11111111-1111-1111-1111-111111111111, callClientExists: false}
+  [buddy:console] log [dlog] bindRealtimeAuth: storage= present
+  [buddy:verbose] [dlog] bindRealtimeAuth: storage= present
+  [buddy:console] log [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [buddy:verbose] [dlog] bindRealtimeAuth: setAuth OK token prefix eyJhbGciOiJFUzI1NiIsImtpZCI6Ij
+  [tourist:console] log [dlog] inbound poll recv 0 rows lastSeen=2026-09-30T16:51:40.983Z subs=1
+  [tourist:verbose] [dlog] inbound poll recv 0 rows lastSeen=2026-09-30T16:51:40.983Z subs=1
+  [buddy:console] log [dlog] acceptIncomingCall called {callId: a1261ccc-55f4-42bf-b3db-14dfbd46a12d, myId: 11111111-1111-1111-1111-111111111111, peerId: aaaa1111-1111-1111-1111-111111111111}
+  [buddy:verbose] [dlog] acceptIncomingCall called {callId: a1261ccc-55f4-42bf-b3db-14dfbd46a12d, myId: 11111111-1111-1111-1111-111111111111, peerId: aaaa1111-1111-1111-1111-111111111111}
+  [buddy:console] warning GoTrueClient@sb-pqvnjgyqbxlylawwogjv-auth-token:1 (2.117.1) 2026-09-30T16:51:47.290Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+  [buddy:console] log [dlog] acceptIncomingCall: about to getIceConfig + buildPeerConnection
+  [buddy:verbose] [dlog] acceptIncomingCall: about to getIceConfig + buildPeerConnection
+  [buddy:console] log [dlog] acceptIncomingCall: got ice config, building PC. iceServers= [{"urls":"stun:stun.l.google.com:19302"},{"urls":"stun:stun1.l.google.com:19302"}]
+  [buddy:verbose] [dlog] acceptIncomingCall: got ice config, building PC. iceServers= [{"urls":"stun:stun.l.google.com:19302"},{"urls":"stun:stun1.l.google.com:19302"}]
+  [buddy:console] log [dlog] acceptIncomingCall: about to call listenForInbound for myId= 11111111-1111-1111-1111-111111111111
+  [buddy:verbose] [dlog] acceptIncomingCall: about to call listenForInbound for myId= 11111111-1111-1111-1111-111111111111
+  [buddy:console] log [dlog] ensureInboundChannel 11111111-1111-1111-1111-111111111111
+  [buddy:verbose] [dlog] ensureInboundChannel 11111111-1111-1111-1111-111111111111
+  [buddy:console] log [dlog] ensureInboundChannel lastSeenAt initial= 2026-09-30T16:51:42.567Z
+  [buddy:verbose] [dlog] ensureInboundChannel lastSeenAt initial= 2026-09-30T16:51:42.567Z
+[repro] call#1: waiting for connected state (â‰¤ 30 s)
+  call#1 t=0s tourist="Calling Lanâ€¦" buddy="Connectingâ€¦"
+  [tourist:console] log [dlog] inbound poll recv 0 rows lastSeen=2026-09-30T16:51:40.983Z subs=1
+  [tourist:verbose] [dlog] inbound poll recv 0 rows lastSeen=2026-09-30T16:51:40.983Z subs=1
+  [buddy:console] log [dlog] ensureInboundChannel subscribe SUBSCRIBED channel webrtc-signals:11111111-1111-1111-1111-111111111111
+  [buddy:verbose] [dlog] ensureInboundChannel subscribe SUBSCRIBED channel webrtc-signals:11111111-1111-1111-1111-111111111111
+  [buddy:console] log [dlog] ensureInboundChannel: starting poller for 11111111-1111-1111-1111-111111111111
+  [buddy:verbose] [dlog] ensureInboundChannel: starting poller for 11111111-1111-1111-1111-111111111111
+  [tourist:console] log [dlog] inbound poll recv 0 rows lastSeen=2026-09-30T16:51:40.983Z subs=1
+  [tourist:verbose] [dlog] inbound poll recv 0 rows lastSeen=2026-09-30T16:51:40.983Z subs=1
+  [tourist:console] log [dlog] poll loop alive after 3 ticks
+  [tourist:verbose] [dlog] poll loop alive after 3 ticks
+  [tourist:console] log [dlog] inbound poll recv 0 rows lastSeen=2026-09-30T16:51:40.983Z subs=1
+  [tourist:verbose] [dlog] inbound poll recv 0 rows lastSeen=2026-09-30T16:51:40.983Z subs=1
+  [buddy:console] log [dlog] inbound poll recv 14 rows lastSeen=2026-09-30T16:51:42.567Z subs=1
+  [buddy:verbose] [dlog] inbound poll recv 14 rows lastSeen=2026-09-30T16:51:42.567Z subs=1
+  [buddy:console] log [dlog] inbound poll recv offer callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [buddy:verbose] [dlog] inbound poll recv offer callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [buddy:console] log [dlog] callee inbound received offer callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d expect= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [buddy:verbose] [dlog] callee inbound received offer callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d expect= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [buddy:console] log [dlog] callee inbound: setRemoteDescription starting "v=0\r\no=- 5177504599820677579 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BU
+  [buddy:verbose] [dlog] callee inbound: setRemoteDescription starting "v=0\r\no=- 5177504599820677579 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BU
+  [buddy:console] log [dlog] callee inbound: ERR Failed to construct 'RTCSessionDescription': The provided value is not of type 'RTCSessionDescriptionInit'.
+  [buddy:verbose] [dlog] callee inbound: ERR Failed to construct 'RTCSessionDescription': The provided value is not of type 'RTCSessionDescriptionInit'.
+  [buddy:console] log [dlog] inbound poll recv ice-candidate callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [buddy:verbose] [dlog] inbound poll recv ice-candidate callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [buddy:console] log [dlog] callee inbound received ice-candidate callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d expect= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  [buddy:verbose] [dlog] callee inbound received ice-candidate callId= a1261ccc-55f4-42bf-b3db-14dfbd46a12d expect= a1261ccc-55f4-42bf-b3db-14dfbd46a12d
+  call#1 t=2s tourist="Calling Lanâ€¦" buddy="Call failed"
+FATAL: Error: Call failed early: tourist="Calling Lanâ€¦" buddy="Call failed"
+    at waitForConnected (file:///D:/New%20folder/LOCALit_v2.0/scripts/playwright-call-repro.mjs:218:13)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at process.processImmediate (node:internal/timers:472:9)
+    at async runOneCall (file:///D:/New%20folder/LOCALit_v2.0/scripts/playwright-call-repro.mjs:259:14)
+    at async main (file:///D:/New%20folder/LOCALit_v2.0/scripts/playwright-call-repro.mjs:318:3)

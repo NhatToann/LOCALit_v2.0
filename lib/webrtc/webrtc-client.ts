@@ -1016,14 +1016,25 @@ async function ensureInboundChannel(userId: string): Promise<void> {
         ) {
           continue
         }
-        const payloadObj = row.payload as { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit } | null
+        // payload for offer/answer/bye is the full SessionDescriptionInit
+        // object ({type, sdp}) or null; payload for ice-candidate is the
+        // RTCIceCandidateInit ({candidate, sdpMid, ...}). The signaling
+        // message shape matches the inner payload verbatim — the caller
+        // constructs msg with `sdp: offer` (the whole object) and we
+        // round-trip it through jsonb.
         const msg: SignalingMessage = {
           type: row.kind,
           callId: row.call_id,
           from: row.from_user_id,
           to: row.to_user_id,
-          sdp: payloadObj?.sdp,
-          candidate: payloadObj?.candidate,
+          sdp:
+            row.kind === 'offer' || row.kind === 'answer'
+              ? (row.payload as unknown as RTCSessionDescriptionInit | null) ?? undefined
+              : undefined,
+          candidate:
+            row.kind === 'ice-candidate'
+              ? (row.payload as unknown as RTCIceCandidateInit | null) ?? undefined
+              : undefined,
         }
         for (const sub of inboundSubscribers) {
           try {
@@ -1075,14 +1086,19 @@ async function ensureInboundChannel(userId: string): Promise<void> {
       ) {
         return
       }
-      const payloadObj = row.payload as { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit } | null
       const msg: SignalingMessage = {
-        type: row.kind,
+        type: row.kind as SignalingMessage['type'],
         callId: row.call_id,
         from: row.from_user_id,
         to: row.to_user_id,
-        sdp: payloadObj?.sdp,
-        candidate: payloadObj?.candidate,
+        sdp:
+          row.kind === 'offer' || row.kind === 'answer'
+            ? (row.payload as unknown as RTCSessionDescriptionInit | null) ?? undefined
+            : undefined,
+        candidate:
+          row.kind === 'ice-candidate'
+            ? (row.payload as unknown as RTCIceCandidateInit | null) ?? undefined
+            : undefined,
       }
       for (const sub of inboundSubscribers) {
         try {
