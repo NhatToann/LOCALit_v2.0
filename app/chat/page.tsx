@@ -750,6 +750,8 @@ function ChatInner() {
   // guaranteed to be populated.
   useEffect(() => {
     if (!callParam || loading || !myId || callClient) return
+    // eslint-disable-next-line no-console
+    console.log('[chat] accept effect running', { callParam, myId, loading, callClient: !!callClient })
     const isCallerParam =
       callParam === '1' || callParam === 'voice' || callParam === 'video'
     if (isCallerParam) return
@@ -761,13 +763,19 @@ function ChatInner() {
         .select('conversation_id, callee_id, status')
         .eq('id', callParam)
         .single()
-      if (cancelled || error || !row) return
+      if (cancelled || error || !row) {
+        // eslint-disable-next-line no-console
+        console.log('[chat] row lookup failed', { error: error?.message, row })
+        return
+      }
       if (row.callee_id !== myId) return
       if (row.status !== 'ringing') {
         // Already handled by another tab or by a decline elsewhere.
         router.replace('/chat')
         return
       }
+      // eslint-disable-next-line no-console
+      console.log('[chat] calling acceptCall for', callParam)
       // Highlight the matching conversation in the chat list (purely
       // cosmetic — acceptCall doesn't depend on activeId anymore).
       if (activeId !== row.conversation_id) setActiveId(row.conversation_id)
