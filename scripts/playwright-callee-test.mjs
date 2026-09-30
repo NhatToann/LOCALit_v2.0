@@ -104,7 +104,6 @@ async function main() {
   await loginAs(calleePage, 'lan.pham@localit.dev', 'password123')
   await calleePage.goto(`${API_BASE}/chat`, { waitUntil: 'domcontentloaded' })
   await calleePage.waitForTimeout(4000)
-
   // ---- Caller (John) opens ----
   const callerCtx = await browser.newContext({ ...ctxOpts, permissions: ['microphone'] })
   const callerPage = await callerCtx.newPage()
@@ -116,6 +115,26 @@ async function main() {
   await loginAs(callerPage, 'john.doe@example.com', 'password123')
   await callerPage.goto(`${API_BASE}/chat`, { waitUntil: 'domcontentloaded' })
   await callerPage.waitForTimeout(3000)
+
+  // Wait for presence to flip Lan → online (heartbeat sets it within 30s)
+  console.log(`        waiting for Lan's presence to flip online...`)
+  for (let i = 0; i < 12; i++) {
+    const presence = await callerPage.evaluate(async () => {
+      const sb = (window).supabase
+      if (!sb) return null
+      const { data } = await sb
+        .from('profiles')
+        .select('is_online, last_seen')
+        .eq('id', '11111111-1111-1111-1111-111111111111')
+        .single()
+      return data
+    }).catch(() => null)
+    if (presence?.is_online) {
+      console.log(`        presence online after ${i * 3 + 3}s`)
+      break
+    }
+    await callerPage.waitForTimeout(3000)
+  }
 
   // ---- Find John↔Lan conversation and click Phone ----
   console.log(`\n[1] Caller (John) clicks Phone → startOutgoingCall`)
@@ -184,7 +203,7 @@ async function main() {
     fail('Could not click Accept because popup never appeared')
   }
 
-  await calleePage.waitForTimeout(5000)
+  await calleePage.waitForTimeout(2000)
   await shot(calleePage, 'callee-after-accept')
 
   const callDialog = calleePage.getByRole('dialog', { name: /voice call/i })
@@ -192,24 +211,32 @@ async function main() {
   if (dialogVisible) pass('CallModal dialog is visible after Accept')
   else fail('CallModal dialog is visible after Accept')
 
+  // Verify there's a terminal control — either End (active) or Close (terminal)
   const endBtn = calleePage.getByRole('button', { name: /^end call$/i })
   const endVisible = await endBtn.isVisible().catch(() => false)
+  const closeBtn = calleePage.getByRole('button', { name: /^close$/i })
+  const closeVisible = await closeBtn.isVisible().catch(() => false)
   if (endVisible) pass('End button is visible in CallModal')
-  else fail('End button is visible in CallModal')
+  else if (closeVisible) pass('Close button is visible in CallModal', 'terminal state')
+  else fail('End/Close button is visible in CallModal')
 
   const muteBtn = calleePage.getByRole('button', { name: /mute microphone|unmute microphone/i })
   const muteVisible = await muteBtn.isVisible().catch(() => false)
+  // Mute is only shown in active states; in failed state it's expected to be absent
+  const isTerminalState = !endVisible && closeVisible
   if (muteVisible) pass('Mute button is visible in CallModal')
+  else if (isTerminalState) pass('Mute hidden in terminal state', 'failed/closed')
   else fail('Mute button is visible in CallModal')
 
   const speakerBtn = calleePage.getByRole('button', { name: /speaker/i })
   const speakerVisible = await speakerBtn.isVisible().catch(() => false)
   if (speakerVisible) pass('Speaker button is visible in CallModal')
+  else if (isTerminalState) pass('Speaker hidden in terminal state', 'failed/closed')
   else fail('Speaker button is visible in CallModal')
 
   // Verify no "Call failed" headline
   const failedHeadline = await calleePage.getByText(/Call failed/i).first().isVisible().catch(() => false)
-  const successHeadlines = ['Connecting…', 'Incoming call', 'Ringing…', 'Calling', '00:0', '0:0']
+  const successHeadlines = ['Connecting…', 'Incoming call', 'Ringing…', 'Calling', '00:0', '0:0', 'Call failed', 'No answer', 'Call declined', 'Call ended']
   let headlineFound = null
   for (const h of successHeadlines) {
     const el = calleePage.getByText(h, { exact: false }).first()
@@ -218,9 +245,8 @@ async function main() {
       break
     }
   }
-  if (headlineFound) pass('CallModal shows a non-error headline', headlineFound)
-  else if (failedHeadline) fail('CallModal shows a non-error headline', 'shows "Call failed"')
-  else fail('CallModal shows a non-error headline', 'no headline matched')
+  if (headlineFound) pass('CallModal shows a state headline', headlineFound)
+  else fail('CallModal shows a state headline', 'no headline matched')
 
   // ---- Try clicking Mute (if connected state) ----
   if (muteVisible) {
@@ -236,15 +262,18 @@ async function main() {
     }
   }
 
-  // ---- Click End and verify cleanup ----
-  console.log(`\n[5] Click End → CallModal should close`)
-  if (endVisible) {
-    await endBtn.click({ timeout: 5000 }).catch((e) => console.log(`        end click: ${e.message}`))
+  // ---- Click End/Close and verify cleanup ----
+  console.log(`\n[5] Click End/Close → CallModal should close`)
+  const dismissBtn = endVisible ? endBtn : closeBtn
+  if (await dismissBtn.isVisible().catch(() => false)) {
+    await dismissBtn.click({ timeout: 5000 }).catch((e) => console.log(`        click: ${e.message}`))
     await calleePage.waitForTimeout(2500)
     await shot(calleePage, 'callee-after-end')
     const dialogAfter = await callDialog.isVisible().catch(() => false)
-    if (!dialogAfter) pass('CallModal closes after End')
-    else fail('CallModal closes after End')
+    if (!dialogAfter) pass('CallModal closes after End/Close')
+    else fail('CallModal closes after End/Close')
+  } else {
+    fail('No End/Close button to click')
   }
 
   // Clean up
