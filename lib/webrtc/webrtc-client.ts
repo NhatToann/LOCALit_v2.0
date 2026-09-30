@@ -932,6 +932,7 @@ async function ensureInboundChannel(userId: string): Promise<void> {
   async function pollOnce(): Promise<void> {
     if (stop) return
     try {
+      const supabase = getSignalingSupabase()
       const { data, error } = await supabase
         .from('webrtc_signals')
         .select('id, call_id, from_user_id, to_user_id, kind, payload, created_at')
@@ -939,6 +940,14 @@ async function ensureInboundChannel(userId: string): Promise<void> {
         .gt('created_at', lastSeenAt)
         .order('created_at', { ascending: true })
         .limit(50)
+      if (DEBUG_CALL && (error || (data && data.length > 0))) {
+        // eslint-disable-next-line no-console
+        console.log(
+          '[dlog] inbound poll',
+          error ? `ERR ${error.message}` : `recv ${data.length} rows`,
+          `lastSeen=${lastSeenAt}`,
+        )
+      }
       if (error) {
         if (DEBUG_CALL) {
           // eslint-disable-next-line no-console
