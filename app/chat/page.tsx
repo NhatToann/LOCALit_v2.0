@@ -97,6 +97,13 @@ function ChatInner() {
   /** True if we are the caller. False if we are the callee who accepted
    *  an incoming call. Controls which CallModal buttons are shown. */
   const [isOutgoing, setIsOutgoing] = useState(true)
+  /** Partner info for the active call. Used by CallModal when activeConv
+   *  isn't loaded yet (callee on /chat?call=X before conversations
+   *  hydrate). Cleared on callState=idle. */
+  const [callPartner, setCallPartner] = useState<{
+    name: string
+    avatar: string | null
+  } | null>(null)
   /** Hidden <audio> element ref. Receives the remote MediaStream from the
    *  WebRTC peer via srcObject so the browser plays the peer's audio.
    *  Without this, the connection reaches 'connected' state but no audio
@@ -615,6 +622,10 @@ function ChatInner() {
     setCallState('calling')
     setIsOutgoing(true)
     setError('')
+    setCallPartner({
+      name: activeConv.partner_name,
+      avatar: activeConv.partner_avatar,
+    })
     try {
       const { client } = await startOutgoingCall({
         conversationId: activeConv.id,
@@ -680,18 +691,20 @@ function ChatInner() {
       }
       conversationId = row.conversation_id
       peerId = row.caller_id
-      // Try to enrich partnerName from activeConv (if loaded) or from
+      // Try to enrich partner info from activeConv (if loaded) or from
       // safe_profiles (as a fallback). Don't fail if neither resolves.
-      partnerName =
-        (activeConv && activeConv.id === conversationId ? activeConv.partner_name : null) ??
-        (await (async () => {
-          const { data: profile } = await supabase
-            .from('safe_profiles')
-            .select('full_name')
-            .eq('id', peerId)
-            .maybeSingle<{ full_name: string | null }>()
-          return profile?.full_name ?? 'Caller'
-        })())
+      const profile =
+        activeConv && activeConv.id === conversationId
+          ? { full_name: activeConv.partner_name, avatar_url: activeConv.partner_avatar }
+          : (
+              await supabase
+                .from('safe_profiles')
+                .select('full_name, avatar_url')
+                .eq('id', peerId)
+                .maybeSingle<{ full_name: string | null; avatar_url: string | null }>()
+            ).data
+      partnerName = profile?.full_name ?? 'Caller'
+      setCallPartner({ name: partnerName, avatar: profile?.avatar_url ?? null })
     } catch (e) {
       setError('Could not accept call: ' + (e as Error).message)
       setCallState('failed')
@@ -734,6 +747,7 @@ function ChatInner() {
     }
     callClient?.end()
     setCallClient(null)
+    setCallPartner(null)
     setTimeout(() => setCallState('idle'), 1000)
   }
 
@@ -750,8 +764,6 @@ function ChatInner() {
   // guaranteed to be populated.
   useEffect(() => {
     if (!callParam || loading || !myId || callClient) return
-    // eslint-disable-next-line no-console
-    console.log('[chat] accept effect running', { callParam, myId, loading, callClient: !!callClient })
     const isCallerParam =
       callParam === '1' || callParam === 'voice' || callParam === 'video'
     if (isCallerParam) return
@@ -763,19 +775,13 @@ function ChatInner() {
         .select('conversation_id, callee_id, status')
         .eq('id', callParam)
         .single()
-      if (cancelled || error || !row) {
-        // eslint-disable-next-line no-console
-        console.log('[chat] row lookup failed', { error: error?.message, row })
-        return
-      }
+      if (cancelled || error || !row) return
       if (row.callee_id !== myId) return
       if (row.status !== 'ringing') {
         // Already handled by another tab or by a decline elsewhere.
         router.replace('/chat')
         return
       }
-      // eslint-disable-next-line no-console
-      console.log('[chat] calling acceptCall for', callParam)
       // Highlight the matching conversation in the chat list (purely
       // cosmetic — acceptCall doesn't depend on activeId anymore).
       if (activeId !== row.conversation_id) setActiveId(row.conversation_id)
@@ -1287,14 +1293,15 @@ function ChatInner() {
         ) : null}
       </div>
 
-      {activeConv && callState !== 'idle' ? (
+      {(activeConv || callPartner) && callState !== 'idle' ? (
         <CallModal
           client={callClient}
           mode={callMode}
-          partnerName={activeConv.partner_name}
-          partnerAvatar={activeConv.partner_avatar}
+          partnerName={callPartner?.name ?? activeConv?.partner_name ?? 'Caller'}
+          partnerAvatar={callPartner?.avatar ?? activeConv?.partner_avatar ?? null}
           isOutgoing={isOutgoing}
           state={callState}
+          errorMessage={callState === 'failed' ? error : null}
           audioRef={remoteAudioRef}
           onEnd={endCall}
         />

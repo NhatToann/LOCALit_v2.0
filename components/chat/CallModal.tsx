@@ -49,6 +49,9 @@ interface Props {
   partnerAvatar: string | null
   isOutgoing: boolean
   state: CallState
+  /** Optional detailed error message (e.g. "Could not accept call: ...")
+   *  shown below the headline when state === 'failed'. */
+  errorMessage?: string | null
   /**
    * Optional audio element that holds the remote MediaStream. The
    * speaker toggle routes `setSinkId(...)` through this element. If
@@ -60,12 +63,14 @@ interface Props {
 }
 
 // Per-state auto-dismiss timeout (ms). Longer for states that carry
-// a useful message (missed, declined, failed).
+// a useful message (missed, declined, failed). For `failed` we wait
+// until the user clicks Close (no auto-dismiss) so they have time to
+// read the errorMessage — see https://example.invalid/callee-accept
+// regression where the user reported no time to act.
 const DISMISS_AFTER_MS: Partial<Record<CallState, number>> = {
   ended: 1500,
   declined: 2500,
   missed: 3000,
-  failed: 3500,
 }
 
 function fmtDuration(seconds: number): string {
@@ -129,6 +134,7 @@ export default function CallModal({
   partnerAvatar,
   isOutgoing,
   state,
+  errorMessage,
   audioRef,
   onEnd,
   onQuality,
@@ -315,6 +321,16 @@ export default function CallModal({
           <p className={headlineClass} aria-live="polite">
             {headlineText}
           </p>
+          {/* Detailed error message — only on failed state and only if
+              the parent supplied a non-empty message. */}
+          {state === 'failed' && errorMessage ? (
+            <p
+              className="mt-2 text-xs text-danger max-w-xs break-words"
+              role="alert"
+            >
+              {errorMessage}
+            </p>
+          ) : null}
 
           {/* Subhead line — direction hint or "Dialing via Stringee" */}
           {!isTerminal && isOutgoing && state === 'calling' ? (
