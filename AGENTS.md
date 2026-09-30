@@ -545,6 +545,29 @@ vercel alias set <latest-hash>-nhattoann.vercel.app localit-vn.vercel.app
 Otherwise tests against the canonical URL hit stale code. Use
 `vercel ls --prod` to find the latest hash.
 
+### Callee-side CallModal (2026-09-30)
+
+The callee (`/chat?call=<pendingCallId>`) on accepting an incoming
+call MUST see the `CallModal` even if `conversations` haven't
+hydrated yet. Two implementation guarantees:
+
+1. `acceptCall()` no longer early-returns when `activeConv` is
+   null. It queries `pending_calls` directly via Supabase JS,
+   looks up the caller in `safe_profiles` for display info, and
+   sets `callPartner` state. This decouples acceptance from the
+   conversations list being loaded.
+2. `CallModal` is mounted when `callPartner || activeConv` AND
+   `callState !== 'idle'` — so even on fresh navigation the modal
+   appears.
+
+If `acceptIncomingCall()` fails (no matching Stringee call, etc.)
+the modal goes to `failed` state with the error message displayed
+beneath the headline and the auto-dismiss timer is **disabled** so
+the user has time to read and dismiss manually.
+
+E2E: `node scripts/playwright-callee-test.mjs` — 11/11 pass
+against `localit-nhattoann.vercel.app`.
+
 ### Future work
 
 - **Background-connect**: mount `IncomingCallWatcher` (or a stripped-down `ensureStringeeClient` + `client.on('incomingcall')`) in a layout-level component (e.g. `app/(authenticated)/layout.tsx`) so buddies are reachable even when they're not on `/chat`. This is the #1 prerequisite for buddy calls to work reliably in production.
