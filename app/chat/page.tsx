@@ -1690,11 +1690,7 @@ function ChatInner() {
                   Voice call
                 </button>
                 <Link
-                  href={
-                    myRole === 'buddy'
-                      ? '/trips'
-                      : '/trips/create'
-                  }
+                  href="/trips/create"
                   className="inline-flex items-center gap-2 h-9 px-3 text-sm rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
                 >
                   <Calendar size={13} aria-hidden="true" />

@@ -37,6 +37,7 @@ import type {
   LiveKitCallClient,
 } from '@/lib/webrtc/livekit-client'
 import { chimeAccept, chimeDecline, chimeEnd, chimeToggle } from '@/lib/webrtc/call-effects'
+import { CallActionFooter } from '@/components/chat/CallActionFooter'
 // CallMode / CallState / CallQuality / NetworkStatus used to live in
 // @/lib/webrtc/webrtc-client. They're now defined locally here.
 type CallMode = 'voice' | 'video'
@@ -436,26 +437,13 @@ export default function CallModal({
         ) : null}
 
         {/* Footer controls */}
-        <div className="p-6 border-t border-border flex items-center justify-center gap-4 flex-wrap bg-surface">
+        <div className="border-t border-border bg-surface">
           {isIncomingRinging ? (
-            <>
-              <button
-                type="button"
-                onClick={handleAccept}
-                aria-label="Accept call"
-                className="inline-flex items-center justify-center w-16 h-16 bg-success text-paper border border-success rounded-sm hover:opacity-90"
-              >
-                <Phone size={22} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={handleDecline}
-                aria-label="Decline call"
-                className="inline-flex items-center justify-center w-16 h-16 bg-danger text-paper border border-danger rounded-sm hover:opacity-90"
-              >
-                <PhoneOff size={22} aria-hidden="true" />
-              </button>
-            </>
+            <CallActionFooter
+              onAccept={handleAccept}
+              onDecline={handleDecline}
+              size="md"
+            />
           ) : isTerminal ? (
             <>
               {state === 'missed' ? (

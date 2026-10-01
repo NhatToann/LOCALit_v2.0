@@ -26,13 +26,13 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { Phone, PhoneOff, MessageSquare } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { useIncomingCall, type IncomingCall } from '@/lib/realtime/useIncomingCall'
 import { useActiveCall } from '@/lib/realtime/useActiveCallStore'
 import { chimeDecline, chimeAccept } from '@/lib/webrtc/call-effects'
 import { postCallLog } from '@/lib/webrtc/call-log'
 import { Avatar } from '@/components/ui/Avatar'
+import { CallActionFooter } from '@/components/chat/CallActionFooter'
 
 const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
 
@@ -278,38 +278,13 @@ function IncomingCallCard({
           </div>
         </div>
       </div>
-      <div className="flex border-t border-border">
-        <button
-          type="button"
-          onClick={onQuickReply}
-          disabled={declineBusy}
-          aria-label="Reply with a quick message and decline"
-          title="Send a quick reply and decline"
-          className="flex-1 inline-flex items-center justify-center gap-2 h-12 text-xs font-medium text-ink bg-surface border-r border-border hover:bg-paper disabled:opacity-50"
-        >
-          <MessageSquare size={14} aria-hidden="true" />
-          <span className="hidden sm:inline">Busy</span>
-        </button>
-        <button
-          type="button"
-          onClick={onDecline}
-          disabled={declineBusy}
-          aria-label="Decline call"
-          className="flex-1 inline-flex items-center justify-center gap-2 h-12 text-sm font-medium text-danger bg-surface border-r border-border hover:bg-danger-bg disabled:opacity-50"
-        >
-          <PhoneOff size={16} aria-hidden="true" />
-          Decline
-        </button>
-        <button
-          type="button"
-          onClick={onAccept}
-          aria-label="Accept call"
-          className="flex-1 inline-flex items-center justify-center gap-2 h-12 text-sm font-medium text-paper bg-success hover:opacity-90"
-        >
-          <Phone size={16} aria-hidden="true" />
-          Accept
-        </button>
-      </div>
+      <CallActionFooter
+        onAccept={onAccept}
+        onDecline={onDecline}
+        onBusy={onQuickReply}
+        busyDisabled={declineBusy}
+        declineDisabled={declineBusy}
+      />
     </div>
   )
 }
