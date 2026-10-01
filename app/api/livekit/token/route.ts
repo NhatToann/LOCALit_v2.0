@@ -109,8 +109,27 @@ export async function POST(req: NextRequest) {
   // — no need to verify the JWT ourselves. The earlier `jwt` variable
   // was renamed to make this clearer.
   if (!jwt) {
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.warn('[livekit-token] no authenticated user', {
+        hasCookie: req.headers.get('cookie')?.includes('sb-'),
+      })
+    }
     return NextResponse.json(
       { error: 'Sign in to request a LiveKit token' },
+      { status: 401 },
+    )
+  }
+  // Detect the bug where the Bearer-fallback returned the raw access
+  // token (an eyeball-long JWT) instead of the userId. UserIds are
+  // UUIDs, JWTs contain dots.
+  if (jwt.includes('.') || jwt.length > 64) {
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.warn('[livekit-token] Bearer-fallback returned a JWT, not a userId. len=', jwt.length)
+    }
+    return NextResponse.json(
+      { error: 'Session token could not be resolved to a user' },
       { status: 401 },
     )
   }

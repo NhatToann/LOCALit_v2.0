@@ -420,8 +420,17 @@ backend; browser joins a LiveKit room on demand.
 ### Env vars (Vercel Production)
 
 - `LIVEKIT_URL` = `wss://localit-tntjqmfu.livekit.cloud` (server-only Secret)
-- `LIVEKIT_API_KEY` = `APIVnqy9qJSiJ58`
-- `LIVEKIT_API_SECRET` = `<secret>`
+- `LIVEKIT_API_KEY` = `APIPFofWJQgZXeu`
+- `LIVEKIT_API_SECRET` = `Re6KZim9ijPUJnpvDTJKB0eXj09TD0NCetan0PJANbxA`
+
+**⚠️ Critical pitfall — wrong API key**: the JWT's `iss` claim MUST
+match the API key registered with the LiveKit Cloud project. A wrong
+key signs a syntactically-valid JWT but LiveKit's WebSocket returns
+`HTTP Authentication failed; no valid credentials available` and
+the room never connects. If you swap LiveKit projects (or
+regenerate the key), `vercel env rm/add` for all three vars before
+redeploying. The token route does NOT validate the key against the
+project — that's a LiveKit-side check.
 
 ### Why a server-only `LIVEKIT_URL` (not `NEXT_PUBLIC_LIVEKIT_URL`)
 
