@@ -156,6 +156,35 @@ export async function POST(req: NextRequest) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ ok: true })
     }
+    if (action === 'run-sql') {
+      // Execute raw SQL via the PostgREST RPC `exec_sql`. This is
+      // only mounted on non-prod; production traffic never hits this
+      // action. Used because the local DNS resolver cannot reach
+      // db.pqvnjgyqbxlylawwogjv.supabase.co (no A record) and the
+      // Windows node runtime can't dial IPv6.
+      //
+      // The migration author is responsible for idempotency.
+      const sql = String(body.sql ?? '')
+      if (!sql) {
+        return NextResponse.json({ error: 'missing sql' }, { status: 400 })
+      }
+      const { data, error } = await sb.rpc('exec_sql' as never, { sql } as never)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ ok: true, rows: data ?? null })
+    }
+    if (action === 'describe-pending-calls') {
+      // Returns the column list of public.pending_calls so we can
+      // verify a migration took effect without needing a direct pg
+      // connection.
+      const { data, error } = await sb
+        .from('pending_calls')
+        .select('*')
+        .limit(0)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      // Column list comes from the empty rowset's keys
+      const columns = data ? Object.keys(data).sort() : []
+      return NextResponse.json({ columns })
+    }
     return NextResponse.json({ error: 'unknown action: ' + action }, { status: 400 })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

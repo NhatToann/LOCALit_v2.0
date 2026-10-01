@@ -37,7 +37,7 @@ import type {
 } from '@/lib/webrtc/livekit-client'
 // CallMode / CallState / CallQuality / NetworkStatus used to live in
 // @/lib/webrtc/webrtc-client. They're now defined locally here.
-type CallMode = 'voice'
+type CallMode = 'voice' | 'video'
 type CallState =
   | 'idle'
   | 'calling'

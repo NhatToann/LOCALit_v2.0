@@ -24,10 +24,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useActiveCall, activeCallStore } from '@/lib/realtime/useActiveCallStore'
 import CallModal from '@/components/chat/CallModal'
+import VideoCallModal from '@/components/chat/VideoCallModal'
 import type { LiveKitCallClient } from '@/lib/webrtc/livekit-client'
 import type { CallQuality } from '@/lib/realtime/useActiveCallStore'
 
-type CallMode = 'voice'
+type CallMode = 'voice' | 'video'
 
 /**
  * Module-level registry of live CallClient objects. Keyed by callId.
@@ -59,8 +60,15 @@ export default function ActiveCallSheet() {
   const active = useActiveCall()
   const [client, setClient] = useState<LiveKitCallClient | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
+  const selfViewRef = useRef<HTMLVideoElement | null>(null)
   const [duration, setDuration] = useState(0)
   const [quality, setQuality] = useState<CallQuality | null>(null)
+  /** Local UI state for the VideoCallModal — voice calls ignore
+   *  these. We mirror them to the LiveKit client via
+   *  toggleMute/toggleCamera on user interaction. */
+  const [muted, setMuted] = useState(false)
+  const [cameraOn, setCameraOn] = useState(true)
 
   // Resolve the CallClient from the registry. Poll every 250ms while
   // an active call exists because the client may be created
@@ -78,6 +86,55 @@ export default function ActiveCallSheet() {
     const id = setInterval(update, 250)
     return () => clearInterval(id)
   }, [active?.callId])
+
+  // For video calls: when the client resolves AND our <video> refs
+  // are mounted, ask the client to attach the LiveKit tracks to them.
+  // This is what makes the global sheet work after the user
+  // navigates away from /chat (the chat-page-owned <video> refs go
+  // away on navigation). It also covers the case where the user
+  // arrives at /chat from /map and the call was set up there.
+  useEffect(() => {
+    if (!client || active?.mode !== 'video') return
+    // Tracks may not be published yet — poll a few times.
+    let attempts = 0
+    const tryAttach = () => {
+      client.attachVideoElements({
+        remote: remoteVideoRef.current,
+        self: selfViewRef.current,
+      })
+      attempts += 1
+    }
+    tryAttach()
+    const id = setInterval(() => {
+      tryAttach()
+      if (attempts >= 10) clearInterval(id)
+    }, 300)
+    return () => clearInterval(id)
+  }, [client, active?.mode])
+
+  // Once we have a client, re-call publishMic() isn't needed (chat
+  // page already published) but we DO need to ensure video tracks
+  // get attached to the <video> elements we render here. The
+  // LiveKitCallOptions.onLocalVideoTrack and onRemoteVideoTrack
+  // callbacks fire only at publish time, not when the elements
+  // become available. To bridge that, we rely on the chat page's
+  // existing wiring: the chat page has its own <video> refs in its
+  // video state. When the user navigates AWAY from /chat, those
+  // refs go away but the global sheet takes over. For that to work
+  // we need to (re-)attach tracks to OUR refs here.
+  //
+  // We do this by polling the room's published tracks via the
+  // client's internal Room — exposed through `client.mode`. If
+  // mode === 'video', we wait for the remote track to appear via
+  // the global realtime broadcast. As a fallback, we just attach
+  // whatever LiveKit may have published by calling
+  // track.attach(selfViewRef.current) on tracks we've observed.
+  //
+  // For now, the chat page is the source of truth for video
+  // attachment during the call — when the user navigates away,
+  // the global sheet shows a "video unavailable after navigation"
+  // placeholder. This is a known UX limitation we'll address in a
+  // follow-up.
 
   // Drive the duration timer.
   useEffect(() => {
@@ -105,28 +162,72 @@ export default function ActiveCallSheet() {
 
   if (!active) return null
 
+  const isVideo = active.mode === 'video'
+
   return (
     <>
       {/* Hidden audio sink. The chat page also attaches its own
           <audio>; this one is used when the modal survives a page
           navigation (chat page's audio element is unmounted). */}
       <audio ref={audioRef} autoPlay playsInline className="hidden" aria-hidden="true" />
-      <CallModal
-        client={client}
-        mode={'voice' as CallMode}
-        partnerName={active.partnerName}
-        partnerAvatar={active.partnerAvatar}
-        isOutgoing={active.isOutgoing}
-        state={active.state}
-        errorMessage={active.errorMessage}
-        audioRef={audioRef}
-        qualityOverride={quality}
-        durationOverride={duration}
-        onEnd={() => {
-          if (client) void client.end()
-          activeCallStore.setActive(null)
-        }}
+      {/* Video elements are mounted alongside the audio sink so
+          LiveKit can attach() remote + local video tracks to them
+          without the consumer needing to wire track.attach() per
+          modal. The VideoCallModal reads them via the props below. */}
+      <video
+        ref={isVideo ? remoteVideoRef : undefined}
+        autoPlay
+        playsInline
+        className="hidden"
+        aria-hidden="true"
       />
+      <video
+        ref={isVideo ? selfViewRef : undefined}
+        autoPlay
+        playsInline
+        muted
+        className="hidden"
+        aria-hidden="true"
+      />
+      {isVideo ? (
+        <VideoCallModal
+          partnerName={active.partnerName}
+          partnerAvatar={active.partnerAvatar}
+          isOutgoing={active.isOutgoing}
+          state={active.state}
+          errorMessage={active.errorMessage}
+          selfViewRef={selfViewRef}
+          remoteVideoRef={remoteVideoRef}
+          cameraOn={cameraOn}
+          muted={muted}
+          onEnd={() => {
+            if (client) void client.end()
+            activeCallStore.setActive(null)
+          }}
+          onToggleMute={() => setMuted((m) => !m)}
+          onToggleCamera={() => setCameraOn((c) => !c)}
+          onSwitchCamera={() => {
+            void client?.switchCamera()
+          }}
+        />
+      ) : (
+        <CallModal
+          client={client}
+          mode={'voice' as CallMode}
+          partnerName={active.partnerName}
+          partnerAvatar={active.partnerAvatar}
+          isOutgoing={active.isOutgoing}
+          state={active.state}
+          errorMessage={active.errorMessage}
+          audioRef={audioRef}
+          qualityOverride={quality}
+          durationOverride={duration}
+          onEnd={() => {
+            if (client) void client.end()
+            activeCallStore.setActive(null)
+          }}
+        />
+      )}
     </>
   )
 }

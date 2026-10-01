@@ -1,13 +1,12 @@
 /**
- * LiveKit-based voice-call client.
+ * LiveKit-based voice + video call client.
  *
  * Replaces the prior self-hosted RTCPeerConnection + Supabase Realtime
- * signaling path. LiveKit's @livekit/components-react SDK handles SDP,
- * ICE, TURN, codec negotiation, and reconnects — leaving this module
- * to focus on:
+ * signaling path. LiveKit's SDK handles SDP, ICE, TURN, codec
+ * negotiation, and reconnects — leaving this module to focus on:
  *
  *   1. Token acquisition from /api/livekit/token
- *   2. Room connect + publish the local mic track
+ *   2. Room connect + publish the local mic track (and optional camera)
  *   3. Surface a small imperative API the chat page can drive
  *   4. Track call state (calling/connecting/connected/ended/failed)
  *
@@ -15,6 +14,13 @@
  *   The chat page owns the call lifecycle (start/accept/end) and
  *   needs a synchronous-feeling API that returns a CallClient object.
  *   LiveKit's Room.connect() is async; we wrap it.
+ *
+ * Voice vs video (2026-10-01):
+ *   The same `startLiveKitCall` factory is used for both voice and
+ *   video calls. Pass `video: true` to publish the camera as well.
+ *   `pending_calls.type` (DB) carries the same flag; the call UI
+ *   picks the modal accordingly. CallModal stays voice-only;
+ *   VideoCallModal renders the video tiles.
  */
 
 import {
@@ -23,6 +29,12 @@ import {
   ConnectionState,
   Track,
   AudioPresets,
+  VideoPresets,
+  type LocalAudioTrack,
+  type LocalVideoTrack,
+  type RemoteAudioTrack,
+  type RemoteVideoTrack,
+  type RemoteParticipant,
 } from 'livekit-client'
 
 export type CallState =
@@ -36,26 +48,70 @@ export type CallState =
   | 'ended'
   | 'failed'
 
+export type CallMode = 'voice' | 'video'
+
 export interface LiveKitCallOptions {
   myId: string
   /** Stable room id, e.g. `call:<conversationId>`. */
   roomName: string
   /** Display name shown to peers inside the LiveKit room. */
   participantName?: string
+  /**
+   * When true, the camera will be requested and published in
+   * addition to the microphone. Defaults to false (voice-only —
+   * matches the historical behavior, safe for call-button paths
+   * that haven't been updated for video yet).
+   */
+  video?: boolean
   onState: (s: CallState) => void
   onRemoteStream: (stream: MediaStream) => void
   onLocalStream: (stream: MediaStream) => void
+  /**
+   * Fired when a remote VIDEO track subscribes (video calls only).
+   * The element argument is auto-created by LiveKit; we hand it to
+   * the caller so they can mount it inside their <video> container.
+   */
+  onRemoteVideoTrack?: (track: RemoteVideoTrack) => void
+  /**
+   * Fired when the local video track is published (or updated). The
+   * caller attaches it to a self-view <video> element.
+   */
+  onLocalVideoTrack?: (track: LocalVideoTrack) => void
   onError?: (err: Error) => void
 }
 
 export interface LiveKitCallClient {
   readonly callId: string
-  /** Publish the local mic — must be called after user gesture / mic permission. */
+  readonly mode: CallMode
+  /**
+   * Publish the local mic — must be called after user gesture / mic
+   * permission. If the call was started with `video: true`, also
+   * publishes the camera track.
+   */
   publishMic(): Promise<void>
   /** End the call and release all resources. */
   end(): void
   /** Toggle the published mic's mute state. Returns the new mute state. */
   toggleMute(): boolean
+  /** Toggle the published camera's enabled state. Returns the new state. */
+  toggleCamera(): boolean
+  /**
+   * Switch between front-facing and back-facing cameras. No-op on
+   * desktop (only one camera typically present) and on browsers that
+   * don't expose `getCapabilities()`.
+   */
+  switchCamera(): Promise<'user' | 'environment' | 'unsupported'>
+  /**
+   * Attach the remote + local video tracks to the supplied HTML
+   * video elements. Used by ActiveCallSheet when the call survives
+   * a page navigation (the chat-page-owned <video> refs get
+   * unmounted, and the global sheet needs to take over). No-op for
+   * voice calls.
+   */
+  attachVideoElements(opts: {
+    remote?: HTMLVideoElement | null
+    self?: HTMLVideoElement | null
+  }): void
   /** No-op for voice calls: decline is just `end()`. Kept for parity
    *  with the prior CallClient interface used by CallModal. */
   decline(): void
@@ -91,9 +147,15 @@ async function fetchToken(roomName: string, participantName: string): Promise<{
   return body
 }
 
-async function getMicStream(): Promise<MediaStream> {
+/**
+ * Get a combined mic + camera stream. Browsers issue ONE permission
+ * prompt when both audio + video are requested together, which is
+ * why we always pass `video` based on the call mode — we don't ask
+ * for mic, then ask for camera, then merge them.
+ */
+async function getLocalStream(video: boolean): Promise<MediaStream> {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
-    throw new Error('Microphone API unavailable in this environment')
+    throw new Error('Camera/microphone API unavailable in this environment')
   }
   return await navigator.mediaDevices.getUserMedia({
     audio: {
@@ -101,7 +163,14 @@ async function getMicStream(): Promise<MediaStream> {
       noiseSuppression: true,
       autoGainControl: true,
     },
-    video: false,
+    video: video
+      ? {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 24 },
+        }
+      : false,
   })
 }
 
@@ -109,6 +178,7 @@ export async function startLiveKitCall(
   opts: LiveKitCallOptions,
 ): Promise<LiveKitCallClient> {
   const callId = `${opts.roomName}:${Date.now()}`
+  const mode: CallMode = opts.video ? 'video' : 'voice'
   const { token, wsUrl } = await fetchToken(
     opts.roomName,
     opts.participantName ?? '',
@@ -119,6 +189,10 @@ export async function startLiveKitCall(
     dynacast: true,
     publishDefaults: {
       audioPreset: AudioPresets.speech,
+      videoCodec: 'vp8',
+    },
+    videoCaptureDefaults: {
+      resolution: VideoPresets.h720.resolution,
     },
   })
 
@@ -126,6 +200,8 @@ export async function startLiveKitCall(
   let published = false
   let ended = false
   let muted = false
+  let cameraOn = true
+  let currentFacing: 'user' | 'environment' = 'user'
 
   function dispose() {
     if (ended) return
@@ -152,9 +228,7 @@ export async function startLiveKitCall(
       opts.onState('connecting')
     } else if (state === ConnectionState.Connected) {
       opts.onState('connected')
-    } else if (
-      state === ConnectionState.Disconnected
-    ) {
+    } else if (state === ConnectionState.Disconnected) {
       if (!ended) {
         opts.onError?.(new Error(`LiveKit disconnected: ${state}`))
         opts.onState('ended')
@@ -165,33 +239,56 @@ export async function startLiveKitCall(
 
   room.on(
     RoomEvent.TrackSubscribed,
-    (track, _pub, _participant) => {
+    (track, _pub: RemoteTrackPublication, _participant: RemoteParticipant) => {
       if (track.kind === Track.Kind.Audio) {
-        const stream = new MediaStream([track.mediaStreamTrack])
+        const remote = track as RemoteAudioTrack
+        const stream = new MediaStream([remote.mediaStreamTrack])
         opts.onRemoteStream(stream)
+      } else if (track.kind === Track.Kind.Video) {
+        const remote = track as RemoteVideoTrack
+        opts.onRemoteVideoTrack?.(remote)
       }
     },
   )
 
   await room.connect(wsUrl, token)
   // Local stream is published separately by publishMic() after the
-  // user has confirmed mic permission — we never grab the mic in the
-  // background.
+  // user has confirmed camera/mic permission — we never grab the
+  // camera/mic in the background.
 
   return {
     callId,
+    mode,
     async publishMic() {
       if (published || ended) return
-      localStream = await getMicStream()
+      localStream = await getLocalStream(mode === 'video')
       opts.onLocalStream(localStream)
-      await room.localParticipant.publishTrack(localStream.getAudioTracks()[0], {
-        name: 'mic',
-      })
+      // Publish audio
+      const audioTrack = localStream.getAudioTracks()[0]
+      if (audioTrack) {
+        await room.localParticipant.publishTrack(audioTrack, {
+          name: 'mic',
+        })
+      }
+      // Publish video (if requested and present in the stream)
+      if (mode === 'video') {
+        const videoTrack = localStream.getVideoTracks()[0]
+        if (videoTrack) {
+          const pub = await room.localParticipant.publishTrack(videoTrack, {
+            name: 'camera',
+            source: Track.Source.Camera,
+          })
+          // Surface the LocalVideoTrack so the UI can attach it to a
+          // self-view <video> element via track.attach().
+          const localVideo = pub.track as LocalVideoTrack | undefined
+          if (localVideo) opts.onLocalVideoTrack?.(localVideo)
+        }
+      }
       published = true
       // If the room already has peers (we joined second), nudge the
       // state to connected — the room's own Connected state fires
       // before publishMic runs, but the UI expects connected after
-      // the user has accepted mic permission.
+      // the user has accepted mic/camera permission.
       if (room.state === ConnectionState.Connected) {
         opts.onState('connected')
       }
@@ -204,7 +301,7 @@ export async function startLiveKitCall(
       muted = !muted
       for (const pub of room.localParticipant.trackPublications.values()) {
         if (pub.track?.kind === Track.Kind.Audio) {
-          const track = pub.track
+          const track = pub.track as LocalAudioTrack
           if (muted) {
             void track.mute()
           } else {
@@ -214,9 +311,77 @@ export async function startLiveKitCall(
       }
       return muted
     },
+    toggleCamera() {
+      if (mode !== 'video') return false
+      cameraOn = !cameraOn
+      for (const pub of room.localParticipant.trackPublications.values()) {
+        if (pub.track?.kind === Track.Kind.Video) {
+          const track = pub.track as LocalVideoTrack
+          if (cameraOn) {
+            void track.unmute()
+          } else {
+            void track.mute()
+          }
+        }
+      }
+      return cameraOn
+    },
+    async switchCamera(): Promise<'user' | 'environment' | 'unsupported'> {
+      if (mode !== 'video') return 'unsupported'
+      const track = localStream?.getVideoTracks()[0]
+      if (!track) return 'unsupported'
+      const caps = (track.getCapabilities?.() ?? {}) as {
+        facingMode?: string[]
+      }
+      if (!caps.facingMode || caps.facingMode.length < 2) {
+        return 'unsupported'
+      }
+      currentFacing = currentFacing === 'user' ? 'environment' : 'user'
+      try {
+        await track.applyConstraints({ facingMode: currentFacing })
+        return currentFacing
+      } catch {
+        // Roll back if the constraint can't be satisfied (e.g. device
+        // only has the requested camera disabled).
+        currentFacing = currentFacing === 'user' ? 'environment' : 'user'
+        return 'unsupported'
+      }
+    },
+    attachVideoElements(opts: {
+      remote?: HTMLVideoElement | null
+      self?: HTMLVideoElement | null
+    }) {
+      if (mode !== 'video') return
+      // Local camera — pull the live track from the room and attach.
+      const camPub = room.localParticipant.getTrackPublication(
+        Track.Source.Camera,
+      )
+      const camTrack = camPub?.track as LocalVideoTrack | undefined
+      if (camTrack && opts.self) {
+        camTrack.attach(opts.self)
+      }
+      // Remote video — find the first remote participant and attach
+      // their camera track. LiveKit supports multiple remotes; for
+      // a 1:1 call there's only one.
+      const remote = Array.from(room.remoteParticipants.values())[0] as
+        | RemoteParticipant
+        | undefined
+      if (remote && opts.remote) {
+        const remoteCamPub = remote.getTrackPublication(Track.Source.Camera)
+        const remoteTrack = remoteCamPub?.track as
+          | RemoteVideoTrack
+          | undefined
+        if (remoteTrack) remoteTrack.attach(opts.remote)
+      }
+    },
     decline() {
       opts.onState('declined')
       dispose()
     },
   }
 }
+
+/** Re-export the RemoteTrackPublication type for downstream code that
+ *  wants to wire additional event handlers (we keep the import local
+ *  in this module to avoid forcing consumers to know about it). */
+type RemoteTrackPublication = import('livekit-client').RemoteTrackPublication

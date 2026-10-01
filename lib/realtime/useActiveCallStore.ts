@@ -49,6 +49,9 @@ export interface ActiveCall {
   partnerName: string
   partnerAvatar: string | null
   isOutgoing: boolean
+  /** 'voice' or 'video' (added 2026-10-01). Defaults to 'voice' for
+   *  backward compat with any callers that don't set this. */
+  mode?: 'voice' | 'video'
   state: CallState
   networkStatus: NetworkStatus
   quality: CallQuality | null

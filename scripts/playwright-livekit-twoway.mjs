@@ -21,7 +21,7 @@
  */
 import { chromium } from 'playwright'
 
-const PROD = process.env.LOCALIT_PROD_URL || 'https://localit-874nbkvj8-nhattoann.vercel.app'
+const PROD = process.env.LOCALIT_PROD_URL || 'https://localit-nhattoann.vercel.app'
 const BYPASS_HEADER = {
   'x-vercel-protection-bypass':
     process.env.VERCEL_BYPASS_TOKEN || 'w6XAcwiXyFf9Pea8I6zwVONXAhc8Xs9A',
