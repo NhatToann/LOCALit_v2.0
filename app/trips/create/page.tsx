@@ -87,7 +87,7 @@ export default function CreateTripPage() {
       )
     }
 
-    router.push(`/tourist/trips/${trip.id}`)
+    router.push(`/trips/${trip.id}`)
   }
 
   return (
@@ -275,7 +275,7 @@ export default function CreateTripPage() {
             {submitting ? 'Creating…' : 'Create trip'}
           </button>
           <Link
-            href="/tourist/trips"
+            href="/trips"
             className="inline-flex items-center h-11 px-5 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
           >
             Cancel

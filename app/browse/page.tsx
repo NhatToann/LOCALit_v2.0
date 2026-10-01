@@ -244,7 +244,7 @@ function BrowseContent() {
               <strong className="text-ink">{destinationFilter || 'Da Nang'}</strong>
               {languageFilter ? <> · Language: <strong className="text-ink">{languageFilter}</strong></> : null}
             </p>
-            <Link href="/tourist/browse" className="text-primary hover:underline text-sm">
+            <Link href="/browse" className="text-primary hover:underline text-sm">
               Clear search
             </Link>
           </div>
@@ -353,7 +353,7 @@ function BrowseContent() {
                 {selectedBuddy.rating_avg ? selectedBuddy.rating_avg.toFixed(1) : '—'} · {selectedBuddy.languages.slice(0, 2).join(', ')}
               </p>
               <Link
-                href={`/tourist/buddy/${selectedBuddy.id}`}
+                href={`/buddies/${selectedBuddy.id}`}
                 className="inline-flex items-center justify-center mt-2 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover w-full"
               >
                 View profile
@@ -395,7 +395,7 @@ function BrowseContent() {
                 : 'Try removing filters or searching for Da Nang areas like My Khe Beach, Han River, or Son Tra.'}
             </p>
             <Link
-              href="/tourist/browse"
+              href="/browse"
               className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
             >
               See all Da Nang buddies
@@ -502,7 +502,7 @@ function BrowseContent() {
                           {saved ? 'Saved' : 'Save'}
                         </button>
                         <Link
-                          href={`/tourist/buddy/${b.id}`}
+                          href={`/buddies/${b.id}`}
                           className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                         >
                           View profile

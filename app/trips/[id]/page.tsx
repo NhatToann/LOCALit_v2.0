@@ -49,7 +49,7 @@ export default function TripDetailPage() {
       <div className="container-page py-16">
         <p className="text-muted">Trip not found.</p>
         <Link
-          href="/tourist/trips"
+          href="/trips"
           className="inline-flex items-center gap-1 mt-3 text-sm text-primary hover:underline"
         >
           <ArrowLeft size={14} aria-hidden="true" />
@@ -72,7 +72,7 @@ export default function TripDetailPage() {
   return (
     <div className="container-page py-8">
       <Link
-        href="/tourist/trips"
+        href="/trips"
         className="inline-flex items-center gap-1 text-sm text-primary hover:underline mb-4"
       >
         <ArrowLeft size={14} aria-hidden="true" />
@@ -95,7 +95,7 @@ export default function TripDetailPage() {
         </div>
         {buddy ? (
           <Link
-            href={`/tourist/buddy/${buddy.id}`}
+            href={`/buddies/${buddy.id}`}
             className="inline-flex items-center gap-3 px-4 h-14 rounded-sm border border-border bg-surface hover:border-border-strong transition-colors duration-150"
           >
             <Avatar name={buddy.profile?.full_name ?? 'Buddy'} size="md" />

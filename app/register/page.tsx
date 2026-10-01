@@ -481,7 +481,7 @@ function RegisterForm() {
         router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
         return
       }
-      router.push(form.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard')
+      router.push('/dashboard')
     } catch (err) {
       console.error('Finalize sign-up error:', err)
       setError('Something went wrong. Please try again.')

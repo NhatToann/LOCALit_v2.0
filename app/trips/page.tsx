@@ -75,7 +75,7 @@ export default function TripsPage() {
           </p>
         </div>
         <Link
-          href="/tourist/trips/create"
+          href="/trips/create"
           className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
         >
           <Plus size={16} aria-hidden="true" />
@@ -113,7 +113,7 @@ export default function TripsPage() {
             buddy who speaks your language and knows your travel style.
           </p>
           <Link
-            href="/tourist/trips/create"
+            href="/trips/create"
             className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
           >
             <Plus size={16} aria-hidden="true" />
@@ -139,7 +139,7 @@ export default function TripsPage() {
             return (
               <li key={trip.id}>
                 <Link
-                  href={`/tourist/trips/${trip.id}`}
+                  href={`/trips/${trip.id}`}
                   className="block p-4 hover:bg-paper transition-colors duration-150"
                 >
                   <div className="flex flex-wrap items-start gap-4">

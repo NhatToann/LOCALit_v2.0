@@ -56,7 +56,7 @@ function LoginForm() {
         .eq('id', data.user.id)
         .maybeSingle()
 
-      const defaultPath = profile?.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'
+      const defaultPath = '/dashboard'
       router.push(redirectTo || defaultPath)
     }
   }

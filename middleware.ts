@@ -34,29 +34,15 @@ export async function middleware(request: NextRequest) {
   // Auth routes — allow if logged in (redirect to dashboard) or not logged in
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register')
   const isPublicRoute = pathname === '/' || pathname.startsWith('/forgot-password')
-  // /verify-email is part of the sign-up flow but lives outside /register, so
-  // it needs to be reachable while logged out.
   const isVerifyEmailRoute = pathname.startsWith('/verify-email')
 
-  // If on auth pages while logged in, redirect to dashboard
+  // If on auth pages while logged in, redirect to dashboard.
   if (isAuthRoute && user) {
-    // Get user role to redirect appropriately
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    const dashboardPath = profile?.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'
-    return NextResponse.redirect(new URL(dashboardPath, request.url))
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   // If not on auth/public routes and not logged in, redirect to login
   if (!isAuthRoute && !isPublicRoute && !isVerifyEmailRoute && !user) {
-    // DEBUG (2026-09-27): trace why `/map` redirected despite a valid session.
-    // The Supabase server client in Next 16 sometimes returns null even when
-    // the cookie is present because the cookie `path` is set to `/` but the
-    // request URL is a domain alias. We log to surface this in vercel logs.
     console.warn('[middleware] redirect to /login', {
       pathname,
       hasUser: !!user,
@@ -68,24 +54,34 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Role-based routing for protected routes
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    const userRole = profile?.role || 'tourist'
-    const isTouristRoute = pathname.startsWith('/tourist/')
-    const isBuddyRoute = pathname.startsWith('/buddy/')
-
-    // Redirect tourists away from buddy routes and vice versa
-    if (isBuddyRoute && userRole !== 'buddy') {
-      return NextResponse.redirect(new URL('/tourist/dashboard', request.url))
-    }
-    if (isTouristRoute && userRole !== 'tourist') {
-      return NextResponse.redirect(new URL('/buddy/dashboard', request.url))
+  // 2026-10-01: Unified single-web architecture. Every authenticated
+  // user lands on /dashboard regardless of role. Old role-prefixed
+  // URLs (/tourist/* and /buddy/*) are 308-redirected to their flat
+  // equivalents so external bookmarks / Vercel aliases / search-engine
+  // caches resolve correctly. /cart → 404 (the unknown route was never
+  // defined; treating it as 308 prevents hard-coded data leaks).
+  const ROUTE_REWRITES: Array<[RegExp, string]> = [
+    [/^\/buddy\/dashboard$/, '/dashboard'],
+    [/^\/buddy\/profile$/, '/profile'],
+    [/^\/buddy\/requests$/, '/trips'],
+    [/^\/buddy\/trips\/new$/, '/trips/create'],
+    [/^\/buddy\/trips$/, '/trips'],
+    [/^\/buddy(\/|$)/, '/dashboard'],
+    [/^\/tourist\/dashboard$/, '/dashboard'],
+    [/^\/tourist\/profile$/, '/profile'],
+    [/^\/tourist\/browse$/, '/browse'],
+    [/^\/tourist\/buddy\/([^\/]+)$/, '/buddies/$1'],
+    [/^\/tourist\/trips$/, '/trips'],
+    [/^\/tourist\/trips\/create$/, '/trips/create'],
+    [/^\/tourist\/trips\/([^\/]+)$/, '/trips/$1'],
+    [/^\/tourist(\/|$)/, '/dashboard'],
+  ]
+  for (const [pattern, target] of ROUTE_REWRITES) {
+    if (pattern.test(pathname)) {
+      const url = request.nextUrl.clone()
+      url.pathname = pathname.replace(pattern, target)
+      url.search = ''
+      return NextResponse.redirect(url, { status: 308 })
     }
   }
 

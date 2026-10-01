@@ -1180,7 +1180,7 @@ function ChatInner() {
             action={
               myRole === 'buddy' ? null : (
                 <Link
-                  href="/tourist/browse"
+                  href="/browse"
                   className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                 >
                   Browse Da Nang buddies
@@ -1580,8 +1580,8 @@ function ChatInner() {
               <Link
                 href={
                   myRole === 'buddy'
-                    ? '/buddy/profile'
-                    : `/tourist/buddy/${activeConv.partner_id}`
+                    ? '/profile'
+                    : `/buddies/${activeConv.partner_id}`
                 }
                 className="mt-3 text-xs text-primary hover:underline"
               >
@@ -1638,8 +1638,8 @@ function ChatInner() {
                 <Link
                   href={
                     myRole === 'buddy'
-                      ? '/buddy/requests'
-                      : `/tourist/buddy/${activeConv.partner_id}`
+                      ? '/trips'
+                      : `/buddies/${activeConv.partner_id}`
                   }
                   className="inline-flex items-center gap-2 h-9 px-3 text-sm rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
                 >

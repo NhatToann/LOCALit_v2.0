@@ -15,7 +15,7 @@ const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false }
 
 const DEFAULT_LOCATION = { lat: 16.0544, lng: 108.2023 };
 
-export default function TouristDashboardPage() {
+export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -173,13 +173,12 @@ export default function TouristDashboardPage() {
 
   return (
     <div className="container-page py-8 lg:py-12">
-      {/* Hero — AEO answer capsule + role-specific CTA */}
       <section
-        aria-labelledby="tourist-hero-title"
+        aria-labelledby="dashboard-hero-title"
         className="mb-8 pb-8 border-b border-border"
       >
-        <p className="text-eyebrow text-primary mb-3">Tourist dashboard</p>
-        <h1 id="tourist-hero-title" className="text-page-title mb-3">
+        <p className="text-eyebrow text-primary mb-3">Dashboard</p>
+        <h1 id="dashboard-hero-title" className="text-page-title mb-3">
           Welcome back, {firstName}
         </h1>
         <p className="text-base text-muted mb-6 max-w-2xl">
@@ -188,14 +187,14 @@ export default function TouristDashboardPage() {
         </p>
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/tourist/browse"
+            href="/browse"
             className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
           >
             <Search size={16} aria-hidden="true" />
             Find buddies
           </Link>
           <Link
-            href="/tourist/trips/create"
+            href="/trips/create"
             className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
           >
             <Briefcase size={16} aria-hidden="true" />
@@ -206,12 +205,12 @@ export default function TouristDashboardPage() {
 
       {/* Featured map */}
       <section
-        aria-labelledby="tourist-map-title"
+        aria-labelledby="dashboard-map-title"
         className="mb-8 border border-border rounded-sm overflow-hidden bg-surface"
       >
         <div className="px-6 py-4 border-b border-border flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 id="tourist-map-title" className="text-section-title mb-1">
+            <h2 id="dashboard-map-title" className="text-section-title mb-1">
               Who is in Da Nang right now
             </h2>
             <p className="text-sm text-muted">
@@ -240,7 +239,7 @@ export default function TouristDashboardPage() {
         </div>
       </section>
 
-      {/* Buddies available NOW (role-specific, per role-differentiation plan) */}
+      {/* Buddies available NOW */}
       {onlineBuddies.length > 0 ? (
         <section
           aria-labelledby="buddies-available-now-title"
@@ -250,7 +249,7 @@ export default function TouristDashboardPage() {
             <h2 id="buddies-available-now-title" className="text-section-title">
               Buddies available now in Da Nang
             </h2>
-            <Link href="/tourist/browse" className="text-sm text-primary hover:underline">
+            <Link href="/browse" className="text-sm text-primary hover:underline">
               See all
             </Link>
           </div>
@@ -258,7 +257,7 @@ export default function TouristDashboardPage() {
             {onlineBuddies.map((b) => (
               <li key={b.id}>
                 <Link
-                  href={`/tourist/buddy/${b.id}`}
+                  href={`/buddies/${b.id}`}
                   className="flex items-center gap-3 p-3 border border-border rounded-sm hover:border-border-strong transition-colors duration-150"
                 >
                   <Avatar
@@ -288,7 +287,7 @@ export default function TouristDashboardPage() {
       ) : null}
 
       {/* Stats */}
-      <section aria-label="Tourist stats" className="mb-8">
+      <section aria-label="Your stats" className="mb-8">
         <h2 className="sr-only">Your stats</h2>
         <ul className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {stats.map((s, i) => {
@@ -324,13 +323,13 @@ export default function TouristDashboardPage() {
             </div>
             <div className="flex items-center gap-2">
               <Link
-                href="/tourist/trips/create"
+                href="/trips/create"
                 className="inline-flex items-center gap-1 h-8 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
               >
                 <Briefcase size={14} aria-hidden="true" />
                 Plan a trip
               </Link>
-              <Link href="/tourist/trips" className="text-sm text-primary hover:underline">
+              <Link href="/trips" className="text-sm text-primary hover:underline">
                 See all
               </Link>
             </div>
@@ -343,7 +342,7 @@ export default function TouristDashboardPage() {
                 description="Plan a Da Nang itinerary to share with a buddy."
                 action={
                   <Link
-                    href="/tourist/trips/create"
+                    href="/trips/create"
                     className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                   >
                     Plan your first trip
@@ -366,15 +365,13 @@ export default function TouristDashboardPage() {
                     <li key={trip.id}>
                       <Link
                         href={
-                          // Prefer the connectionId so /itinerary can resolve the trip.
-                          // Fall back to /tourist/trips/<id> if no connection (planning).
                           connections.find(
                             (cc) =>
                               cc.tourist_id === trip.tourist_id &&
                               cc.buddy_id === trip.buddy_id,
                           )?.id
                             ? `/itinerary/${connections.find((cc) => cc.tourist_id === trip.tourist_id && cc.buddy_id === trip.buddy_id)!.id}`
-                            : `/tourist/trips/${trip.id}`
+                            : `/trips/${trip.id}`
                         }
                         className="flex items-center justify-between gap-3 py-3 px-2 -mx-2 rounded-sm hover:bg-paper transition-colors duration-150"
                       >
@@ -441,7 +438,7 @@ export default function TouristDashboardPage() {
                 description="Browse buddies to send your first connection request."
                 action={
                   <Link
-                    href="/tourist/browse"
+                    href="/browse"
                     className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                   >
                     Browse buddies
@@ -506,25 +503,23 @@ export default function TouristDashboardPage() {
         </section>
       </div>
 
-      {/* Quick actions — non-duplicate calls to action.
-          Top nav already covers Map and Messages. */}
       <section className="mt-6" aria-label="Quick actions">
         <h2 className="text-lg font-semibold mb-3">Quick actions</h2>
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <QuickAction
-            href="/tourist/browse"
+            href="/browse"
             icon={Search}
             title="Find buddies"
             subtitle="Browse verified local guides"
           />
           <QuickAction
-            href="/tourist/trips/create"
+            href="/trips/create"
             icon={Briefcase}
             title="Plan a new trip"
             subtitle="Sketch a Da Nang itinerary"
           />
           <QuickAction
-            href="/tourist/profile"
+            href="/profile"
             icon={User}
             title="Edit profile"
             subtitle="Interests, languages, arrival"

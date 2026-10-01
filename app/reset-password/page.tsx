@@ -60,7 +60,7 @@ function ResetPasswordForm() {
       .eq('id', (await getCurrentUser())?.id)
       .single()
 
-    const dest = profile?.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'
+    const dest = '/dashboard'
     router.push(dest)
   }
 

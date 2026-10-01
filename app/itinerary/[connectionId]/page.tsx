@@ -285,7 +285,7 @@ export default function SharedItineraryPage({ params }: PageProps) {
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
-            href={me?.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'}
+            href={me?.role === 'buddy' ? '/dashboard' : '/dashboard'}
             className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
           >
             <ArrowLeft size={14} aria-hidden="true" />
@@ -293,7 +293,7 @@ export default function SharedItineraryPage({ params }: PageProps) {
           </Link>
           {me?.role !== 'buddy' ? (
             <Link
-              href="/tourist/browse"
+              href="/browse"
               className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
             >
               Find a buddy
@@ -317,7 +317,7 @@ export default function SharedItineraryPage({ params }: PageProps) {
       {/* Top breadcrumb */}
       <div className="flex items-center justify-between gap-2">
         <Link
-          href={me?.role === 'buddy' ? '/buddy/dashboard' : '/tourist/dashboard'}
+          href={me?.role === 'buddy' ? '/dashboard' : '/dashboard'}
           className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink"
         >
           <ArrowLeft size={14} aria-hidden="true" />

@@ -24,7 +24,7 @@ export default function Footer() {
             <h3 className="text-eyebrow mb-3">If you are visiting Da Nang</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/tourist/browse" className="text-muted hover:text-ink transition-colors duration-150">
+                <Link href="/browse" className="text-muted hover:text-ink transition-colors duration-150">
                   Browse 6 local buddies
                 </Link>
               </li>

@@ -445,7 +445,7 @@ export default function TouristProfilePage() {
             ) : null}
           </div>
           <Link
-            href="/tourist/dashboard"
+            href="/dashboard"
             className="block mt-4 text-sm text-muted hover:text-ink"
           >
             ← Back to dashboard
@@ -712,7 +712,7 @@ export default function TouristProfilePage() {
               <header className="flex items-center justify-between mb-4 pb-4 border-b border-border">
                 <h2 className="text-section-title">My trips</h2>
                 <Link
-                  href="/tourist/trips/create"
+                  href="/trips/create"
                   className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                 >
                   Plan a new trip

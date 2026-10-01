@@ -11,17 +11,29 @@ import { useAuthUser } from '@/lib/auth/useAuthUser';
 import { useOnlineHeartbeat } from '@/lib/realtime/useOnlineHeartbeat';
 import { GlobalPresence } from '@/lib/realtime/useGlobalPresence';
 
-const ROLE_LAYOUTS = ['/tourist', '/buddy'];
+/**
+ * 2026-10-01 — Unified single-web architecture.
+ *
+ * Previously the AppShell branched on `/tourist/*` vs everything else
+ * to render a tourist-only chrome (Header with role-specific nav,
+ * Footer). After the unification, every authenticated route renders
+ * the same chrome — Header (which itself no longer branches on role)
+ * + Footer + the global mounts.
+ *
+ * `ROLE_LAYOUTS` is intentionally empty so authenticated pages fall
+ * through to the third branch below. Auth-only pages still get a
+ * bare render (no header/footer).
+ */
+const ROLE_LAYOUTS: string[] = [];
 const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
 
 function AuthAwareHeader() {
   const auth = useAuthUser()
-  const role = auth?.role ?? null
   const name = auth?.fullName
   const userId = auth?.userId
 
-  if (role) {
-    return <Header userRole={role} userName={name} userId={userId} />
+  if (auth) {
+    return <Header userName={name} userId={userId} />
   }
   return <Header />
 }
@@ -51,8 +63,7 @@ function GlobalOnlineHeartbeat() {
  * Mounts the global Realtime presence broadcast channel. While
  * mounted it publishes `is_online=true` every 25 s and stores the
  * snapshots in a module-level cache that any component can read via
- * `usePresenceOf(userId)` / `useIsOnline(userId)`. This is the
- * sub-second layer on top of the 30-s DB heartbeat.
+ * `usePresenceOf(userId)` / `useIsOnline(userId)`.
  */
 function GlobalPresenceMount() {
   const auth = useAuthUser()
@@ -61,12 +72,10 @@ function GlobalPresenceMount() {
 
 /**
  * Note (2026-10-01 — LiveKit migration):
- *   The previous self-hosted WebRTC stack required a long-lived
- *   background signaling service to be mounted here so buddies on
- *   non-/chat pages could receive incoming offers. LiveKit handles
- *   that centrally on its server, so no equivalent background mount
- *   is needed — incoming calls surface via the `pending_calls`
- *   INSERT-driven IncomingCallWatcher.
+ *   LiveKit handles incoming-call signaling centrally on its server,
+ *   so no equivalent background WebRTC mount is needed — incoming
+ *   calls surface via the `pending_calls` INSERT-driven
+ *   IncomingCallWatcher.
  */
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

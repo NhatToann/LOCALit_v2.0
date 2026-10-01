@@ -126,7 +126,7 @@ function HomeContent() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-3">
             <a
-              href="/tourist/browse"
+              href="/browse"
               className="inline-flex items-center justify-center h-12 px-6 text-base font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
             >
               Browse Da Nang buddies

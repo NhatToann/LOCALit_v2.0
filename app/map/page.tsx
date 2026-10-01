@@ -156,7 +156,7 @@ export default function MapPage() {
             )}
           </button>
           <Link
-            href="/tourist/browse"
+            href="/browse"
             className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
           >
             <List size={14} aria-hidden="true" />
@@ -262,7 +262,7 @@ export default function MapPage() {
             </p>
             <div className="flex gap-2">
               <Link
-                href={`/tourist/buddy/${selected.id}`}
+                href={`/buddies/${selected.id}`}
                 className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
               >
                 Profile

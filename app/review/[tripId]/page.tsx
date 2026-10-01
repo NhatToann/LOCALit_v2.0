@@ -116,7 +116,7 @@ export default function ReviewPage() {
       return
     }
     setSubmitted(true)
-    setTimeout(() => router.push('/tourist/dashboard'), 2200)
+    setTimeout(() => router.push('/dashboard'), 2200)
   }
 
   if (error && !trip) {
@@ -127,7 +127,7 @@ export default function ReviewPage() {
           <h1 className="text-xl font-semibold mb-4">{error}</h1>
           <button
             type="button"
-            onClick={() => router.push('/tourist/dashboard')}
+            onClick={() => router.push('/dashboard')}
             className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
           >
             Back to dashboard

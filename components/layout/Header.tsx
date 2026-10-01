@@ -8,42 +8,44 @@ import { createClient } from '@/utils/supabase/auth';
 import { useRouter } from 'next/navigation';
 import { NavHint } from './NavHint';
 
-type UserRole = 'tourist' | 'buddy';
-
+/**
+ * Header (2026-10-01 — unified, single web).
+ *
+ * After retiring the /buddy/* routes and dropping the /tourist/* URL
+ * prefix, the header no longer branches on role. Logged-in users see
+ * the same navigation regardless of whether they are tourist or buddy.
+ * The role distinction stays in the database (used by RLS policies and
+ * the dashboard's "Hi Lan" greeting) but the chrome is one set of
+ * links — that's what "one simple web" means.
+ */
 interface HeaderProps {
-  userRole?: UserRole;
   userName?: string;
   userId?: string;
 }
 
-const NAV_LINKS: Record<UserRole | 'guest', { path: string; label: string }[]> = {
-  buddy: [
-    { path: '/buddy/dashboard', label: 'Dashboard' },
-    { path: '/buddy/requests', label: 'Requests' },
-    { path: '/map', label: 'Map' },
-  ],
-  tourist: [
-    { path: '/tourist/dashboard', label: 'Dashboard' },
-    { path: '/tourist/browse', label: 'Buddies' },
-    { path: '/map', label: 'Map' },
-    { path: '/tourist/trips', label: 'Trips' },
-    { path: '/chat', label: 'Messages' },
-  ],
-  guest: [
-    { path: '/', label: 'Home' },
-    { path: '/tourist/browse', label: 'Buddies' },
-    { path: '/map', label: 'Map' },
-  ],
-};
+const GUEST_LINKS = [
+  { path: '/', label: 'Home' },
+  { path: '/browse', label: 'Buddies' },
+  { path: '/map', label: 'Map' },
+]
 
-export default function Header({ userRole, userName, userId }: HeaderProps) {
+const LOGGED_IN_LINKS = [
+  { path: '/dashboard', label: 'Dashboard' },
+  { path: '/browse', label: 'Buddies' },
+  { path: '/map', label: 'Map' },
+  { path: '/trips', label: 'Trips' },
+  { path: '/chat', label: 'Messages' },
+]
+
+export default function Header({ userName, userId }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const links = NAV_LINKS[userRole ?? 'guest'];
+  const isLoggedIn = !!userName
+  const links = isLoggedIn ? LOGGED_IN_LINKS : GUEST_LINKS
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -66,14 +68,7 @@ export default function Header({ userRole, userName, userId }: HeaderProps) {
     router.refresh();
   }
 
-  const homePath =
-    userRole === 'buddy'
-      ? '/buddy/dashboard'
-      : userRole === 'tourist'
-        ? '/tourist/dashboard'
-        : '/';
-
-  const profilePath = userRole === 'buddy' ? '/buddy/profile' : '/tourist/profile';
+  const homePath = isLoggedIn ? '/dashboard' : '/'
 
   return (
     <header className="fixed top-0 left-0 right-0 h-16 bg-surface border-b border-border z-50">
@@ -112,7 +107,7 @@ export default function Header({ userRole, userName, userId }: HeaderProps) {
         </nav>
 
         <div className="flex items-center gap-3 flex-shrink-0">
-          {userRole ? (
+          {isLoggedIn ? (
             <div ref={menuRef} className="relative">
               <button
                 onClick={() => setMenuOpen((s) => !s)}
@@ -132,12 +127,9 @@ export default function Header({ userRole, userName, userId }: HeaderProps) {
                 >
                   <div className="px-3 py-2 border-b border-border mb-1">
                     <p className="text-sm font-semibold text-ink">{userName ?? 'Account'}</p>
-                    <p className="text-xs text-muted mt-0.5">
-                      {userRole === 'buddy' ? 'Local Buddy' : 'Tourist'}
-                    </p>
                   </div>
                   <Link
-                    href={profilePath}
+                    href="/profile"
                     onClick={() => setMenuOpen(false)}
                     role="menuitem"
                     className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-ink hover:bg-paper"
@@ -145,17 +137,15 @@ export default function Header({ userRole, userName, userId }: HeaderProps) {
                     <User size={16} aria-hidden="true" />
                     My Profile
                   </Link>
-                  {userRole === 'tourist' ? (
-                    <Link
-                      href="/tourist/browse"
-                      onClick={() => setMenuOpen(false)}
-                      role="menuitem"
-                      className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-ink hover:bg-paper"
-                    >
-                      <Search size={16} aria-hidden="true" />
-                      Find a Buddy
-                    </Link>
-                  ) : null}
+                  <Link
+                    href="/browse"
+                    onClick={() => setMenuOpen(false)}
+                    role="menuitem"
+                    className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-ink hover:bg-paper"
+                  >
+                    <Search size={16} aria-hidden="true" />
+                    Find a Buddy
+                  </Link>
                   <div className="h-px bg-border my-1" role="separator" />
                   <button
                     onClick={handleSignOut}
@@ -224,7 +214,7 @@ export default function Header({ userRole, userName, userId }: HeaderProps) {
           })}
         </nav>
         <div className="flex flex-col gap-2 pt-4 border-t border-border">
-          {!userRole ? (
+          {!isLoggedIn ? (
             <>
               <Link
                 href="/login"
@@ -242,7 +232,7 @@ export default function Header({ userRole, userName, userId }: HeaderProps) {
           ) : (
             <>
               <Link
-                href={profilePath}
+                href="/profile"
                 className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper w-full gap-2"
               >
                 <User size={16} aria-hidden="true" />
