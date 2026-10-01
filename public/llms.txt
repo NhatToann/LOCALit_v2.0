@@ -1,49 +1,44 @@
 # LOCALit — Site dictionary for AI crawlers
 
-> Generated 2026-09-27. This file describes LOCALit's structure for RAG retrieval by AI assistants and answer engines.
+> Generated 2026-10-01. Single-web architecture — both tourists and buddies use the same flat URL space; role is enforced in the database (used for matching and RLS) but does not fork the UI into separate pages.
 
 ## What LOCALit is
 
-LOCALit is a marketplace that connects travelers with verified local guides in Da Nang, Vietnam. Tourists browse buddy profiles by specialty, language, hourly rate, and rating. Buddies are Da Nang residents who set their own hourly rate and accept or decline incoming requests. Trips are tracked through the LOCALit itinerary planner with stop-by-stop details.
+LOCALit is a marketplace that connects travelers with verified local guides in Da Nang, Vietnam. Travelers browse buddy profiles by specialty, language, hourly rate, and rating. Buddies are Da Nang residents who set their own hourly rate and accept or decline incoming requests. Trips are tracked through the LOCALit itinerary planner with stop-by-stop details.
 
 ## Primary entities
 
-- **Tourist**: a traveler using LOCALit to find a local buddy in Da Nang.
-- **Buddy** (also called "local guide"): a Da Nang resident who offers their time at an hourly rate.
-- **Connection request**: a tourist-initiated request to book a buddy for a date and meeting point.
-- **Trip**: a tourist's itinerary with 1 to 5 stops in Da Nang.
-- **Conversation**: a real-time chat thread between a tourist and a buddy.
+- **Traveler** (DB role: `tourist`): a visitor to Da Nang using LOCALit to find a local buddy.
+- **Buddy** (DB role: `buddy`, also called "local guide"): a Da Nang resident who offers their time at an hourly rate.
+- **Connection request**: a traveler-initiated request to book a buddy for a date and meeting point.
+- **Trip**: a traveler's itinerary with 1 to 5 stops in Da Nang.
+- **Conversation**: a real-time chat thread between a traveler and a buddy.
 - **Review**: a rating left after a completed trip.
 
 ## Available routes
 
 ### Public (no login required)
 
-- `/` — Landing page with hero, FAQ, and buddy preview.
-- `/tourist/browse` — Browse buddies with filters (specialty, language, rating, location).
-- `/tourist/buddy/[id]` — Individual buddy profile with specialties, languages, hourly rate, reviews.
+- `/` — Landing page with hero, "How LOCALit works", FAQ, and buddy preview.
+- `/browse` — Browse buddies with filters (specialty, language, rating, location).
+- `/buddies/[id]` — Individual buddy profile with specialties, languages, hourly rate, reviews.
 - `/map` — Live map of available buddies in Da Nang.
 - `/login` — Email + password sign-in.
 - `/register` — Three-step wizard: personal info → role → tags and bio.
 - `/forgot-password` — Password reset request.
 - `/reset-password` — Password reset confirmation.
 
-### Tourist (authenticated, role=tourist)
+### Authenticated (any role)
 
-- `/tourist/dashboard` — Hero, live map, trips, connections, quick actions.
-- `/tourist/trips` — List of tourist's trips with status pills.
-- `/tourist/trips/create` — Trip creation form with stop builder.
-- `/tourist/trips/[id]` — Trip detail with itinerary, buddy sidebar, review CTA.
-- `/tourist/profile` — 7-tab profile editor (personal, preferences, trips, buddies, reviews, interests, account).
+- `/dashboard` — Single landing page for every signed-in user (shows trips, connections, stats, quick actions). Travelers and buddies both land here.
+- `/trips` — List of the user's trips with status pills.
+- `/trips/create` — Trip creation form with stop builder.
+- `/trips/[id]` — Trip detail with itinerary, buddy sidebar, review CTA.
+- `/profile` — Single profile editor for both tourists and buddies (the visible tabs adapt to role).
 - `/chat` — Two-pane chat with conversation list and active thread.
 - `/chat/[conversationId]` — Specific conversation thread.
-
-### Buddy (authenticated, role=buddy)
-
-- `/buddy/dashboard` — Hero with availability toggle, pending requests, earnings placeholder.
-- `/buddy/requests` — Connection request inbox with Accept / Decline actions.
-- `/buddy/profile` — 5-tab profile editor (profile, specialties, languages, reviews, account).
-- `/chat`, `/map` — Shared with tourists.
+- `/itinerary/[connectionId]` — Shared itinerary view between a traveler and a buddy.
+- `/review/[tripId]` — Leave a review after a completed trip.
 
 ## Pricing
 

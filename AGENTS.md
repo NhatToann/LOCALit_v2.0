@@ -51,8 +51,26 @@ LOCALit's design is triangulated from:
 
 **Anti-reference:** generic SaaS landing page. We are not Stripe, not Linear, not Vercel. We are a marketplace for human travel experiences in one specific city.
 
-## Current state (as of 2026-09-27)
+## Current state (as of 2026-10-01)
 
+- **Single-web architecture (2026-10-01)** — `/tourist/*` and `/buddy/*`
+  URL prefixes have been retired. The whole site is one flat URL
+  space; both tourists and buddies land on `/dashboard` after sign-in
+  and use the same nav chrome. The `profiles.role` enum and RLS
+  policies are unchanged (still used for authorization and the
+  matching algorithm), but the UI no longer branches on role.
+  - ✅ All 22 routes served from flat URLs (`/dashboard`, `/browse`,
+    `/profile`, `/trips`, `/trips/create`, `/trips/[id]`,
+    `/buddies/[id]`, `/chat`, `/map`, `/itinerary/[id]`,
+    `/review/[tripId]`)
+  - ✅ Header: 2 variants (guest / logged-in) — same nav for both
+    roles
+  - ✅ Footer: 4 columns (Explore / Account / Get involved / Support)
+  - ✅ Homepage: "How LOCALit works" section replaces the old
+    "Two products, one city" (no longer distinguishes UI by role)
+  - ✅ middleware.ts 308-rewrites `/tourist/*` and `/buddy/*` to the
+    flat equivalents (preserves bookmark/SEO continuity)
+  - ✅ `app/buddy/` and `app/tourist/` removed entirely
 - **Phase 1 DONE** (all 26 routes migrated to the flat enterprise design):
   - ✅ Header unified to 1 component with 3 role variants (guest / tourist / buddy)
   - ✅ Footer slim with AEO answer capsule + 4 nav columns
@@ -626,7 +644,7 @@ The global Realtime presence broadcast channel is now live. All
 authenticated tabs subscribe to `presence-global` and publish their
 own `{user_id, is_online, last_seen}` snapshot every 25 s. The store
 (`lib/realtime/useGlobalPresence.tsx`) is mounted in AppShell so every
-page — including `/map`, `/tourist/browse`, `/profile`, etc. — sees
+page — including `/map`, `/browse`, `/profile`, etc. — sees
 sub-second presence flips.
 
 Hooks:
@@ -721,7 +739,7 @@ A red-team audit ran `scripts/redteam-attack.mjs` against the current production
   already-confirmed users. Added IP rate limit (10/min).
 - **⚠️ Signup oversized payload**: 50KB `fullName` was silently truncated to 100 chars but the
   request still returned 200. Now returns 400 with explicit message.
-- **⚠️ Public pages joining `profiles` directly**: `/map` and `/tourist/browse` used
+- **⚠️ Public pages joining `profiles` directly**: `/map` and `/browse` used
   `profile:profiles(...)` joins — broken under the new "authenticated only" RLS for anonymous
   viewers. Switched to `profile:safe_profiles(...)` which is a view with only id/full_name/role/avatar_url.
 

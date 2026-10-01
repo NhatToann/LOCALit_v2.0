@@ -179,55 +179,50 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* ============= TWO ROLES, ONE PRODUCT ============= */}
-      <section className="py-20 border-t border-border" aria-labelledby="roles-title">
+      {/* ============= HOW IT WORKS ============= */}
+      <section className="py-20 border-t border-border" aria-labelledby="how-title">
         <div className="max-w-7xl mx-auto px-6">
-          <h2 id="roles-title" className="text-page-title mb-3 max-w-3xl">
-            Two products, one city
+          <h2 id="how-title" className="text-page-title mb-3 max-w-3xl">
+            How LOCALit works
           </h2>
           <p className="text-base text-muted max-w-2xl mb-12 leading-relaxed">
-            LOCALit serves both sides of the matching problem. The interface
-            changes by role — what a tourist sees differs from what a buddy
-            sees.
+            Three steps from sign-up to your first hour on the Han River.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
-            <article className="border border-border rounded-sm p-6 bg-surface">
-              <p className="text-eyebrow text-muted mb-2">For travelers</p>
-              <h3 className="text-xl font-semibold text-ink mb-3">
-                Find a verified local guide
-              </h3>
-              <p className="text-sm text-muted leading-relaxed mb-4">
-                First-time visitors to Da Nang who want to eat at the cơm gà
-                stall the locals eat at, not the one TripAdvisor lists first.
-                Tourists see a live map, real-time buddy availability, in-app
-                chat, and a trip planner.
-              </p>
-              <a
-                href="/register?role=tourist"
-                className="inline-flex items-center justify-center h-9 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
-              >
-                Sign up as a traveler
-              </a>
-            </article>
-            <article className="border border-border rounded-sm p-6 bg-surface">
-              <p className="text-eyebrow text-muted mb-2">For local guides</p>
-              <h3 className="text-xl font-semibold text-ink mb-3">
-                Earn $15–$45 per hour on your own schedule
-              </h3>
-              <p className="text-sm text-muted leading-relaxed mb-4">
-                Da Nang residents who want to share their city with visitors.
-                Buddies set their own hourly rate, languages, and the
-                neighborhoods they cover. The dashboard shows pending requests,
-                upcoming trips, and monthly earnings.
-              </p>
-              <a
-                href="/register?role=buddy"
-                className="inline-flex items-center justify-center h-9 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-              >
-                Sign up as a buddy
-              </a>
-            </article>
-          </div>
+          <ol className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl list-none">
+            {[
+              {
+                step: '01',
+                title: 'Sign up and verify',
+                body:
+                  'Create an account with email + phone. Verification is one OTP code; no KYC paperwork at launch.',
+              },
+              {
+                step: '02',
+                title: 'Pick a buddy or post a trip',
+                body:
+                  'Browse six verified Da Nang locals with hourly rates, languages, and specialties. Or sketch a trip and let buddies respond.',
+              },
+              {
+                step: '03',
+                title: 'Meet up in Da Nang',
+                body:
+                  'Chat in-app to lock a meeting point. Voice and video calls work inside the chat once both sides are online. 0% LOCALit fee.',
+              },
+            ].map((item) => (
+              <li key={item.step} className="border border-border rounded-sm p-6 bg-surface">
+                <p className="text-eyebrow text-primary mb-2 tabular-nums">Step {item.step}</p>
+                <h3 className="text-xl font-semibold text-ink mb-3">{item.title}</h3>
+                <p className="text-sm text-muted leading-relaxed">{item.body}</p>
+              </li>
+            ))}
+          </ol>
+          <p className="text-base text-muted max-w-2xl mt-10 leading-relaxed">
+            Da Nang residents can{' '}
+            <a href="/register?role=buddy" className="text-primary hover:underline underline-offset-4">
+              sign up as a buddy
+            </a>{' '}
+            and set their own hourly rate, languages, and neighborhoods.
+          </p>
         </div>
       </section>
 
