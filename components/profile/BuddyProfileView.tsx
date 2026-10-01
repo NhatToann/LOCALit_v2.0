@@ -32,6 +32,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   User,
   Globe,
@@ -106,6 +107,121 @@ const TABS: { id: Tab; label: string; icon: typeof User }[] = [
 ]
 
 const PHONE_REGEX = /^[+]?[\d\s\-()]{8,20}$/
+
+/**
+ * Shared "Switch account role" widget, used by both Buddy and Tourist
+ * profile views. Posts to /api/profile/switch-role and reloads the
+ * page so the dispatcher re-renders the new role's view.
+ */
+function SwitchRoleSection({
+  currentRole,
+  fullName,
+}: {
+  currentRole: 'tourist' | 'buddy'
+  fullName: string
+}) {
+  const router = useRouter()
+  const [target, setTarget] = useState<'tourist' | 'buddy'>(currentRole)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const sameRole = target === currentRole
+
+  async function handleSwitch() {
+    if (sameRole || busy) return
+    if (
+      !confirm(
+        `Switch your account role to ${target === 'buddy' ? 'Buddy' : 'Tourist'}? Your current ${currentRole} data stays in the database but the ${target === 'buddy' ? 'tourist' : 'buddy'} view will become primary.`,
+      )
+    )
+      return
+    setBusy(true)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/profile/switch-role', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ role: target }),
+      })
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean
+        error?: string
+      }
+      if (!res.ok || !json.ok) {
+        setMsg({ type: 'error', text: json.error ?? 'Could not switch role.' })
+        setBusy(false)
+        return
+      }
+      setMsg({ type: 'success', text: `Switched to ${target}. Reloading…` })
+      router.replace('/profile')
+      router.refresh()
+      setTimeout(() => {
+        if (typeof window !== 'undefined') window.location.reload()
+      }, 400)
+    } catch (err) {
+      setMsg({ type: 'error', text: (err as Error).message || 'Network error.' })
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="mb-6 border border-border rounded-sm p-4 bg-paper">
+      <h3 className="text-sm font-semibold text-ink mb-1">Switch account role</h3>
+      <p className="text-xs text-muted mb-3 max-w-prose">
+        {fullName}, your account is currently a{' '}
+        <span className="badge badge-info text-xs">
+          {currentRole === 'buddy' ? 'Buddy' : 'Tourist'}
+        </span>
+        . Switching role changes which dashboard, browse, and profile view you see. Your previous
+        role&apos;s data is preserved but hidden until you switch back.
+      </p>
+      <fieldset className="form-group mb-3">
+        <legend className="sr-only">Choose new account role</legend>
+        <div className="flex flex-wrap gap-2">
+          {(['tourist', 'buddy'] as const).map((r) => {
+            const active = target === r
+            const isCurrent = currentRole === r
+            return (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setTarget(r)}
+                aria-pressed={active}
+                className={`h-9 px-3 text-sm font-medium rounded-sm border transition-colors duration-150 ${
+                  active
+                    ? 'bg-primary text-paper border-primary'
+                    : 'bg-transparent text-ink border-border-strong hover:bg-surface'
+                }`}
+              >
+                {r === 'tourist' ? 'Tourist' : 'Buddy'}
+                {isCurrent ? (
+                  <span className="ml-2 text-[10px] uppercase tracking-wide font-mono text-muted">
+                    Current
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+      </fieldset>
+      <button
+        type="button"
+        onClick={handleSwitch}
+        disabled={busy || sameRole}
+        className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
+      >
+        {busy ? 'Switching…' : 'Switch role'}
+      </button>
+      {msg ? (
+        <p
+          className={`mt-2 text-xs ${msg.type === 'success' ? 'text-success' : 'text-danger'}`}
+          role="status"
+        >
+          {msg.text}
+        </p>
+      ) : null}
+    </section>
+  )
+}
 
 export default function BuddyProfileView() {
   const [activeTab, setActiveTab] = useState<Tab>('personal')
@@ -894,6 +1010,11 @@ export default function BuddyProfileView() {
               <header className="mb-4 pb-4 border-b border-border">
                 <h2 className="text-section-title">Account</h2>
               </header>
+
+              <SwitchRoleSection
+                currentRole="buddy"
+                fullName={profile.full_name}
+              />
 
               <section className="mb-6">
                 <h3 className="text-sm font-semibold text-ink mb-3">Change password</h3>

@@ -81,6 +81,8 @@ function BrowseContent() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>({ lat: 16.0544, lng: 108.2023 })
   const [shareLocation, setShareLocation] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  // Distance slider — 50 means "Any distance" (no upper bound applied).
+  const [maxDistanceKm, setMaxDistanceKm] = useState<number>(50)
 
   // Hydrate saved buddies from localStorage on mount
   useEffect(() => {
@@ -179,36 +181,108 @@ function BrowseContent() {
     load()
   }, [])
 
+  // Token-level keyword search (AND across tokens) + match-score for
+  // sorting. Tokens <3 chars are dropped to avoid false positives
+  // (e.g. "to", "an"). countOccurrences is non-overlapping (substring
+  // count) so longer tokens naturally score higher.
+  const tokenize = (s: string): string[] =>
+    s
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length >= 3)
+
+  const scoreMatch = (haystack: string, tokens: string[]): number =>
+    tokens.reduce((acc, t) => {
+      if (!t) return acc
+      let from = 0
+      let count = 0
+      while (true) {
+        const idx = haystack.indexOf(t, from)
+        if (idx === -1) break
+        count += 1
+        from = idx + t.length
+      }
+      return acc + count
+    }, 0)
+
   const filtered = useMemo(() => {
-    const normalizedDest = destinationFilter.trim().toLowerCase()
+    const tokens = tokenize(destinationFilter)
     let list = buddies
-    if (normalizedDest) {
-      list = list.filter((b) => {
-        const hay = [
-          b.full_name,
-          b.location_city,
-          b.bio ?? '',
-          ...b.specialties,
-          ...b.languages,
-        ].join(' ').toLowerCase()
-        return hay.includes(normalizedDest)
-      })
+
+    // Distance slider — 50 km means "Any distance" (skip filter).
+    if (maxDistanceKm < 50) {
+      list = list.filter(
+        (b) => haversineKm(userLocation, { lat: b.latitude, lng: b.longitude }) <= maxDistanceKm,
+      )
     }
+
+    // Token keyword filter (AND across tokens) + match-score for sort.
+    const scored: Array<{ b: BuddyItem; score: number }> = []
+    for (const b of list) {
+      const hay = [
+        b.full_name,
+        b.location_city,
+        b.bio ?? '',
+        ...b.specialties,
+        ...b.languages,
+      ]
+        .join(' ')
+        .toLowerCase()
+      if (tokens.length > 0) {
+        const allMatch = tokens.every((t) => hay.includes(t))
+        if (!allMatch) continue
+        scored.push({ b, score: scoreMatch(hay, tokens) })
+      } else {
+        scored.push({ b, score: 0 })
+      }
+    }
+
+    let result = scored.map((s) => s.b)
     if (languageFilter) {
-      list = list.filter((b) => b.languages.some((l) => l.toLowerCase().includes(languageFilter.toLowerCase())))
+      result = result.filter((b) =>
+        b.languages.some((l) => l.toLowerCase().includes(languageFilter.toLowerCase())),
+      )
     }
-    list = [...list]
+    result = [...result]
     if (activeFilter === 'top-rated') {
-      list.sort((a, b) => (b.rating_avg ?? 0) - (a.rating_avg ?? 0))
+      result.sort((a, b) => (b.rating_avg ?? 0) - (a.rating_avg ?? 0))
     } else if (activeFilter === 'near-me') {
-      list.sort((a, b) => haversineKm(userLocation, { lat: a.latitude, lng: a.longitude }) - haversineKm(userLocation, { lat: b.latitude, lng: b.longitude }))
+      result.sort(
+        (a, b) =>
+          haversineKm(userLocation, { lat: a.latitude, lng: a.longitude }) -
+          haversineKm(userLocation, { lat: b.latitude, lng: b.longitude }),
+      )
     } else if (activeFilter === 'available') {
-      list = list.filter((b) => b.is_online)
+      result = result.filter((b) => b.is_online)
     } else if (activeFilter === 'saved') {
-      list = list.filter((b) => savedBuddies.includes(b.id))
+      result = result.filter((b) => savedBuddies.includes(b.id))
+    } else if (activeFilter === 'all' && tokens.length > 0) {
+      // Default sort when searching: highest match-score first.
+      const scoreMap = new Map(scored.map((s) => [s.b.id, s.score]))
+      result.sort((a, b) => (scoreMap.get(b.id) ?? 0) - (scoreMap.get(a.id) ?? 0))
     }
-    return list
-  }, [buddies, destinationFilter, languageFilter, activeFilter, userLocation, savedBuddies])
+    return result
+  }, [buddies, destinationFilter, languageFilter, activeFilter, userLocation, savedBuddies, maxDistanceKm])
+
+  // Match-score map for rendering the badge.
+  const matchScoreMap = useMemo(() => {
+    const tokens = tokenize(destinationFilter)
+    if (tokens.length === 0) return new Map<string, number>()
+    const m = new Map<string, number>()
+    for (const b of buddies) {
+      const hay = [
+        b.full_name,
+        b.location_city,
+        b.bio ?? '',
+        ...b.specialties,
+        ...b.languages,
+      ]
+        .join(' ')
+        .toLowerCase()
+      m.set(b.id, scoreMatch(hay, tokens))
+    }
+    return m
+  }, [buddies, destinationFilter])
 
   const selectedBuddy = filtered.find((b) => b.id === selectedMapId) ?? null
 
@@ -297,6 +371,37 @@ function BrowseContent() {
               </button>
             )
           })}
+        </div>
+
+        {/* Distance slider — 50 = "Any distance" (no upper bound). */}
+        <div className="mt-3 pt-3 border-t border-border">
+          <div className="flex items-center justify-between mb-1.5">
+            <label
+              htmlFor="distance-slider"
+              className="text-xs font-medium text-ink"
+            >
+              Distance
+            </label>
+            <span className="text-xs text-muted font-mono">
+              {maxDistanceKm >= 50 ? 'Any distance' : `Within ${maxDistanceKm} km`}
+            </span>
+          </div>
+          <input
+            id="distance-slider"
+            type="range"
+            min={0}
+            max={50}
+            step={1}
+            value={maxDistanceKm}
+            onChange={(e) => setMaxDistanceKm(Number(e.target.value))}
+            aria-label="Maximum distance from your location in kilometres"
+            className="w-full accent-primary"
+          />
+          <div className="flex justify-between text-[10px] text-subtle font-mono mt-0.5">
+            <span>0 km</span>
+            <span>25 km</span>
+            <span>Any</span>
+          </div>
         </div>
       </section>
 
@@ -424,7 +529,17 @@ function BrowseContent() {
                       {b.full_name.charAt(0)}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-ink truncate">{b.full_name}</p>
+                      <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
+                        {b.full_name}
+                        {matchScoreMap.get(b.id) ? (
+                          <span
+                            className="badge badge-info text-[10px]"
+                            aria-label={`${matchScoreMap.get(b.id)} keyword matches`}
+                          >
+                            {matchScoreMap.get(b.id)} matches
+                          </span>
+                        ) : null}
+                      </p>
                       <p className="text-xs text-muted truncate">
                         <MapPin size={12} className="inline mr-1" aria-hidden="true" />
                         {b.location_city} · {dist.toFixed(1)} km away

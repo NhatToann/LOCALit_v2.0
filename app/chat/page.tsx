@@ -18,6 +18,7 @@ import {
   Reply,
   Star,
   MapPin,
+  Map as MapIcon,
   Calendar,
   Image as ImageIcon,
   Check,
@@ -1208,20 +1209,14 @@ function ChatInner() {
           <EmptyState
             icon={MessageCircle}
             title="No conversations yet"
-            description={
-              myRole === 'buddy'
-                ? 'When a tourist accepts your connection request, the conversation will appear here.'
-                : 'Connect with a buddy to start chatting. Browse the buddy list to send your first request.'
-            }
+            description="Connect with a buddy to start chatting. Browse the buddy list to send your first request."
             action={
-              myRole === 'buddy' ? null : (
-                <Link
-                  href="/browse"
-                  className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
-                >
-                  Browse Da Nang buddies
-                </Link>
-              )
+              <Link
+                href="/browse"
+                className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+              >
+                Browse Da Nang buddies
+              </Link>
             }
           />
         </div>
@@ -1235,29 +1230,17 @@ function ChatInner() {
         <div>
           <h1 className="text-page-title">Messages</h1>
           <p className="text-xs text-muted mt-1">
-            {myRole === 'buddy'
-              ? 'Tourists you are connected with. Reply within 24h to keep your response rate high.'
-              : myRole === 'tourist'
-                ? 'Buddies you are connected with. Pin important messages to find them faster.'
-                : 'Conversations you have started.'}
+            Conversations with your Da Nang buddies.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {myRole === 'tourist' ? (
-            <Link
-              href="/browse"
-              className="inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
-            >
-              Browse buddies
-            </Link>
-          ) : myRole === 'buddy' ? (
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
-            >
-              My requests
-            </Link>
-          ) : null}
+          <Link
+            href="/map"
+            className="inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+          >
+            <MapIcon size={14} aria-hidden="true" />
+            View map
+          </Link>
           <button
             type="button"
             onClick={() => setShowSearch((s) => !s)}
@@ -1653,11 +1636,7 @@ function ChatInner() {
                 {activeConv.partner_city ?? 'Da Nang local'}
               </p>
               <Link
-                href={
-                  myRole === 'buddy'
-                    ? '/profile'
-                    : `/buddies/${activeConv.partner_id}`
-                }
+                href={`/buddies/${activeConv.partner_id}`}
                 className="mt-3 text-xs text-primary hover:underline"
               >
                 View full profile →
@@ -1714,7 +1693,7 @@ function ChatInner() {
                   href={
                     myRole === 'buddy'
                       ? '/trips'
-                      : `/buddies/${activeConv.partner_id}`
+                      : '/trips/create'
                   }
                   className="inline-flex items-center gap-2 h-9 px-3 text-sm rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
                 >

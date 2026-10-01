@@ -68,10 +68,16 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
     }
   }, [incoming])
 
-  // If we're already on /chat with the matching ?call= param, hide the popup
-  // (the chat page will show its own CallModal).
+  // If we're already on /chat (with or without ?call= param), hide the popup.
+  // The chat page renders its own CallModal via the /chat?call=X deep-link
+  // effect plus ActiveCallSheet — surfacing BOTH the popup and the modal at
+  // once causes two Accept/Decline buttons stacked on screen. By hiding the
+  // popup whenever the user is anywhere under /chat/*, the chat page owns
+  // the call UI exclusively (the deep-link useEffect below also auto-navigates
+  // the user to /chat?call=X so the CallModal appears without them clicking).
+  const onChatPage = pathname.startsWith('/chat')
   const onChatWithCall =
-    pathname.startsWith('/chat') &&
+    onChatPage &&
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('call') === incoming?.pendingCallId
 
@@ -87,7 +93,20 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
   const activeCallForSameId =
     incoming != null && activeCall?.callId === incoming.pendingCallId
 
-  const visible = incoming != null && !onChatWithCall && !acceptingThisCall && !activeCallForSameId
+  const visible =
+    incoming != null && !onChatPage && !onChatWithCall && !acceptingThisCall && !activeCallForSameId
+
+  // When the user is already on /chat and a call comes in, auto-navigate
+  // to /chat?call=<id> so the chat page's deep-link effect picks it up
+  // and renders the CallModal. We use router.replace so the back button
+  // still returns to /chat (not to whatever page they came from).
+  useEffect(() => {
+    if (!onChatPage || !incoming || acceptingThisCall) return
+    if (typeof window === 'undefined') return
+    const currentCallParam = new URLSearchParams(window.location.search).get('call')
+    if (currentCallParam === incoming.pendingCallId) return
+    router.replace(`/chat?call=${incoming.pendingCallId}`)
+  }, [onChatPage, incoming?.pendingCallId, acceptingThisCall, router])
 
   function handleAccept() {
     if (!incoming) return

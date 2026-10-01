@@ -34,6 +34,62 @@ import BuddyProfileView from '@/components/profile/BuddyProfileView'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * 2026-10-02 — Role-row auto-create.
+ *
+ * If a profile has role='buddy' but the user is missing a row in
+ * `public.buddies` (or vice versa for tourists), insert a default
+ * row before rendering. Idempotent: if the row already exists,
+ * the SELECT below finds it and we skip the INSERT. This protects
+ * the UI from "Buddy profile not found." / "Profile not found."
+ * empty states that surfaced after a signup where the role-table
+ * row was not created (e.g. trigger failure or partial migration).
+ *
+ * Defaults are conservative (Da Nang, English, empty arrays, 0
+ * numeric counters). Buddy hourly_rate defaults to $15 (mid of the
+ * 15–45 range shown on the homepage); tourist destination is
+ * locked to Da Nang per LOCALit's current scope.
+ */
+async function ensureRoleRow(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  role: 'tourist' | 'buddy',
+): Promise<void> {
+  const table = role === 'buddy' ? 'buddies' : 'tourists'
+  const { data: existing } = await supabase
+    .from(table)
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle()
+  if (existing?.id) return
+
+  if (role === 'buddy') {
+    await supabase.from('buddies').insert({
+      id: userId,
+      location_city: 'Da Nang',
+      languages: ['English'],
+      specialties: [],
+      hourly_rate: 15,
+      is_available: true,
+      favorite_places: [],
+      trips_completed: 0,
+      rating_avg: 0,
+      bio: null,
+    } as never)
+  } else {
+    await supabase.from('tourists').insert({
+      id: userId,
+      nationality: '',
+      date_of_birth: null,
+      travel_style: 'solo',
+      interests: [],
+      languages: ['English'],
+      budget_range: '50-100',
+      destination: 'Da Nang',
+    } as never)
+  }
+}
+
 export default async function ProfilePage() {
   const supabase = await createClient()
   const {
@@ -52,10 +108,26 @@ export default async function ProfilePage() {
 
   const role = profile?.role ?? null
 
+  // Auto-create the role-specific row if missing. Fire-and-forget
+  // failure handling: if the INSERT fails (e.g. RLS denial), the
+  // downstream view's own empty-state still gives the user a clear
+  // "Profile not found." message instead of a crash.
   if (role === 'buddy') {
+    try {
+      await ensureRoleRow(supabase, user.id, 'buddy')
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[profile] ensureRoleRow(buddy) failed:', (err as Error).message)
+    }
     return <BuddyProfileView />
   }
   if (role === 'tourist') {
+    try {
+      await ensureRoleRow(supabase, user.id, 'tourist')
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[profile] ensureRoleRow(tourist) failed:', (err as Error).message)
+    }
     return <TouristProfileView />
   }
 
