@@ -75,6 +75,7 @@ interface ConvSummary {
   partner_id: string
   partner_name: string
   partner_avatar: string | null
+  partner_role: 'tourist' | 'buddy' | null
   partner_city: string | null
   partner_languages: string[]
   partner_hourly_rate: number | null
@@ -351,6 +352,11 @@ function ChatInner() {
         partner_id: partnerProfile?.id ?? '',
         partner_name: partnerName,
         partner_avatar: partnerProfile?.avatar_url ?? null,
+        // Side-aware role: the partner is always the OPPOSITE role
+        // to the current user (the marketplace enforces tourist ↔
+        // buddy pairing). We expose it so the sidebar can render a
+        // small role tag — see "Role differentiation" in design.md.
+        partner_role: isTouristSide ? 'buddy' : 'tourist',
         partner_city: partner?.location_city ?? null,
         partner_languages: partner?.languages ?? [],
         partner_hourly_rate: partner?.hourly_rate ?? null,
@@ -1226,16 +1232,42 @@ function ChatInner() {
   return (
     <div className="container-page py-6">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-page-title">Messages</h1>
-        <button
-          type="button"
-          onClick={() => setShowSearch((s) => !s)}
-          aria-label={showSearch ? 'Hide search' : 'Search messages'}
-          className="inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm bg-surface text-ink border border-border-strong hover:bg-paper"
-        >
-          <Search size={14} aria-hidden="true" />
-          Search
-        </button>
+        <div>
+          <h1 className="text-page-title">Messages</h1>
+          <p className="text-xs text-muted mt-1">
+            {myRole === 'buddy'
+              ? 'Tourists you are connected with. Reply within 24h to keep your response rate high.'
+              : myRole === 'tourist'
+                ? 'Buddies you are connected with. Pin important messages to find them faster.'
+                : 'Conversations you have started.'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {myRole === 'tourist' ? (
+            <Link
+              href="/browse"
+              className="inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+            >
+              Browse buddies
+            </Link>
+          ) : myRole === 'buddy' ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+            >
+              My requests
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setShowSearch((s) => !s)}
+            aria-label={showSearch ? 'Hide search' : 'Search messages'}
+            className="inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm bg-surface text-ink border border-border-strong hover:bg-paper"
+          >
+            <Search size={14} aria-hidden="true" />
+            Search
+          </button>
+        </div>
       </div>
 
       <div
@@ -1250,6 +1282,7 @@ function ChatInner() {
           <ul>
             {conversations.map((c) => {
               const isActive = c.id === activeId
+              const roleTag = c.partner_role === 'buddy' ? 'Buddy' : c.partner_role === 'tourist' ? 'Tourist' : null
               return (
                 <li key={c.id}>
                   <button
@@ -1268,9 +1301,23 @@ function ChatInner() {
                         online={c.is_partner_online}
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">
-                          {c.partner_name}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium truncate">
+                            {c.partner_name}
+                          </p>
+                          {roleTag ? (
+                            <span
+                              className={`inline-flex items-center px-1 h-[14px] text-[9px] font-mono uppercase tracking-wide flex-shrink-0 ${
+                                c.partner_role === 'buddy'
+                                  ? 'bg-primary/10 text-primary border border-primary/30'
+                                  : 'bg-info-bg text-info border border-info/30'
+                              }`}
+                              aria-label={`Partner role: ${roleTag}`}
+                            >
+                              {roleTag}
+                            </span>
+                          ) : null}
+                        </div>
                         <p className="text-xs text-muted truncate">
                           {c.last_message_preview || c.partner_city || 'Start chatting'}
                         </p>
@@ -1321,9 +1368,8 @@ function ChatInner() {
                   type="button"
                   onClick={() => startCall('voice')}
                   disabled={!isPartnerOnline}
-                  aria-label={isPartnerOnline ? 'Start voice call' : 'Call unavailable — buddy offline'}
+                  aria-label={isPartnerOnline ? 'Start voice call' : 'Voice call unavailable — buddy offline'}
                   aria-disabled={!isPartnerOnline}
-                  title={isPartnerOnline ? undefined : 'Buddy is offline'}
                   className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 >
                   {isPartnerOnline ? (
@@ -1338,7 +1384,6 @@ function ChatInner() {
                   disabled={!isPartnerOnline}
                   aria-label={isPartnerOnline ? 'Start video call' : 'Video call unavailable — buddy offline'}
                   aria-disabled={!isPartnerOnline}
-                  title={isPartnerOnline ? undefined : 'Buddy is offline'}
                   data-testid="start-video-call"
                   className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 >
