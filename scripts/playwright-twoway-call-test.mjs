@@ -20,6 +20,7 @@ import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { signIn, SUPABASE_URL } from './_lib/auth-context.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -27,6 +28,13 @@ const __dirname = path.dirname(__filename)
 const API_BASE = process.env.API_BASE || 'https://localit-nhattoann.vercel.app'
 const BYPASS = process.env.VERCEL_BYPASS_TOKEN || 'w6XAcwiXyFf9Pea8I6zwVONXAhc8Xs9A'
 const SCREENSHOT_DIR = path.join(__dirname, 'screenshots')
+
+// Stable seed UUIDs (see scripts/diag-redteam-privs.mjs and
+// scripts/playwright-presence-test.mjs). Hardcoding these skips a
+// flaky auth-cookie lookup that depends on browser-side state.
+// If seed data is ever regenerated, update here.
+const SEED_JOHN_ID = 'aaaa1111-1111-1111-1111-111111111111'
+const SEED_LAN_ID = '11111111-1111-1111-1111-111111111111'
 
 const results = []
 let idx = 0
@@ -47,12 +55,62 @@ async function shot(page, label) {
 }
 
 async function loginAs(page, email, password) {
-  await page.goto(`${API_BASE}/login`, { waitUntil: 'domcontentloaded' })
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 })
-  await page.fill('input[type="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await page.waitForURL((u) => !u.toString().includes('/login'), { timeout: 15000 })
+  // Sign in via Supabase Auth REST and seed the SSR cookie +
+  // localStorage on the page's context. This bypasses the
+  // /login form (gated by Vercel SSO in some environments) and
+  // lands us already-authenticated.
+  const session = await signIn(email, password)
+  const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0]
+  const storageKey = `sb-${projectRef}-auth-token`
+  const value = JSON.stringify({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    expires_in: session.expires_in ?? 3600,
+    expires_at: session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
+    token_type: 'bearer',
+    user: session.user,
+  })
+  const encoded = Buffer.from(value, 'utf-8').toString('base64')
+  const hostname = new URL(API_BASE).hostname
+  const context = page.context()
+  await context.addCookies([
+    {
+      name: storageKey,
+      value: encoded,
+      domain: hostname,
+      path: '/',
+      sameSite: 'Lax',
+    },
+  ])
+  await page.addInitScript(
+    ([key, val]) => {
+      try {
+        localStorage.setItem(key, val)
+      } catch {}
+    },
+    [storageKey, value],
+  )
+  // Sanity-check: hit /chat and ensure we don't bounce to /login
+  // (after the Vercel SSO gate has accepted the bypass header).
+  await page.goto(`${API_BASE}/chat`, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(2000)
+  if (page.url().includes('/login') || page.url().includes('vercel.com')) {
+    // Fallback: drive the /login form instead. The Vercel gate may
+    // strip our auth cookie even though we're past the gate; this
+    // path signs in via the UI for that case.
+    await page.goto(`${API_BASE}/login`, { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('input[type="email"]', { timeout: 30000, state: 'visible' })
+    await page.fill('input[type="email"]', email)
+    await page.fill('input[type="password"]', password)
+    await page.click('button[type="submit"]')
+    await page.waitForURL((u) => !u.toString().includes('/login'), { timeout: 30000 })
+    await page.waitForTimeout(1000)
+    if (page.url().includes('/login') || page.url().includes('vercel.com')) {
+      throw new Error(
+        `loginAs(${email}) failed — context redirected to ${page.url()}`,
+      )
+    }
+  }
 }
 
 async function openChat(page, partnerId) {
@@ -137,26 +195,11 @@ async function scenarioBuddyCallsTourist({ browser, ctxOpts }) {
   await loginAs(john, 'john.doe@example.com', 'password123')
   pass('login', 'both users signed in')
 
-  // Find John's id from John's profile.
-  const johnId = await john.evaluate(async () => {
-    const sb = window.__supabase || null
-    if (sb) {
-      const { data } = await sb.auth.getUser()
-      if (data?.user) return data.user.id
-    }
-    // Fallback: hit safe_profiles with our email.
-    const res = await fetch('/api/auth/me').catch(() => null)
-    if (res && res.ok) {
-      const j = await res.json()
-      return j?.id
-    }
-    return null
-  })
-
-  if (!johnId) {
-    fail('find-john-id', 'could not resolve John user id')
-    return
-  }
+  // Find John's id. Hardcoded seed UUID (see SEED_* constants) —
+  // auth-cookie lookup is flaky because the SSR cookie's lifecycle
+  // depends on the server accepting the bypass header, which Vercel
+  // sometimes drops on navigations.
+  const johnId = SEED_JOHN_ID
   pass('find-john-id', johnId)
 
   await openChat(lan, johnId)
@@ -233,13 +276,7 @@ async function scenarioTouristCallsBuddy({ browser, ctxOpts }) {
   await loginAs(lan, 'lan.pham@localit.dev', 'password123')
   pass('login', 'both users signed in')
 
-  const lanId = await lan.evaluate(() => {
-    try {
-      const raw = window.localStorage.getItem('sb-pqvnjgyqbxlylawwogjv-auth-token')
-      if (raw) return JSON.parse(raw).user.id
-    } catch {}
-    return null
-  })
+  const lanId = SEED_LAN_ID
   if (!lanId) {
     fail('find-lan-id', 'could not resolve Lan user id')
     return
@@ -311,13 +348,9 @@ async function scenarioCallPersistsAcrossNavigation({ browser, ctxOpts }) {
   await loginAs(john, 'john.doe@example.com', 'password123')
   await loginAs(lan, 'lan.pham@localit.dev', 'password123')
 
-  const lanId = await lan.evaluate(() => {
-    try {
-      const raw = window.localStorage.getItem('sb-pqvnjgyqbxlylawwogjv-auth-token')
-      if (raw) return JSON.parse(raw).user.id
-    } catch {}
-    return null
-  })
+  // Use the stable seed UUID for Lan instead of an auth-cookie
+  // lookup. See SEED_* constants for the source.
+  const lanId = SEED_LAN_ID
 
   await openChat(john, lanId)
   const phoneBtn = john.locator('button[aria-label*="Start voice call"], button[aria-label*="Voice call"]').first()

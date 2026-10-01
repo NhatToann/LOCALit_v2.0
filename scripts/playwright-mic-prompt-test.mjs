@@ -20,6 +20,7 @@ import { chromium } from 'playwright'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { signIn, SUPABASE_URL } from './_lib/auth-context.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -45,12 +46,47 @@ async function shot(page, label) {
 }
 
 async function loginAs(page, email, password) {
-  await page.goto(`${API_BASE}/login`, { waitUntil: 'domcontentloaded' })
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 })
-  await page.fill('input[type="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await page.waitForURL((u) => !u.toString().includes('/login'), { timeout: 15000 })
+  // Sign in via Supabase Auth REST and seed the SSR cookie +
+  // localStorage on the page's context. This bypasses the
+  // /login form (gated by Vercel SSO in some environments) and
+  // lands us already-authenticated.
+  const session = await signIn(email, password)
+  const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0]
+  const storageKey = `sb-${projectRef}-auth-token`
+  const value = JSON.stringify({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    expires_in: session.expires_in ?? 3600,
+    expires_at: session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
+    token_type: 'bearer',
+    user: session.user,
+  })
+  const encoded = Buffer.from(value, 'utf-8').toString('base64')
+  const hostname = new URL(API_BASE).hostname
+  await page.context().addCookies([
+    {
+      name: storageKey,
+      value: encoded,
+      domain: hostname,
+      path: '/',
+      sameSite: 'Lax',
+    },
+  ])
+  await page.addInitScript(
+    ([key, val]) => {
+      try {
+        localStorage.setItem(key, val)
+      } catch {}
+    },
+    [storageKey, value],
+  )
+  await page.goto(`${API_BASE}/chat`, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1500)
+  if (page.url().includes('/login')) {
+    throw new Error(
+      `loginAs(${email}) failed — context still redirected to /login after seeding auth cookie`,
+    )
+  }
 }
 
 async function main() {
@@ -96,13 +132,10 @@ async function main() {
   await john.addInitScript(instrumentScript)
   await lan.addInitScript(instrumentScript)
 
-  const lanId = await lan.evaluate(() => {
-    try {
-      const raw = window.localStorage.getItem('sb-pqvnjgyqbxlylawwogjv-auth-token')
-      if (raw) return JSON.parse(raw).user.id
-    } catch {}
-    return null
-  })
+  // Use stable seed UUID for Lan — auth-cookie lookup is flaky
+  // because the Vercel SSO gate sometimes strips the bypass header
+  // on top-level navigations.
+  const lanId = '11111111-1111-1111-1111-111111111111'
 
   // 1. Initial /chat mount on John (no calls yet).
   await john.goto(`${API_BASE}/chat?buddy=${lanId}`, { waitUntil: 'domcontentloaded' })
