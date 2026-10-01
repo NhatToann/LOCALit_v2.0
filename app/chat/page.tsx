@@ -215,6 +215,28 @@ function ChatInner() {
     return undefined
   }, [callState, callClient])
 
+  // Expose the active-call snapshot on window so Playwright tests can
+  // read the current state without subscribing to the activeCallStore
+  // singleton directly. Updated synchronously on every callState
+  // change. Removed when the chat page unmounts (e.g. user logs out).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __activeCallState?: {
+        state: CallState
+        isOutgoing: boolean
+        partnerName: string | null
+        hasClient: boolean
+      }
+    }
+    w.__activeCallState = {
+      state: callState,
+      isOutgoing,
+      partnerName: callPartner?.name ?? null,
+      hasClient: !!callClient,
+    }
+  }, [callState, isOutgoing, callPartner, callClient])
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
