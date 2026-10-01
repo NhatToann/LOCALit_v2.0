@@ -31,6 +31,17 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [declineBusy, setDeclineBusy] = useState(false)
+  // Locally mark a call as "being accepted" so the popup dismisses
+  // INSTANTLY when Accept is clicked — before router.push() has even
+  // finished navigating. Without this, the popup stays on screen for
+  // ~100-300ms while Next.js swaps the route, and a slow nav (e.g.
+  // a code-split /chat chunk) can let the user click Accept twice
+  // and end up with two prompt dialogs and two LiveKit rooms.
+  // We keep this state for ~10s after Accept — long enough to
+  // cover any reasonable navigation round-trip and the time it takes
+  // the chat page to update pending_calls.status='accepted' (which
+  // is what eventually tells `useIncomingCall` to drop the row).
+  const [acceptingId, setAcceptingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (DEBUG_CALL && incoming) {
@@ -49,14 +60,27 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('call') === incoming?.pendingCallId
 
-  const visible = incoming && !onChatWithCall
+  // Also hide the popup while we're navigating to accept this row.
+  const acceptingThisCall = incoming != null && acceptingId === incoming.pendingCallId
 
-  async function handleAccept() {
+  const visible = incoming != null && !onChatWithCall && !acceptingThisCall
+
+  function handleAccept() {
     if (!incoming) return
     if (DEBUG_CALL) {
       // eslint-disable-next-line no-console
       console.log('[dlog] IncomingCallWatcher: handleAccept', incoming.pendingCallId)
     }
+    // Mark locally first (immediate hide), then navigate. The
+    // 10s timeout gives the chat page plenty of time to:
+    //   1. mount + read ?call=
+    //   2. acceptCall() → update pending_calls.status='accepted'
+    //   3. useIncomingCall re-fetches and drops the row
+    // If the navigation fails entirely, the timeout still expires
+    // and the user can hit Accept again (the row will be back in
+    // 'ringing' state because the DB update didn't happen).
+    setAcceptingId(incoming.pendingCallId)
+    setTimeout(() => setAcceptingId(null), 10_000)
     router.push(`/chat?call=${incoming.pendingCallId}`)
   }
 

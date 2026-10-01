@@ -8,6 +8,7 @@ import {
   Send,
   Search,
   Phone,
+  Video,
   PhoneOff,
   Paperclip,
   Smile,
@@ -38,7 +39,10 @@ import {
   startLiveKitCall,
   type LiveKitCallClient,
 } from '@/lib/webrtc/livekit-client'
-import { ensureMicPermission } from '@/lib/webrtc/mic'
+import {
+  releaseMediaPermissions,
+} from '@/lib/webrtc/media'
+import VideoCallModal from '@/components/chat/VideoCallModal'
 import {
   registerActiveCallClient,
   unregisterActiveCallClient,
@@ -53,7 +57,7 @@ const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
 // LiveKit-backed call state machine. Mirrors the prior WebRTC
 // CallState type so the rest of the chat page (CallModal, headlines,
 // auto-dismiss timers) keeps working without changes.
-type CallMode = 'voice'
+type CallMode = 'voice' | 'video'
 type CallState =
   | 'idle'
   | 'calling'
@@ -745,25 +749,26 @@ function ChatInner() {
       name: activeConv.partner_name,
       avatar: activeConv.partner_avatar,
     })
-    // Prompt for mic permission BEFORE the SDK triggers its own
-    // getUserMedia. We want the prompt to come after the user has
-    // clicked the Phone button (intent is clear) and the modal is
-    // visible (UX context).
-    try {
-      await ensureMicPermission()
-    } catch (e) {
-      const msg = (e as Error).message
-      setError(msg)
-      setCallState('failed')
-      setTimeout(() => setCallState('idle'), 3000)
-      return
-    }
+    // Mic/camera permission is deferred: we let LiveKit's `publishMic()`
+    // (called below) trigger the native getUserMedia prompt. This matches
+    // the Messenger/Meet flow where the prompt appears AFTER the user has
+    // already clicked the Phone button and the CallModal is visible — so
+    // they have full UX context for why the browser is asking. No double
+    // getUserMedia call (the legacy `ensureMediaPermissions` block used
+    // to fire one here, which the LiveKit client would then fire again
+    // inside publishMic — browsers reuse the cached permission grant
+    // but it still wasted ~50ms per call).
     let pendingCallId = ''
     try {
       // Insert a pending_calls row so the buddy's IncomingCallWatcher
-      // sees a ringing notification. LiveKit handles the actual voice
+      // sees a ringing notification. LiveKit handles the actual
       // transport; pending_calls is just the durable "someone is
-      // calling you" signal.
+      // calling you" signal. The `type` column (added 2026-10-01)
+      // lets the callee's UI pick the right modal: CallModal for
+      // voice, VideoCallModal for video. The `room_name` column is
+      // NOT NULL and must match the LiveKit room convention
+      // `call:<conversationId>` — the buddy's accept path uses it
+      // to look up the LiveKit room to join.
       try {
         const supabase = createClient()
         const { data: row } = await supabase
@@ -773,6 +778,8 @@ function ChatInner() {
             caller_id: myId,
             callee_id: activeConv.partner_id,
             status: 'ringing',
+            type: mode,
+            room_name: `call:${activeConv.id}`,
           })
           .select('id')
           .single()
@@ -787,6 +794,7 @@ function ChatInner() {
         myId,
         roomName,
         participantName: myName,
+        video: mode === 'video',
         onState: (s) => {
           setCallState(s)
           activeCallStore.patchActive({ state: s })
@@ -798,7 +806,40 @@ function ChatInner() {
         onLocalStream: () => undefined,
         onRemoteStream: attachRemoteAudio,
       })
-      await client.publishMic()
+      // Mic/camera permission prompt fires INSIDE publishMic() — by
+      // the time we get here the user has already seen the CallModal
+      // and clicked the Phone button (intent is clear, UX context is
+      // set). publishMic re-raises MicDeniedError if the user denies;
+      // we surface that as a friendly `failed` state with the error
+      // message, then bail out before registering the call client
+      // or ActiveCallStore. This matches the Messenger/Meet UX:
+      // deny → "Call failed · Microphone permission was denied."
+      try {
+        await client.publishMic()
+      } catch (micErr) {
+        const micMsg = (micErr as Error).message || 'Microphone permission was denied.'
+        setError(micMsg)
+        setCallState('failed')
+        setTimeout(() => setCallState('idle'), 3000)
+        // Clean up the LiveKit room we just opened so we don't leak
+        // an unconnected room onto the LiveKit server.
+        try {
+          client.end()
+        } catch {
+          /* swallow */
+        }
+        // Also mark the pending_calls row as failed so the partner's
+        // UI doesn't sit on a "ringing" state for 45s.
+        if (pendingCallId) {
+          void createClient()
+            .from('pending_calls')
+            .update({ status: 'failed', ended_at: new Date().toISOString() })
+            .eq('id', pendingCallId)
+            .then(() => undefined)
+        }
+        activeCallStore.setActive(null)
+        return
+      }
       if (!pendingCallId) pendingCallId = client.callId
       setCallClient(client)
       registerActiveCallClient(pendingCallId, client)
@@ -809,6 +850,7 @@ function ChatInner() {
         partnerName: activeConv.partner_name,
         partnerAvatar: activeConv.partner_avatar,
         isOutgoing: true,
+        mode, // 'voice' or 'video' — ActiveCallSheet picks the modal
         state: 'calling',
         networkStatus: 'online',
         quality: null,
@@ -848,21 +890,36 @@ function ChatInner() {
       })
     }
     if (!myId || callClient) return
-    setCallMode('voice')
+    let incomingMode: CallMode = 'voice' as CallMode
+    // setCallMode below accepts the local incomingMode — but at this
+    // point we haven't queried the DB yet, so we set the placeholder
+    // ('voice'). After the row query sets incomingMode to the real
+    // value (line 898), all subsequent code uses that.
+    setCallMode(incomingMode)
     setIsOutgoing(false)
     setError('')
+    // Pre-emptively surface "Incoming call / Ringing…" so the
+    // CallModal renders with a meaningful state the instant the
+    // /chat?call=X navigation lands. Before this the modal was
+    // either blank (idle) or skipped straight to "Connecting…"
+    // because the caller raced us by ~1 frame. LiveKit's
+    // ConnectionStateChanged handler will flip us to 'connecting'
+    // → 'connected' as the WebRTC session comes up.
+    setCallState('ringing')
     let peerId: string
     let partnerName: string
     let partnerAvatar: string | null
     let conversationId: string
     try {
-      // Look up the pending_calls row to learn who the caller is.
-      // We also fetch the caller's profile so the modal can show the
-      // partner name even before the conversation list is loaded.
+      // Look up the pending_calls row to learn who the caller is
+      // AND whether this is a voice or video call (the `type`
+      // column was added 2026-10-01). We also fetch the caller's
+      // profile so the modal can show the partner name even
+      // before the conversation list is loaded.
       const supabase = createClient()
       const { data: row, error: rowErr } = await supabase
         .from('pending_calls')
-        .select('conversation_id, caller_id, callee_id, status')
+        .select('conversation_id, caller_id, callee_id, status, type')
         .eq('id', pendingCallId)
         .single()
       if (rowErr || !row) {
@@ -876,6 +933,12 @@ function ChatInner() {
       }
       conversationId = row.conversation_id
       peerId = row.caller_id
+      // Mutate the outer let, not declare a new const — otherwise
+      // the later `activeCallStore.setActive({ mode: incomingMode })`
+      // uses the outer (placeholder) value, which would always be
+      // 'voice'.
+      incomingMode = row.type === 'video' ? 'video' : 'voice'
+      setCallMode(incomingMode)
       // Try to enrich partner info from activeConv (if loaded) or from
       // safe_profiles (as a fallback). Don't fail if neither resolves.
       const profile =
@@ -891,6 +954,26 @@ function ChatInner() {
       partnerName = profile?.full_name ?? 'Caller'
       partnerAvatar = profile?.avatar_url ?? null
       setCallPartner({ name: partnerName, avatar: partnerAvatar })
+      // Mark the row as accepted so the caller's UI updates and
+      // IncomingCallWatcher (if still polling from a sibling tab)
+      // stops re-surfacing the Accept popup. Fire-and-forget; failure
+      // is non-fatal (the row will TTL out in 45s anyway). We
+      // intentionally do NOT block on this — getting into the
+      // LiveKit room fast matters more than a perfectly synced DB
+      // state. Note we update `status` but NOT `ended_at` so the
+      // caller can still see the call as "in progress" — they'll
+      // mark it `ended` when the call actually ends.
+      void supabase
+        .from('pending_calls')
+        .update({ status: 'accepted' })
+        .eq('id', pendingCallId)
+        .eq('callee_id', myId)
+        .then(({ error: acceptDbErr }) => {
+          if (acceptDbErr && DEBUG_CALL) {
+            // eslint-disable-next-line no-console
+            console.log('[dlog] pending_calls accept update failed', acceptDbErr.message)
+          }
+        })
     } catch (e) {
       setError('Could not accept call: ' + (e as Error).message)
       setCallState('failed')
@@ -902,19 +985,12 @@ function ChatInner() {
     // highlight a different thread.
     if (activeId !== conversationId) setActiveId(conversationId)
 
-    // Prompt for mic permission AFTER the user has clicked Accept
-    // (intent is clear) and the CallModal has been mounted (UX
-    // context). The native browser prompt will now appear over the
-    // modal so the user understands why access is being requested.
-    try {
-      await ensureMicPermission()
-    } catch (e) {
-      const msg = (e as Error).message
-      setError(msg)
-      setCallState('failed')
-      setTimeout(() => setCallState('idle'), 4000)
-      return
-    }
+    // Mic/camera permission is deferred: we let LiveKit's
+    // `publishMic()` trigger the native getUserMedia prompt. By the
+    // time we reach publishMic the CallModal is already mounted
+    // with the "Incoming call / Ringing…" headline — so they have full
+    // UX context for why the browser is asking (matches the
+    // Messenger/Zalo/Meet flow).
 
     try {
       const roomName = `call:${conversationId}`
@@ -922,6 +998,7 @@ function ChatInner() {
         myId,
         roomName,
         participantName: myName,
+        video: incomingMode === 'video',
         onState: (s) => {
           setCallState(s)
           activeCallStore.patchActive({ state: s })
@@ -933,9 +1010,37 @@ function ChatInner() {
         onLocalStream: () => undefined,
         onRemoteStream: attachRemoteAudio,
       })
-      await client.publishMic()
+      // publishMic is where the mic permission prompt happens. If the
+      // user denies, it throws MicDeniedError — we surface that as a
+      // friendly `failed` state and bail out before registering the
+      // call client or activeCallStore. Same UX as the caller path.
+      try {
+        await client.publishMic()
+      } catch (micErr) {
+        const micMsg = (micErr as Error).message || 'Microphone permission was denied.'
+        setError(micMsg)
+        setCallState('failed')
+        setTimeout(() => setCallState('idle'), 3000)
+        try {
+          client.end()
+        } catch {
+          /* swallow */
+        }
+        // Mark the DB row as failed so the partner's UI clears.
+        void createClient()
+          .from('pending_calls')
+          .update({ status: 'failed', ended_at: new Date().toISOString() })
+          .eq('id', pendingCallId)
+          .then(() => undefined)
+        activeCallStore.setActive(null)
+        return
+      }
       setCallClient(client)
       registerActiveCallClient(pendingCallId, client)
+      // Start the global sheet at 'ringing' so the UI stays
+      // consistent with the chat-page-owned state until LiveKit
+      // fires its first ConnectionStateChanged (which flips it to
+      // 'connecting' then 'connected').
       activeCallStore.setActive({
         callId: pendingCallId,
         conversationId,
@@ -943,7 +1048,8 @@ function ChatInner() {
         partnerName,
         partnerAvatar,
         isOutgoing: false,
-        state: 'connecting',
+        mode: incomingMode,
+        state: 'ringing',
         networkStatus: 'online',
         quality: null,
         errorMessage: null,
@@ -967,6 +1073,11 @@ function ChatInner() {
     if (callClient) {
       unregisterCallClient(callId)
     }
+    // Stop local tracks and invalidate the cached MediaStream so the
+    // next call re-prompts. Voice-only flows kept working with
+    // releaseMic() in the past; releaseMediaPermissions() does the
+    // same plus handles video tracks.
+    releaseMediaPermissions()
     setCallClient(null)
     setCallPartner(null)
     setTimeout(() => setCallState('idle'), 1000)
@@ -1187,6 +1298,22 @@ function ChatInner() {
                 >
                   {isPartnerOnline ? (
                     <Phone size={15} aria-hidden="true" />
+                  ) : (
+                    <PhoneOff size={15} aria-hidden="true" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startCall('video')}
+                  disabled={!isPartnerOnline}
+                  aria-label={isPartnerOnline ? 'Start video call' : 'Video call unavailable — buddy offline'}
+                  aria-disabled={!isPartnerOnline}
+                  title={isPartnerOnline ? undefined : 'Buddy is offline'}
+                  data-testid="start-video-call"
+                  className="inline-flex items-center justify-center w-9 h-9 rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                >
+                  {isPartnerOnline ? (
+                    <Video size={15} aria-hidden="true" />
                   ) : (
                     <PhoneOff size={15} aria-hidden="true" />
                   )}
