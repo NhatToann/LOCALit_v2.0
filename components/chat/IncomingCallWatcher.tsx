@@ -11,6 +11,17 @@
  *   handles by joining the LiveKit room.
  * Decline: marks the pending_calls row as declined and dismisses the
  *   popup. No voice session is created.
+ *
+ * Anti-double-of (2026-10-01):
+ *   After the user accepts the call, two UIs can briefly coexist:
+ *     (a) this notification popup (top-right)
+ *     (b) the chat-page's <CallModal /> rendered by <ActiveCallSheet />
+ *   We hide this popup as soon as `activeCallStore` shows an active
+ *   call with the same pendingCallId. The previous signal — waiting
+ *   for the realtime UPDATE event on `pending_calls.status='accepted'`
+ *   to propagate — was racy: the chat-page could be rendering the
+ *   CallModal for 100-500 ms before the DB UPDATE round-tripped and
+ *   the realtime subscription fired `setIncoming(null)`.
  */
 
 import { useEffect, useState } from 'react'
@@ -18,6 +29,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { Phone, PhoneOff } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { useIncomingCall, type IncomingCall } from '@/lib/realtime/useIncomingCall'
+import { useActiveCall } from '@/lib/realtime/useActiveCallStore'
 import { Avatar } from '@/components/ui/Avatar'
 
 const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
@@ -30,6 +42,7 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
   const incoming = useIncomingCall(currentUserId)
   const router = useRouter()
   const pathname = usePathname()
+  const activeCall = useActiveCall()
   const [declineBusy, setDeclineBusy] = useState(false)
   // Locally mark a call as "being accepted" so the popup dismisses
   // INSTANTLY when Accept is clicked — before router.push() has even
@@ -60,10 +73,19 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('call') === incoming?.pendingCallId
 
-  // Also hide the popup while we're navigating to accept this row.
+  // Also hide while we're navigating to accept this row.
   const acceptingThisCall = incoming != null && acceptingId === incoming.pendingCallId
 
-  const visible = incoming != null && !onChatWithCall && !acceptingThisCall
+  // And hide as soon as `activeCallStore` shows an active call with the
+  // same pendingCallId. This is the safe synchronisation point: the
+  // chat page sets the store IMMEDIATELY after it accepts the row
+  // (lib/webrtc/livekit-client.ts onState -> chat/page.tsx onState
+  // -> activeCallStore.setActive). Subscribing to it via
+  // useSyncExternalStore means the watcher re-renders the same tick.
+  const activeCallForSameId =
+    incoming != null && activeCall?.callId === incoming.pendingCallId
+
+  const visible = incoming != null && !onChatWithCall && !acceptingThisCall && !activeCallForSameId
 
   function handleAccept() {
     if (!incoming) return
