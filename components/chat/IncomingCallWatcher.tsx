@@ -26,10 +26,12 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { Phone, PhoneOff } from 'lucide-react'
+import { Phone, PhoneOff, MessageSquare } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { useIncomingCall, type IncomingCall } from '@/lib/realtime/useIncomingCall'
 import { useActiveCall } from '@/lib/realtime/useActiveCallStore'
+import { chimeDecline, chimeAccept } from '@/lib/webrtc/call-effects'
+import { postCallLog } from '@/lib/webrtc/call-log'
 import { Avatar } from '@/components/ui/Avatar'
 
 const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
@@ -93,6 +95,7 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
       // eslint-disable-next-line no-console
       console.log('[dlog] IncomingCallWatcher: handleAccept', incoming.pendingCallId)
     }
+    chimeAccept()
     // Mark locally first (immediate hide), then navigate. The
     // 10s timeout gives the chat page plenty of time to:
     //   1. mount + read ?call=
@@ -113,6 +116,7 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
       console.log('[dlog] IncomingCallWatcher: handleDecline', incoming.pendingCallId)
     }
     setDeclineBusy(true)
+    chimeDecline()
     try {
       const supabase = createClient()
       // LiveKit handles the actual room state. For decline we just
@@ -123,9 +127,72 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
         .eq('id', incoming.pendingCallId)
         .eq('callee_id', currentUserId!)
       if (updateErr) throw updateErr
+      // Emit a call-log message into the conversation so both sides
+      // see "Missed voice call" in their chat history.
+      void postCallLog({
+        conversationId: incoming.conversationId,
+        callId: incoming.pendingCallId,
+        mode: 'voice',
+        outcome: 'declined',
+        durationSeconds: 0,
+        partnerId: incoming.callerId,
+        isOutgoing: false,
+      })
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('[IncomingCallWatcher] decline failed:', err)
+    } finally {
+      setDeclineBusy(false)
+    }
+  }
+
+  /**
+   * Quick-reply (per call-flow spec): decline AND inject a canned
+   * text message into the conversation so the caller sees a
+   * chat-reply instead of a silent decline. We use
+   * `meta.outcome = 'cancelled'` + `kind = 'call_log'` so the chat
+   * list still renders the "missed call" row, AND we insert a real
+   * text message for the auto-reply.
+   */
+  async function handleQuickReply() {
+    if (!incoming || declineBusy) return
+    setDeclineBusy(true)
+    chimeDecline()
+    try {
+      const supabase = createClient()
+      // Mark the pending call as declined so the caller's UI updates.
+      await supabase
+        .from('pending_calls')
+        .update({ status: 'declined', ended_at: new Date().toISOString() })
+        .eq('id', incoming.pendingCallId)
+        .eq('callee_id', currentUserId!)
+      // Insert the canned text message.
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('messages').insert({
+          conversation_id: incoming.conversationId,
+          sender_id: user.id,
+          content: "I'm busy right now — I'll message you in a few minutes.",
+        } as never)
+      }
+      // And a call-log row for the conversation list.
+      void postCallLog({
+        conversationId: incoming.conversationId,
+        callId: incoming.pendingCallId,
+        mode: 'voice',
+        outcome: 'cancelled',
+        durationSeconds: 0,
+        partnerId: incoming.callerId,
+        isOutgoing: false,
+      })
+      // Open the chat for the conversation so the user sees the
+      // sent message + the call-log row.
+      router.push(`/chat?conversation=${incoming.conversationId}`)
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[IncomingCallWatcher] quick-reply failed:', err)
     } finally {
       setDeclineBusy(false)
     }
@@ -138,6 +205,7 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
       incoming={incoming}
       onAccept={handleAccept}
       onDecline={handleDecline}
+      onQuickReply={handleQuickReply}
       declineBusy={declineBusy}
     />
   )
@@ -147,11 +215,13 @@ function IncomingCallCard({
   incoming,
   onAccept,
   onDecline,
+  onQuickReply,
   declineBusy,
 }: {
   incoming: IncomingCall
   onAccept: () => void
   onDecline: () => void
+  onQuickReply: () => void
   declineBusy: boolean
 }) {
   // Auto-dismiss after 45s (matches DB expires_at)
@@ -190,6 +260,17 @@ function IncomingCallCard({
         </div>
       </div>
       <div className="flex border-t border-border">
+        <button
+          type="button"
+          onClick={onQuickReply}
+          disabled={declineBusy}
+          aria-label="Reply with a quick message and decline"
+          title="Send a quick reply and decline"
+          className="flex-1 inline-flex items-center justify-center gap-2 h-12 text-xs font-medium text-ink bg-surface border-r border-border hover:bg-paper disabled:opacity-50"
+        >
+          <MessageSquare size={14} aria-hidden="true" />
+          <span className="hidden sm:inline">Busy</span>
+        </button>
         <button
           type="button"
           onClick={onDecline}

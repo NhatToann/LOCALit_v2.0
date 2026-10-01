@@ -47,6 +47,7 @@ import {
   registerActiveCallClient,
   unregisterActiveCallClient,
 } from '@/components/layout/ActiveCallSheet'
+import { postCallLog } from '@/lib/webrtc/call-log'
 import { activeCallStore } from '@/lib/realtime/useActiveCallStore'
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '🔥', '🙏']
@@ -119,6 +120,10 @@ function ChatInner() {
   /** True if we are the caller. False if we are the callee who accepted
    *  an incoming call. Controls which CallModal buttons are shown. */
   const [isOutgoing, setIsOutgoing] = useState(true)
+  /** Wall-clock timestamp when the call reached `connected`. Used to
+   *  compute the duration label that lands in the chat-log message.
+   */
+  const [callStartedAt, setCallStartedAt] = useState<number | null>(null)
   /** Partner info for the active call. Used by CallModal when activeConv
    *  isn't loaded yet (callee on /chat?call=X before conversations
    *  hydrate). Cleared on callState=idle. */
@@ -199,7 +204,31 @@ function ChatInner() {
   // doesn't know about this chat page's local callClient state — so we
   // observe the state transition here and clean up.
   useEffect(() => {
+    if (callState === 'connected' && callStartedAt == null) {
+      // Lock in the start timestamp once so the duration timer is
+      // accurate even if the user toggles between voice and video.
+      setCallStartedAt(Date.now())
+    }
     if (callState === 'ended' && callClient) {
+      // Post a call-log message to the conversation so both sides
+      // see "Voice call · MM:SS" / "Missed voice call" etc. in the
+      // chat list per the call-flow spec (2026-10-01).
+      const activeCall = activeCallStore.getState().active
+      const conversationId = activeCall?.conversationId ?? activeId
+      if (conversationId && activeCall) {
+        const durationSeconds = callStartedAt
+          ? Math.max(0, Math.floor((Date.now() - callStartedAt) / 1000))
+          : 0
+        void postCallLog({
+          conversationId,
+          callId: activeCall.callId,
+          mode: activeCall.mode ?? 'voice',
+          outcome: 'completed',
+          durationSeconds,
+          partnerId: activeCall.partnerId,
+          isOutgoing,
+        })
+      }
       // Give the CallModal time to render the "ended" frame, then
       // dismiss. 1500ms matches CallModal's auto-dismiss timer so the
       // user sees the "Call ended · MM:SS" headline.
@@ -212,12 +241,13 @@ function ChatInner() {
         }
         setCallClient(null)
         setCallPartner(null)
+        setCallStartedAt(null)
         setCallState('idle')
       }, 1500)
       return () => clearTimeout(id)
     }
     return undefined
-  }, [callState, callClient])
+  }, [callState, callClient, activeId, callStartedAt, isOutgoing])
 
   // Expose the active-call snapshot on window so Playwright tests can
   // read the current state without subscribing to the activeCallStore

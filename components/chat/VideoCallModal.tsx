@@ -37,10 +37,17 @@ import {
   Loader2,
   X,
   PhoneMissed,
+  WifiOff,
 } from 'lucide-react'
 import type {
   LiveKitCallClient,
 } from '@/lib/webrtc/livekit-client'
+import {
+  chimeAccept,
+  chimeDecline,
+  chimeEnd,
+  chimeToggle,
+} from '@/lib/webrtc/call-effects'
 import { Avatar } from '@/components/ui/Avatar'
 
 type CallState =
@@ -141,6 +148,47 @@ export default function VideoCallModal({
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Track navigator.onLine + visibilitychange so we can paint the
+  // Reconnecting… overlay per the spec. LiveKit also has its own
+  // reconnect state — for the modal we just reflect the browser's
+  // view of the world (the WebRTC layer will surface its own error
+  // through the client's `onState` callback if LiveKit gives up).
+  const [networkStatus, setNetworkStatus] = useState<
+    'online' | 'reconnecting' | 'offline'
+  >(
+    typeof navigator !== 'undefined' && !navigator.onLine
+      ? 'offline'
+      : 'online',
+  )
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handleOffline = () => setNetworkStatus('offline')
+    const handleOnline = () => setNetworkStatus('online')
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        // We treat coming back from hidden as a reconnect attempt;
+        // the network banner flips to 'reconnecting' for 800ms then
+        // back to 'online' if navigator.onLine is true.
+        setNetworkStatus('reconnecting')
+        setTimeout(() => {
+          setNetworkStatus(
+            typeof navigator !== 'undefined' && !navigator.onLine
+              ? 'offline'
+              : 'online',
+          )
+        }, 800)
+      }
+    }
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('online', handleOnline)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', handleOnline)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [])
+
   const isPreConnect =
     state === 'calling' || state === 'ringing' || state === 'connecting'
   const isIncomingRinging = !isOutgoing && state === 'ringing'
@@ -172,15 +220,18 @@ export default function VideoCallModal({
   }, [state, onEnd, closeHovered])
 
   const handleEnd = useCallback(() => {
+    chimeEnd()
     void client?.end()
     onEnd()
   }, [client, onEnd])
 
   const handleAccept = useCallback(() => {
+    chimeAccept()
     onEnd()
   }, [onEnd])
 
   const handleDecline = useCallback(() => {
+    chimeDecline()
     void client?.decline()
   }, [client])
 
@@ -323,6 +374,28 @@ export default function VideoCallModal({
             <span className="absolute bottom-1 left-1 text-[10px] font-mono text-paper bg-ink/70 px-1.5 py-0.5 rounded-sm">
               You
             </span>
+          </div>
+        ) : null}
+
+        {/* Network reconnecting overlay (per spec Edge-Case #2) */}
+        {state === 'connected' && networkStatus !== 'online' ? (
+          <div
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-ink/70 backdrop-blur-[1px]"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="inline-flex items-center gap-2 px-4 py-3 text-sm bg-warning-bg text-warning border border-warning rounded-sm">
+              {networkStatus === 'reconnecting' ? (
+                <Loader2 size={16} aria-hidden="true" className="animate-spin" />
+              ) : (
+                <WifiOff size={16} aria-hidden="true" />
+              )}
+              <span className="font-medium">
+                {networkStatus === 'offline'
+                  ? 'You are offline. Reconnecting…'
+                  : 'Connection unstable. Reconnecting…'}
+              </span>
+            </div>
           </div>
         ) : null}
 

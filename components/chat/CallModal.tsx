@@ -31,10 +31,12 @@ import {
   Loader2,
   X,
   PhoneMissed,
+  Video,
 } from 'lucide-react'
 import type {
   LiveKitCallClient,
 } from '@/lib/webrtc/livekit-client'
+import { chimeAccept, chimeDecline, chimeEnd, chimeToggle } from '@/lib/webrtc/call-effects'
 // CallMode / CallState / CallQuality / NetworkStatus used to live in
 // @/lib/webrtc/webrtc-client. They're now defined locally here.
 type CallMode = 'voice' | 'video'
@@ -84,6 +86,13 @@ interface Props {
   durationOverride?: number
   onEnd: () => void
   onQuality?: (q: CallQuality) => void
+  /**
+   * Optional handler invoked when the user taps the in-call "switch
+   * to video" button. When omitted, the button is hidden. Per the
+   * call-flow spec (2026-10-01): "Nút Mắt camera (Chuyển nhanh sang
+   * video — nếu đang gọi thoại)".
+   */
+  onUpgradeToVideo?: () => void
 }
 
 // Per-state auto-dismiss timeout (ms). Longer for states that carry
@@ -164,6 +173,7 @@ export default function CallModal({
   durationOverride,
   onEnd,
   onQuality,
+  onUpgradeToVideo,
 }: Props) {
   const [muted, setMuted] = useState(false)
   const [speakerOn, setSpeakerOn] = useState(false)
@@ -215,6 +225,7 @@ export default function CallModal({
   }, [state, onEnd, closeHovered])
 
   function handleEnd() {
+    chimeEnd()
     if (client) void client.end()
     onEnd()
   }
@@ -223,10 +234,12 @@ export default function CallModal({
     // LiveKit connects on room.join — the accept flow already
     // happens upstream in acceptCall(). The modal here just needs to
     // dismiss the "ringing" state.
+    chimeAccept()
     onEnd()
   }
 
   function handleDecline() {
+    chimeDecline()
     void client?.decline()
   }
 
@@ -234,6 +247,7 @@ export default function CallModal({
     if (!client) return
     const next = client.toggleMute()
     setMuted(next)
+    chimeToggle()
   }
 
   /**
@@ -475,6 +489,20 @@ export default function CallModal({
             </>
           ) : (
             <>
+              {/* Upgrade to video — only meaningful for voice-mode calls
+                  and only after media is flowing. */}
+              {mode === 'voice' && onUpgradeToVideo && state === 'connected' ? (
+                <button
+                  type="button"
+                  onClick={() => onUpgradeToVideo()}
+                  aria-label="Switch to video call"
+                  title="Switch to video call"
+                  className="inline-flex items-center justify-center w-14 h-14 rounded-sm border bg-transparent text-ink border-border-strong hover:bg-paper"
+                >
+                  <Video size={18} aria-hidden="true" />
+                </button>
+              ) : null}
+
               {/* Mute — only meaningful once media is flowing */}
               <button
                 type="button"

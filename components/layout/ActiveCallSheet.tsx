@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { Minimize2 } from 'lucide-react'
 import { useActiveCall, activeCallStore } from '@/lib/realtime/useActiveCallStore'
 import CallModal from '@/components/chat/CallModal'
 import VideoCallModal from '@/components/chat/VideoCallModal'
@@ -69,6 +70,11 @@ export default function ActiveCallSheet() {
    *  toggleMute/toggleCamera on user interaction. */
   const [muted, setMuted] = useState(false)
   const [cameraOn, setCameraOn] = useState(true)
+  /** Picture-in-Picture mode (per call-flow spec): when the user
+   *  taps the Minimize button, the modal collapses to a small
+   *  bubble in the bottom-right. They can still chat / navigate
+   *  while the call stays active. */
+  const [pip, setPip] = useState(false)
 
   // Resolve the CallClient from the registry. Poll every 250ms while
   // an active call exists because the client may be created
@@ -164,6 +170,79 @@ export default function ActiveCallSheet() {
 
   const isVideo = active.mode === 'video'
 
+  // PIP bubble — small floating panel the caller can tap to expand
+  // back to the full modal. Per the call-flow spec (2026-10-01):
+  // "Thu nhỏ màn hình (Picture-in-Picture / PIP) — Action: Bấm nút
+  //  Back/Home trong khi đang gọi".
+  // We only show the bubble while a call is actively connected —
+  // pre-connect and terminal states still occupy the full sheet.
+  const showPip = pip && active.state === 'connected'
+
+  if (showPip) {
+    return (
+      <>
+        <audio ref={audioRef} autoPlay playsInline className="hidden" aria-hidden="true" />
+        <div
+          role="complementary"
+          aria-label={`Call with ${active.partnerName} (minimised)`}
+          className="fixed bottom-4 right-4 z-50 w-64 bg-surface border border-border-strong rounded-sm shadow-[0_2px_12px_rgba(0,15,15,0.12)] overflow-hidden"
+        >
+          <div className="flex items-center gap-3 p-3">
+            <div className="w-10 h-10 bg-primary/10 text-primary inline-flex items-center justify-center rounded-sm border border-primary/20">
+              <span className="text-xs font-mono">
+                {Math.floor(duration / 60)
+                  .toString()
+                  .padStart(2, '0')}
+                :{(duration % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink truncate">
+                {active.partnerName}
+              </p>
+              <p className="text-xs text-success">In call</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPip(false)}
+              aria-label="Expand call"
+              title="Expand"
+              className="inline-flex items-center justify-center w-8 h-8 text-muted hover:text-ink rounded-sm"
+            >
+              <Minimize2 size={14} aria-hidden="true" className="rotate-180" />
+            </button>
+          </div>
+          <div className="flex border-t border-border">
+            <button
+              type="button"
+              onClick={() => {
+                if (client) void client.toggleMute()
+                setMuted((m) => !m)
+              }}
+              aria-label={muted ? 'Unmute' : 'Mute'}
+              className={`flex-1 h-10 text-xs font-medium border-r border-border ${
+                muted ? 'bg-danger text-paper' : 'text-ink hover:bg-paper'
+              }`}
+            >
+              {muted ? 'Unmute' : 'Mute'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (client) void client.end()
+                activeCallStore.setActive(null)
+              }}
+              aria-label="End call"
+              className="flex-1 h-10 text-xs font-medium text-paper bg-danger"
+            >
+              End
+            </button>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       {/* Hidden audio sink. The chat page also attaches its own
@@ -189,6 +268,20 @@ export default function ActiveCallSheet() {
         className="hidden"
         aria-hidden="true"
       />
+      {/* Minimize button — voice + video. Hovering the top-right
+          reveals a small Minimize icon that collapses the call into
+          the PIP bubble (see showPip branch above). */}
+      {active.state === 'connected' ? (
+        <button
+          type="button"
+          onClick={() => setPip(true)}
+          aria-label="Minimise call"
+          title="Minimise"
+          className="fixed top-4 right-4 z-[60] inline-flex items-center justify-center w-8 h-8 bg-ink/70 text-paper hover:bg-ink/90 rounded-sm"
+        >
+          <Minimize2 size={14} aria-hidden="true" />
+        </button>
+      ) : null}
       {isVideo ? (
         <VideoCallModal
           partnerName={active.partnerName}
