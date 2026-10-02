@@ -50,6 +50,13 @@ export type CallState =
 
 export type CallMode = 'voice' | 'video'
 
+// Set to '1' to enable LiveKit client debug logging in the browser
+// console (prefix [dlog:lk]). Off by default — the logs print on
+// every state transition and would otherwise be too noisy.
+const DEBUG_LIVEKIT =
+  typeof process !== 'undefined' &&
+  process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
+
 export interface LiveKitCallOptions {
   myId: string
   /** Stable room id, e.g. `call:<conversationId>`. */
@@ -239,23 +246,36 @@ export async function startLiveKitCall(
   // happens.
   let localConnected = false
   let hasRemoteParticipant = false
+  const debugLog = (...args: unknown[]) => {
+    if (DEBUG_LIVEKIT) {
+      // eslint-disable-next-line no-console
+      console.log('[dlog:lk]', ...args)
+    }
+  }
   const maybeFireConnected = () => {
+    debugLog('maybeFireConnected', { localConnected, hasRemoteParticipant })
     if (localConnected && hasRemoteParticipant) {
+      debugLog('→ FIRE connected')
       opts.onState('connected')
     }
   }
 
   room.on(RoomEvent.ConnectionStateChanged, (state) => {
+    debugLog('ConnectionStateChanged', state, 'localConnected?', localConnected, 'remote.size', room.remoteParticipants.size)
     if (state === ConnectionState.Connecting) {
       opts.onState('connecting')
     } else if (state === ConnectionState.Connected) {
       localConnected = true
       // If a remote participant was already in the room when we
       // connected (we joined second), this branch handles the flip.
-      if (room.remoteParticipants.size > 0) hasRemoteParticipant = true
+      if (room.remoteParticipants.size > 0) {
+        hasRemoteParticipant = true
+        debugLog('connected+remote-already-here: setting hasRemoteParticipant')
+      }
       maybeFireConnected()
     } else if (state === ConnectionState.Disconnected) {
       if (!ended) {
+        debugLog('ConnectionStateChanged→Disconnected (unclean), ending')
         opts.onError?.(new Error(`LiveKit disconnected: ${state}`))
         opts.onState('ended')
         dispose()
@@ -263,7 +283,8 @@ export async function startLiveKitCall(
     }
   })
 
-  room.on(RoomEvent.ParticipantConnected, () => {
+  room.on(RoomEvent.ParticipantConnected, (participant) => {
+    debugLog('ParticipantConnected', participant.identity)
     hasRemoteParticipant = true
     maybeFireConnected()
   })
@@ -274,7 +295,8 @@ export async function startLiveKitCall(
   // the survivor's modal collapses to the 'Call ended' frame in
   // sync — without this, the survivor kept ticking the duration
   // timer indefinitely even though the call was over.
-  room.on(RoomEvent.ParticipantDisconnected, () => {
+  room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+    debugLog('ParticipantDisconnected', participant.identity)
     if (ended) return
     ended = true
     opts.onState('ended')
