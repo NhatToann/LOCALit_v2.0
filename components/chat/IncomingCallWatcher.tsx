@@ -25,7 +25,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/auth'
 import { useIncomingCall, type IncomingCall } from '@/lib/realtime/useIncomingCall'
 import { useActiveCall } from '@/lib/realtime/useActiveCallStore'
@@ -43,7 +43,6 @@ interface Props {
 export default function IncomingCallWatcher({ currentUserId }: Props) {
   const incoming = useIncomingCall(currentUserId)
   const router = useRouter()
-  const pathname = usePathname()
   const activeCall = useActiveCall()
   const [declineBusy, setDeclineBusy] = useState(false)
   // Locally mark a call as "being accepted" so the popup dismisses
@@ -68,18 +67,17 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
     }
   }, [incoming])
 
-  // If we're already on /chat (with or without ?call= param), hide the popup.
-  // The chat page renders its own CallModal via the /chat?call=X deep-link
-  // effect plus ActiveCallSheet — surfacing BOTH the popup and the modal at
-  // once causes two Accept/Decline buttons stacked on screen. By hiding the
-  // popup whenever the user is anywhere under /chat/*, the chat page owns
-  // the call UI exclusively (the deep-link useEffect below also auto-navigates
-  // the user to /chat?call=X so the CallModal appears without them clicking).
-  const onChatPage = pathname.startsWith('/chat')
-  const onChatWithCall =
-    onChatPage &&
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('call') === incoming?.pendingCallId
+  // Per call-flow spec (2026-10-02): the receiver MUST see an
+  // Accept/Decline popup BEFORE any LiveKit connection is attempted.
+  // Before this fix, the code hid the popup whenever the user was
+  // anywhere on /chat/* (because we used to auto-route to
+  // /chat?call=X and let the chat page own the CallModal). That auto-
+  // route triggered `acceptCall()` → `startLiveKitCall` →
+  // `room.connect()` → `publishMic()` (mic prompt) WITHOUT the user
+  // clicking Accept — exactly the "receiver auto-grants mic" bug
+  // reported on 2026-10-02. We now ALWAYS show the popup when an
+  // incoming call is pending; the user must click Accept or Decline
+  // explicitly.
 
   // Also hide while we're navigating to accept this row.
   const acceptingThisCall = incoming != null && acceptingId === incoming.pendingCallId
@@ -94,19 +92,7 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
     incoming != null && activeCall?.callId === incoming.pendingCallId
 
   const visible =
-    incoming != null && !onChatPage && !onChatWithCall && !acceptingThisCall && !activeCallForSameId
-
-  // When the user is already on /chat and a call comes in, auto-navigate
-  // to /chat?call=<id> so the chat page's deep-link effect picks it up
-  // and renders the CallModal. We use router.replace so the back button
-  // still returns to /chat (not to whatever page they came from).
-  useEffect(() => {
-    if (!onChatPage || !incoming || acceptingThisCall) return
-    if (typeof window === 'undefined') return
-    const currentCallParam = new URLSearchParams(window.location.search).get('call')
-    if (currentCallParam === incoming.pendingCallId) return
-    router.replace(`/chat?call=${incoming.pendingCallId}`)
-  }, [onChatPage, incoming?.pendingCallId, acceptingThisCall, router])
+    incoming != null && !acceptingThisCall && !activeCallForSameId
 
   function handleAccept() {
     if (!incoming) return
