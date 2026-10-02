@@ -6,6 +6,7 @@ import Footer from './Footer';
 import DaNangBackdrop from './DaNangBackdrop';
 import MiniChatWindow from '@/components/chat/MiniChatWindow';
 import IncomingCallWatcher from '@/components/chat/IncomingCallWatcher';
+import OutgoingCallPanel from '@/components/chat/OutgoingCallPanel';
 import ActiveCallSheet from '@/components/layout/ActiveCallSheet';
 import { useAuthUser } from '@/lib/auth/useAuthUser';
 import { useOnlineHeartbeat } from '@/lib/realtime/useOnlineHeartbeat';
@@ -45,6 +46,17 @@ function AuthAwareHeader() {
 function GlobalIncomingCallWatcher() {
   const auth = useAuthUser()
   return <IncomingCallWatcher currentUserId={auth?.userId ?? null} />
+}
+
+/**
+ * Symmetric counterpart for the caller — a small floating card
+ * showing "Calling X…" / "Connecting…" + an End button. The caller
+ * also gets the full CallModal at the centre of the screen; this
+ * panel is just a glanceable status indicator while the modal is
+ * behind the user's attention.
+ */
+function GlobalOutgoingCallPanel() {
+  return <OutgoingCallPanel />
 }
 
 /**
@@ -95,6 +107,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Footer />
         <MiniChatWindow />
         <GlobalIncomingCallWatcher />
+        <GlobalOutgoingCallPanel />
         <GlobalOnlineHeartbeat />
         <GlobalPresenceMount />
         <ActiveCallSheet />
@@ -115,6 +128,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Footer />
       <MiniChatWindow />
       <GlobalIncomingCallWatcher />
+      <GlobalOutgoingCallPanel />
       <GlobalOnlineHeartbeat />
       <GlobalPresenceMount />
       <ActiveCallSheet />
