@@ -120,33 +120,47 @@ function fmtDuration(seconds: number): string {
 /**
  * The headline shown below the avatar.
  *
- * Per call-flow spec (2026-10-02 update 04): the headline is the
- * duration timer 00:00 for BOTH sides at all times — caller pre-accept,
- * caller post-accept, receiver post-accept, and once the LiveKit
- * room is fully wired up. The clock COUNTS only when both peers are
- * in the room (state === 'connected') — before that it stays frozen
- * at 00:00 even though the timer element is visible. This way neither
- * side sees "Calling X…" / "Connecting to server…" / "Incoming call"
- * and neither sees a clock that ticks while the other is still on a
- * pre-connect state — the clock is always the single source of truth
- * in the headline slot.
+ * Per call-flow spec (2026-10-02 update 05): the duration timer 00:00
+ * starts ONLY when both sides have joined the LiveKit room and media
+ * is flowing (state === 'connected'). Before that:
+ *   - caller sees "Calling X…" while waiting for the receiver to accept
+ *   - receiver sees "Incoming call" while the Accept popup is up
+ *   - both sides see "Connecting…" during the LiveKit handshake
+ *     (after the receiver has clicked Accept but before the room is
+ *     fully wired up)
+ * The timer is the single source of truth once the call is live.
  */
 function headlineFor(
   state: CallState,
-  duration: number,
+  isOutgoing: boolean,
+  partnerFirstName: string,
+  durationSeconds: number,
 ): { text: string; tone: 'default' | 'success' | 'danger' } {
   switch (state) {
     case 'calling':
+      // Caller side, pre-accept. The user is dialing.
+      return { text: `Calling ${partnerFirstName}…`, tone: 'default' }
     case 'ringing':
+      // Receiver side, pre-accept. The user is being asked to accept.
+      // Caller-side ringing (signal delivered, awaiting LiveKit handshake)
+      // also falls in this branch.
+      return isOutgoing
+        ? { text: `Calling ${partnerFirstName}…`, tone: 'default' }
+        : { text: 'Incoming call', tone: 'success' }
     case 'connecting':
+      // LiveKit room handshake in progress (after the receiver has
+      // clicked Accept but before the connection is fully established).
+      return { text: 'Connecting…', tone: 'default' }
     case 'connected':
-      return { text: fmtDuration(duration), tone: 'default' }
+      // Both peers in the room, media flowing. The timer is rendered
+      // as its own DOM element; the headline slot stays empty here.
+      return { text: '', tone: 'default' }
     case 'declined':
       return { text: 'Call declined', tone: 'danger' }
     case 'missed':
       return { text: 'No answer', tone: 'danger' }
     case 'ended':
-      return { text: 'Call ended', tone: 'default' }
+      return { text: `Call ended · ${fmtDuration(durationSeconds)}`, tone: 'default' }
     case 'failed':
       return { text: 'Call failed', tone: 'danger' }
     default:
@@ -312,7 +326,13 @@ export default function CallModal({
   const isTerminal =
     state === 'ended' || state === 'declined' || state === 'missed' || state === 'failed'
   const supportsSpeaker = Boolean(audioRef?.current) && client != null && !isTerminal
-  const { text: headlineText, tone: headlineTone } = headlineFor(state, duration)
+  const partnerFirstName = partnerName.split(' ')[0] || partnerName
+  const { text: headlineText, tone: headlineTone } = headlineFor(
+    state,
+    isOutgoing,
+    partnerFirstName,
+    duration,
+  )
   const headlineClass =
     headlineTone === 'danger'
       ? 'text-sm text-danger font-medium mt-1'
@@ -330,6 +350,13 @@ export default function CallModal({
       aria-label={`Voice call with ${partnerName}`}
     >
       <div className="bg-surface w-full max-w-md overflow-hidden border border-border-strong rounded-sm">
+        {/* Hero strip — partner-tinted gradient bar above the avatar.
+              Makes the modal feel taller and gives both sides the same
+              visual chrome regardless of viewport. */}
+        <div
+          aria-hidden="true"
+          className="h-2 bg-gradient-to-r from-primary to-primary-hover"
+        />
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface">
           <p className="text-eyebrow text-primary">
@@ -382,9 +409,25 @@ export default function CallModal({
             ) : null}
           </div>
           <h2 className="mt-4 text-xl font-semibold">{partnerName}</h2>
-          <p className={headlineClass} aria-live="polite">
-            {headlineText}
-          </p>
+          {/* The headline slot is dual-purpose:
+              - pre-connect: pre-connect text (Calling X… / Incoming call /
+                Connecting…) drives the visual.
+              - connected: the duration timer 00:00 → MM:SS takes over
+                and is the single focus.
+              Both flows share the same DOM node (no layout shift) by
+              rendering exactly one of the two in any given frame. */}
+          {state === 'connected' ? (
+            <p
+              className="mt-1 text-3xl font-semibold text-ink tabular-nums font-mono"
+              aria-live="polite"
+            >
+              {fmtDuration(duration)}
+            </p>
+          ) : (
+            <p className={headlineClass} aria-live="polite">
+              {headlineText}
+            </p>
+          )}
           {/* Detailed error message — only on failed state and only if
               the parent supplied a non-empty message. */}
           {state === 'failed' && errorMessage ? (

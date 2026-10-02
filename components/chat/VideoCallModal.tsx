@@ -100,31 +100,37 @@ function fmtDuration(seconds: number): string {
 /**
  * The headline shown below the avatar.
  *
- * Per call-flow spec (2026-10-02 update 04): the headline is the
- * duration timer 00:00 for BOTH sides at all times — caller pre-accept,
- * caller post-accept, receiver post-accept, and once the LiveKit
- * room is fully wired up. The clock COUNTS only when both peers are
- * in the room (state === 'connected'). This way neither side sees
- * a "Calling X…" / "Connecting…" / "Incoming video call" headline
- * and neither sees a clock that ticks while the other is still on a
- * pre-connect state.
+ * Per call-flow spec (2026-10-02 update 05): the duration timer 00:00
+ * starts ONLY when both sides have joined the LiveKit room and media
+ * is flowing (state === 'connected'). Before that:
+ *   - caller sees "Calling X…" while waiting for the receiver to accept
+ *   - receiver sees "Incoming video call" while the Accept popup is up
+ *   - both sides see "Connecting…" during the LiveKit handshake
+ * The timer is rendered as its own DOM element below the headline, so
+ * the pre-connect text and the timer never share a slot.
  */
 function headlineFor(
   state: CallState,
-  duration: number,
+  isOutgoing: boolean,
+  partnerFirstName: string,
 ): { text: string; tone: 'default' | 'success' | 'danger' } {
   switch (state) {
     case 'calling':
+      return { text: `Calling ${partnerFirstName}…`, tone: 'default' }
     case 'ringing':
+      return isOutgoing
+        ? { text: `Calling ${partnerFirstName}…`, tone: 'default' }
+        : { text: 'Incoming video call', tone: 'success' }
     case 'connecting':
+      return { text: 'Connecting…', tone: 'default' }
     case 'connected':
-      return { text: fmtDuration(duration), tone: 'default' }
+      return { text: '', tone: 'default' }
     case 'declined':
       return { text: 'Call declined', tone: 'danger' }
     case 'missed':
       return { text: 'No answer', tone: 'danger' }
     case 'ended':
-      return { text: `Call ended · ${fmtDuration(duration)}`, tone: 'default' }
+      return { text: `Call ended`, tone: 'default' }
     case 'failed':
       return { text: 'Call failed', tone: 'danger' }
     default:
@@ -248,9 +254,11 @@ export default function VideoCallModal({
     void client?.decline()
   }, [client])
 
+  const partnerFirstName = partnerName.split(' ')[0] || partnerName
   const { text: headlineText, tone: headlineTone } = headlineFor(
     state,
-    duration,
+    isOutgoing,
+    partnerFirstName,
   )
   const headlineClass =
     headlineTone === 'danger'
@@ -317,6 +325,11 @@ export default function VideoCallModal({
               <h2 className="mt-4 text-xl font-semibold text-paper">
                 {partnerName}
               </h2>
+              {/* Pre-connect: show "Calling X…" / "Connecting…" /
+                  "Incoming video call" depending on direction. The
+                  duration timer is NOT shown here — that lives in
+                  its own DOM element below the avatar when state
+                  becomes 'connected'. */}
               <p className={headlineClass} aria-live="polite">
                 {headlineText}
               </p>
@@ -356,8 +369,14 @@ export default function VideoCallModal({
               <h2 className="mt-4 text-xl font-semibold text-paper">
                 {partnerName}
               </h2>
+              {/* Terminal-state headline. 'ended' shows the duration
+                  alongside the 'Call ended' label (e.g. 'Call ended
+                  · 01:23'); missed / declined / failed show the
+                  outcome text only. */}
               <p className={headlineClass} aria-live="polite">
-                {headlineText}
+                {state === 'ended'
+                  ? `Call ended · ${fmtDuration(duration)}`
+                  : headlineText}
               </p>
             </div>
           ) : null}
