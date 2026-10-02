@@ -268,6 +268,19 @@ export async function startLiveKitCall(
     maybeFireConnected()
   })
 
+  // (2026-10-02 fix) When the remote peer ends the call cleanly
+  // (LiveKit room disconnect), the other side sees
+  // ParticipantDisconnected. Mirror that to onState('ended') so
+  // the survivor's modal collapses to the 'Call ended' frame in
+  // sync — without this, the survivor kept ticking the duration
+  // timer indefinitely even though the call was over.
+  room.on(RoomEvent.ParticipantDisconnected, () => {
+    if (ended) return
+    ended = true
+    opts.onState('ended')
+    dispose()
+  })
+
   room.on(
     RoomEvent.TrackSubscribed,
     (track, _pub: RemoteTrackPublication, _participant: RemoteParticipant) => {

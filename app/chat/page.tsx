@@ -874,13 +874,13 @@ function ChatInner() {
         video: mode === 'video',
         onState: (s) => {
           setCallState(s)
-          // Per call-flow spec (2026-10-02 update 03): the timer MUST
+          // Per call-flow spec (2026-10-02 update 06): the timer MUST
           // NOT count from the moment the user clicks Phone / Accept —
           // it counts from the moment BOTH peers are in the LiveKit
-          // room (state === 'connected'). The LiveKit client now
-          // defers emitting 'connected' until localConnected +
-          // hasRemoteParticipant + hasRemoteTrack are all true. We
-          // stamp startedAt here on the connecting→connected
+          // room. The LiveKit client defers emitting 'connected' until
+          // localConnected AND hasRemoteParticipant are both true
+          // (no longer requires hasRemoteTrack — see livekit-client.ts).
+          // We stamp startedAt here on the connecting→connected
           // transition so ActiveCallSheet has an accurate baseline
           // for the MM:SS timer.
           if (s === 'connected') {
@@ -1143,13 +1143,13 @@ function ChatInner() {
         video: incomingMode === 'video',
         onState: (s) => {
           setCallState(s)
-          // Per call-flow spec (2026-10-02 update 03): the timer MUST
+          // Per call-flow spec (2026-10-02 update 06): the timer MUST
           // NOT count from the moment the user clicks Phone / Accept —
           // it counts from the moment BOTH peers are in the LiveKit
-          // room (state === 'connected'). The LiveKit client now
-          // defers emitting 'connected' until localConnected +
-          // hasRemoteParticipant + hasRemoteTrack are all true. We
-          // stamp startedAt here on the connecting→connected
+          // room. The LiveKit client defers emitting 'connected' until
+          // localConnected AND hasRemoteParticipant are both true
+          // (no longer requires hasRemoteTrack — see livekit-client.ts).
+          // We stamp startedAt here on the connecting→connected
           // transition so ActiveCallSheet has an accurate baseline
           // for the MM:SS timer.
           if (s === 'connected') {
