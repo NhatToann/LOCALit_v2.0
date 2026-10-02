@@ -1643,9 +1643,12 @@ function ChatInner() {
               </Link>
             </div>
 
-            {activeConv.partner_languages?.length > 0 ? (
-              <div className="border-t border-border pt-3">
-                <p className="text-eyebrow text-muted mb-2">Languages</p>
+            {/* Languages — always rendered so layout stays identical regardless
+    of whether the partner has filled the field. "Not specified" is the
+    graceful fallback used when partner_languages is null/empty. */}
+            <div className="border-t border-border pt-3">
+              <p className="text-eyebrow text-muted mb-2">Languages</p>
+              {activeConv.partner_languages?.length ? (
                 <div className="flex flex-wrap gap-1">
                   {activeConv.partner_languages.slice(0, 4).map((l) => (
                     <span
@@ -1656,19 +1659,30 @@ function ChatInner() {
                     </span>
                   ))}
                 </div>
-              </div>
-            ) : null}
+              ) : (
+                <p className="text-xs text-subtle italic">Not specified yet</p>
+              )}
+            </div>
 
-            {activeConv.partner_hourly_rate ? (
-              <div className="border-t border-border pt-3">
-                <p className="text-eyebrow text-muted mb-2">Rate</p>
-                <p className="text-sm font-semibold inline-flex items-center gap-1">
-                  <DollarSign size={12} aria-hidden="true" />$
-                  {Number(activeConv.partner_hourly_rate).toFixed(0)}
-                  <span className="text-xs font-normal text-muted">/hour</span>
-                </p>
-              </div>
-            ) : null}
+            {/* Rate — always rendered. Shows "$X/hour" when set;
+                "Negotiate in chat" otherwise. */}
+            <div className="border-t border-border pt-3">
+              <p className="text-eyebrow text-muted mb-2">Rate</p>
+              <p className="text-sm font-semibold inline-flex items-center gap-1">
+                {activeConv.partner_hourly_rate != null &&
+                Number(activeConv.partner_hourly_rate) > 0 ? (
+                  <>
+                    <DollarSign size={12} aria-hidden="true" />$
+                    {Number(activeConv.partner_hourly_rate).toFixed(0)}
+                    <span className="text-xs font-normal text-muted">/hour</span>
+                  </>
+                ) : (
+                  <span className="text-xs font-normal text-subtle italic">
+                    Negotiate in chat
+                  </span>
+                )}
+              </p>
+            </div>
 
             <div className="border-t border-border pt-3">
               <p className="text-eyebrow text-muted mb-2">Quick actions</p>
