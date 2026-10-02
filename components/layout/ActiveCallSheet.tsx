@@ -294,6 +294,17 @@ export default function ActiveCallSheet() {
           cameraOn={cameraOn}
           muted={muted}
           onEnd={() => {
+            // (2026-10-02 fix) onEnd is called by the modal's
+            // auto-dismiss effect exactly 2000ms after the state
+            // transitions to 'ended' (DISMISS_AFTER_MS.ended). At
+            // that point the user has seen the "Call ended" frame
+            // and we can safely remove the store entry so the modal
+            // unmounts. If the user clicks End a second time before
+            // the auto-dismiss fires, handleEnd is idempotent
+            // (client.end() on an already-disconnected room is a
+            // no-op in LiveKit). We also call client.end() here as a
+            // safety net in case onEnd is triggered by a path that
+            // didn't go through handleEnd (e.g. error states).
             if (client) void client.end()
             activeCallStore.setActive(null)
           }}
@@ -316,6 +327,7 @@ export default function ActiveCallSheet() {
           qualityOverride={quality}
           durationOverride={duration}
           onEnd={() => {
+            // (2026-10-02 fix) See VideoCallModal block above.
             if (client) void client.end()
             activeCallStore.setActive(null)
           }}

@@ -46,6 +46,8 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const API_BASE = process.env.API_BASE || 'https://localit-nhattoann.vercel.app'
+// Vercel SSO bypass token (from AGENTS.md). Hardcoded as fallback so
+// tests run even without VERCEL_BYPASS_TOKEN in the environment.
 const BYPASS = process.env.VERCEL_BYPASS_TOKEN || 'w6XAcwiXyXf9Pea8I6zwVONXAhc8Xs9A'
 const SCREENSHOT_DIR = path.join(
   __dirname,

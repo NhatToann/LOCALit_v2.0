@@ -231,6 +231,13 @@ export default function CallModal({
 
   // Auto-dismiss after a terminal state. Skipped while the user is
   // hovering the Close button so they have time to click.
+  //
+  // (2026-10-02 update): the parent (ActiveCallSheet) is now
+  // responsible for removing the active call from the store 2.1s
+  // after the End click. This effect still fires onEnd() at the
+  // auto-dismiss boundary, but onEnd is idempotent in the new flow
+  // (it just calls client.end() which is a no-op once the LiveKit
+  // session is already torn down). The double-call is harmless.
   useEffect(() => {
     const delay = DISMISS_AFTER_MS[state]
     if (!delay) return
@@ -242,9 +249,16 @@ export default function CallModal({
   }, [state, onEnd, closeHovered])
 
   function handleEnd() {
+    // (2026-10-02 fix) Don't call onEnd here. The auto-dismiss
+    // effect schedules onEnd after DISMISS_AFTER_MS[ended]=2000ms,
+    // and ActiveCallSheet also schedules a setTimeout(2100ms) to
+    // clear the store. Calling onEnd twice would just re-fire
+    // client.end() (idempotent). The state transition to 'ended' is
+    // driven by LiveKit's onState callback which the chat page
+    // forwards to activeCallStore.patchActive — the modal re-renders
+    // with state='ended' and shows the "Call ended" headline.
     chimeEnd()
     if (client) void client.end()
-    onEnd()
   }
 
   function handleAccept() {
