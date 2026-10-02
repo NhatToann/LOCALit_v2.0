@@ -100,19 +100,17 @@ function fmtDuration(seconds: number): string {
 function headlineFor(
   state: CallState,
   isOutgoing: boolean,
-  partnerFirstName: string,
   duration: number,
 ): { text: string; tone: 'default' | 'success' | 'danger' } {
   switch (state) {
     case 'calling':
-      return { text: `Calling ${partnerFirstName}…`, tone: 'default' }
     case 'ringing':
-      return isOutgoing
-        ? { text: 'Ringing…', tone: 'default' }
-        : { text: 'Incoming video call', tone: 'success' }
     case 'connecting':
-      return { text: 'Connecting…', tone: 'default' }
     case 'connected':
+      // Per call-flow spec (2026-10-02 update 2): the duration timer is
+      // the single source of truth for both caller and callee across
+      // every live state. No more "Calling X…" / "Ringing…" /
+      // "Connecting…" headlines.
       return { text: fmtDuration(duration), tone: 'default' }
     case 'declined':
       return { text: 'Call declined', tone: 'danger' }
@@ -235,11 +233,9 @@ export default function VideoCallModal({
     void client?.decline()
   }, [client])
 
-  const partnerFirstName = partnerName.split(' ')[0] || partnerName
   const { text: headlineText, tone: headlineTone } = headlineFor(
     state,
     isOutgoing,
-    partnerFirstName,
     duration,
   )
   const headlineClass =

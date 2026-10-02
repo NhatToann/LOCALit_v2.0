@@ -155,6 +155,9 @@ export function useActiveCall(): ActiveCall | null {
  */
 export const activeCallStore = {
   getState: () => state,
+  /** Read the current ActiveCall (or null). Cheaper than getState() for callers that
+   *  only need the active object. */
+  getActive: () => state.active,
   setActive,
   patchActive,
   registerSignalHandler,

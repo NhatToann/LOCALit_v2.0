@@ -120,34 +120,21 @@ function fmtDuration(seconds: number): string {
 /**
  * The headline shown below the avatar. Returns the small text and an
  * optional icon hint for terminal states (declined/missed/failed).
+ *
+ * Per call-flow spec (2026-10-02 update 2): the duration timer is the
+ * single source of truth across all live call states (calling /
+ * ringing / connecting / connected). There is no "Calling X…" /
+ * "Ringing…" / "Connecting to server…" headline anywhere — both
+ * caller and callee see "00:00" the moment the modal appears.
  */
 function headlineFor(
   state: CallState,
-  isOutgoing: boolean,
-  partnerFirstName: string,
   duration: number,
 ): { text: string; tone: 'default' | 'success' | 'danger' } {
   switch (state) {
     case 'calling':
-      // Outgoing — pre-LiveKit. Headline says "Calling X…" and a small
-      // "Connecting to server…" hint sits below the avatar.
-      return { text: `Calling ${partnerFirstName}…`, tone: 'default' }
     case 'ringing':
-      // Per call-flow spec (2026-10-02): both sides see "Ringing…" once
-      // signaling has reached the peer and we're waiting for them to
-      // accept. The receiver also sees this after clicking Accept but
-      // before LiveKit's WebRTC session is established.
-      return { text: 'Ringing…', tone: 'default' }
     case 'connecting':
-      // Per call-flow spec (2026-10-02): the explicit "Connecting to
-      // server…" label belongs here. This is the pre-LiveKit state
-      // (modal just appeared, no network round-trip done yet) and the
-      // brief window between room.connect() and TrackSubscribed where
-      // LiveKit is still handshaking.
-      return {
-          text: 'Connecting to server…',
-          tone: 'default',
-        }
     case 'connected':
       return { text: fmtDuration(duration), tone: 'default' }
     case 'declined':
@@ -210,15 +197,36 @@ export default function CallModal({
   // `useCallQuality(client.peerConnection)` path is gone.
   const effectiveQuality = qualityOverride ?? null
 
-  // Duration timer while connected — either external (ActiveCallSheet
-  // computes from the startedAt timestamp) or local (increments each
-  // second once connected).
+  // Duration timer — starts ticking the moment the modal mounts (any
+  // non-terminal state) so both sides see "00:00" appear immediately
+  // and count up from there. Per call-flow spec (2026-10-02 update 2)
+  // there is no "Calling…" / "Ringing…" / "Connecting…" headline
+  // anymore; the timer is the single source of truth. The duration
+  // is either driven externally by ActiveCallSheet (from
+  // activeCallStore.startedAt, which is set at the very start of the
+  // call flow before any await — so the timer reflects real elapsed
+  // time from the moment the user clicked Phone / Accept) or, if no
+  // override is provided, incremented locally every second starting
+  // at 0.
   useEffect(() => {
     if (durationOverride !== undefined) {
       setDuration(durationOverride)
       return
     }
-    if (state === 'connected') {
+    const isPreConnect =
+      state === 'calling' ||
+      state === 'ringing' ||
+      state === 'connecting' ||
+      state === 'connected'
+    if (isPreConnect) {
+      // Reset to 0 on first mount, then tick every second. Using a
+      // setInterval that's keyed on [state] means: when state changes
+      // we tear down and re-create (in case the modal was briefly
+      // 'ended' and is being revived). The duration is just
+      // seconds-since-mount — not real elapsed time — but for the UX
+      // this is fine because the modal mounts the instant the user
+      // clicks Phone / Accept.
+      setDuration(0)
       tickRef.current = setInterval(() => setDuration((d) => d + 1), 1000)
     } else {
       if (tickRef.current) clearInterval(tickRef.current)
@@ -313,13 +321,7 @@ export default function CallModal({
   const isTerminal =
     state === 'ended' || state === 'declined' || state === 'missed' || state === 'failed'
   const supportsSpeaker = Boolean(audioRef?.current) && client != null && !isTerminal
-  const partnerFirstName = partnerName.split(' ')[0] || partnerName
-  const { text: headlineText, tone: headlineTone } = headlineFor(
-    state,
-    isOutgoing,
-    partnerFirstName,
-    duration,
-  )
+  const { text: headlineText, tone: headlineTone } = headlineFor(state, duration)
   const headlineClass =
     headlineTone === 'danger'
       ? 'text-sm text-danger font-medium mt-1'
@@ -403,22 +405,6 @@ export default function CallModal({
             </p>
           ) : null}
 
-          {/* Direction hint — subhead line below the main headline */}
-          {!isTerminal && isOutgoing && state === 'calling' ? (
-            <p className="text-xs text-subtle mt-0.5">
-              Dialing {partnerFirstName}
-            </p>
-          ) : null}
-          {!isTerminal && isOutgoing && state === 'ringing' ? (
-            <p className="text-xs text-subtle mt-0.5">Waiting for {partnerFirstName} to answer</p>
-          ) : null}
-          {!isTerminal && !isOutgoing && state === 'ringing' ? (
-            <p className="text-xs text-subtle mt-0.5">{partnerName} is calling…</p>
-          ) : null}
-          {!isTerminal && state === 'connecting' ? (
-            <p className="text-xs text-subtle mt-0.5">Establishing connection…</p>
-          ) : null}
-
           {/* Network status banner */}
           {state !== 'idle' && networkStatus !== 'online' ? (
             <div
@@ -449,7 +435,9 @@ export default function CallModal({
             </div>
           ) : null}
 
-          {/* Tips (only during pre-connect) */}
+          {/* Tips — shown only during pre-connect to remind the user
+              that mic permission will fire next. Hidden once connected
+              (timer is the focus) and on terminal states. */}
           {isPreConnect ? (
             <ul className="mt-6 text-xs text-muted space-y-1 text-left w-full">
               <li>• Allow microphone access when prompted</li>
@@ -458,13 +446,6 @@ export default function CallModal({
             </ul>
           ) : null}
         </div>
-
-        {/* Quality strip (alternative placement — only if no quality data yet) */}
-        {state === 'connected' && !effectiveQuality ? (
-          <div className="px-4 py-2 border-t border-border bg-paper text-center text-xs text-subtle">
-            Connecting media…
-          </div>
-        ) : null}
 
         {/* Footer controls */}
         <div className="border-t border-border bg-surface">

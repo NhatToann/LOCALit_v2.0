@@ -919,7 +919,11 @@ function ChatInner() {
       setCallClient(client)
       registerActiveCallClient(realCallId, client)
       // Swap the provisional callId for the real one. Patch in place
-      // so ActiveCallSheet doesn't unmount during the swap.
+      // so ActiveCallSheet doesn't unmount during the swap. Preserve
+      // the original startedAt so the call timer counts from the
+      // moment the user clicked Phone, not from when LiveKit
+      // finished its handshake.
+      const originalStartedAt = activeCallStore.getActive()?.startedAt ?? Date.now()
       activeCallStore.setActive({
         callId: realCallId,
         conversationId,
@@ -932,7 +936,7 @@ function ChatInner() {
         networkStatus: 'online',
         quality: null,
         errorMessage: null,
-        startedAt: Date.now(),
+        startedAt: originalStartedAt,
       })
       // Wire the registry swap so the sheet can resolve the new
       // callId. We re-register under both keys to avoid a 250ms
@@ -993,7 +997,7 @@ function ChatInner() {
       callId: provisionalCallId,
       conversationId: '', // filled in once DB row resolves
       partnerId: '',
-      partnerName: 'Connecting…',
+      partnerName: 'Unknown caller',
       partnerAvatar: null,
       isOutgoing: false,
       mode: 'voice',
@@ -1057,6 +1061,9 @@ function ChatInner() {
       // Patch the active call with the resolved partner info so the
       // modal headline + avatar update immediately. We keep the
       // provisional callId until the LiveKit client is created below.
+      // Preserve the original startedAt so the call timer counts
+      // from the moment the user clicked Accept.
+      const originalStartedAt = activeCallStore.getActive()?.startedAt ?? Date.now()
       activeCallStore.setActive({
         callId: provisionalCallId,
         conversationId,
@@ -1069,7 +1076,7 @@ function ChatInner() {
         networkStatus: 'online',
         quality: null,
         errorMessage: null,
-        startedAt: Date.now(),
+        startedAt: originalStartedAt,
       })
       // Mark the row as accepted so the caller's UI updates and
       // IncomingCallWatcher (if still polling from a sibling tab)
@@ -1161,6 +1168,10 @@ function ChatInner() {
       // the swap (ActiveCallSheet polls every 250ms).
       registerActiveCallClient(pendingCallId, client)
       registerActiveCallClient(provisionalCallId, client)
+      // Preserve the original startedAt so the call timer counts
+      // from the moment the user clicked Accept, not from when the
+      // LiveKit client was created.
+      const originalStartedAt = activeCallStore.getActive()?.startedAt ?? Date.now()
       activeCallStore.setActive({
         callId: pendingCallId,
         conversationId,
@@ -1173,7 +1184,7 @@ function ChatInner() {
         networkStatus: 'online',
         quality: null,
         errorMessage: null,
-        startedAt: Date.now(),
+        startedAt: originalStartedAt,
       })
     } catch (e) {
       setError('Could not accept call: ' + (e as Error).message)
