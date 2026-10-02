@@ -827,7 +827,12 @@ function ChatInner() {
       partnerAvatar,
       isOutgoing: true,
       mode,
-      state: 'connecting',
+      // Caller dials immediately. The LiveKit handshake emits
+      // 'connecting' → 'connected' via opts.onState, both of which
+      // overwrite this initial state via patchActive(). startedAt
+      // stays as a fallback for terminal-state duration display if
+      // the call never reaches 'connected'.
+      state: 'calling',
       networkStatus: 'online',
       quality: null,
       errorMessage: null,
@@ -869,7 +874,20 @@ function ChatInner() {
         video: mode === 'video',
         onState: (s) => {
           setCallState(s)
-          activeCallStore.patchActive({ state: s })
+          // Per call-flow spec (2026-10-02 update 03): the timer MUST
+          // NOT count from the moment the user clicks Phone / Accept —
+          // it counts from the moment BOTH peers are in the LiveKit
+          // room (state === 'connected'). The LiveKit client now
+          // defers emitting 'connected' until localConnected +
+          // hasRemoteParticipant + hasRemoteTrack are all true. We
+          // stamp startedAt here on the connecting→connected
+          // transition so ActiveCallSheet has an accurate baseline
+          // for the MM:SS timer.
+          if (s === 'connected') {
+            activeCallStore.patchActive({ state: s, startedAt: Date.now() })
+          } else {
+            activeCallStore.patchActive({ state: s })
+          }
         },
         onError: (e) => {
           setError(e.message)
@@ -1125,7 +1143,20 @@ function ChatInner() {
         video: incomingMode === 'video',
         onState: (s) => {
           setCallState(s)
-          activeCallStore.patchActive({ state: s })
+          // Per call-flow spec (2026-10-02 update 03): the timer MUST
+          // NOT count from the moment the user clicks Phone / Accept —
+          // it counts from the moment BOTH peers are in the LiveKit
+          // room (state === 'connected'). The LiveKit client now
+          // defers emitting 'connected' until localConnected +
+          // hasRemoteParticipant + hasRemoteTrack are all true. We
+          // stamp startedAt here on the connecting→connected
+          // transition so ActiveCallSheet has an accurate baseline
+          // for the MM:SS timer.
+          if (s === 'connected') {
+            activeCallStore.patchActive({ state: s, startedAt: Date.now() })
+          } else {
+            activeCallStore.patchActive({ state: s })
+          }
         },
         onError: (e) => {
           setError(e.message)

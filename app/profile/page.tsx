@@ -101,7 +101,7 @@ export default async function ProfilePage() {
   }
 
   const { data: profile } = await supabase
-    .from('profiles')
+      .from('profiles')
     .select('role')
     .eq('id', user.id)
     .maybeSingle<{ role?: 'tourist' | 'buddy' | 'admin' | null }>()
@@ -136,7 +136,7 @@ export default async function ProfilePage() {
   // missing row.
   return (
     <div className="container-page py-16">
-      <p className="text-eyebrow text-primary mb-2">Account</p>
+        <p className="text-eyebrow text-primary mb-2">Account</p>
       <h1 className="text-page-title">Profile</h1>
       <p className="text-sm text-muted mt-3 max-w-prose">
         Your account doesn&apos;t have a role yet. Complete the sign-up

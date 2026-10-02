@@ -223,11 +223,33 @@ export async function startLiveKitCall(
     }
   }
 
+  // Track the conditions required for "both peers are live":
+  //   - the local LiveKit room has reached Connected state
+  //   - at least one remote participant has joined
+  //   - at least one remote track has been subscribed
+  // The headline timer (00:00) starts ONLY when all three are true.
+  // This guarantees the timer on both sides counts up from the same
+  // moment — the moment media actually begins flowing — so neither side
+  // ever sees a clock ticking while the other is still on
+  // "Connecting…" / "Calling X…".
+  let localConnected = false
+  let hasRemoteParticipant = false
+  let hasRemoteTrack = false
+  const maybeFireConnected = () => {
+    if (localConnected && hasRemoteParticipant && hasRemoteTrack) {
+      opts.onState('connected')
+    }
+  }
+
   room.on(RoomEvent.ConnectionStateChanged, (state) => {
     if (state === ConnectionState.Connecting) {
       opts.onState('connecting')
     } else if (state === ConnectionState.Connected) {
-      opts.onState('connected')
+      localConnected = true
+      // If a remote participant was already in the room when we
+      // connected (we joined second), this branch handles the flip.
+      if (room.remoteParticipants.size > 0) hasRemoteParticipant = true
+      maybeFireConnected()
     } else if (state === ConnectionState.Disconnected) {
       if (!ended) {
         opts.onError?.(new Error(`LiveKit disconnected: ${state}`))
@@ -235,6 +257,11 @@ export async function startLiveKitCall(
         dispose()
       }
     }
+  })
+
+  room.on(RoomEvent.ParticipantConnected, () => {
+    hasRemoteParticipant = true
+    maybeFireConnected()
   })
 
   room.on(
@@ -248,6 +275,8 @@ export async function startLiveKitCall(
         const remote = track as RemoteVideoTrack
         opts.onRemoteVideoTrack?.(remote)
       }
+      hasRemoteTrack = true
+      maybeFireConnected()
     },
   )
 
@@ -285,12 +314,19 @@ export async function startLiveKitCall(
         }
       }
       published = true
-      // If the room already has peers (we joined second), nudge the
-      // state to connected — the room's own Connected state fires
-      // before publishMic runs, but the UI expects connected after
-      // the user has accepted mic/camera permission.
+      // If the room is already connected AND the remote peer has
+      // already joined AND subscribed a track, the
+      // RoomEvent.ConnectionStateChanged / ParticipantConnected /
+      // TrackSubscribed handlers have already fired 'connected'. But
+      // there's a race where we joined second AND the remote was
+      // already in the room waiting when we connected: in that case
+      // we may not have received a fresh TrackSubscribed event for
+      // the pre-existing remote. Run maybeFireConnected() to cover
+      // that race.
       if (room.state === ConnectionState.Connected) {
-        opts.onState('connected')
+        localConnected = true
+        if (room.remoteParticipants.size > 0) hasRemoteParticipant = true
+        maybeFireConnected()
       }
     },
     end() {

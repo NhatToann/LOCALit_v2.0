@@ -118,24 +118,41 @@ function fmtDuration(seconds: number): string {
 }
 
 /**
- * The headline shown below the avatar. Returns the small text and an
- * optional icon hint for terminal states (declined/missed/failed).
+ * The headline shown below the avatar.
  *
- * Per call-flow spec (2026-10-02 update 2): the duration timer is the
- * single source of truth across all live call states (calling /
- * ringing / connecting / connected). There is no "Calling X…" /
- * "Ringing…" / "Connecting to server…" headline anywhere — both
- * caller and callee see "00:00" the moment the modal appears.
+ * Per call-flow spec (2026-10-02 update 3): the duration timer 00:00
+ * starts ONLY when both sides have joined the LiveKit room and media
+ * is flowing (state === 'connected'). Before that:
+ *   - caller sees "Calling X…" while waiting for the receiver to accept
+ *   - receiver sees "Incoming call" while the Accept popup is up
+ *   - both sides see "Connecting…" during the LiveKit handshake
+ *     (after the receiver has clicked Accept but before the room is
+ *     fully wired up)
+ * The timer is the single source of truth once the call is live.
  */
 function headlineFor(
   state: CallState,
+  isOutgoing: boolean,
+  partnerFirstName: string,
   duration: number,
 ): { text: string; tone: 'default' | 'success' | 'danger' } {
   switch (state) {
     case 'calling':
+      // Caller side, pre-accept. The user is dialing.
+      return { text: `Calling ${partnerFirstName}…`, tone: 'default' }
     case 'ringing':
+      // Receiver side, pre-accept. The user is being asked to accept.
+      // Caller-side ringing (signal delivered, awaiting LiveKit handshake)
+      // also falls in this branch.
+      return isOutgoing
+        ? { text: `Calling ${partnerFirstName}…`, tone: 'default' }
+        : { text: 'Incoming call', tone: 'success' }
     case 'connecting':
+      // LiveKit room handshake in progress (after the receiver has
+      // clicked Accept but before the connection is fully established).
+      return { text: 'Connecting…', tone: 'default' }
     case 'connected':
+      // Both peers in the room, media flowing. Timer is the focus.
       return { text: fmtDuration(duration), tone: 'default' }
     case 'declined':
       return { text: 'Call declined', tone: 'danger' }
@@ -197,40 +214,27 @@ export default function CallModal({
   // `useCallQuality(client.peerConnection)` path is gone.
   const effectiveQuality = qualityOverride ?? null
 
-  // Duration timer — starts ticking the moment the modal mounts (any
-  // non-terminal state) so both sides see "00:00" appear immediately
-  // and count up from there. Per call-flow spec (2026-10-02 update 2)
-  // there is no "Calling…" / "Ringing…" / "Connecting…" headline
-  // anymore; the timer is the single source of truth. The duration
-  // is either driven externally by ActiveCallSheet (from
-  // activeCallStore.startedAt, which is set at the very start of the
-  // call flow before any await — so the timer reflects real elapsed
-  // time from the moment the user clicked Phone / Accept) or, if no
-  // override is provided, incremented locally every second starting
-  // at 0.
+  // Duration timer — per call-flow spec (2026-10-02 update 3): the timer
+  // starts ONLY when state === 'connected' (both peers in the LiveKit
+  // room, media flowing). Before that the modal shows the pre-connect
+  // headline ("Calling X…" / "Incoming call" / "Connecting…") instead.
+  // The timer is driven externally by ActiveCallSheet from
+  // activeCallStore.startedAt, which the chat page sets to the moment
+  // both sides report connected (not the moment the user clicked
+  // Phone / Accept). If no override is provided we fall back to a
+  // local interval starting at 0 once state goes 'connected'.
   useEffect(() => {
     if (durationOverride !== undefined) {
       setDuration(durationOverride)
       return
     }
-    const isPreConnect =
-      state === 'calling' ||
-      state === 'ringing' ||
-      state === 'connecting' ||
-      state === 'connected'
-    if (isPreConnect) {
-      // Reset to 0 on first mount, then tick every second. Using a
-      // setInterval that's keyed on [state] means: when state changes
-      // we tear down and re-create (in case the modal was briefly
-      // 'ended' and is being revived). The duration is just
-      // seconds-since-mount — not real elapsed time — but for the UX
-      // this is fine because the modal mounts the instant the user
-      // clicks Phone / Accept.
+    if (state === 'connected') {
       setDuration(0)
       tickRef.current = setInterval(() => setDuration((d) => d + 1), 1000)
     } else {
       if (tickRef.current) clearInterval(tickRef.current)
       tickRef.current = null
+      setDuration(0)
     }
     return () => {
       if (tickRef.current) clearInterval(tickRef.current)
@@ -321,7 +325,13 @@ export default function CallModal({
   const isTerminal =
     state === 'ended' || state === 'declined' || state === 'missed' || state === 'failed'
   const supportsSpeaker = Boolean(audioRef?.current) && client != null && !isTerminal
-  const { text: headlineText, tone: headlineTone } = headlineFor(state, duration)
+  const partnerFirstName = partnerName.split(' ')[0] || partnerName
+  const { text: headlineText, tone: headlineTone } = headlineFor(
+    state,
+    isOutgoing,
+    partnerFirstName,
+    duration,
+  )
   const headlineClass =
     headlineTone === 'danger'
       ? 'text-sm text-danger font-medium mt-1'

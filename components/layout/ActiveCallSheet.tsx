@@ -142,33 +142,24 @@ export default function ActiveCallSheet() {
   // placeholder. This is a known UX limitation we'll address in a
   // follow-up.
 
-  // Drive the duration timer. Per call-flow spec (2026-10-02 update 2)
-  // the timer must start at 00:00 the moment the call modal appears
-  // and count up across all pre-connect states (calling / ringing /
-  // connecting) AND connected. The store sets `startedAt` at the
-  // very start of the call (in startCall / acceptCall before any
-  // await) so this gives an accurate elapsed time including the
-  // LiveKit round-trip.
-  useEffect(() => {
-    if (!active) {
-      setDuration(0)
-      return
-    }
-    const preConnect =
-      active.state === 'calling' ||
-      active.state === 'ringing' ||
-      active.state === 'connecting' ||
-      active.state === 'connected'
-    if (!preConnect) {
-      setDuration(0)
-      return
-    }
-    const startedAt = active.startedAt
-    const tick = () => setDuration(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [active?.state, active?.startedAt, active])
+// Drive the duration timer. Per call-flow spec (2026-10-02 update 3)
+// the timer starts ONLY when state === 'connected' (both peers in the
+// LiveKit room, media flowing). Before that — calling / ringing /
+// connecting — the modal shows pre-connect headlines and duration
+// remains 0. The chat page updates activeCallStore.startedAt at the
+// moment LiveKit reports the room connected (and a remote track is
+// subscribed), not at the moment the user clicked Phone / Accept.
+useEffect(() => {
+  if (!active || active.state !== 'connected') {
+    setDuration(0)
+    return
+  }
+  const startedAt = active.startedAt
+  const tick = () => setDuration(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)))
+  tick()
+  const id = setInterval(tick, 1000)
+  return () => clearInterval(id)
+}, [active?.state, active?.startedAt, active])
 
   // Compute quality directly from the client's peer connection while
   // connected. We poll getStats() every 2s.

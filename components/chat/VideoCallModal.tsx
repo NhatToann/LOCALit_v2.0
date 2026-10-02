@@ -97,20 +97,35 @@ function fmtDuration(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+/**
+ * The headline shown below the avatar.
+ *
+ * Per call-flow spec (2026-10-02 update 03): the duration timer
+ * starts ONLY when both sides have joined the LiveKit room and media
+ * is flowing (state === 'connected'). Before that:
+ *   - caller sees "Calling X…" while waiting for the receiver to accept
+ *   - receiver sees "Incoming video call" while the Accept popup is up
+ *   - both sides see "Connecting…" during the LiveKit handshake
+ *     (after the receiver has clicked Accept but before the room is
+ *     fully wired up)
+ * The timer is the single source of truth once the call is live.
+ */
 function headlineFor(
   state: CallState,
   isOutgoing: boolean,
+  partnerFirstName: string,
   duration: number,
 ): { text: string; tone: 'default' | 'success' | 'danger' } {
   switch (state) {
     case 'calling':
+      return { text: `Calling ${partnerFirstName}…`, tone: 'default' }
     case 'ringing':
+      return isOutgoing
+        ? { text: `Calling ${partnerFirstName}…`, tone: 'default' }
+        : { text: 'Incoming video call', tone: 'success' }
     case 'connecting':
+      return { text: 'Connecting…', tone: 'default' }
     case 'connected':
-      // Per call-flow spec (2026-10-02 update 2): the duration timer is
-      // the single source of truth for both caller and callee across
-      // every live state. No more "Calling X…" / "Ringing…" /
-      // "Connecting…" headlines.
       return { text: fmtDuration(duration), tone: 'default' }
     case 'declined':
       return { text: 'Call declined', tone: 'danger' }
@@ -193,13 +208,21 @@ export default function VideoCallModal({
   const isTerminal =
     state === 'ended' || state === 'declined' || state === 'missed' || state === 'failed'
 
-  // Duration timer
+  // Duration timer — per call-flow spec (2026-10-02 update 03): the
+  // timer starts ONLY when state === 'connected' (both peers in the
+  // LiveKit room, media flowing). Before that the modal shows the
+  // pre-connect headline instead. Once the call ends we freeze the
+  // duration so "Call ended · MM:SS" reads correctly.
   useEffect(() => {
     if (state === 'connected') {
       tickRef.current = setInterval(() => setDuration((d) => d + 1), 1000)
     } else {
       if (tickRef.current) clearInterval(tickRef.current)
       tickRef.current = null
+      // Reset duration only when the modal is going idle (call fully
+      // removed from the store). On terminal states ('ended',
+      // 'declined', 'missed', 'failed') we keep the last value so the
+      // "Call ended · MM:SS" readout still shows the elapsed time.
       if (state === 'idle') setDuration(0)
     }
     return () => {
@@ -233,9 +256,11 @@ export default function VideoCallModal({
     void client?.decline()
   }, [client])
 
+  const partnerFirstName = partnerName.split(' ')[0] || partnerName
   const { text: headlineText, tone: headlineTone } = headlineFor(
     state,
     isOutgoing,
+    partnerFirstName,
     duration,
   )
   const headlineClass =
