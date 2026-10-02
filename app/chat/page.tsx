@@ -786,47 +786,82 @@ function ChatInner() {
       name: activeConv.partner_name,
       avatar: activeConv.partner_avatar,
     })
-    // Mic/camera permission is deferred: we let LiveKit's `publishMic()`
-    // (called below) trigger the native getUserMedia prompt. This matches
-    // the Messenger/Meet flow where the prompt appears AFTER the user has
-    // already clicked the Phone button and the CallModal is visible — so
-    // they have full UX context for why the browser is asking. No double
-    // getUserMedia call (the legacy `ensureMediaPermissions` block used
-    // to fire one here, which the LiveKit client would then fire again
-    // inside publishMic — browsers reuse the cached permission grant
-    // but it still wasted ~50ms per call).
+
+    // -----------------------------------------------------------------
+    // CRITICAL (2026-10-02 bug fix):
+    // The caller MUST see the call UI appear instantly the moment they
+    // tap the Phone button — before any network round-trip, before
+    // pending_calls has been written, before LiveKit's token endpoint,
+    // before room.connect(), and BEFORE the browser's mic permission
+    // prompt fires. The old sequence:
+    //   1. setCallState('calling')  ← local hook only, AppShell sees nothing
+    //   2. insert pending_calls    ← 100-500ms
+    //   3. startLiveKitCall        ← token fetch + WS handshake (300-1500ms)
+    //   4. publishMic              ← MIC PERMISSION PROMPT (blocks 1-30s)
+    //   5. activeCallStore.setActive(...)
+    // meant the user saw the Phone button "click" then nothing for 1-3
+    // seconds, then the mic prompt appeared over a blank page, then
+    // (only after they accepted) the modal finally rendered. That felt
+    // broken. We now lift the store update to step 1: the moment the user
+    // taps Phone, ActiveCallSheet mounts the modal with state='calling'
+    // and headline "Calling <name>…" — exactly the UX we want.
+    // Mic permission is still triggered inside publishMic (only there,
+    // because that's the user gesture for send, and reusing the prompt
+    // would be wasteful), but the user has clear context: they see the
+    // call modal asking them to wait while the prompt fires on top of
+    // it.
+    // -----------------------------------------------------------------
+    const conversationId = activeConv.id
+    const partnerId = activeConv.partner_id
+    const partnerName = activeConv.partner_name
+    const partnerAvatar = activeConv.partner_avatar
+    // Provisional callId — gets replaced by the real one from
+    // startLiveKitCall. The store keys on callId so ActiveCallSheet can
+    // resolve the LiveKit client from the registry.
+    const provisionalCallId = `pending:${myId}:${conversationId}:${Date.now()}`
+    activeCallStore.setActive({
+      callId: provisionalCallId,
+      conversationId,
+      partnerId,
+      partnerName,
+      partnerAvatar,
+      isOutgoing: true,
+      mode,
+      state: 'connecting',
+      networkStatus: 'online',
+      quality: null,
+      errorMessage: null,
+      startedAt: Date.now(),
+    })
+
+    // Pending_calls insert — non-blocking, fire-and-forget. If it fails
+    // (e.g. schema change in the DB), we still proceed because LiveKit
+    // handles the actual transport; the only side-effect of a missing
+    // pending_calls row is the receiver's IncomingCallWatcher won't
+    // show the Accept popup. We log + carry on.
     let pendingCallId = ''
     try {
-      // Insert a pending_calls row so the buddy's IncomingCallWatcher
-      // sees a ringing notification. LiveKit handles the actual
-      // transport; pending_calls is just the durable "someone is
-      // calling you" signal. The `type` column (added 2026-10-01)
-      // lets the callee's UI pick the right modal: CallModal for
-      // voice, VideoCallModal for video. The `room_name` column is
-      // NOT NULL and must match the LiveKit room convention
-      // `call:<conversationId>` — the buddy's accept path uses it
-      // to look up the LiveKit room to join.
-      try {
-        const supabase = createClient()
-        const { data: row } = await supabase
-          .from('pending_calls')
-          .insert({
-            conversation_id: activeConv.id,
-            caller_id: myId,
-            callee_id: activeConv.partner_id,
-            status: 'ringing',
-            type: mode,
-            room_name: `call:${activeConv.id}`,
-          })
-          .select('id')
-          .single()
-        if (row?.id) pendingCallId = row.id
-      } catch (insertErr) {
-        if (DEBUG_CALL) {
-          console.log('[dlog] pending_calls insert failed', insertErr)
-        }
+      const supabase = createClient()
+      const { data: row } = await supabase
+        .from('pending_calls')
+        .insert({
+          conversation_id: conversationId,
+          caller_id: myId,
+          callee_id: partnerId,
+          status: 'ringing',
+          type: mode,
+          room_name: `call:${conversationId}`,
+        })
+        .select('id')
+        .single()
+      if (row?.id) pendingCallId = row.id
+    } catch (insertErr) {
+      if (DEBUG_CALL) {
+        console.log('[dlog] pending_calls insert failed', insertErr)
       }
-      const roomName = `call:${activeConv.id}`
+    }
+    try {
+      const roomName = `call:${conversationId}`
       const client = await startLiveKitCall({
         myId,
         roomName,
@@ -857,7 +892,11 @@ function ChatInner() {
         const micMsg = (micErr as Error).message || 'Microphone permission was denied.'
         setError(micMsg)
         setCallState('failed')
-        setTimeout(() => setCallState('idle'), 3000)
+        activeCallStore.patchActive({ state: 'failed', errorMessage: micMsg })
+        setTimeout(() => {
+          setCallState('idle')
+          activeCallStore.setActive(null)
+        }, 3000)
         // Clean up the LiveKit room we just opened so we don't leak
         // an unconnected room onto the LiveKit server.
         try {
@@ -874,31 +913,42 @@ function ChatInner() {
             .eq('id', pendingCallId)
             .then(() => undefined)
         }
-        activeCallStore.setActive(null)
         return
       }
-      if (!pendingCallId) pendingCallId = client.callId
+      const realCallId = pendingCallId || client.callId
       setCallClient(client)
-      registerActiveCallClient(pendingCallId, client)
+      registerActiveCallClient(realCallId, client)
+      // Swap the provisional callId for the real one. Patch in place
+      // so ActiveCallSheet doesn't unmount during the swap.
       activeCallStore.setActive({
-        callId: pendingCallId,
-        conversationId: activeConv.id,
-        partnerId: activeConv.partner_id,
-        partnerName: activeConv.partner_name,
-        partnerAvatar: activeConv.partner_avatar,
+        callId: realCallId,
+        conversationId,
+        partnerId,
+        partnerName,
+        partnerAvatar,
         isOutgoing: true,
-        mode, // 'voice' or 'video' — ActiveCallSheet picks the modal
+        mode,
         state: 'calling',
         networkStatus: 'online',
         quality: null,
         errorMessage: null,
         startedAt: Date.now(),
       })
+      // Wire the registry swap so the sheet can resolve the new
+      // callId. We re-register under both keys to avoid a 250ms
+      // blank gap where the registry lookup misses.
+      registerActiveCallClient(provisionalCallId, client)
     } catch (e) {
       setError('Could not start call: ' + (e as Error).message)
       setCallState('failed')
-      setTimeout(() => setCallState('idle'), 2500)
-      activeCallStore.setActive(null)
+      activeCallStore.patchActive({
+        state: 'failed',
+        errorMessage: 'Could not start call: ' + (e as Error).message,
+      })
+      setTimeout(() => {
+        setCallState('idle')
+        activeCallStore.setActive(null)
+      }, 2500)
     }
   }
 
@@ -927,21 +977,38 @@ function ChatInner() {
       })
     }
     if (!myId || callClient) return
+    // CRITICAL (2026-10-02 bug fix): Set the active call IMMEDIATELY
+    // so the modal renders the moment the user taps Accept — before
+    // any DB query, any LiveKit token round-trip, and BEFORE the mic
+    // permission prompt. The old code waited until AFTER the DB row
+    // was queried AND the LiveKit room was connected before calling
+    // activeCallStore.setActive, which meant the user saw the popup
+    // disappear (Accept button hides the popup per IncomingCallWatcher's
+    // anti-double-ui logic), then nothing for ~1-2 seconds while the
+    // mic prompt blocked the UI. We now use a provisional callId and
+    // lift the store update to the very first line — same fix as the
+    // caller path.
+    const provisionalCallId = `accepting:${pendingCallId}`
+    activeCallStore.setActive({
+      callId: provisionalCallId,
+      conversationId: '', // filled in once DB row resolves
+      partnerId: '',
+      partnerName: 'Connecting…',
+      partnerAvatar: null,
+      isOutgoing: false,
+      mode: 'voice',
+      state: 'connecting',
+      networkStatus: 'online',
+      quality: null,
+      errorMessage: null,
+      startedAt: Date.now(),
+    })
     let incomingMode: CallMode = 'voice' as CallMode
-    // setCallMode below accepts the local incomingMode — but at this
-    // point we haven't queried the DB yet, so we set the placeholder
-    // ('voice'). After the row query sets incomingMode to the real
-    // value (line 898), all subsequent code uses that.
     setCallMode(incomingMode)
     setIsOutgoing(false)
     setError('')
-    // Pre-emptively surface "Incoming call / Ringing…" so the
-    // CallModal renders with a meaningful state the instant the
-    // /chat?call=X navigation lands. Before this the modal was
-    // either blank (idle) or skipped straight to "Connecting…"
-    // because the caller raced us by ~1 frame. LiveKit's
-    // ConnectionStateChanged handler will flip us to 'connecting'
-    // → 'connected' as the WebRTC session comes up.
+    // Pre-emptively surface "Ringing…" so the modal renders with a
+    // meaningful state even before LiveKit connects.
     setCallState('ringing')
     let peerId: string
     let partnerName: string
@@ -970,10 +1037,6 @@ function ChatInner() {
       }
       conversationId = row.conversation_id
       peerId = row.caller_id
-      // Mutate the outer let, not declare a new const — otherwise
-      // the later `activeCallStore.setActive({ mode: incomingMode })`
-      // uses the outer (placeholder) value, which would always be
-      // 'voice'.
       incomingMode = row.type === 'video' ? 'video' : 'voice'
       setCallMode(incomingMode)
       // Try to enrich partner info from activeConv (if loaded) or from
@@ -991,6 +1054,23 @@ function ChatInner() {
       partnerName = profile?.full_name ?? 'Caller'
       partnerAvatar = profile?.avatar_url ?? null
       setCallPartner({ name: partnerName, avatar: partnerAvatar })
+      // Patch the active call with the resolved partner info so the
+      // modal headline + avatar update immediately. We keep the
+      // provisional callId until the LiveKit client is created below.
+      activeCallStore.setActive({
+        callId: provisionalCallId,
+        conversationId,
+        partnerId: peerId,
+        partnerName,
+        partnerAvatar,
+        isOutgoing: false,
+        mode: incomingMode,
+        state: 'connecting',
+        networkStatus: 'online',
+        quality: null,
+        errorMessage: null,
+        startedAt: Date.now(),
+      })
       // Mark the row as accepted so the caller's UI updates and
       // IncomingCallWatcher (if still polling from a sibling tab)
       // stops re-surfacing the Accept popup. Fire-and-forget; failure
@@ -1014,20 +1094,20 @@ function ChatInner() {
     } catch (e) {
       setError('Could not accept call: ' + (e as Error).message)
       setCallState('failed')
-      setTimeout(() => setCallState('idle'), 2500)
+      activeCallStore.patchActive({
+        state: 'failed',
+        errorMessage: 'Could not accept call: ' + (e as Error).message,
+      })
+      setTimeout(() => {
+        setCallState('idle')
+        activeCallStore.setActive(null)
+      }, 2500)
       return
     }
     // Make sure the chat view shows the conversation the call belongs
     // to. Without this the modal would render but the chat list could
     // highlight a different thread.
     if (activeId !== conversationId) setActiveId(conversationId)
-
-    // Mic/camera permission is deferred: we let LiveKit's
-    // `publishMic()` trigger the native getUserMedia prompt. By the
-    // time we reach publishMic the CallModal is already mounted
-    // with the "Incoming call / Ringing…" headline — so they have full
-    // UX context for why the browser is asking (matches the
-    // Messenger/Zalo/Meet flow).
 
     try {
       const roomName = `call:${conversationId}`
@@ -1057,7 +1137,11 @@ function ChatInner() {
         const micMsg = (micErr as Error).message || 'Microphone permission was denied.'
         setError(micMsg)
         setCallState('failed')
-        setTimeout(() => setCallState('idle'), 3000)
+        activeCallStore.patchActive({ state: 'failed', errorMessage: micMsg })
+        setTimeout(() => {
+          setCallState('idle')
+          activeCallStore.setActive(null)
+        }, 3000)
         try {
           client.end()
         } catch {
@@ -1069,15 +1153,14 @@ function ChatInner() {
           .update({ status: 'failed', ended_at: new Date().toISOString() })
           .eq('id', pendingCallId)
           .then(() => undefined)
-        activeCallStore.setActive(null)
         return
       }
       setCallClient(client)
+      // Use the real callId from this point. Register under both
+      // provisional + real so the registry lookup doesn't miss during
+      // the swap (ActiveCallSheet polls every 250ms).
       registerActiveCallClient(pendingCallId, client)
-      // Start the global sheet at 'ringing' so the UI stays
-      // consistent with the chat-page-owned state until LiveKit
-      // fires its first ConnectionStateChanged (which flips it to
-      // 'connecting' then 'connected').
+      registerActiveCallClient(provisionalCallId, client)
       activeCallStore.setActive({
         callId: pendingCallId,
         conversationId,
@@ -1086,7 +1169,7 @@ function ChatInner() {
         partnerAvatar,
         isOutgoing: false,
         mode: incomingMode,
-        state: 'ringing',
+        state: 'connecting',
         networkStatus: 'online',
         quality: null,
         errorMessage: null,
@@ -1095,7 +1178,14 @@ function ChatInner() {
     } catch (e) {
       setError('Could not accept call: ' + (e as Error).message)
       setCallState('failed')
-      setTimeout(() => setCallState('idle'), 3500)
+      activeCallStore.patchActive({
+        state: 'failed',
+        errorMessage: 'Could not accept call: ' + (e as Error).message,
+      })
+      setTimeout(() => {
+        setCallState('idle')
+        activeCallStore.setActive(null)
+      }, 3500)
     }
   }
 
@@ -1662,26 +1752,6 @@ function ChatInner() {
               ) : (
                 <p className="text-xs text-subtle italic">Not specified yet</p>
               )}
-            </div>
-
-            {/* Rate — always rendered. Shows "$X/hour" when set;
-                "Negotiate in chat" otherwise. */}
-            <div className="border-t border-border pt-3">
-              <p className="text-eyebrow text-muted mb-2">Rate</p>
-              <p className="text-sm font-semibold inline-flex items-center gap-1">
-                {activeConv.partner_hourly_rate != null &&
-                Number(activeConv.partner_hourly_rate) > 0 ? (
-                  <>
-                    <DollarSign size={12} aria-hidden="true" />$
-                    {Number(activeConv.partner_hourly_rate).toFixed(0)}
-                    <span className="text-xs font-normal text-muted">/hour</span>
-                  </>
-                ) : (
-                  <span className="text-xs font-normal text-subtle italic">
-                    Negotiate in chat
-                  </span>
-                )}
-              </p>
             </div>
 
             <div className="border-t border-border pt-3">

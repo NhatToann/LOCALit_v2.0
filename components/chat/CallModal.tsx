@@ -96,13 +96,17 @@ interface Props {
   onUpgradeToVideo?: () => void
 }
 
-// Per-state auto-dismiss timeout (ms). Longer for states that carry
-// a useful message (missed, declined, failed). For `failed` we wait
-// until the user clicks Close (no auto-dismiss) so they have time to
-// read the errorMessage — see https://example.invalid/callee-accept
-// regression where the user reported no time to act.
+// Per-state auto-dismiss timeout (ms). Per call-flow spec (2026-10-02):
+//   - ended: 2000ms (was 1500ms). The user wants the "Call ended" frame
+//     to stay visible long enough to read; 2s is the round number they
+//     asked for. They can also click disconnect a second time to dismiss
+//     immediately.
+//   - declined: 2500ms (unchanged)
+//   - missed: 3000ms (unchanged)
+//   - failed: no auto-dismiss — the errorMessage must be readable, the
+//     user dismisses by clicking Close.
 const DISMISS_AFTER_MS: Partial<Record<CallState, number>> = {
-  ended: 1500,
+  ended: 2000,
   declined: 2500,
   missed: 3000,
 }
@@ -125,13 +129,25 @@ function headlineFor(
 ): { text: string; tone: 'default' | 'success' | 'danger' } {
   switch (state) {
     case 'calling':
+      // Outgoing — pre-LiveKit. Headline says "Calling X…" and a small
+      // "Connecting to server…" hint sits below the avatar.
       return { text: `Calling ${partnerFirstName}…`, tone: 'default' }
     case 'ringing':
-      return isOutgoing
-        ? { text: 'Ringing…', tone: 'default' }
-        : { text: 'Incoming call', tone: 'success' }
+      // Per call-flow spec (2026-10-02): both sides see "Ringing…" once
+      // signaling has reached the peer and we're waiting for them to
+      // accept. The receiver also sees this after clicking Accept but
+      // before LiveKit's WebRTC session is established.
+      return { text: 'Ringing…', tone: 'default' }
     case 'connecting':
-      return { text: 'Connecting…', tone: 'default' }
+      // Per call-flow spec (2026-10-02): the explicit "Connecting to
+      // server…" label belongs here. This is the pre-LiveKit state
+      // (modal just appeared, no network round-trip done yet) and the
+      // brief window between room.connect() and TrackSubscribed where
+      // LiveKit is still handshaking.
+      return {
+          text: 'Connecting to server…',
+          tone: 'default',
+        }
     case 'connected':
       return { text: fmtDuration(duration), tone: 'default' }
     case 'declined':
@@ -139,7 +155,7 @@ function headlineFor(
     case 'missed':
       return { text: 'No answer', tone: 'danger' }
     case 'ended':
-      return { text: `Call ended · ${fmtDuration(duration)}`, tone: 'default' }
+      return { text: 'Call ended', tone: 'default' }
     case 'failed':
       return { text: 'Call failed', tone: 'danger' }
     default:
