@@ -55,6 +55,34 @@ export default function MiniChatWindow() {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [myUserId, setMyUserId] = useState<string | null>(null)
 
+  // (2026-10-02 fix) Draft persistence — mirrors the chat page so the
+  // mini-window doesn't lose half-typed text on a tab switch. Keyed
+  // by conversation id; cleared on send. localStorage may be disabled
+  // (private mode / quota) — all reads/writes are try-caught no-ops
+  // in that case.
+  useEffect(() => {
+    if (!active || !myUserId || typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(`localit.mini.draft:${myUserId}:${active.id}`)
+      setDraft(raw ?? '')
+    } catch {
+      /* swallow */
+    }
+  }, [active?.id, myUserId])
+  useEffect(() => {
+    if (!active || !myUserId || typeof window === 'undefined') return
+    try {
+      const key = `localit.mini.draft:${myUserId}:${active.id}`
+      if (draft.trim() === '') {
+        window.localStorage.removeItem(key)
+      } else {
+        window.localStorage.setItem(key, draft)
+      }
+    } catch {
+      /* swallow */
+    }
+  }, [draft, active?.id, myUserId])
+
   const hidden =
     pathname.startsWith('/chat') ||
     pathname === '/login' ||
@@ -213,6 +241,16 @@ export default function MiniChatWindow() {
         last_message_preview: text,
       })
       .eq('id', active.id)
+    // (2026-10-02 fix) Clear the persisted draft explicitly to close
+    // the one-frame window where the draft effect would otherwise
+    // re-write the just-sent text before flushing the empty state.
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem(`localit.mini.draft:${myUserId}:${active.id}`)
+      } catch {
+        /* swallow */
+      }
+    }
     setDraft('')
     setReplyTo(null)
     setSending(false)

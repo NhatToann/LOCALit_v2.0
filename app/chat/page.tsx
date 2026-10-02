@@ -104,6 +104,11 @@ function ChatInner() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [initialMessages, setInitialMessages] = useState<Message[]>([])
   const [initialReactions, setInitialReactions] = useState<MessageReaction[]>([])
+  // (2026-10-02 fix) Composer draft is persisted to localStorage so a
+  // page reload (or accidental tab close) doesn't wipe a half-typed
+  // message. The draft is keyed by conversation so different threads
+  // keep their own in-flight text. We restore on conversation
+  // activation and clear on send / conversation switch.
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -174,6 +179,36 @@ function ChatInner() {
       router.replace('/chat')
     }
   }, [convParam, myId, conversations.length])
+
+  // (2026-10-02 fix) Composer draft persistence — see the draft state
+  // declaration above. Hydrate from localStorage when the conversation
+  // changes (or when myId resolves from the init() auth round-trip),
+  // and write the draft back on every change. The store is cleared on
+  // send (see handleSend) so once the message is safely in Supabase,
+  // the local copy goes away.
+  useEffect(() => {
+    if (!activeId || !myId || typeof window === 'undefined') return
+    try {
+      const key = `localit.draft:${myId}:${activeId}`
+      const raw = window.localStorage.getItem(key)
+      setDraft(raw ?? '')
+    } catch {
+      /* localStorage may be disabled (private mode) — silently no-op */
+    }
+  }, [activeId, myId])
+  useEffect(() => {
+    if (!activeId || !myId || typeof window === 'undefined') return
+    try {
+      const key = `localit.draft:${myId}:${activeId}`
+      if (draft.trim() === '') {
+        window.localStorage.removeItem(key)
+      } else {
+        window.localStorage.setItem(key, draft)
+      }
+    } catch {
+      /* swallow — quota or private mode */
+    }
+  }, [draft, activeId, myId])
 
   // Auto-trigger voice call when ?buddy=X&call=1 (or call=voice) present.
 // Legacy ?call=video is treated as voice (no video support anymore).
@@ -579,6 +614,19 @@ function ChatInner() {
         .eq('id', activeId)
     }
     setDraft('')
+    // Clear the persisted draft so the composer starts clean on reload.
+    // (2026-10-02 fix) The localStorage effect above would otherwise
+    // keep the just-sent text around until the React render flushes
+    // and the effect fires with the empty string — which is fast but
+    // creates a one-frame window where a tab-restore can still see
+    // the sent text. Removing it explicitly closes that race.
+    if (typeof window !== 'undefined' && myId && activeId) {
+      try {
+        window.localStorage.removeItem(`localit.draft:${myId}:${activeId}`)
+      } catch {
+        /* swallow */
+      }
+    }
     setReplyingTo(null)
     setSending(false)
     composerRef.current?.focus()

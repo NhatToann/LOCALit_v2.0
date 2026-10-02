@@ -338,7 +338,7 @@ export default function CallModal({
       ? 'text-sm text-danger font-medium mt-1'
       : headlineTone === 'success'
         ? 'text-sm text-success font-medium mt-1'
-        : 'text-sm text-muted mt-1 font-mono'
+        : 'text-sm text-muted mt-1'
 
   if (!client && state === 'idle') return null
 
@@ -418,7 +418,16 @@ export default function CallModal({
               rendering exactly one of the two in any given frame. */}
           {state === 'connected' ? (
             <p
-              className="mt-1 text-3xl font-semibold text-ink tabular-nums font-mono"
+              // (2026-10-02 update 07) Tightened the timer style for
+              // legibility in a small modal: Plus Jakarta Sans
+              // (LOCALit's display face) instead of JetBrains Mono, with
+              // tighter letter-spacing so MM:SS reads as one glyph
+              // cluster rather than six separate characters. Size is
+              // 24 px (text-2xl) — down from 30 px (text-3xl) — so the
+              // timer doesn't visually overpower the partner's name
+              // above it. tabular-nums still keeps the digits
+              // monospaced so the seconds don't jitter.
+              className="mt-1 text-2xl font-semibold text-ink tabular-nums tracking-tight"
               aria-live="polite"
             >
               {fmtDuration(duration)}
