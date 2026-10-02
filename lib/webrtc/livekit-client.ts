@@ -212,14 +212,18 @@ export async function startLiveKitCall(
 
   let localStream: MediaStream | null = null
   let published = false
-  let ended = false
   let muted = false
   let cameraOn = true
   let currentFacing: 'user' | 'environment' = 'user'
 
+  // Resource cleanup is independent of the "should we emit 'ended' to
+  // the UI?" question. Disposing twice is fine (we no-op), but
+  // deciding to emit 'ended' is idempotent — if any path has fired
+  // it, the others must defer.
+  let disposed = false
   function dispose() {
-    if (ended) return
-    ended = true
+    if (disposed) return
+    disposed = true
     try {
       room.disconnect()
     } catch {
@@ -235,6 +239,18 @@ export async function startLiveKitCall(
       }
       localStream = null
     }
+  }
+
+  // `ended` is the "we have emitted 'ended' to the UI, don't do it
+  // again" sentinel. `disposed` is the "we have released tracks and
+  // disconnected from LiveKit" sentinel. They are different.
+  let ended = false
+  function emitEnded(reason: 'ended' | 'failed', errorMessage?: string) {
+    if (ended) return
+    ended = true
+    opts.onState(reason)
+    if (errorMessage) opts.onError?.(new Error(errorMessage))
+    dispose()
   }
 
   // Track the conditions required for "both peers are live":
@@ -253,6 +269,14 @@ export async function startLiveKitCall(
   // happens.
   let localConnected = false
   let hasRemoteParticipant = false
+  // (2026-10-02 fix) Once we've emitted 'connected', LiveKit may
+  // transition the Room back through Connecting/Disconnected as part
+  // of its automatic reconnect flow when the remote peer drops. We
+  // need to ignore those noise transitions and only emit terminal
+  // state changes (ended / failed / declined / missed) when they're
+  // meaningful. See the ConnectionStateChanged + ParticipantDisconnected
+  // handlers below for how this flag short-circuits them.
+  let hasEmittedConnected = false
   const debugLog = (...args: unknown[]) => {
     if (DEBUG_LIVEKIT) {
       // eslint-disable-next-line no-console
@@ -263,6 +287,7 @@ export async function startLiveKitCall(
     debugLog('maybeFireConnected', { localConnected, hasRemoteParticipant })
     if (localConnected && hasRemoteParticipant) {
       debugLog('→ FIRE connected')
+      hasEmittedConnected = true
       opts.onState('connected')
     }
   }
@@ -270,7 +295,21 @@ export async function startLiveKitCall(
   room.on(RoomEvent.ConnectionStateChanged, (state) => {
     debugLog('ConnectionStateChanged', state, 'localConnected?', localConnected, 'remote.size', room.remoteParticipants.size)
     if (state === ConnectionState.Connecting) {
-      opts.onState('connecting')
+      // (2026-10-02 bug fix) We only forward 'connecting' BEFORE the
+      // call has reached the connected state. After 'connected' has fired
+      // once, LiveKit's Room transitions to Connecting/Disconnected
+      // can fire spuriously as part of automatic reconnect attempts
+      // when the remote peer drops mid-call — and surfacing 'connecting'
+      // to the UI at that point would re-wind the call to the
+      // "Connecting…" frame and erase the active call timer. We let
+      // ParticipantDisconnected / RoomEvent.Disconnected-with-ended
+      // own the post-connected termination path; the connecting
+      // state is a one-shot pre-connected signal.
+      if (!localConnected) {
+        opts.onState('connecting')
+      } else {
+        debugLog('ConnectionStateChanged→Connecting ignored (post-connected)')
+      }
     } else if (state === ConnectionState.Connected) {
       localConnected = true
       // If a remote participant was already in the room when we
@@ -281,11 +320,30 @@ export async function startLiveKitCall(
       }
       maybeFireConnected()
     } else if (state === ConnectionState.Disconnected) {
-      if (!ended) {
-        debugLog('ConnectionStateChanged→Disconnected (unclean), ending')
-        opts.onError?.(new Error(`LiveKit disconnected: ${state}`))
-        opts.onState('ended')
+      // (2026-10-02 fix) If we had already reached connected, the
+      // Disconnected state is almost certainly the OTHER side
+      // dropping — ParticipantDisconnected will fire (or already
+      // fired) and own the 'ended' emission. Suppressing this branch
+      // post-connected also avoids the spurious 'connecting' bounce
+      // we saw in the user's trace (ConnectionStateChanged fired
+      // connecting → connected → disconnected in <1s after the caller
+      // hung up, and the receiver's timer snapped from "Connected"
+      // to "Connecting" because of it).
+      if (ended) {
+        // Already terminated by another path; nothing to do.
+        return
+      }
+      if (hasEmittedConnected) {
+        // Connected-then-disconnected: clean hangup by the remote
+        // peer. ParticipantDisconnected owns the 'ended' emission;
+        // we only release resources here.
+        debugLog('ConnectionStateChanged→Disconnected (post-connected), deferring to ParticipantDisconnected')
         dispose()
+      } else {
+        // Disconnected before we ever reached connected. This is the
+        // "connect failed" or "network dropped during handshake" case.
+        debugLog('ConnectionStateChanged→Disconnected (unclean, pre-connect), ending')
+        emitEnded('failed', `LiveKit disconnected: ${state}`)
       }
     }
   })
@@ -302,12 +360,13 @@ export async function startLiveKitCall(
   // the survivor's modal collapses to the 'Call ended' frame in
   // sync — without this, the survivor kept ticking the duration
   // timer indefinitely even though the call was over.
+  //
+  // emitEnded is idempotent: if ConnectionStateChanged: Disconnected
+  // (post-connect) already disposed the resources, this still fires
+  // the UI emission exactly once.
   room.on(RoomEvent.ParticipantDisconnected, (participant) => {
     debugLog('ParticipantDisconnected', participant.identity)
-    if (ended) return
-    ended = true
-    opts.onState('ended')
-    dispose()
+    emitEnded('ended')
   })
 
   room.on(
@@ -392,8 +451,12 @@ export async function startLiveKitCall(
       }
     },
     end() {
-      opts.onState('ended')
-      dispose()
+      // Use emitEnded so the 'ended' UI emission is idempotent with
+      // the post-disconnect ConnectionStateChanged path — the latter
+      // may also try to clean up resources but must NOT double-fire
+      // 'ended' to the chat page (which would clear callState in
+      // the middle of the activeCallStore.reset cycle).
+      emitEnded('ended')
     },
     toggleMute() {
       muted = !muted
