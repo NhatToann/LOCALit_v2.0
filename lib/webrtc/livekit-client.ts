@@ -186,6 +186,13 @@ export async function startLiveKitCall(
 ): Promise<LiveKitCallClient> {
   const callId = `${opts.roomName}:${Date.now()}`
   const mode: CallMode = opts.video ? 'video' : 'voice'
+  // (2026-10-02 hardening) The whole call hangs forever if `room.connect`
+  // never returns and ConnectionStateChanged: Connected never fires
+  // (e.g. LiveKit server outage, WebSocket blocked, DNS hang). We
+  // race the connect against a 15s timeout — whichever wins — so the
+  // chat page can surface 'failed' rather than sitting on
+  // 'Connecting…' indefinitely.
+  const CONNECT_TIMEOUT_MS = 15_000
   const { token, wsUrl } = await fetchToken(
     opts.roomName,
     opts.participantName ?? '',
@@ -320,7 +327,24 @@ export async function startLiveKitCall(
     },
   )
 
-  await room.connect(wsUrl, token)
+  // Race the connect against a 15s timeout so a hung LiveKit server
+  // doesn't trap the user on 'Connecting…' forever. On timeout we
+  // surface 'failed' and let the chat page tear down the call.
+  let connectTimer: ReturnType<typeof setTimeout> | null = null
+  const connectPromise = room.connect(wsUrl, token).catch((err) => {
+    if (connectTimer) clearTimeout(connectTimer)
+    throw err
+  })
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    connectTimer = setTimeout(() => {
+      reject(new Error(`LiveKit connect timed out after ${CONNECT_TIMEOUT_MS}ms`))
+    }, CONNECT_TIMEOUT_MS)
+  })
+  try {
+    await Promise.race([connectPromise, timeoutPromise])
+  } finally {
+    if (connectTimer) clearTimeout(connectTimer)
+  }
   // Local stream is published separately by publishMic() after the
   // user has confirmed camera/mic permission — we never grab the
   // camera/mic in the background.

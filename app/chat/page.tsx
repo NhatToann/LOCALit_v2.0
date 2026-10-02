@@ -217,6 +217,15 @@ function ChatInner() {
       // chat list per the call-flow spec (2026-10-01).
       const activeCall = activeCallStore.getState().active
       const conversationId = activeCall?.conversationId ?? activeId
+      // Snapshot the callClient we're cleaning up. If the user starts
+      // a new call inside the 1500ms window, `callClient` will have
+      // been replaced by the next startOutgoingCall() invocation, and
+      // we must NOT null it out or call unregisterCallClient() on the
+      // new one. The captured `endingCallClient` below is the
+      // identity check.
+      const endingCallClient = callClient
+      const endingCallId =
+        activeCall?.callId ?? `ended:${Date.now()}:${Math.random()}`
       if (conversationId && activeCall) {
         const durationSeconds = callStartedAt
           ? Math.max(0, Math.floor((Date.now() - callStartedAt) / 1000))
@@ -234,18 +243,45 @@ function ChatInner() {
       // Give the CallModal time to render the "ended" frame, then
       // dismiss. 1500ms matches CallModal's auto-dismiss timer so the
       // user sees the "Call ended · MM:SS" headline.
+      //
+      // (2026-10-02 critical fix) The cleanup uses captured refs
+      // (`endingCallClient`, `endingCallId`) so that if the user
+      // starts a NEW call inside this 1500ms window — which was the
+      // '2nd call seriously broken' symptom reported today — the
+      // new call's callClient / callState is NOT overwritten by this
+      // older timeout firing.
       const id = setTimeout(() => {
         if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null
-        if (callClient) {
-          unregisterCallClient(
-            activeCallStore.getState().active?.callId ?? '',
-          )
+        if (endingCallClient && callClient === endingCallClient) {
+          unregisterCallClient(endingCallId)
+          setCallClient(null)
+          setCallPartner(null)
+          setCallStartedAt(null)
+          setCallState('idle')
         }
-        setCallClient(null)
-        setCallPartner(null)
-        setCallStartedAt(null)
-        setCallState('idle')
       }, 1500)
+      return () => clearTimeout(id)
+    }
+    if (callState === 'failed' && callClient) {
+      // Failed state — LiveKit connect hung, mic denied, etc. The
+      // failure is short-lived (chat page already shows the error for
+      // 2.5s and tears down the activeCallStore entry). Same
+      // identity-check fix: only clean up if the current callClient
+      // is still the failed one.
+      const endingCallClient = callClient
+      const endingCallId =
+        activeCallStore.getState().active?.callId ?? ''
+      const id = setTimeout(() => {
+        if (endingCallClient && callClient === endingCallClient) {
+          unregisterCallClient(endingCallId)
+          setCallClient(null)
+          setCallPartner(null)
+          setCallStartedAt(null)
+          // Note: do NOT setCallState('idle') here — the chat page's
+          // catch block already does that within ~2.5s of 'failed'
+          // firing, and any earlier write here would race it.
+        }
+      }, 2500)
       return () => clearTimeout(id)
     }
     return undefined
@@ -1312,6 +1348,18 @@ function ChatInner() {
       cancelled = true
     }
   }, [callParam, loading, myId, callClient])
+
+  // (2026-10-02 fix) We do NOT auto-end the call when the chat page
+  // unmounts. The chat page owns the WebRTC peer connection (per
+  // call-flow spec), and ActiveCallSheet is just the visual mount
+  // spanning pages. If the user navigates away from /chat mid-call,
+  // the modal stays open via ActiveCallSheet and the call continues
+  // — the user has to click End on the modal (or close the tab) to
+  // stop the call.
+  //
+  // The '2nd call seriously broken' bug from 2026-10-02 came from a
+  // different cause (see livekit-client.ts toString hardening for the
+  // exact fix). We do nothing on unmount here.
 
   // Search filter
   const filteredMessages = useMemo(() => {
