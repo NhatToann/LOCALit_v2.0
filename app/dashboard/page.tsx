@@ -249,7 +249,7 @@ export default function DashboardPage() {
             <h2 id="buddies-available-now-title" className="text-section-title">
               Buddies available now in Da Nang
             </h2>
-            <Link href="/browse" className="text-sm text-primary hover:underline">
+            <Link href="/search?sort=match" className="text-sm text-primary hover:underline">
               See all
             </Link>
           </div>

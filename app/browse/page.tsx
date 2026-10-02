@@ -463,6 +463,14 @@ function BrowseContent() {
               >
                 View profile
               </Link>
+              {selectedBuddy.specialties.length > 0 ? (
+                <Link
+                  href={`/search?tag=${encodeURIComponent(selectedBuddy.specialties[0])}`}
+                  className="inline-flex items-center justify-center mt-2 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper w-full"
+                >
+                  Find similar buddies
+                </Link>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -622,6 +630,14 @@ function BrowseContent() {
                         >
                           View profile
                         </Link>
+                        {b.specialties.length > 0 ? (
+                          <Link
+                            href={`/search?tag=${encodeURIComponent(b.specialties[0])}`}
+                            className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-surface"
+                          >
+                            Find similar
+                          </Link>
+                        ) : null}
                         <Link
                           href={`/chat?buddy=${b.id}`}
                           className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-surface"

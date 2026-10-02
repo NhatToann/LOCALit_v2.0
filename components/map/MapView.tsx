@@ -182,6 +182,20 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
                 ) : null}
                 <div style={{ fontSize: 12, marginTop: 4 }}>{b.is_online ? 'Online' : 'Offline'}</div>
                 <Link
+                  href={`/search?lat=${b.lat}&lng=${b.lng}&radius=5`}
+                  style={{
+                    display: 'inline-block',
+                    marginTop: 8,
+                    color: '#0F0F0F',
+                    fontWeight: 500,
+                    fontSize: 12,
+                    textDecoration: 'none',
+                    marginRight: 8,
+                  }}
+                >
+                  Buddies near here
+                </Link>
+                <Link
                   href={`/buddies/${b.id}`}
                   style={{
                     display: 'inline-block',
