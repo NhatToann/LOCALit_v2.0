@@ -120,39 +120,26 @@ function fmtDuration(seconds: number): string {
 /**
  * The headline shown below the avatar.
  *
- * Per call-flow spec (2026-10-02 update 3): the duration timer 00:00
- * starts ONLY when both sides have joined the LiveKit room and media
- * is flowing (state === 'connected'). Before that:
- *   - caller sees "Calling X…" while waiting for the receiver to accept
- *   - receiver sees "Incoming call" while the Accept popup is up
- *   - both sides see "Connecting…" during the LiveKit handshake
- *     (after the receiver has clicked Accept but before the room is
- *     fully wired up)
- * The timer is the single source of truth once the call is live.
+ * Per call-flow spec (2026-10-02 update 04): the headline is the
+ * duration timer 00:00 for BOTH sides at all times — caller pre-accept,
+ * caller post-accept, receiver post-accept, and once the LiveKit
+ * room is fully wired up. The clock COUNTS only when both peers are
+ * in the room (state === 'connected') — before that it stays frozen
+ * at 00:00 even though the timer element is visible. This way neither
+ * side sees "Calling X…" / "Connecting to server…" / "Incoming call"
+ * and neither sees a clock that ticks while the other is still on a
+ * pre-connect state — the clock is always the single source of truth
+ * in the headline slot.
  */
 function headlineFor(
   state: CallState,
-  isOutgoing: boolean,
-  partnerFirstName: string,
   duration: number,
 ): { text: string; tone: 'default' | 'success' | 'danger' } {
   switch (state) {
     case 'calling':
-      // Caller side, pre-accept. The user is dialing.
-      return { text: `Calling ${partnerFirstName}…`, tone: 'default' }
     case 'ringing':
-      // Receiver side, pre-accept. The user is being asked to accept.
-      // Caller-side ringing (signal delivered, awaiting LiveKit handshake)
-      // also falls in this branch.
-      return isOutgoing
-        ? { text: `Calling ${partnerFirstName}…`, tone: 'default' }
-        : { text: 'Incoming call', tone: 'success' }
     case 'connecting':
-      // LiveKit room handshake in progress (after the receiver has
-      // clicked Accept but before the connection is fully established).
-      return { text: 'Connecting…', tone: 'default' }
     case 'connected':
-      // Both peers in the room, media flowing. Timer is the focus.
       return { text: fmtDuration(duration), tone: 'default' }
     case 'declined':
       return { text: 'Call declined', tone: 'danger' }
@@ -325,13 +312,7 @@ export default function CallModal({
   const isTerminal =
     state === 'ended' || state === 'declined' || state === 'missed' || state === 'failed'
   const supportsSpeaker = Boolean(audioRef?.current) && client != null && !isTerminal
-  const partnerFirstName = partnerName.split(' ')[0] || partnerName
-  const { text: headlineText, tone: headlineTone } = headlineFor(
-    state,
-    isOutgoing,
-    partnerFirstName,
-    duration,
-  )
+  const { text: headlineText, tone: headlineTone } = headlineFor(state, duration)
   const headlineClass =
     headlineTone === 'danger'
       ? 'text-sm text-danger font-medium mt-1'
@@ -457,14 +438,18 @@ export default function CallModal({
           ) : null}
         </div>
 
-        {/* Footer controls */}
-        <div className="border-t border-border bg-surface">
-          {isIncomingRinging ? (
-            <CallActionFooter
-              onAccept={handleAccept}
-              onDecline={handleDecline}
-              size="md"
-            />
+        {/* Footer controls — buttons centred horizontally regardless of
+              which footer variant (mute strip / close / call-again) is
+              active. The gap-3 pad gives ~4 px breathing room between
+              buttons; justify-center packs the row as a whole at the
+              horizontal midpoint of the modal. */}
+          <div className="border-t border-border bg-surface flex items-center justify-center gap-3 p-4">
+            {isIncomingRinging ? (
+              <CallActionFooter
+                onAccept={handleAccept}
+                onDecline={handleDecline}
+                size="md"
+              />
           ) : isTerminal ? (
             <>
               {state === 'missed' ? (

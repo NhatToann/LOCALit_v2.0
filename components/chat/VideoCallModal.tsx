@@ -100,31 +100,23 @@ function fmtDuration(seconds: number): string {
 /**
  * The headline shown below the avatar.
  *
- * Per call-flow spec (2026-10-02 update 03): the duration timer
- * starts ONLY when both sides have joined the LiveKit room and media
- * is flowing (state === 'connected'). Before that:
- *   - caller sees "Calling X…" while waiting for the receiver to accept
- *   - receiver sees "Incoming video call" while the Accept popup is up
- *   - both sides see "Connecting…" during the LiveKit handshake
- *     (after the receiver has clicked Accept but before the room is
- *     fully wired up)
- * The timer is the single source of truth once the call is live.
+ * Per call-flow spec (2026-10-02 update 04): the headline is the
+ * duration timer 00:00 for BOTH sides at all times — caller pre-accept,
+ * caller post-accept, receiver post-accept, and once the LiveKit
+ * room is fully wired up. The clock COUNTS only when both peers are
+ * in the room (state === 'connected'). This way neither side sees
+ * a "Calling X…" / "Connecting…" / "Incoming video call" headline
+ * and neither sees a clock that ticks while the other is still on a
+ * pre-connect state.
  */
 function headlineFor(
   state: CallState,
-  isOutgoing: boolean,
-  partnerFirstName: string,
   duration: number,
 ): { text: string; tone: 'default' | 'success' | 'danger' } {
   switch (state) {
     case 'calling':
-      return { text: `Calling ${partnerFirstName}…`, tone: 'default' }
     case 'ringing':
-      return isOutgoing
-        ? { text: `Calling ${partnerFirstName}…`, tone: 'default' }
-        : { text: 'Incoming video call', tone: 'success' }
     case 'connecting':
-      return { text: 'Connecting…', tone: 'default' }
     case 'connected':
       return { text: fmtDuration(duration), tone: 'default' }
     case 'declined':
@@ -256,11 +248,8 @@ export default function VideoCallModal({
     void client?.decline()
   }, [client])
 
-  const partnerFirstName = partnerName.split(' ')[0] || partnerName
   const { text: headlineText, tone: headlineTone } = headlineFor(
     state,
-    isOutgoing,
-    partnerFirstName,
     duration,
   )
   const headlineClass =
