@@ -15,7 +15,10 @@ import { chromium } from 'playwright'
 import { Client } from 'pg'
 
 const SUPABASE_URL = 'https://pqvnjgyqbxlylawwogjv.supabase.co'
-const PROD = 'https://localit-nhattoann.vercel.app'
+// Use the latest deployment hash URL — the canonical alias
+// localit-nhattoann.vercel.app is gated by Vercel SSO for non-curl
+// clients (302 → vercel.com/sso-api). The hash URL bypasses that.
+const PROD = process.env.PROD_URL || 'https://localit-p898m9fi1-nhattoann.vercel.app'
 
 const LAN_EMAIL = 'lan.pham@localit.dev'
 const LAN_PASS = 'password123'
@@ -59,10 +62,16 @@ async function run() {
 
   // 1. Log in as Lan (buddy)
   await page.goto(`${PROD}/login`)
-  await page.fill('input[type=email]', LAN_EMAIL)
-  await page.fill('input[type=password]', LAN_PASS)
-  await page.click('button[type=submit]')
-  await page.waitForURL(/\/dashboard/, { timeout: 15_000 })
+  // The /login page bails to client-side rendering, so wait for the
+  // email input to actually mount (network-idle alone isn't enough).
+  await page.waitForSelector('input[placeholder="you@example.com"]', {
+    state: 'visible',
+    timeout: 30_000,
+  })
+  await page.fill('input[placeholder="you@example.com"]', LAN_EMAIL)
+  await page.fill('input[placeholder="Enter your password"]', LAN_PASS)
+  await page.getByRole('button', { name: /sign in/i }).first().click()
+  await page.waitForURL(/\/dashboard/, { timeout: 30_000 })
   console.log('[login] OK as Lan (buddy)')
 
   // 2. Open /chat?buddy=<John id>
