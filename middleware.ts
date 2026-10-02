@@ -33,7 +33,13 @@ export async function middleware(request: NextRequest) {
 
   // Auth routes — allow if logged in (redirect to dashboard) or not logged in
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register')
-  const isPublicRoute = pathname === '/' || pathname.startsWith('/forgot-password')
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname.startsWith('/forgot-password') ||
+    pathname === '/search' ||
+    pathname === '/browse' ||
+    pathname === '/map' ||
+    pathname.startsWith('/buddies/') // public buddy profile pages
   const isVerifyEmailRoute = pathname.startsWith('/verify-email')
 
   // If on auth pages while logged in, redirect to dashboard.
