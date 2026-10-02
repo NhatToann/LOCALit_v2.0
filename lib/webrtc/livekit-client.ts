@@ -226,17 +226,21 @@ export async function startLiveKitCall(
   // Track the conditions required for "both peers are live":
   //   - the local LiveKit room has reached Connected state
   //   - at least one remote participant has joined
-  //   - at least one remote track has been subscribed
-  // The headline timer (00:00) starts ONLY when all three are true.
-  // This guarantees the timer on both sides counts up from the same
-  // moment — the moment media actually begins flowing — so neither side
-  // ever sees a clock ticking while the other is still on
-  // "Connecting…" / "Calling X…".
+  // The headline timer (00:00) starts ONLY when BOTH are true.
+  //
+  // Why we don't require a remote TRACK (2026-10-02 bug): if either
+  // side denies mic permission, `publishMic()` aborts and never
+  // publishes a track. The other side's TrackSubscribed event then
+  // never fires, which means the call would sit on "Connecting…"
+  // forever — the user reported this exact symptom on 2026-10-02.
+  // The call is "live" the moment both peers are in the LiveKit
+  // room, regardless of whether the mic track is published yet; the
+  // chat page will surface the mic-denied state separately if it
+  // happens.
   let localConnected = false
   let hasRemoteParticipant = false
-  let hasRemoteTrack = false
   const maybeFireConnected = () => {
-    if (localConnected && hasRemoteParticipant && hasRemoteTrack) {
+    if (localConnected && hasRemoteParticipant) {
       opts.onState('connected')
     }
   }
@@ -267,6 +271,9 @@ export async function startLiveKitCall(
   room.on(
     RoomEvent.TrackSubscribed,
     (track, _pub: RemoteTrackPublication, _participant: RemoteParticipant) => {
+      // We still want to surface the remote media stream to the UI, but
+      // we DO NOT gate the headline timer on this event — see comment
+      // above about mic-denied edge cases.
       if (track.kind === Track.Kind.Audio) {
         const remote = track as RemoteAudioTrack
         const stream = new MediaStream([remote.mediaStreamTrack])
@@ -275,8 +282,6 @@ export async function startLiveKitCall(
         const remote = track as RemoteVideoTrack
         opts.onRemoteVideoTrack?.(remote)
       }
-      hasRemoteTrack = true
-      maybeFireConnected()
     },
   )
 
@@ -315,14 +320,12 @@ export async function startLiveKitCall(
       }
       published = true
       // If the room is already connected AND the remote peer has
-      // already joined AND subscribed a track, the
-      // RoomEvent.ConnectionStateChanged / ParticipantConnected /
-      // TrackSubscribed handlers have already fired 'connected'. But
-      // there's a race where we joined second AND the remote was
-      // already in the room waiting when we connected: in that case
-      // we may not have received a fresh TrackSubscribed event for
-      // the pre-existing remote. Run maybeFireConnected() to cover
-      // that race.
+      // already joined, the ConnectionStateChanged / ParticipantConnected
+      // handlers have already fired 'connected'. But there's a race
+      // where we joined second AND the remote was already in the room
+      // waiting when we connected: in that case we may not have
+      // received a fresh ParticipantConnected event for the pre-existing
+      // remote. Run maybeFireConnected() to cover that race.
       if (room.state === ConnectionState.Connected) {
         localConnected = true
         if (room.remoteParticipants.size > 0) hasRemoteParticipant = true
