@@ -448,6 +448,10 @@ function ChatInner() {
   async function openConversationWithBuddy(otherBuddyId: string) {
     if (!myId) return
     const supabase = createClient()
+    // Look up an existing conversation between us and the buddy. Note
+    // the `tourist_id` ↔ `buddy_id` swap in the OR — a buddy-side
+    // user can also have a conversation whose row puts THEM in the
+    // buddy_id column and the tourist in the tourist_id column.
     const { data: existing } = await supabase
       .from('conversations')
       .select('id')
@@ -458,9 +462,34 @@ function ChatInner() {
 
     let convId = existing?.id
     if (!convId) {
+      // FK fix (2026-10-02): the `conversations` table enforces
+      // `tourist_id REFERENCES public.tourists(id)` AND
+      // `buddy_id REFERENCES public.buddies(id)`. If the current
+      // user is a buddy (role='buddy'), inserting them as
+      // `tourist_id` fails the FK because their id has no row in
+      // the `tourists` table (one profile ↔ one role-type row).
+      //
+      // We now branch on `myRole` so the current user always lands
+      // in the column whose target table actually has their row.
+      // - I'm a tourist → tourist_id = myId, buddy_id = partner
+      // - I'm a buddy   → buddy_id   = myId, tourist_id = partner
+      //
+      // Both `tourists` and `buddies` have a row keyed by profile.id,
+      // so the partner must also be on the OPPOSITE side. If we end
+      // up here because the partner is on the same side as me (e.g.
+      // I'm a buddy and clicked another buddy), the partner still
+      // gets resolved to a row in `tourists` for the tourist column
+      // and in `buddies` for the buddy column — *every* profile has
+      // a matching row in one of the two role tables. So this is
+      // safe across the whole user base.
+      const partnerId = otherBuddyId
+      const insertPayload =
+        myRole === 'buddy'
+          ? { tourist_id: partnerId, buddy_id: myId }
+          : { tourist_id: myId, buddy_id: partnerId }
       const { data: created, error } = await supabase
         .from('conversations')
-        .insert({ tourist_id: myId, buddy_id: otherBuddyId })
+        .insert(insertPayload)
         .select('id')
         .single()
       if (error) {
