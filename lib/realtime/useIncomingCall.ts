@@ -114,7 +114,21 @@ export function useIncomingCall(currentUserId: string | null): IncomingCall | nu
           }
           if (DEBUG_CALL) {
             // eslint-disable-next-line no-console
-            console.log('[dlog] useIncomingCall INSERT', row.id, 'status', row.status)
+            console.log('[dlog] useIncomingCall INSERT', row.id, 'status', row.status, 'callee', row.callee_id, 'mine', currentUserId)
+          }
+          // (2026-10-02 bug fix) The Realtime `callee_id=eq.<myId>`
+          // filter is best-effort: Supabase occasionally delivers
+          // INSERT events for rows that don't actually match the
+          // server-side filter, which causes the caller to see a
+          // phantom "Incoming voice call" notification for the very
+          // row they themselves just inserted. Re-check the row's
+          // callee_id here so the caller never sees their own ring.
+          if (row.callee_id !== currentUserId) {
+            if (DEBUG_CALL) {
+              // eslint-disable-next-line no-console
+              console.log('[dlog] useIncomingCall INSERT ignored: callee_id mismatch')
+            }
+            return
           }
           if (row.status !== 'ringing') return
           // Only show if there isn't already an incoming call surfaced.

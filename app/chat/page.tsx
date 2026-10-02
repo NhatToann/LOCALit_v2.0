@@ -977,7 +977,17 @@ function ChatInner() {
       // the original startedAt so the call timer counts from the
       // moment the user clicked Phone, not from when LiveKit
       // finished its handshake.
-      const originalStartedAt = activeCallStore.getActive()?.startedAt ?? Date.now()
+      //
+      // (2026-10-02 bug fix) Do NOT overwrite `state` here. By the
+      // time we reach this line, LiveKit has already run through
+      // its connecting→connected handshake and `opts.onState` has
+      // patched `active.startedAt` and `active.state` to 'connected'.
+      // Re-issuing setActive with state:'calling' would rewind the
+      // call UI back to "Calling <name>…" and erase the connected
+      // timer the survivor is watching. Read the current state from
+      // the store and pass it through verbatim.
+      const currentActive = activeCallStore.getActive()
+      const swapStartedAt = currentActive?.startedAt ?? Date.now()
       activeCallStore.setActive({
         callId: realCallId,
         conversationId,
@@ -986,11 +996,14 @@ function ChatInner() {
         partnerAvatar,
         isOutgoing: true,
         mode,
-        state: 'calling',
-        networkStatus: 'online',
-        quality: null,
-        errorMessage: null,
-        startedAt: originalStartedAt,
+        // Preserve whatever state LiveKit has driven us to — usually
+        // 'connected' by this point, but 'connecting' if mic publish
+        // is still pending.
+        state: currentActive?.state ?? 'calling',
+        networkStatus: currentActive?.networkStatus ?? 'online',
+        quality: currentActive?.quality ?? null,
+        errorMessage: currentActive?.errorMessage ?? null,
+        startedAt: swapStartedAt,
       })
       // Wire the registry swap so the sheet can resolve the new
       // callId. We re-register under both keys to avoid a 250ms
@@ -1238,7 +1251,17 @@ function ChatInner() {
       // Preserve the original startedAt so the call timer counts
       // from the moment the user clicked Accept, not from when the
       // LiveKit client was created.
-      const originalStartedAt = activeCallStore.getActive()?.startedAt ?? Date.now()
+      //
+      // (2026-10-02 bug fix) Do NOT hard-code state:'connecting' here.
+      // By the time publishMic() resolves, the LiveKit client has
+      // already gone through its connecting→connected handshake and
+      // opts.onState has patched the store to state:'connected' +
+      // startedAt:Date.now(). Re-issuing setActive with the hard-coded
+      // 'connecting' would rewind the survivor's modal back to the
+      // "Connecting…" frame and erase the connected timer. Read the
+      // current store entry and pass state through verbatim.
+      const currentActive = activeCallStore.getActive()
+      const swapStartedAt = currentActive?.startedAt ?? Date.now()
       activeCallStore.setActive({
         callId: pendingCallId,
         conversationId,
@@ -1247,11 +1270,11 @@ function ChatInner() {
         partnerAvatar,
         isOutgoing: false,
         mode: incomingMode,
-        state: 'connecting',
-        networkStatus: 'online',
-        quality: null,
-        errorMessage: null,
-        startedAt: originalStartedAt,
+        state: currentActive?.state ?? 'connecting',
+        networkStatus: currentActive?.networkStatus ?? 'online',
+        quality: currentActive?.quality ?? null,
+        errorMessage: currentActive?.errorMessage ?? null,
+        startedAt: swapStartedAt,
       })
     } catch (e) {
       setError('Could not accept call: ' + (e as Error).message)
