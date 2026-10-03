@@ -19,7 +19,7 @@ async function fetchBuddy(id: string): Promise<{
   const supabase = createClient()
   const { data: b } = await supabase
     .from('safe_buddies')
-    .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, favorite_places, trips_completed, rating_avg, transport, transport_note, profile:safe_profiles(id, full_name, avatar_url, is_online, bio, role)')
+    .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, favorite_places, trips_completed, rating_avg, transport, transport_note, profile:safe_profiles(id, full_name, avatar_url, is_online, role)')
     .eq('id', id)
     .maybeSingle<Buddy & { profile: Profile }>()
   if (!b) return null
