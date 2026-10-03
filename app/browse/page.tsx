@@ -297,13 +297,6 @@ function BrowseContent() {
             {loading ? 'Loading Da Nang buddies...' : `${filtered.length} ${filtered.length === 1 ? 'buddy' : 'buddies'}${destinationFilter ? ` for "${destinationFilter}"` : ''}`}
           </p>
         </div>
-        <Link
-          href="/map"
-          className="inline-flex items-center gap-2 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-        >
-          <MapIcon size={16} aria-hidden="true" />
-          Open map
-        </Link>
       </header>
 
       {/* Filters */}

@@ -38,11 +38,6 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/map" className="text-muted hover:text-ink transition-colors duration-150">
-                  Live buddy map
-                </Link>
-              </li>
-              <li>
                 <Link href="/trips" className="text-muted hover:text-ink transition-colors duration-150">
                   Trips
                 </Link>

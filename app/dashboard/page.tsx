@@ -221,12 +221,6 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-3">
             <ShareStatusBadge granted={selfGranted} denied={selfDenied} hasFix={hasGpsFix} />
-            <Link
-              href="/map"
-              className="inline-flex items-center h-8 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-            >
-              Open full map
-            </Link>
           </div>
         </div>
         <div className="h-[420px] lg:h-[520px]">

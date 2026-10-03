@@ -27,10 +27,10 @@ export default function NotFound() {
             Back to home
           </Link>
           <Link
-            href="/map"
+            href="/browse"
             className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-surface text-ink border border-border-strong hover:bg-paper"
           >
-            Open the buddy map
+            Browse buddies
           </Link>
         </div>
       </article>

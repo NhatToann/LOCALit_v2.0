@@ -26,13 +26,11 @@ interface HeaderProps {
 const GUEST_LINKS = [
   { path: '/', label: 'Home' },
   { path: '/browse', label: 'Buddies' },
-  { path: '/map', label: 'Map' },
 ]
 
 const LOGGED_IN_LINKS = [
   { path: '/dashboard', label: 'Dashboard' },
   { path: '/browse', label: 'Buddies' },
-  { path: '/map', label: 'Map' },
   { path: '/trips', label: 'Trips' },
   { path: '/chat', label: 'Messages' },
 ]

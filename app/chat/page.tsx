@@ -18,7 +18,6 @@ import {
   Reply,
   Star,
   MapPin,
-  Map as MapIcon,
   Calendar,
   Image as ImageIcon,
   Check,
@@ -1514,13 +1513,6 @@ function ChatInner() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/map"
-            className="inline-flex items-center gap-1 h-9 px-3 text-sm rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
-          >
-            <MapIcon size={14} aria-hidden="true" />
-            View map
-          </Link>
           <button
             type="button"
             onClick={() => setShowSearch((s) => !s)}

@@ -131,12 +131,6 @@ function HomeContent() {
             >
               Browse Da Nang buddies
             </a>
-            <a
-              href="/map"
-              className="inline-flex items-center justify-center h-12 px-6 text-base font-medium rounded-sm bg-transparent text-paper border border-paper/40 hover:bg-paper/10"
-            >
-              See the live buddy map
-            </a>
           </div>
           <p className="text-sm text-paper/70">
             Or{' '}
