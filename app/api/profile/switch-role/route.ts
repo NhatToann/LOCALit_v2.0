@@ -22,7 +22,7 @@
  *      Same the other way.
  */
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@/utils/supabase/auth'
+import { createClient } from '@/utils/supabase/server'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 
 interface Body {
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- Session check ---------------------------------------------------------
-  const supabase = createClient()
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
