@@ -7,7 +7,7 @@ import BuddyPublicView from '@/components/buddy/BuddyPublicView'
 export const dynamic = 'force-dynamic'
 
 interface PageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 async function fetchBuddy(id: string): Promise<{
@@ -17,12 +17,11 @@ async function fetchBuddy(id: string): Promise<{
   ratingCount: number
 } | null> {
   const supabase = await createClient()
-  const { data: b, error: bErr } = await supabase
+  const { data: b } = await supabase
     .from('safe_buddies')
     .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, favorite_places, trips_completed, rating_avg, transport, transport_note, profile:safe_profiles(id, full_name, avatar_url, is_online, role)')
     .eq('id', id)
     .maybeSingle<Buddy & { profile: Profile }>()
-  console.log('[buddies/[id]] query', { id, hasData: !!b, err: bErr?.message ?? null, profile: b?.profile })
   if (!b) return null
 
   const { data: reviews } = await supabase
@@ -46,7 +45,8 @@ async function fetchBuddy(id: string): Promise<{
 }
 
 export default async function BuddyDetailPage({ params }: PageProps) {
-  const data = await fetchBuddy(params.id)
+  const { id } = await params
+  const data = await fetchBuddy(id)
   if (!data) notFound()
   return (
     <Suspense
