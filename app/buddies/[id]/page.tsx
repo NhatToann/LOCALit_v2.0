@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
-import { createClient } from '@/utils/supabase/auth'
+import { createClient } from '@/utils/supabase/server'
 import type { Buddy, Profile } from '@/lib/types'
 import BuddyPublicView from '@/components/buddy/BuddyPublicView'
 
