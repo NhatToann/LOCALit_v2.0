@@ -25,6 +25,8 @@ interface Props {
   userLocation: { lat: number; lng: number }
   height?: string | number
   showSelfMarker?: boolean
+  /** True when the caller has confirmed the user's GPS fix (not the Da Nang fallback). */
+  hasGpsFix?: boolean
   onSelectBuddy?: (id: string) => void
   /** Other signed-in users sharing their live position (no DB). */
   liveLocations?: LiveLocation[]
@@ -57,7 +59,7 @@ function livePulseIcon(): L.DivIcon {
   })
 }
 
-export default function MapView({ userLocation, height = '100%', showSelfMarker = true, onSelectBuddy, liveLocations = [], selfLiveOverride = false }: Props) {
+export default function MapView({ userLocation, height = '100%', showSelfMarker = true, hasGpsFix = false, onSelectBuddy, liveLocations = [], selfLiveOverride = false }: Props) {
   const [buddies, setBuddies] = useState<BuddyPin[]>([])
   const [tourists, setTourists] = useState<BuddyPin[]>([])
   const [loading, setLoading] = useState(true)
@@ -158,9 +160,17 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         />
         <FlyToUser />
 
-        {showSelfMarker && !selfLiveOverride && (
-          <Marker position={[userLocation.lat, userLocation.lng]} icon={flatIcon('Y', INK)}>
-            <Popup><strong>You are here</strong></Popup>
+        {/* Self marker — only when we have a real GPS fix (not the Da Nang fallback).
+            When selfLiveOverride is true the user is actively broadcasting live,
+            so we use the pulsing live icon. Otherwise the flat dark "Y" dot. */}
+        {showSelfMarker && hasGpsFix && (
+          <Marker
+            position={[userLocation.lat, userLocation.lng]}
+            icon={selfLiveOverride ? livePulseIcon() : flatIcon('Y', INK)}
+          >
+            <Popup>
+              <strong>{selfLiveOverride ? 'You (live)' : 'You are here'}</strong>
+            </Popup>
           </Marker>
         )}
 

@@ -79,6 +79,7 @@ function BrowseContent() {
   const [savedHydrated, setSavedHydrated] = useState(false)
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number }>({ lat: 16.0544, lng: 108.2023 })
+  const [hasGpsFix, setHasGpsFix] = useState(false)
   const [shareLocation, setShareLocation] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   // Distance slider — 50 means "Any distance" (no upper bound applied).
@@ -110,11 +111,19 @@ function BrowseContent() {
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {},
-      { enableHighAccuracy: true, timeout: 5000 }
+    // watchPosition (not getCurrentPosition) so the "You" dot follows the
+    // user while the page is open — important on mobile, harmless on desktop.
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setHasGpsFix(true)
+      },
+      () => {
+        setHasGpsFix(false)
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
     )
+    return () => navigator.geolocation.clearWatch(id)
   }, [])
 
   useEffect(() => {
@@ -427,6 +436,7 @@ function BrowseContent() {
           <MapView
             userLocation={userLocation}
             height={340}
+            hasGpsFix={hasGpsFix || selfGranted}
             onSelectBuddy={(id) => { setSelectedMapId(id); setExpandedBuddyId(id) }}
             liveLocations={liveLocations}
             selfLiveOverride={selfGranted}

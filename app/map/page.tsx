@@ -35,6 +35,7 @@ export default function MapPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [shareLocation, setShareLocation] = useState(false)
+  const [hasGpsFix, setHasGpsFix] = useState(false)
   // FIX (2026-09-27): auth state must come from the Supabase session, NOT from
   // the geolocation permission grant. Previously, users who denied or timed
   // out on geolocation were incorrectly flagged as "not signed in" even when
@@ -44,6 +45,8 @@ export default function MapPage() {
   // Geolocation — used ONLY to position the user's dot on the map.
   const userLocation = useLocationWatcher({
     writeToDb: false,
+    onGranted: () => setHasGpsFix(true),
+    onDenied: () => setHasGpsFix(false),
   })
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
@@ -179,6 +182,7 @@ export default function MapPage() {
         <MapView
           userLocation={userLocation}
           height="100%"
+          hasGpsFix={hasGpsFix || selfGranted}
           onSelectBuddy={(id) => setSelectedId(id)}
           liveLocations={liveLocations}
           selfLiveOverride={selfGranted}

@@ -227,6 +227,7 @@ export default function DashboardPage() {
           <MapView
             userLocation={userLocation}
             height="100%"
+            hasGpsFix={hasGpsFix || selfGranted}
             selfLiveOverride={selfGranted}
             liveLocations={liveLocations}
           />
