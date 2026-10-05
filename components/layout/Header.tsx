@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { Menu, User, Search, LogOut, X, MapPin } from 'lucide-react';
+import { Menu, User, LogOut, X, MapPin } from 'lucide-react';
 import { createClient } from '@/utils/supabase/auth';
 import { useRouter } from 'next/navigation';
 import { NavHint } from './NavHint';
@@ -134,15 +134,6 @@ export default function Header({ userName, userId }: HeaderProps) {
                   >
                     <User size={16} aria-hidden="true" />
                     My Profile
-                  </Link>
-                  <Link
-                    href="/browse"
-                    onClick={() => setMenuOpen(false)}
-                    role="menuitem"
-                    className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-ink hover:bg-paper"
-                  >
-                    <Search size={16} aria-hidden="true" />
-                    Find a Buddy
                   </Link>
                   <div className="h-px bg-border my-1" role="separator" />
                   <button
