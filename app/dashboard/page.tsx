@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/utils/supabase/auth';
-import { Briefcase, Users, Clock, Send, MapPin, Calendar, User, Search, MessageCircle, UserCircle, Compass, Phone } from 'lucide-react';
+import { Briefcase, Users, Clock, Send, MapPin, Calendar, User, Search, MessageCircle, UserCircle, Compass, Phone, Heart } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/Avatar';
 import type { Profile, Trip, Connection } from '@/lib/types';
@@ -502,6 +502,12 @@ export default function DashboardPage() {
         <h2 className="text-lg font-semibold mb-3">Quick actions</h2>
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <QuickAction
+            href="/swipe"
+            icon={Heart}
+            title="Swipe to match"
+            subtitle="Find buddies that share your interests"
+          />
+          <QuickAction
             href="/browse"
             icon={Search}
             title="Find buddies"
@@ -512,12 +518,6 @@ export default function DashboardPage() {
             icon={Briefcase}
             title="Plan a new trip"
             subtitle="Sketch a Da Nang itinerary"
-          />
-          <QuickAction
-            href="/profile"
-            icon={User}
-            title="Edit profile"
-            subtitle="Interests, languages, arrival"
           />
         </ul>
       </section>

@@ -7,6 +7,7 @@ import { Menu, User, LogOut, X, MapPin } from 'lucide-react';
 import { createClient } from '@/utils/supabase/auth';
 import { useRouter } from 'next/navigation';
 import { NavHint } from './NavHint';
+import { LikesBadge } from './LikesBadge';
 
 /**
  * Header (2026-10-01 — unified, single web).
@@ -30,6 +31,8 @@ const GUEST_LINKS = [
 
 const LOGGED_IN_LINKS = [
   { path: '/dashboard', label: 'Dashboard' },
+  { path: '/swipe', label: 'Swipe' },
+  { path: '/likes', label: 'Likes' },
   { path: '/browse', label: 'Buddies' },
   { path: '/trips', label: 'Trips' },
   { path: '/chat', label: 'Messages' },
@@ -98,6 +101,7 @@ export default function Header({ userName, userId }: HeaderProps) {
                 aria-current={active ? 'page' : undefined}
               >
                 {link.label}
+                {link.path === '/likes' && userId ? <LikesBadge userId={userId} /> : null}
                 <NavHint />
               </Link>
             );
@@ -192,12 +196,13 @@ export default function Header({ userName, userId }: HeaderProps) {
               <Link
                 key={link.path}
                 href={link.path}
-                className={`text-lg font-medium ${
+                className={`text-lg font-medium flex items-center gap-2 ${
                   active ? 'text-primary' : 'text-ink hover:text-primary'
                 }`}
                 aria-current={active ? 'page' : undefined}
               >
                 {link.label}
+                {link.path === '/likes' && userId ? <LikesBadge userId={userId} /> : null}
               </Link>
             );
           })}
