@@ -65,6 +65,11 @@ export interface Connection {
   id: string
   tourist_id: string
   buddy_id: string
+  /** @deprecated kept for backfill — see requester_id / recipient_id */
+  requester_id?: string | null
+  recipient_id?: string | null
+  requester_role?: 'tourist' | 'buddy' | null
+  recipient_role?: 'tourist' | 'buddy' | null
   status: ConnectionStatus
   lifecycle: ConnectionLifecycle
   message: string | null

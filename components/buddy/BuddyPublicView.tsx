@@ -2,6 +2,7 @@ import { MapPin, Star, DollarSign, MessageCircle, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import type { Buddy, Profile } from '@/lib/types'
 import { labelFor } from '@/lib/specialties'
+import ConnectButton from '@/components/buddy/ConnectButton'
 
 interface Props {
   buddy: Buddy
@@ -96,9 +97,10 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
               Find similar buddies
             </Link>
           ) : null}
+          <ConnectButton recipientId={b.id} recipientName={p.full_name} viewerAs="tourist" />
           <Link
             href={`/chat?buddy=${b.id}`}
-            className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+            className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
           >
             <MessageCircle size={14} aria-hidden="true" />
             Message
@@ -107,7 +109,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
       </header>
 
       {b.bio ? (
-        <section className="mb-6 border border-border rounded-sm bg-surface p-5">
+        <section className="mb-6 border border-border rounded-sm bg-[#FFFFFF] p-5">
           <h2 className="text-sm font-semibold text-ink mb-2">About</h2>
           <p className="text-sm text-ink leading-relaxed max-w-prose">{b.bio}</p>
         </section>
@@ -170,7 +172,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border border-border rounded-sm bg-surface p-4">
+    <section className="border border-border rounded-sm bg-[#FFFFFF] p-4">
       <h2 className="text-eyebrow text-muted mb-2">{title}</h2>
       {children}
     </section>
