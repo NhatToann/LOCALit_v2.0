@@ -1,5 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import { MetricCard } from '@/components/ui/MetricCard';
+import { Section } from '@/components/ui/Section';
 
 export const metadata: Metadata = {
   title: 'LOCALit — Da Nang Local Buddies, $15 to $45 per hour',
@@ -143,103 +145,97 @@ function HomeContent() {
       </section>
 
       {/* ============= TRUST / NUMBERS ============= */}
-      <section className="py-20" aria-labelledby="numbers-title">
-        <div className="max-w-7xl mx-auto px-6">
-          <h2 id="numbers-title" className="text-page-title mb-3 max-w-3xl">
-            Six buddies, three neighborhoods, zero commission
-          </h2>
-          <p className="text-base text-muted max-w-2xl mb-12 leading-relaxed">
-            The platform lists every Da Nang buddy who has completed email
-            verification and pinned their location. Rates and availability are
-            set by each buddy; LOCALit adds no booking fee.
-          </p>
-          <dl className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <article className="border border-border rounded-sm p-6 bg-surface">
-              <dt className="sr-only">Da Nang buddies currently accepting requests</dt>
-              <dd className="text-3xl font-semibold text-ink mb-1 tabular-nums">6+</dd>
-              <p className="text-sm text-muted">Da Nang buddies currently accepting requests</p>
-            </article>
-            <article className="border border-border rounded-sm p-6 bg-surface">
-              <dt className="sr-only">Hourly rate range across all buddies</dt>
-              <dd className="text-3xl font-semibold text-ink mb-1 tabular-nums">$15–$45</dd>
-              <p className="text-sm text-muted">Hourly rate range across all buddies, set by each guide</p>
-            </article>
-            <article className="border border-border rounded-sm p-6 bg-surface">
-              <dt className="sr-only">LOCALit commission through 2026</dt>
-              <dd className="text-3xl font-semibold text-ink mb-1 tabular-nums">0%</dd>
-              <p className="text-sm text-muted">LOCALit commission through 2026 launch period</p>
-            </article>
-          </dl>
-        </div>
-      </section>
+      <Section variant="dense" bordered ariaLabelledby="numbers-title">
+        <h2 id="numbers-title" className="text-page-title mb-3 max-w-3xl">
+          Six buddies, three neighborhoods, zero commission
+        </h2>
+        <p className="text-base text-muted max-w-2xl mb-8 leading-relaxed">
+          The platform lists every Da Nang buddy who has completed email
+          verification and pinned their location. Rates and availability are
+          set by each buddy; LOCALit adds no booking fee.
+        </p>
+        <dl className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <MetricCard
+            value="6+"
+            label="Da Nang buddies currently accepting requests"
+            labelVi="đang nhận yêu cầu"
+          />
+          <MetricCard
+            value="$15–$45"
+            label="Hourly rate range across all buddies, set by each guide"
+            labelVi="giá theo giờ"
+          />
+          <MetricCard
+            value="0%"
+            label="LOCALit commission through 2026 launch period"
+            labelVi="hoa hồng"
+          />
+        </dl>
+      </Section>
 
       {/* ============= HOW IT WORKS ============= */}
-      <section className="py-20 border-t border-border" aria-labelledby="how-title">
-        <div className="max-w-7xl mx-auto px-6">
-          <h2 id="how-title" className="text-page-title mb-3 max-w-3xl">
-            How LOCALit works
-          </h2>
-          <p className="text-base text-muted max-w-2xl mb-12 leading-relaxed">
-            Three steps from sign-up to your first hour on the Han River.
-          </p>
-          <ol className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl list-none">
-            {[
-              {
-                step: '01',
-                title: 'Sign up and verify',
-                body:
-                  'Create an account with email + phone. Verification is one OTP code; no KYC paperwork at launch.',
-              },
-              {
-                step: '02',
-                title: 'Pick a buddy or post a trip',
-                body:
-                  'Browse six verified Da Nang locals with hourly rates, languages, and specialties. Or sketch a trip and let buddies respond.',
-              },
-              {
-                step: '03',
-                title: 'Meet up in Da Nang',
-                body:
-                  'Chat in-app to lock a meeting point. Voice and video calls work inside the chat once both sides are online. 0% LOCALit fee.',
-              },
-            ].map((item) => (
-              <li key={item.step} className="border border-border rounded-sm p-6 bg-surface">
-                <p className="text-eyebrow text-primary mb-2 tabular-nums">Step {item.step}</p>
-                <h3 className="text-xl font-semibold text-ink mb-3">{item.title}</h3>
-                <p className="text-sm text-muted leading-relaxed">{item.body}</p>
-              </li>
-            ))}
-          </ol>
-          <p className="text-base text-muted max-w-2xl mt-10 leading-relaxed">
-            Da Nang residents can{' '}
-            <a href="/register?role=buddy" className="text-primary hover:underline underline-offset-4">
-              sign up as a buddy
-            </a>{' '}
-            and set their own hourly rate, languages, and neighborhoods.
-          </p>
-        </div>
-      </section>
+      <Section variant="default" bordered ariaLabelledby="how-title">
+        <h2 id="how-title" className="text-page-title mb-3 max-w-3xl">
+          How LOCALit works
+        </h2>
+        <p className="text-base text-muted max-w-2xl mb-10 leading-relaxed">
+          Three steps from sign-up to your first hour on the Han River.
+        </p>
+        <ol className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl list-none">
+          {[
+            {
+              step: '01',
+              title: 'Sign up and verify',
+              body:
+                'Create an account with email + phone. Verification is one OTP code; no KYC paperwork at launch.',
+            },
+            {
+              step: '02',
+              title: 'Pick a buddy or post a trip',
+              body:
+                'Browse six verified Da Nang locals with hourly rates, languages, and specialties. Or sketch a trip and let buddies respond.',
+            },
+            {
+              step: '03',
+              title: 'Meet up in Da Nang',
+              body:
+                'Chat in-app to lock a meeting point. Voice and video calls work inside the chat once both sides are online. 0% LOCALit fee.',
+            },
+          ].map((item) => (
+            <li key={item.step} className="border border-border rounded-sm p-6 bg-surface">
+              <p className="text-eyebrow text-primary mb-2 tabular-nums">Step {item.step}</p>
+              <h3 className="text-xl font-semibold text-ink mb-3">{item.title}</h3>
+              <p className="text-sm text-muted leading-relaxed">{item.body}</p>
+            </li>
+          ))}
+        </ol>
+        <p className="text-base text-muted max-w-2xl mt-8 leading-relaxed">
+          Da Nang residents can{' '}
+          <a href="/register?role=buddy" className="text-primary hover:underline underline-offset-4">
+            sign up as a buddy
+          </a>{' '}
+          and set their own hourly rate, languages, and neighborhoods.
+        </p>
+      </Section>
 
       {/* ============= FAQ ============= */}
-      <section className="py-20 border-t border-border" aria-labelledby="faq-title">
-        <div className="max-w-7xl mx-auto px-6">
-          <h2 id="faq-title" className="text-page-title mb-3 max-w-3xl">
-            Questions travelers ask before booking a Da Nang buddy
-          </h2>
-          <p className="text-base text-muted max-w-2xl mb-8">
-            Pricing, languages, safety, and how day trips work. Four answers, no
-            filler.
-          </p>
-          <dl className="faq-list max-w-3xl">
-            {HOME_FAQ_VISIBLE.map((item) => (
-              <div key={item.q} className="faq-item">
-                <dt className="faq-question">{item.q}</dt>
-                <dd className="faq-answer">{item.a}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </section>
+      <Section variant="breathing" bordered ariaLabelledby="faq-title">
+        <h2 id="faq-title" className="text-page-title mb-3 max-w-3xl">
+          Questions travelers ask before booking a Da Nang buddy
+        </h2>
+        <p className="text-base text-muted max-w-2xl mb-8">
+          Pricing, languages, safety, and how day trips work. Four answers, no
+          filler.
+        </p>
+        <dl className="faq-list max-w-3xl">
+          {HOME_FAQ_VISIBLE.map((item) => (
+            <div key={item.q} className="faq-item">
+              <dt className="faq-question">{item.q}</dt>
+              <dd className="faq-answer">{item.a}</dd>
+            </div>
+          ))}
+        </dl>
+      </Section>
     </>
   );
 }

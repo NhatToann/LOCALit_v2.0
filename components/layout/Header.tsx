@@ -24,15 +24,15 @@ interface HeaderProps {
 }
 
 const GUEST_LINKS = [
-  { path: '/', label: 'Home' },
-  { path: '/browse', label: 'Buddies' },
+  { path: '/', label: 'Home', labelVi: 'Trang chủ' },
+  { path: '/browse', label: 'Buddies', labelVi: 'Hướng dẫn viên' },
 ]
 
 const LOGGED_IN_LINKS = [
-  { path: '/dashboard', label: 'Dashboard' },
-  { path: '/browse', label: 'Buddies' },
-  { path: '/trips', label: 'Trips' },
-  { path: '/chat', label: 'Messages' },
+  { path: '/dashboard', label: 'Dashboard', labelVi: 'Tổng quan' },
+  { path: '/browse', label: 'Buddies', labelVi: 'Hướng dẫn viên' },
+  { path: '/trips', label: 'Trips', labelVi: 'Chuyến đi' },
+  { path: '/chat', label: 'Messages', labelVi: 'Tin nhắn' },
 ]
 
 export default function Header({ userName, userId }: HeaderProps) {
@@ -81,7 +81,16 @@ export default function Header({ userName, userId }: HeaderProps) {
           >
             <MapPin size={16} strokeWidth={2.25} />
           </span>
-          <span className="text-lg font-semibold text-primary tracking-tight">LOCALit</span>
+          <span className="flex flex-col leading-none">
+            <span className="text-lg font-semibold text-primary tracking-tight">LOCALit</span>
+            <span
+              className="text-[10px] italic text-muted mt-0.5"
+              style={{ letterSpacing: '0.02em' }}
+              aria-hidden="true"
+            >
+              Đà Nẵng
+            </span>
+          </span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-8 flex-1 justify-center" aria-label="Primary">
@@ -92,12 +101,20 @@ export default function Header({ userName, userId }: HeaderProps) {
               <Link
                 key={link.path}
                 href={link.path}
-                className={`relative text-sm font-medium transition-colors duration-150 ${
+                className={`relative flex flex-col items-start gap-0.5 transition-colors duration-150 ${
                   active ? 'text-primary' : 'text-muted hover:text-ink'
                 }`}
                 aria-current={active ? 'page' : undefined}
+                aria-label={link.label}
               >
-                {link.label}
+                <span className="text-sm font-medium leading-none">{link.label}</span>
+                <span
+                  className="text-[10px] italic leading-none"
+                  style={{ letterSpacing: '0.02em' }}
+                  aria-hidden="true"
+                >
+                  {link.labelVi}
+                </span>
                 <NavHint />
               </Link>
             );

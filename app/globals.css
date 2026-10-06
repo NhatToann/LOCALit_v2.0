@@ -100,7 +100,7 @@
   }
 
   body {
-    font-family: var(--font-sans);
+    font-family: var(--font-jakarta, var(--font-sans)), system-ui, sans-serif;
     font-size: 1rem;
     line-height: 1.6;
     color: var(--color-ink);
@@ -723,5 +723,60 @@
 
   .animate-call-pulse-ring {
     animation: call-pulse-ring 1.5s ease-out infinite;
+  }
+}
+
+/* ============================================================
+   LAYER: UTILITIES
+   Atomic overrides — used sparingly, only when no Tailwind class
+   expresses the intent (mono font, tabular numerals, Vietnamese
+   italic tracking, asymmetric section rhythm).
+   ============================================================ */
+@layer utilities {
+  /* Mono font (JetBrains Mono) for data callouts. Set as a utility
+     so any text node can opt-in without redefining a class. */
+  .font-mono-localit {
+    font-family: var(--font-jetbrains, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Tabular numerals only (sans body). Use for any number that re-renders
+     in-place (countdown, score, prices). Prevents 4px layout shift. */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Vietnamese italic — small, slightly tracked, muted. Visual motif,
+     not a translation. Always pair with an English label above. */
+  .vi-motif {
+    font-style: italic;
+    letter-spacing: 0.01em;
+    color: var(--color-muted);
+  }
+
+  /* Asymmetric section rhythm (Section 4.3 of design.md).
+     Use on dense sections (browse, dashboard tables) instead of
+     py-20 to compress vertical breathing. */
+  .section-dense {
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
+  }
+  @media (min-width: 768px) {
+    .section-dense {
+      padding-top: 3rem;
+      padding-bottom: 3rem;
+    }
+  }
+
+  /* Breathing section (hero, FAQ, prose). Wider rhythm. */
+  .section-breathing {
+    padding-top: 4rem;
+    padding-bottom: 4rem;
+  }
+  @media (min-width: 768px) {
+    .section-breathing {
+      padding-top: 6rem;
+      padding-bottom: 6rem;
+    }
   }
 }
