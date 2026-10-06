@@ -85,6 +85,15 @@ const PAIRS = [
       'agent/skills/clean-code/SKILL.md',
     ],
   },
+  {
+    skill: 'frontend-design',
+    canonical: '.claude/skills/frontend-design/SKILL.md',
+    mirrors: [
+      '.agents/skills/frontend-design/SKILL.md',
+      '.claude/skills/frontend-design.md',
+      'agent/skills/frontend-design/SKILL.md',
+    ],
+  },
 ]
 
 async function pathExists(p) {
@@ -171,6 +180,10 @@ const SUBDIR_SKILLS = [
   {
     skill: 'ui-ux-pro-max',
     canonicalDir: '.claude/skills/ui-ux-pro-max',
+  },
+  {
+    skill: 'frontend-design',
+    canonicalDir: '.claude/skills/frontend-design',
   },
 ]
 
