@@ -168,6 +168,10 @@ const SUBDIR_SKILLS = [
     skill: 'systematic-debugging',
     canonicalDir: '.claude/skills/systematic-debugging',
   },
+  {
+    skill: 'ui-ux-pro-max',
+    canonicalDir: '.claude/skills/ui-ux-pro-max',
+  },
 ]
 
 let ok = true
