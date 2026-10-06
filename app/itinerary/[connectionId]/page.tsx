@@ -13,7 +13,7 @@ import {
   Pin,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
-import type { Connection, Trip, Profile, TripActivity } from '@/lib/types'
+import type { Connection, Trip, Profile, TripActivity, TripDay, TripStop } from '@/lib/types'
 import PlanTab from '@/components/itinerary/PlanTab'
 import DaysTab from '@/components/itinerary/DaysTab'
 import PackingTab from '@/components/itinerary/PackingTab'
@@ -21,6 +21,7 @@ import ActivityFeed from '@/components/itinerary/ActivityFeed'
 import ManageCompanions from '@/components/itinerary/ManageCompanions'
 import ItineraryHeader from '@/components/itinerary/ItineraryHeader'
 import ItineraryHero, { type ItineraryHeroPerson } from '@/components/itinerary/ItineraryHero'
+import ItineraryMap from '@/components/itinerary/ItineraryMap'
 
 interface PageProps {
   params: Promise<{ connectionId: string }>
@@ -47,6 +48,8 @@ export default function SharedItineraryPage({ params }: PageProps) {
   const [travelers, setTravelers] = useState<ItineraryHeroPerson[]>([])
   const [coBuddies, setCoBuddies] = useState<ItineraryHeroPerson[]>([])
   const [showActivity, setShowActivity] = useState(true)
+  const [days, setDays] = useState<TripDay[]>([])
+  const [stops, setStops] = useState<TripStop[]>([])
 
   useEffect(() => {
     params.then((p) => setConnectionId(p.connectionId))
@@ -133,6 +136,8 @@ export default function SharedItineraryPage({ params }: PageProps) {
         { data: acts },
         { data: travelersRows },
         { data: buddiesRows },
+        { data: daysRows },
+        { data: stopsRows },
       ] = await Promise.all([
         supabase
           .from('trip_activity')
@@ -150,6 +155,16 @@ export default function SharedItineraryPage({ params }: PageProps) {
           .select('role, status, profile:safe_profiles(id, full_name, avatar_url), buddy:buddies(specialties)')
           .eq('trip_id', activeTrip.id)
           .order('role', { ascending: true }),
+        supabase
+          .from('trip_days')
+          .select('*')
+          .eq('trip_id', activeTrip.id)
+          .order('day_order', { ascending: true }),
+        supabase
+          .from('trip_stops')
+          .select('*')
+          .eq('trip_id', activeTrip.id)
+          .order('stop_order', { ascending: true }),
       ])
       setActivity((acts as any) || [])
       setTravelers(
@@ -168,6 +183,8 @@ export default function SharedItineraryPage({ params }: PageProps) {
           role: (r.role === 'lead' ? 'lead' : 'co-buddy'),
         })),
       )
+      setDays((daysRows as TripDay[]) || [])
+      setStops((stopsRows as TripStop[]) || [])
 
       // Self-accept invitations: when a companion or co-buddy lands on the trip
       // page, flip their own row from 'invited' to 'accepted' (RLS allows the
@@ -305,6 +322,13 @@ export default function SharedItineraryPage({ params }: PageProps) {
         buddyName={buddyName}
         canEdit={canEdit}
       />
+
+      {trip ? (
+        <ItineraryMap
+          stops={stops}
+          days={days}
+        />
+      ) : null}
 
       {/* Tabs */}
       <section
