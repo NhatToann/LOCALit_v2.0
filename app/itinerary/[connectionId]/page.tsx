@@ -32,10 +32,10 @@ interface PageProps {
 
 type Tab = 'plan' | 'days' | 'packing'
 
-const TABS: Array<{ id: Tab; label: string; icon: typeof Compass }> = [
-  { id: 'plan', label: 'Plan', icon: Pencil },
-  { id: 'days', label: 'Days & Map', icon: Calendar },
-  { id: 'packing', label: 'Packing', icon: Backpack },
+const TABS: Array<{ id: Tab; label: string; labelVi: string; icon: typeof Compass }> = [
+  { id: 'plan', label: 'Plan', labelVi: 'Kế hoạch', icon: Pencil },
+  { id: 'days', label: 'Days & Map', labelVi: 'Ngày & Bản đồ', icon: Calendar },
+  { id: 'packing', label: 'Packing', labelVi: 'Đồ dùng', icon: Backpack },
 ]
 
 export default function SharedItineraryPage({ params }: PageProps) {
@@ -380,7 +380,16 @@ export default function SharedItineraryPage({ params }: PageProps) {
           aria-hidden="true"
         />
         <div className="relative p-6 lg:p-8">
-          <p className="text-eyebrow text-primary mb-2">Shared itinerary</p>
+          <p className="text-eyebrow text-primary mb-2">
+            Shared itinerary
+            <span
+              className="ml-2 italic text-muted"
+              style={{ letterSpacing: '0.02em' }}
+              aria-hidden="true"
+            >
+              lịch trình chung
+            </span>
+          </p>
           <h1 className="text-page-title mb-2">{trip?.title ?? 'Da Nang itinerary'}</h1>
           <p className="text-sm text-muted mb-4 max-w-xl">
             {travelers.length > 1 || coBuddies.length > 1
@@ -389,7 +398,16 @@ export default function SharedItineraryPage({ params }: PageProps) {
           </p>
           <div className="flex flex-wrap items-center gap-3 mb-3">
             <span className="badge badge-primary text-xs">
-              Travelers ({travelers.length})
+              Travelers (
+              <span
+                style={{
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {travelers.length}
+              </span>
+              )
             </span>
             <ul className="flex flex-wrap items-center gap-2">
               {travelers.length === 0 ? (
@@ -414,7 +432,16 @@ export default function SharedItineraryPage({ params }: PageProps) {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <span className="badge badge-success text-xs">
-              Buddies ({coBuddies.length})
+              Buddies (
+              <span
+                style={{
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {coBuddies.length}
+              </span>
+              )
             </span>
             <ul className="flex flex-wrap items-center gap-2">
               {coBuddies.length === 0 ? (
@@ -485,14 +512,24 @@ export default function SharedItineraryPage({ params }: PageProps) {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => setTab(t.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors duration-150 ${
+                aria-label={t.label}
+                className={`flex flex-col items-center gap-0.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors duration-150 ${
                   isActive
                     ? 'border-primary text-primary'
                     : 'border-transparent text-muted hover:text-ink'
                 }`}
               >
-                <Icon size={14} aria-hidden="true" />
-                {t.label}
+                <span className="flex items-center gap-2">
+                  <Icon size={14} aria-hidden="true" />
+                  {t.label}
+                </span>
+                <span
+                  className="text-[10px] italic"
+                  style={{ letterSpacing: '0.02em', opacity: 0.75 }}
+                  aria-hidden="true"
+                >
+                  {t.labelVi}
+                </span>
               </button>
             )
           })}

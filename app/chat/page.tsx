@@ -1507,9 +1507,26 @@ function ChatInner() {
     <div className="container-page py-6">
       <div className="flex items-center justify-between mb-4">
         <div>
+          <p className="text-eyebrow text-primary mb-2">
+            Messages
+            <span
+              className="ml-2 italic text-muted"
+              style={{ letterSpacing: '0.02em' }}
+              aria-hidden="true"
+            >
+              tin nhắn
+            </span>
+          </p>
           <h1 className="text-page-title">Messages</h1>
           <p className="text-xs text-muted mt-1">
             Conversations with your Da Nang buddies.
+            <span
+              className="ml-1 italic text-subtle"
+              style={{ letterSpacing: '0.01em' }}
+              aria-hidden="true"
+            >
+              cuộc trò chuyện
+            </span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1579,7 +1596,13 @@ function ChatInner() {
                       </div>
                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
                         {c.unread > 0 ? (
-                          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-paper text-[10px] font-semibold">
+                          <span
+                            className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-paper text-[10px] font-semibold"
+                            style={{
+                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          >
                             {c.unread}
                           </span>
                         ) : null}

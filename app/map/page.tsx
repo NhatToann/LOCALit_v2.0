@@ -113,11 +113,29 @@ export default function MapPage() {
     <div className="container-page py-8">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-eyebrow text-primary mb-2">Live map</p>
+          <p className="text-eyebrow text-primary mb-2">
+            Live map
+            <span
+              className="ml-2 italic text-muted"
+              style={{ letterSpacing: '0.02em' }}
+              aria-hidden="true"
+            >
+              bản đồ trực tiếp
+            </span>
+          </p>
           <h1 className="text-page-title">Buddies in Da Nang</h1>
           <p className="text-sm text-muted mt-1 max-w-prose">
-            LOCALit maps {buddies.length} verified local buddies across Da Nang. Tap a pin to
-            view their profile and start a conversation. Tourists who opt in also appear in
+            LOCALit maps{' '}
+            <span
+              style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {buddies.length}
+            </span>{' '}
+            verified local buddies across Da Nang. Tap a pin to view their
+            profile and start a conversation. Tourists who opt in also appear in
             real-time.
           </p>
           <p className="text-xs text-muted mt-1">
@@ -193,7 +211,16 @@ export default function MapPage() {
           className="absolute bottom-4 left-4 z-[500] bg-surface border border-border rounded-sm p-3 text-xs"
           aria-label="Map legend"
         >
-          <p className="text-eyebrow text-muted mb-2">Legend</p>
+          <p className="text-eyebrow text-muted mb-2">
+            Legend
+            <span
+              className="ml-1 italic text-subtle"
+              style={{ letterSpacing: '0.02em' }}
+              aria-hidden="true"
+            >
+              chú thích
+            </span>
+          </p>
           <ul className="space-y-1">
             <li className="flex items-center gap-2">
               <span
