@@ -29,11 +29,11 @@ interface BuddyItem {
 }
 
 const FILTERS = [
-    { id: 'all', label: 'All' },
-    { id: 'top-rated', label: 'Top Rated' },
-    { id: 'near-me', label: 'Near Me' },
-    { id: 'available', label: 'Available Now' },
-    { id: 'saved', label: 'Saved' },
+    { id: 'all', label: 'All', labelVi: 'Tất cả' },
+    { id: 'top-rated', label: 'Top Rated', labelVi: 'Đánh giá cao' },
+    { id: 'near-me', label: 'Near Me', labelVi: 'Gần tôi' },
+    { id: 'available', label: 'Available Now', labelVi: 'Đang rảnh' },
+    { id: 'saved', label: 'Saved', labelVi: 'Đã lưu' },
   ] as const
 
 const SAVED_KEY = 'localit:savedBuddies'
@@ -303,7 +303,14 @@ function BrowseContent() {
             {hasSearch ? 'Search results' : 'Find local buddies in Da Nang'}
           </h1>
           <p className="text-sm text-muted mt-1">
-            {loading ? 'Loading Da Nang buddies...' : `${filtered.length} ${filtered.length === 1 ? 'buddy' : 'buddies'}${destinationFilter ? ` for "${destinationFilter}"` : ''}`}
+            <span>{loading ? 'Loading Da Nang buddies...' : `${filtered.length} ${filtered.length === 1 ? 'buddy' : 'buddies'}${destinationFilter ? ` for "${destinationFilter}"` : ''}`}</span>
+            <span
+              className="ml-2 italic text-subtle"
+              style={{ letterSpacing: '0.01em' }}
+              aria-hidden="true"
+            >
+              {hasSearch ? 'kết quả' : 'Hướng dẫn viên địa phương'}
+            </span>
           </p>
         </div>
       </header>
@@ -363,13 +370,21 @@ function BrowseContent() {
                 role="tab"
                 aria-selected={active}
                 onClick={() => setActiveFilter(filter.id)}
-                className={`h-8 px-3 text-sm font-medium rounded-pill border transition-colors duration-150 ${
+                aria-label={filter.label}
+                className={`h-8 px-3 text-sm font-medium rounded-pill border transition-colors duration-150 flex flex-col items-center justify-center leading-tight ${
                   active
                     ? 'bg-primary text-paper border-primary'
                     : 'bg-transparent text-muted border-border hover:text-ink hover:border-border-strong'
                 }`}
               >
-                {filter.label}
+                <span>{filter.label}</span>
+                <span
+                  className="text-[10px] italic"
+                  style={{ letterSpacing: '0.02em', opacity: 0.75 }}
+                  aria-hidden="true"
+                >
+                  {filter.labelVi}
+                </span>
               </button>
             )
           })}
@@ -383,8 +398,21 @@ function BrowseContent() {
               className="text-xs font-medium text-ink"
             >
               Distance
+              <span
+                className="ml-1 italic text-muted font-normal"
+                style={{ letterSpacing: '0.02em' }}
+                aria-hidden="true"
+              >
+                khoảng cách
+              </span>
             </label>
-            <span className="text-xs text-muted font-mono">
+            <span
+              className="text-xs text-muted"
+              style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
               {maxDistanceKm >= 50 ? 'Any distance' : `Within ${maxDistanceKm} km`}
             </span>
           </div>
@@ -399,7 +427,13 @@ function BrowseContent() {
             aria-label="Maximum distance from your location in kilometres"
             className="w-full accent-primary"
           />
-          <div className="flex justify-between text-[10px] text-subtle font-mono mt-0.5">
+          <div
+            className="flex justify-between text-[10px] text-subtle mt-0.5"
+            style={{
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
             <span>0 km</span>
             <span>25 km</span>
             <span>Any</span>
@@ -413,7 +447,16 @@ function BrowseContent() {
         className="mb-6 border border-border rounded-sm overflow-hidden bg-surface"
       >
         <div className="px-6 py-4 border-b border-border">
-          <p className="text-eyebrow text-primary mb-1">Buddy map</p>
+          <p className="text-eyebrow text-primary mb-1">
+            Buddy map
+            <span
+              className="ml-2 italic text-muted"
+              style={{ letterSpacing: '0.02em' }}
+              aria-hidden="true"
+            >
+              bản đồ
+            </span>
+          </p>
           <h2 className="text-lg font-semibold">Find buddies around Da Nang</h2>
           <p className="text-sm text-muted mt-1">
             Hover a marker or click a buddy below to see their location.
@@ -601,9 +644,27 @@ function BrowseContent() {
                         </div>
                         {b.hourly_rate !== null ? (
                           <div>
-                            <dt className="text-eyebrow text-muted mb-2">Hourly rate</dt>
+                            <dt className="text-eyebrow text-muted mb-2">
+                              Hourly rate
+                              <span
+                                className="ml-1 italic font-normal"
+                                style={{ letterSpacing: '0.02em' }}
+                                aria-hidden="true"
+                              >
+                                giá theo giờ
+                              </span>
+                            </dt>
                             <dd>
-                              <strong className="text-ink">${Number(b.hourly_rate).toFixed(0)} USD / hour</strong>
+                              <strong
+                                className="text-ink"
+                                style={{
+                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                  fontVariantNumeric: 'tabular-nums',
+                                  letterSpacing: '-0.01em',
+                                }}
+                              >
+                                ${Number(b.hourly_rate).toFixed(0)} USD / hour
+                              </strong>
                               <OnlineIndicator userId={b.id} className="mt-2" />
                             </dd>
                           </div>

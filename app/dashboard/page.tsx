@@ -161,10 +161,10 @@ export default function DashboardPage() {
   const pending = connections.filter((c) => c.status === 'pending')
 
   const stats = [
-    { label: 'Trips', value: trips.length, icon: Briefcase, tone: 'primary' as const },
-    { label: 'Buddies connected', value: accepted.length, icon: Users, tone: 'success' as const },
-    { label: 'Pending requests', value: pending.length, icon: Clock, tone: 'warning' as const },
-    { label: 'Reviews sent', value: reviewsCount, icon: Send, tone: 'info' as const },
+    { label: 'Trips', labelVi: 'Chuyến đi', value: trips.length, icon: Briefcase, tone: 'primary' as const },
+    { label: 'Buddies connected', labelVi: 'Đã kết nối', value: accepted.length, icon: Users, tone: 'success' as const },
+    { label: 'Pending requests', labelVi: 'Đang chờ', value: pending.length, icon: Clock, tone: 'warning' as const },
+    { label: 'Reviews sent', labelVi: 'Đánh giá', value: reviewsCount, icon: Send, tone: 'info' as const },
   ]
 
   const firstName = profile?.full_name?.split(' ')[0] || 'traveler'
@@ -177,7 +177,16 @@ export default function DashboardPage() {
         aria-labelledby="dashboard-hero-title"
         className="mb-8 pb-8 border-b border-border"
       >
-        <p className="text-eyebrow text-primary mb-3">Dashboard</p>
+        <p className="text-eyebrow text-primary mb-3">
+          Dashboard
+          <span
+            className="ml-2 italic text-muted"
+            style={{ letterSpacing: '0.02em' }}
+            aria-hidden="true"
+          >
+            tổng quan
+          </span>
+        </p>
         <h1 id="dashboard-hero-title" className="text-page-title mb-3">
           Welcome back, {firstName}
         </h1>
@@ -212,6 +221,13 @@ export default function DashboardPage() {
           <div>
             <h2 id="dashboard-map-title" className="text-section-title mb-1">
               Who is in Da Nang right now
+              <span
+                className="ml-2 italic text-muted font-normal text-base"
+                style={{ letterSpacing: '0.02em' }}
+                aria-hidden="true"
+              >
+                ai đang ở Đà Nẵng
+              </span>
             </h2>
             <p className="text-sm text-muted">
               {nearbyCount > 0
@@ -243,6 +259,13 @@ export default function DashboardPage() {
           <div className="flex items-baseline justify-between mb-4">
             <h2 id="buddies-available-now-title" className="text-section-title">
               Buddies available now in Da Nang
+              <span
+                className="ml-2 italic text-muted font-normal text-base"
+                style={{ letterSpacing: '0.02em' }}
+                aria-hidden="true"
+              >
+                đang rảnh
+              </span>
             </h2>
             <Link href="/search?sort=match" className="text-sm text-primary hover:underline">
               See all
@@ -298,8 +321,24 @@ export default function DashboardPage() {
                 <div className={`mb-3 ${toneClasses[s.tone]}`}>
                   <Icon size={20} aria-hidden="true" />
                 </div>
-                <p className="text-2xl font-semibold text-ink">{s.value}</p>
+                <p
+                  className="text-2xl font-semibold text-ink"
+                  style={{
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                    fontVariantNumeric: 'tabular-nums',
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  {s.value}
+                </p>
                 <p className="text-xs text-muted mt-0.5">{s.label}</p>
+                <p
+                  className="text-[10px] italic text-subtle"
+                  style={{ letterSpacing: '0.02em' }}
+                  aria-hidden="true"
+                >
+                  {s.labelVi}
+                </p>
               </li>
             )
           })}

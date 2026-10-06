@@ -136,7 +136,16 @@ export default async function ProfilePage() {
   // missing row.
   return (
     <div className="container-page py-16">
-        <p className="text-eyebrow text-primary mb-2">Account</p>
+        <p className="text-eyebrow text-primary mb-2">
+          Account
+          <span
+            className="ml-2 italic text-muted"
+            style={{ letterSpacing: '0.02em' }}
+            aria-hidden="true"
+          >
+            tài khoản
+          </span>
+        </p>
       <h1 className="text-page-title">Profile</h1>
       <p className="text-sm text-muted mt-3 max-w-prose">
         Your account doesn&apos;t have a role yet. Complete the sign-up

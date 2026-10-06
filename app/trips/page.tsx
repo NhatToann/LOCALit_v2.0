@@ -67,11 +67,27 @@ export default function TripsPage() {
     <div className="container-page py-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-eyebrow text-primary mb-2">Itineraries</p>
+          <p className="text-eyebrow text-primary mb-2">
+            Itineraries
+            <span
+              className="ml-2 italic text-muted"
+              style={{ letterSpacing: '0.02em' }}
+              aria-hidden="true"
+            >
+              lịch trình
+            </span>
+          </p>
           <h1 className="text-page-title">My trips</h1>
           <p className="text-sm text-muted mt-1">
             {trips.length} {trips.length === 1 ? 'trip' : 'trips'} planned ·{' '}
             {trips.filter((t) => t.status === 'confirmed').length} confirmed
+            <span
+              className="ml-2 italic text-subtle"
+              style={{ letterSpacing: '0.01em' }}
+              aria-hidden="true"
+            >
+              {trips.length} chuyến · {trips.filter((t) => t.status === 'confirmed').length} đã xác nhận
+            </span>
           </p>
         </div>
         <Link
@@ -85,21 +101,34 @@ export default function TripsPage() {
 
       {/* Filter chips */}
       <div className="flex flex-wrap gap-2 mb-6" role="tablist">
-        {(['all', 'planned', 'confirmed', 'completed'] as const).map((f) => {
-          const active = filter === f
+        {([
+          { v: 'all', label: 'All', labelVi: 'Tất cả' },
+          { v: 'planned', label: 'Planned', labelVi: 'Đã lên kế hoạch' },
+          { v: 'confirmed', label: 'Confirmed', labelVi: 'Đã xác nhận' },
+          { v: 'completed', label: 'Completed', labelVi: 'Hoàn thành' },
+        ] as const).map((f) => {
+          const active = filter === f.v
           return (
             <button
-              key={f}
+              key={f.v}
               role="tab"
               aria-selected={active}
-              onClick={() => setFilter(f)}
-              className={`h-8 px-3 text-sm font-medium rounded-pill border transition-colors duration-150 capitalize ${
+              onClick={() => setFilter(f.v)}
+              aria-label={f.label}
+              className={`h-9 px-3 text-sm font-medium rounded-pill border transition-colors duration-150 flex flex-col items-center justify-center leading-tight capitalize ${
                 active
                   ? 'bg-primary text-paper border-primary'
                   : 'bg-transparent text-muted border-border hover:text-ink hover:border-border-strong'
               }`}
             >
-              {f}
+              <span>{f.label}</span>
+              <span
+                className="text-[10px] italic"
+                style={{ letterSpacing: '0.02em', opacity: 0.75 }}
+                aria-hidden="true"
+              >
+                {f.labelVi}
+              </span>
             </button>
           )
         })}
@@ -146,7 +175,13 @@ export default function TripsPage() {
                     <div className="flex-1 min-w-[240px]">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className={`badge ${statusBadge} text-xs`}>{trip.status}</span>
-                        <span className="text-xs text-muted">
+                        <span
+                          className="text-xs text-muted"
+                          style={{
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
                           {trip.start_date ? (
                             <>
                               <Calendar size={12} className="inline-block mr-1 align-middle" aria-hidden="true" />
