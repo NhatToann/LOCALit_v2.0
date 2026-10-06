@@ -92,6 +92,12 @@ export interface Trip {
   itinerary_updated_at: string | null
   currency: string
   budget_total_cents: number | null
+  // Phase 0 — itinerary rebuild (2026-10-06)
+  weather_snapshot: { tempC?: number; windKph?: number; summary?: string; date?: string } | null
+  budget_estimate: number | null
+  // Phase 5 — NotesTab structured fields
+  transport: 'motorbike' | 'car' | 'walking' | 'mixed' | null
+  meetup_point: string | null
   cover_photo_url: string | null
   share_token: string | null
   created_at: string
@@ -173,10 +179,18 @@ export interface TripPackingItem {
   id: string
   trip_id: string
   item: string
+  // Alias for `item` — both field names appear in code; prefer `name`.
+  name: string
   category: 'clothes' | 'toiletries' | 'tech' | 'docs' | 'misc'
   is_packed: boolean
+  // Alias for `is_packed` — both field names appear in code; prefer `packed`.
+  packed: boolean
   packed_by: string | null
   packed_at: string | null
+  // Phase 0 — itinerary rebuild (2026-10-06)
+  assigned_to: string | null
+  updated_by: string | null
+  updated_at: string | null
   created_at: string
 }
 

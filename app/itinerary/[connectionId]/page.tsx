@@ -16,7 +16,8 @@ import { createClient } from '@/utils/supabase/auth'
 import type { Connection, Trip, Profile, TripActivity, TripDay, TripStop } from '@/lib/types'
 import PlanTab from '@/components/itinerary/PlanTab'
 import DaysTab from '@/components/itinerary/DaysTab'
-import PackingTab from '@/components/itinerary/PackingTab'
+import PackingSmartList from '@/components/itinerary/PackingSmartList'
+import NotesTab from '@/components/itinerary/NotesTab'
 import ActivityFeed from '@/components/itinerary/ActivityFeed'
 import ManageCompanions from '@/components/itinerary/ManageCompanions'
 import ItineraryHeader from '@/components/itinerary/ItineraryHeader'
@@ -484,12 +485,29 @@ export default function SharedItineraryPage({ params }: PageProps) {
                 <DaysTab trip={trip} canEdit={canEdit} me={me!} onLogActivity={logActivity} />
               ) : null}
               {tab === 'packing' ? (
-                <PackingTab trip={trip} canEdit={canEdit} me={me!} onLogActivity={logActivity} />
+                <PackingSmartList
+                  trip={trip}
+                  canEdit={canEdit}
+                  me={me!}
+                  travelers={travelers}
+                  buddies={coBuddies}
+                  onLogActivity={logActivity}
+                />
               ) : null}
             </>
           ) : null}
         </div>
       </section>
+
+      {trip ? (
+        <NotesTab
+          trip={trip}
+          canEdit={canEdit}
+          me={me!}
+          weather={weather}
+          onLogActivity={logActivity}
+        />
+      ) : null}
 
       {/* Companion management — collapsed by default; sits outside the tabs. */}
       <details
