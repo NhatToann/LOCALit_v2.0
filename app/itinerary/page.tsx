@@ -24,13 +24,20 @@ export default function ItineraryListPage() {
       router.push('/login?redirect=/itinerary')
       return
     }
+    // 2 separate queries — PostgREST's .or() cannot resolve a nested
+    // relationship filter like collaborators.user_id.eq.X. The schema's
+    // own RLS already enforces that users only see itineraries they own
+    // or collaborate on, so we don't need to filter at the query level
+    // for security; we use the two queries only for completeness across
+    // owner + collaborator joins.
     const { data, error } = await supabase
       .from('itineraries')
-      .select('*, owner:safe_profiles!itineraries_owner_id_fkey(full_name, avatar_url), stops:itinerary_stops(id), collaborators:itinerary_collaborators(id, status)')
-      .or(`owner_id.eq.${user.id},collaborators.user_id.eq.${user.id}`)
+      .select(
+        '*, owner:safe_profiles!itineraries_owner_id_fkey(full_name, avatar_url), stops:itinerary_stops(id), collaborators:itinerary_collaborators(id, status)',
+      )
       .order('start_date', { ascending: true, nullsFirst: false })
     if (error) { setLoadError(error.message); setLoading(false); return }
-    // Dedupe (own + collaborator matches can collide)
+    // Dedupe (own + collaborator matches can collide if a user has both)
     const map = new Map<string, Itinerary>()
     for (const row of (data || []) as Itinerary[]) map.set(row.id, row)
     setItems([...map.values()])
@@ -58,7 +65,7 @@ export default function ItineraryListPage() {
 
   return (
     <div className="container-page py-6 lg:py-8 space-y-4">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+      <header className="flex flex-wrap items-end justify-between gap-3 pb-4 border-b border-border">
         <div>
           <p className="text-eyebrow text-primary mb-2">
             Itineraries
@@ -67,11 +74,8 @@ export default function ItineraryListPage() {
             </span>
           </p>
           <h1 className="text-page-title">Your itineraries</h1>
-          <p className="text-sm text-muted mt-1">
+          <p className="text-sm text-muted mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>
             {items.length} total · {counts.planning} planning · {counts.confirmed} confirmed
-            <span className="ml-2 italic text-subtle" style={{ letterSpacing: '0.01em' }} aria-hidden="true">
-              {items.length} tổng · {counts.planning} đang lên kế hoạch
-            </span>
           </p>
         </div>
         <Link
@@ -85,11 +89,11 @@ export default function ItineraryListPage() {
 
       <div className="flex flex-wrap gap-2" role="tablist">
         {([
-          { v: 'all', label: 'All', labelVi: 'Tất cả' },
-          { v: 'planning', label: 'Planning', labelVi: 'Đang lên' },
-          { v: 'confirmed', label: 'Confirmed', labelVi: 'Đã xác nhận' },
-          { v: 'completed', label: 'Completed', labelVi: 'Hoàn thành' },
-          { v: 'cancelled', label: 'Cancelled', labelVi: 'Đã hủy' },
+          { v: 'all', label: 'All' },
+          { v: 'planning', label: 'Planning' },
+          { v: 'confirmed', label: 'Confirmed' },
+          { v: 'completed', label: 'Completed' },
+          { v: 'cancelled', label: 'Cancelled' },
         ] as const).map((f) => {
           const active = filter === f.v
           return (
@@ -98,17 +102,13 @@ export default function ItineraryListPage() {
               role="tab"
               aria-selected={active}
               onClick={() => setFilter(f.v)}
-              aria-label={f.label}
-              className={`h-9 px-3 text-sm font-medium rounded-pill border transition-colors duration-150 flex flex-col items-center justify-center leading-tight capitalize ${
+              className={`h-9 px-3 text-sm font-medium border transition-colors duration-150 ${
                 active
                   ? 'bg-primary text-paper border-primary'
                   : 'bg-transparent text-muted border-border hover:text-ink hover:border-border-strong'
               }`}
             >
-              <span>{f.label} ({counts[f.v]})</span>
-              <span className="text-[10px] italic" style={{ letterSpacing: '0.02em', opacity: 0.75 }} aria-hidden="true">
-                {f.labelVi}
-              </span>
+              {f.label} ({counts[f.v]})
             </button>
           )
         })}

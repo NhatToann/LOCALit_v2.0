@@ -424,57 +424,51 @@ export default function ItineraryDetailPage() {
 
   return (
     <div className="container-page py-6 lg:py-8 space-y-4">
-      <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
-        <ArrowLeft size={14} aria-hidden="true" /> Dashboard
-      </Link>
+      <nav className="flex items-center gap-2 text-xs text-muted" aria-label="Breadcrumb">
+        <Link href="/dashboard" className="hover:text-ink inline-flex items-center gap-1">
+          <ArrowLeft size={11} aria-hidden="true" /> Dashboard
+        </Link>
+        <span aria-hidden="true">/</span>
+        <Link href="/itinerary" className="hover:text-ink">
+          Itineraries
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="text-ink truncate max-w-[40ch]">{itin.title}</span>
+      </nav>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden border border-border rounded-sm bg-surface" aria-label="Itinerary header">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "url('https://images.unsplash.com/photo-1602002418082-a4443e081dd1?w=1600&q=70&auto=format&fit=crop')",
-            opacity: 0.16,
-          }}
-          aria-hidden="true"
-        />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(90deg, color-mix(in srgb, var(--color-paper) 95%, transparent) 0%, color-mix(in srgb, var(--color-paper) 70%, transparent) 100%)',
-          }}
-          aria-hidden="true"
-        />
-        <div className="relative p-6 lg:p-8">
-          <p className="text-eyebrow text-primary mb-2">
-            Itinerary
-            <span className="ml-2 italic text-muted" style={{ letterSpacing: '0.02em' }} aria-hidden="true">
-              lịch trình
-            </span>
-          </p>
-          <h1 className="text-page-title mb-2">{itin.title}</h1>
-          <p className="text-sm text-muted max-w-xl inline-flex flex-wrap items-center gap-2">
-            <MapPin size={13} aria-hidden="true" /> {itin.destination}
-            {itin.start_date ? (
-              <>
-                <span className="mx-1 text-subtle">·</span>
-                <Calendar size={13} aria-hidden="true" />
-                {new Date(itin.start_date).toLocaleDateString('en-US')}
-                {' – '}
-                {itin.end_date ? new Date(itin.end_date).toLocaleDateString('en-US') : '…'}
-              </>
-            ) : null}
-            {owner ? (
-              <>
-                <span className="mx-1 text-subtle">·</span>
-                <Users size={13} aria-hidden="true" />
-                {owner.full_name}
-              </>
-            ) : null}
-          </p>
-          <div className="flex flex-wrap items-center gap-2 mt-3">
+      {/* Compact header — flat, no cover photo */}
+      <header className="pb-4 border-b border-border">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-eyebrow text-primary mb-2">
+              Itinerary
+              <span className="ml-2 italic text-muted" style={{ letterSpacing: '0.02em' }} aria-hidden="true">
+                lịch trình
+              </span>
+            </p>
+            <h1 className="text-page-title mb-2">{itin.title}</h1>
+            <p className="text-sm text-muted inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+              <MapPin size={13} aria-hidden="true" /> {itin.destination}
+              {itin.start_date ? (
+                <>
+                  <span className="mx-1 text-subtle" aria-hidden="true">·</span>
+                  <Calendar size={13} aria-hidden="true" />
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {new Date(itin.start_date).toLocaleDateString('en-US')}
+                    {' – '}
+                    {itin.end_date ? new Date(itin.end_date).toLocaleDateString('en-US') : '…'}
+                  </span>
+                </>
+              ) : null}
+              {owner ? (
+                <>
+                  <span className="mx-1 text-subtle" aria-hidden="true">·</span>
+                  <Users size={13} aria-hidden="true" /> {owner.full_name}
+                </>
+              ) : null}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <span className={`badge ${statusBadge} text-xs`}>{itin.status}</span>
             {dayCount !== null ? (
               <span className="badge badge-success text-xs" style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -485,7 +479,7 @@ export default function ItineraryDetailPage() {
               {stops.length} stop{stops.length === 1 ? '' : 's'}
             </span>
             <span className="badge badge-info text-xs" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {collaborators.filter((c) => c.status === 'accepted').length + 1} collaborator{collaborators.filter((c) => c.status === 'accepted').length === 0 ? '' : 's'}
+              {collaborators.filter((c) => c.status === 'accepted').length + 1} on team
             </span>
             {!isEditor ? (
               <span className="badge badge-warning text-xs">
@@ -494,7 +488,7 @@ export default function ItineraryDetailPage() {
             ) : null}
           </div>
         </div>
-      </section>
+      </header>
 
       {loadError ? (
         <div className="alert alert-error" role="alert">
@@ -906,7 +900,20 @@ function DaysTab({
         <Calendar size={11} aria-hidden="true" /> Days
       </legend>
       {days.length === 0 && !addingDay ? (
-        <p className="text-sm text-muted py-4">No days yet. Add the first day of your trip.</p>
+        <div className="border border-dashed border-border rounded-sm p-6 bg-paper text-center">
+          <Calendar size={20} className="mx-auto text-muted mb-2" aria-hidden="true" />
+          <p className="text-sm font-medium text-ink mb-1">No days yet</p>
+          <p className="text-xs text-muted mb-3">Add the first day of your trip. You can add stops to it afterwards.</p>
+          {isEditor ? (
+            <button
+              type="button"
+              onClick={() => setAddingDay(true)}
+              className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+            >
+              <Plus size={14} aria-hidden="true" /> Add first day
+            </button>
+          ) : null}
+        </div>
       ) : (
         <ol className="border-t border-border first:border-t-0 -mx-5">
           {days.map((d) => {
@@ -1070,15 +1077,17 @@ function StopsTab({
   return (
     <div className="space-y-4">
       {days.length === 0 && unassigned.length === 0 && !addingStop ? (
-        <fieldset className="border border-border rounded-sm bg-surface p-5 text-center">
-          <p className="text-sm text-muted">No stops yet. Add a day first, or add a stop without a day.</p>
+        <fieldset className="border border-dashed border-border rounded-sm bg-paper p-6 text-center">
+          <MapPin size={20} className="mx-auto text-muted mb-2" aria-hidden="true" />
+          <p className="text-sm font-medium text-ink mb-1">No stops yet</p>
+          <p className="text-xs text-muted mb-3">Add a day first, or add a stop without a day to start.</p>
           {isEditor ? (
             <button
               type="button"
               onClick={() => setAddingStop('unassigned')}
-              className="mt-3 inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+              className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
             >
-              <Plus size={14} aria-hidden="true" /> Add stop
+              <Plus size={14} aria-hidden="true" /> Add first stop
             </button>
           ) : null}
         </fieldset>
