@@ -49,6 +49,9 @@ next-env.d.ts
 /scripts/redteam-*.json
 
 
+# Claude Code Templates auto-generated lockfile (mirrors installed skills)
+/skills-lock.json
+
 # local DB password scratch file
 .dbpw
 
