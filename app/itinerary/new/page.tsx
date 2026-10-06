@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -11,20 +11,19 @@ import {
   Calendar,
   FileText,
   Compass,
-  Tag,
   Loader2,
+  UserPlus,
+  Mail,
+  Tag,
+  ArrowLeft,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 
-interface Stop {
-  name: string
-  address: string
-  notes: string
-}
-
 const today = () => new Date().toISOString().slice(0, 10)
 
-export default function CreateTripPage() {
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export default function NewItineraryPage() {
   const router = useRouter()
   const [form, setForm] = useState({
     title: '',
@@ -32,71 +31,89 @@ export default function CreateTripPage() {
     endDate: '',
     notes: '',
   })
-  const [stops, setStops] = useState<Stop[]>([{ name: '', address: '', notes: '' }])
+  const [collaboratorEmails, setCollaboratorEmails] = useState<string[]>([])
+  const [newEmail, setNewEmail] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
-  function addStop() {
-    setStops([...stops, { name: '', address: '', notes: '' }])
+  function addEmail() {
+    const e = newEmail.trim().toLowerCase()
+    if (!e) return
+    if (!EMAIL_RE.test(e)) { setError('Invalid email format.'); return }
+    if (collaboratorEmails.includes(e)) { setError('Already added.'); return }
+    setCollaboratorEmails([...collaboratorEmails, e])
+    setNewEmail('')
+    setError('')
   }
 
-  function removeStop(idx: number) {
-    setStops(stops.filter((_, i) => i !== idx))
-  }
-
-  function updateStop(idx: number, field: keyof Stop, value: string) {
-    setStops(stops.map((s, i) => (i === idx ? { ...s, [field]: value } : s)))
+  function removeEmail(e: string) {
+    setCollaboratorEmails(collaboratorEmails.filter((x) => x !== e))
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (!form.title.trim()) {
-      setError('Please enter a trip name.')
-      return
-    }
+    if (!form.title.trim()) { setError('Please enter a trip title.'); return }
     if (form.endDate && form.startDate && form.endDate < form.startDate) {
       setError('End date must be on or after start date.')
       return
     }
+    setSubmitting(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       setError('You must be signed in.')
-      return
-    }
-    setSubmitting(true)
-    const { data: trip, error: tripError } = await supabase
-      .from('trips')
-      .insert({
-        tourist_id: user.id,
-        title: form.title,
-        destination: 'Da Nang',
-        start_date: form.startDate || null,
-        end_date: form.endDate || null,
-        notes: form.notes || null,
-        status: 'planning',
-      })
-      .select()
-      .single()
-    if (tripError || !trip) {
-      setError('Could not create trip: ' + (tripError?.message || ''))
       setSubmitting(false)
       return
     }
-    const validStops = stops.filter((s) => s.name.trim())
-    if (validStops.length > 0) {
-      await supabase.from('trip_stops').insert(
-        validStops.map((s, i) => ({
-          trip_id: trip.id,
-          stop_order: i + 1,
-          name: s.name,
-          address: s.address || null,
-          notes: s.notes || null,
-        })),
-      )
+
+    // 1. create itinerary
+    const { data: itin, error: itinErr } = await supabase
+      .from('itineraries')
+      .insert({
+        owner_id: user.id,
+        title: form.title.trim(),
+        destination: 'Da Nang',
+        start_date: form.startDate || null,
+        end_date: form.endDate || null,
+        notes: form.notes.trim() || null,
+        status: 'planning',
+        last_editor_id: user.id,
+      })
+      .select()
+      .single()
+    if (itinErr || !itin) {
+      setError('Could not create itinerary: ' + (itinErr?.message ?? ''))
+      setSubmitting(false)
+      return
     }
-    router.push(`/trips/${trip.id}`)
+
+    // 2. invite collaborators (best-effort, in parallel)
+    if (collaboratorEmails.length > 0) {
+      startTransition(async () => {
+        const { data: targets, error: lookupErr } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('email', collaboratorEmails)
+        if (!lookupErr && targets && targets.length > 0) {
+          await supabase.from('itinerary_collaborators').insert(
+            targets
+              .filter((t) => t.id !== user.id)
+              .map((t) => ({
+                itinerary_id: itin.id,
+                user_id: t.id,
+                role: 'editor' as const,
+                status: 'invited' as const,
+                invited_by: user.id,
+              })),
+          )
+        }
+        router.push(`/itinerary/${itin.id}`)
+      })
+      return
+    }
+    router.push(`/itinerary/${itin.id}`)
   }
 
   const dayCount =
@@ -112,10 +129,13 @@ export default function CreateTripPage() {
 
   return (
     <div className="container-page py-6 lg:py-8 space-y-4">
-      {/* Hero — matches ItineraryHero pattern: bg photo + gradient overlay + bilingual eyebrow */}
+      <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
+        <ArrowLeft size={14} aria-hidden="true" /> Dashboard
+      </Link>
+
       <section
         className="relative overflow-hidden border border-border rounded-sm bg-surface"
-        aria-label="New trip header"
+        aria-label="New itinerary header"
       >
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -145,10 +165,9 @@ export default function CreateTripPage() {
               lịch trình mới
             </span>
           </p>
-          <h1 className="text-page-title mb-2">Plan a new trip</h1>
+          <h1 className="text-page-title mb-2">Plan a new Da Nang trip</h1>
           <p className="text-sm text-muted max-w-xl">
-            Tell LOCALit your dates and stops. We pair each trip with a verified Da Nang buddy who
-            matches your interests.
+            Sketch dates, notes, and invite collaborators. You can add stops and days after creating.
           </p>
           <div className="flex flex-wrap items-center gap-2 mt-3">
             <span className="badge badge-primary text-xs">Da Nang only</span>
@@ -164,7 +183,6 @@ export default function CreateTripPage() {
       </section>
 
       <form onSubmit={handleSubmit} className="max-w-2xl space-y-4" noValidate>
-        {/* Trip details */}
         <fieldset className="border border-border rounded-sm bg-surface p-5">
           <legend className="px-2 text-[11px] uppercase tracking-wide text-muted">
             <Compass size={11} className="inline-block mr-1 align-middle" aria-hidden="true" />
@@ -196,7 +214,6 @@ export default function CreateTripPage() {
                 fixed at launch
               </span>
             </div>
-            <p className="form-hint">LOCALit currently focuses on Da Nang. More cities later.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -230,7 +247,7 @@ export default function CreateTripPage() {
 
           <div className="form-group">
             <label htmlFor="notes" className="form-label inline-flex items-center gap-1">
-              <FileText size={11} aria-hidden="true" /> Notes for your buddy
+              <FileText size={11} aria-hidden="true" /> Notes for your team
             </label>
             <textarea
               id="notes"
@@ -255,103 +272,67 @@ export default function CreateTripPage() {
           </div>
         </fieldset>
 
-        {/* Stops */}
         <fieldset className="border border-border rounded-sm bg-surface p-5">
           <legend className="px-2 text-[11px] uppercase tracking-wide text-muted">
-            <MapPin size={11} className="inline-block mr-1 align-middle" aria-hidden="true" />
-            Stops
-            {stops.length > 0 ? (
+            <UserPlus size={11} className="inline-block mr-1 align-middle" aria-hidden="true" />
+            Invite collaborators
+            {collaboratorEmails.length > 0 ? (
               <span
                 className="ml-2 text-muted normal-case tracking-normal"
                 style={{ fontVariantNumeric: 'tabular-nums' }}
               >
-                {stops.filter((s) => s.name.trim()).length}/{stops.length} named
+                ({collaboratorEmails.length})
               </span>
             ) : null}
           </legend>
-
-          {stops.map((stop, idx) => (
-            <article
-              key={idx}
-              className="border-t border-border first:border-t-0 py-4 first:pt-0 last:pb-0"
+          <p className="text-xs text-muted mb-3">
+            Add people to edit this itinerary with you. They will receive an invite they can accept or decline.
+          </p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <input
+              type="email"
+              placeholder="teammate@localit.dev"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault()
+                  addEmail()
+                }
+              }}
+              className="form-input flex-1 min-w-[200px]"
+              aria-label="Collaborator email"
+            />
+            <button
+              type="button"
+              onClick={addEmail}
+              className="inline-flex items-center gap-1 h-10 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
             >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium text-ink inline-flex items-center gap-2">
-                  <span
-                    className="inline-flex items-center justify-center w-6 h-6 rounded-sm bg-primary text-paper text-[11px] font-semibold"
-                    style={{ fontVariantNumeric: 'tabular-nums' }}
-                    aria-hidden="true"
-                  >
-                    {idx + 1}
+              <Plus size={14} aria-hidden="true" /> Add
+            </button>
+          </div>
+          {collaboratorEmails.length > 0 ? (
+            <ul className="flex flex-wrap gap-2">
+              {collaboratorEmails.map((e) => (
+                <li key={e}>
+                  <span className="inline-flex items-center gap-1 h-8 px-3 text-xs rounded-pill bg-paper border border-border text-ink">
+                    <Mail size={11} aria-hidden="true" />
+                    {e}
+                    <button
+                      type="button"
+                      onClick={() => removeEmail(e)}
+                      aria-label={`Remove ${e}`}
+                      className="text-muted hover:text-danger"
+                    >
+                      <X size={11} aria-hidden="true" />
+                    </button>
                   </span>
-                  <MapPin size={12} className="text-muted" aria-hidden="true" />
-                  Stop {idx + 1}
-                </p>
-                {stops.length > 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => removeStop(idx)}
-                    aria-label={`Remove stop ${idx + 1}`}
-                    className="inline-flex items-center gap-1 text-xs text-muted hover:text-danger"
-                  >
-                    <X size={12} aria-hidden="true" />
-                    Remove
-                  </button>
-                ) : null}
-              </div>
-              <div className="form-group">
-                <label htmlFor={`stop-name-${idx}`} className="form-label sr-only">
-                  Place name
-                </label>
-                <input
-                  id={`stop-name-${idx}`}
-                  type="text"
-                  placeholder="Place name (e.g. Ba Na Hills)"
-                  value={stop.name}
-                  onChange={(e) => updateStop(idx, 'name', e.target.value)}
-                  maxLength={200}
-                  className="form-input"
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor={`stop-address-${idx}`} className="form-label sr-only">
-                  Address
-                </label>
-                <input
-                  id={`stop-address-${idx}`}
-                  type="text"
-                  placeholder="Address (optional)"
-                  value={stop.address}
-                  onChange={(e) => updateStop(idx, 'address', e.target.value)}
-                  maxLength={300}
-                  className="form-input"
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor={`stop-notes-${idx}`} className="form-label sr-only">
-                  Notes
-                </label>
-                <textarea
-                  id={`stop-notes-${idx}`}
-                  rows={2}
-                  maxLength={500}
-                  placeholder="Notes for this stop (optional)"
-                  value={stop.notes}
-                  onChange={(e) => updateStop(idx, 'notes', e.target.value)}
-                  className="form-input form-textarea"
-                />
-              </div>
-            </article>
-          ))}
-
-          <button
-            type="button"
-            onClick={addStop}
-            className="mt-3 inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-          >
-            <Plus size={14} aria-hidden="true" />
-            Add stop
-          </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-subtle italic">No collaborators invited yet. You can also invite them later from the itinerary page.</p>
+          )}
         </fieldset>
 
         {error ? (
@@ -364,10 +345,10 @@ export default function CreateTripPage() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || isPending}
             className="inline-flex items-center gap-2 h-11 px-5 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? (
+            {submitting || isPending ? (
               <>
                 <Loader2 size={16} className="animate-spin" aria-hidden="true" />
                 Creating…
@@ -375,19 +356,19 @@ export default function CreateTripPage() {
             ) : (
               <>
                 <Check size={16} aria-hidden="true" />
-                Create trip
+                Create itinerary
               </>
             )}
           </button>
           <Link
-            href="/trips"
+            href="/dashboard"
             className="inline-flex items-center h-11 px-5 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
           >
             Cancel
           </Link>
           <span className="text-[10px] text-subtle inline-flex items-center gap-1">
             <Tag size={10} aria-hidden="true" />
-            Buddy will be matched after you create
+            You will be redirected to the editor after creating
           </span>
         </div>
       </form>

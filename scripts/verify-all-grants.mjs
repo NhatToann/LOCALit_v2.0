@@ -9,7 +9,7 @@ const c = new Client({
 })
 async function main() {
   await c.connect()
-  const tables = ['trips', 'trip_stops', 'connections', 'conversations', 'messages', 'reviews', 'profiles', 'tourists', 'buddies']
+  const tables = ['itineraries', 'itinerary_days', 'itinerary_stops', 'itinerary_collaborators', 'itinerary_packing', 'itinerary_activity', 'itinerary_share', 'connections', 'conversations', 'messages', 'reviews', 'profiles', 'tourists', 'buddies']
   for (const t of tables) {
     const r = await c.query(`
       SELECT grantee, string_agg(privilege_type, ', ' ORDER BY privilege_type) AS perms

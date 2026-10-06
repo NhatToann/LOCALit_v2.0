@@ -184,7 +184,7 @@ function SwitchRoleSection({
 const TABS: { id: Tab; label: string; icon: typeof User }[] = [
   { id: 'personal', label: 'Personal info', icon: User },
   { id: 'preferences', label: 'Travel preferences', icon: Globe },
-  { id: 'trips', label: 'My trips', icon: MapPin },
+  { id: 'trips', label: 'My itineraries', icon: MapPin },
   { id: 'reviews', label: 'Reviews', icon: Star },
   { id: 'account', label: 'Account', icon: Settings },
 ]
@@ -199,7 +199,7 @@ export default function TouristProfileView() {
   const [error, setError] = useState('')
   const [pwSaving, setPwSaving] = useState(false)
   const [pwMsg, setPwMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const [trips, setTrips] = useState<any[]>([])
+  const [itineraries, setItineraries] = useState<any[]>([])
   const [reviewsWritten, setReviewsWritten] = useState<any[]>([])
   const [reviewsAboutMe, setReviewsAboutMe] = useState<any[]>([])
   const [avatarUploading, setAvatarUploading] = useState(false)
@@ -222,9 +222,9 @@ export default function TouristProfileView() {
           supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
           supabase.from('tourists').select('*').eq('id', user.id).maybeSingle<Tourist>(),
           supabase
-            .from('trips')
+            .from('itineraries')
             .select('id, title, status, start_date, destination')
-            .eq('tourist_id', user.id)
+            .eq('owner_id', user.id)
             .order('start_date', { ascending: false })
             .limit(20),
           supabase
@@ -242,7 +242,7 @@ export default function TouristProfileView() {
         ])
         setProfile(p)
         setTourist(t)
-        setTrips(bookings ?? [])
+        setItineraries(bookings ?? [])
         setReviewsAboutMe(reviewsToMe ?? [])
         setReviewsWritten(reviewsByMe ?? [])
       } catch (err) {
@@ -826,40 +826,47 @@ export default function TouristProfileView() {
           {activeTab === 'trips' ? (
             <section>
               <header className="flex items-center justify-between mb-4 pb-4 border-b border-border">
-                <h2 className="text-section-title">My trips</h2>
+                <h2 className="text-section-title">My itineraries</h2>
                 <Link
-                  href="/trips/create"
+                  href="/itinerary/new"
                   className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                 >
-                  Plan a new trip
+                  Plan a new itinerary
                 </Link>
               </header>
 
-              {trips.length === 0 ? (
+              {itineraries.length === 0 ? (
                 <div className="border border-border rounded-sm p-8 bg-paper text-center">
-                  <p className="text-sm text-muted">No trips yet. Plan your first Da Nang trip.</p>
+                  <p className="text-sm text-muted">No itineraries yet. Plan your first Da Nang trip.</p>
                 </div>
               ) : (
                 <ul className="divide-y divide-border border border-border rounded-sm">
-                  {trips.map((b: any) => {
+                  {itineraries.map((b: any) => {
                     const badge =
                       b.status === 'confirmed'
                         ? 'badge-success'
                         : b.status === 'completed'
                         ? 'badge-info'
+                        : b.status === 'cancelled'
+                        ? 'badge-danger'
                         : 'badge-warning'
                     return (
-                      <li key={b.id} className="p-3 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-ink">{b.title ?? 'Trip'}</p>
-                          <p className="text-xs text-muted mt-1">
-                            {b.start_date ? new Date(b.start_date).toLocaleDateString('en-US') : ''}
-                            {b.destination ? ` · ${b.destination}` : ''}
-                          </p>
-                        </div>
-                        <span className={`badge ${badge} text-xs capitalize`}>
-                          {b.status ?? 'Upcoming'}
-                        </span>
+                      <li key={b.id}>
+                        <Link
+                          href={`/itinerary/${b.id}`}
+                          className="p-3 flex items-center justify-between gap-3 hover:bg-paper transition-colors duration-150"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-ink">{b.title ?? 'Itinerary'}</p>
+                            <p className="text-xs text-muted mt-1">
+                              {b.start_date ? new Date(b.start_date).toLocaleDateString('en-US') : ''}
+                              {b.destination ? ` · ${b.destination}` : ''}
+                            </p>
+                          </div>
+                          <span className={`badge ${badge} text-xs capitalize`}>
+                            {b.status ?? 'planning'}
+                          </span>
+                        </Link>
                       </li>
                     )
                   })}

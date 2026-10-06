@@ -10,8 +10,9 @@ import {
 } from 'lucide-react'
 
 // Single enum used by both buddies.transport (default) and
-// trip_stops.transport (per-stop override). Keep in sync with the
-// CHECK constraint in supabase/migrations/2026-09-27-buddy-transport.sql.
+// itinerary_stops.transport (per-stop override). Keep in sync with
+// the CHECK constraints in supabase/migrations/2026-09-27-buddy-transport.sql
+// and 2026-10-07-unified-itinerary-*.sql.
 export type Transport =
   | 'walk'
   | 'scooter'

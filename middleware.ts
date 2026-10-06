@@ -69,18 +69,24 @@ export async function middleware(request: NextRequest) {
   const ROUTE_REWRITES: Array<[RegExp, string]> = [
     [/^\/buddy\/dashboard$/, '/dashboard'],
     [/^\/buddy\/profile$/, '/profile'],
-    [/^\/buddy\/requests$/, '/trips'],
-    [/^\/buddy\/trips\/new$/, '/trips/create'],
-    [/^\/buddy\/trips$/, '/trips'],
+    [/^\/buddy\/requests$/, '/itinerary'],
+    [/^\/buddy\/trips\/new$/, '/itinerary/new'],
+    [/^\/buddy\/trips$/, '/itinerary'],
     [/^\/buddy(\/|$)/, '/dashboard'],
     [/^\/tourist\/dashboard$/, '/dashboard'],
     [/^\/tourist\/profile$/, '/profile'],
     [/^\/tourist\/browse$/, '/browse'],
     [/^\/tourist\/buddy\/([^\/]+)$/, '/buddies/$1'],
-    [/^\/tourist\/trips$/, '/trips'],
-    [/^\/tourist\/trips\/create$/, '/trips/create'],
-    [/^\/tourist\/trips\/([^\/]+)$/, '/trips/$1'],
+    [/^\/tourist\/trips$/, '/itinerary'],
+    [/^\/tourist\/trips\/create$/, '/itinerary/new'],
+    [/^\/tourist\/trips\/([^\/]+)$/, '/itinerary/$1'],
     [/^\/tourist(\/|$)/, '/dashboard'],
+    // 2026-10-07: trips/* routes are gone; /trips and /trips/create map
+    // to the unified /itinerary equivalents. /trips/[id] (old UUIDs) are
+    // no longer valid — fall back to /itinerary.
+    [/^\/trips\/create$/, '/itinerary/new'],
+    [/^\/trips\/([^\/]+)$/, '/itinerary'],
+    [/^\/trips$/, '/itinerary'],
   ]
   for (const [pattern, target] of ROUTE_REWRITES) {
     if (pattern.test(pathname)) {

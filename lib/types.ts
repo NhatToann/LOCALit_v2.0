@@ -1,10 +1,13 @@
 // Database types for LOCALit v2
-// These types mirror the schema in supabase/schema.sql
+// Schema lives in supabase/migrations/2026-10-07-unified-itinerary-*.sql
 
 export type UserRole = 'tourist' | 'buddy' | 'admin'
 export type ConnectionStatus = 'pending' | 'accepted' | 'declined'
 export type ConnectionLifecycle = 'search' | 'active' | 'ended'
-export type TripStatus = 'planning' | 'confirmed' | 'completed' | 'cancelled'
+export type ItineraryStatus = 'planning' | 'confirmed' | 'completed' | 'cancelled'
+export type ItineraryVisibility = 'private' | 'shared'
+export type CollaboratorRole = 'owner' | 'editor' | 'viewer'
+export type CollaboratorStatus = 'invited' | 'accepted' | 'declined' | 'revoked'
 
 export interface Profile {
   id: string
@@ -77,132 +80,125 @@ export interface Connection {
   buddy?: Buddy
 }
 
-export interface Trip {
+export interface WeatherSnapshot {
+  tempC?: number
+  windKph?: number
+  summary?: string
+  date?: string
+}
+
+export interface Itinerary {
   id: string
-  tourist_id: string
-  buddy_id: string | null
+  owner_id: string
   title: string
   destination: string
   start_date: string | null
   end_date: string | null
-  status: TripStatus
+  status: ItineraryStatus
+  visibility: ItineraryVisibility
   notes: string | null
-  itinerary_notes: string | null
-  itinerary_updated_by: string | null
-  itinerary_updated_at: string | null
-  currency: string
-  budget_total_cents: number | null
-  // Phase 0 — itinerary rebuild (2026-10-06)
-  weather_snapshot: { tempC?: number; windKph?: number; summary?: string; date?: string } | null
-  budget_estimate: number | null
-  // Phase 5 — NotesTab structured fields
-  transport: 'motorbike' | 'car' | 'walking' | 'mixed' | null
+  budget_estimate_cents: number | null
   meetup_point: string | null
-  cover_photo_url: string | null
-  share_token: string | null
+  transport: string | null
+  weather_snapshot: WeatherSnapshot | null
+  weather_updated_at: string | null
+  last_editor_id: string | null
   created_at: string
   updated_at: string
   // Joined
-  tourist?: Tourist
-  buddy?: Buddy
-  trip_stops?: TripStop[]
-  itinerary_editor?: Profile
-  days?: TripDay[]
-  bookings?: TripBooking[]
-  budget?: TripBudgetItem[]
-  packing?: TripPackingItem[]
+  owner?: Profile
+  last_editor?: Profile
+  collaborators?: ItineraryCollaborator[]
+  days?: ItineraryDay[]
+  stops?: ItineraryStop[]
+  packing?: ItineraryPackingItem[]
+  activity?: ItineraryActivity[]
+  share?: ItineraryShare
 }
 
-export interface TripStop {
+export interface ItineraryDay {
   id: string
-  trip_id: string
-  stop_order: number
-  name: string
-  address: string | null
-  latitude: number | null
-  longitude: number | null
-  notes: string | null
-  day_id: string | null
-  planned_time: string | null   // 'HH:MM:SS'
-  category: 'food' | 'sight' | 'transport' | 'stay' | 'activity' | 'other' | null
-  photo_url: string | null
-  est_cost_cents: number | null
-  transport: import('./transport').Transport | null
-  transport_note: string | null
-  created_at: string
-}
-
-export interface TripDay {
-  id: string
-  trip_id: string
+  itinerary_id: string
   day_order: number
   date: string | null
   title: string | null
   notes: string | null
   created_at: string
+  updated_at: string
   // Joined
-  stops?: TripStop[]
+  stops?: ItineraryStop[]
 }
 
-export interface TripBooking {
+export interface ItineraryStop {
   id: string
-  trip_id: string
-  type: 'flight' | 'hotel' | 'restaurant' | 'tour' | 'transport' | 'other'
-  provider: string | null
-  confirmation_code: string | null
-  start_at: string | null
-  end_at: string | null
-  location_name: string | null
+  itinerary_id: string
+  day_id: string | null
+  stop_order: number
+  name: string
   address: string | null
-  cost_cents: number
-  currency: string
+  lat: number | null
+  lng: number | null
+  category: string | null
+  planned_time: string | null
+  duration_minutes: number | null
+  transport: string | null
+  transport_note: string | null
+  opening_hours: string | null
+  est_cost_cents: number | null
   notes: string | null
-  attachment_url: string | null
+  photo_url: string | null
   added_by: string | null
   created_at: string
+  updated_at: string
+  // Joined
+  added_by_profile?: Profile
 }
 
-export interface TripBudgetItem {
+export interface ItineraryCollaborator {
   id: string
-  trip_id: string
-  category: 'food' | 'transport' | 'tickets' | 'shopping' | 'stay' | 'other'
-  description: string | null
-  amount_cents: number
-  currency: string
-  paid_by: string | null
-  split_with: string[]
-  spent_at: string | null
-  created_at: string
+  itinerary_id: string
+  user_id: string
+  role: CollaboratorRole
+  status: CollaboratorStatus
+  invited_by: string | null
+  invited_at: string
+  responded_at: string | null
+  // Joined
+  user?: Profile
+  inviter?: Profile
 }
 
-export interface TripPackingItem {
+export interface ItineraryPackingItem {
   id: string
-  trip_id: string
-  item: string
-  // Alias for `item` — both field names appear in code; prefer `name`.
+  itinerary_id: string
   name: string
-  category: 'clothes' | 'toiletries' | 'tech' | 'docs' | 'misc'
-  is_packed: boolean
-  // Alias for `is_packed` — both field names appear in code; prefer `packed`.
+  category: string | null
   packed: boolean
-  packed_by: string | null
-  packed_at: string | null
-  // Phase 0 — itinerary rebuild (2026-10-06)
   assigned_to: string | null
   updated_by: string | null
-  updated_at: string | null
   created_at: string
+  updated_at: string
+  // Joined
+  assigned_to_profile?: Profile
+  updated_by_profile?: Profile
 }
 
-export interface TripActivity {
+export interface ItineraryActivity {
   id: string
-  trip_id: string
+  itinerary_id: string
   actor_id: string | null
   verb: string
   payload: Record<string, unknown>
   created_at: string
   // Joined
   actor?: Profile
+}
+
+export interface ItineraryShare {
+  itinerary_id: string
+  token: string
+  enabled: boolean
+  created_at: string
 }
 
 export interface Conversation {
@@ -250,29 +246,6 @@ export interface MessageReaction {
   created_at: string
 }
 
-export interface CallLog {
-  id: string
-  conversation_id: string
-  caller_id: string
-  callee_id: string
-  call_type: 'voice' | 'video'
-  status: 'initiated' | 'ringing' | 'accepted' | 'declined' | 'missed' | 'ended' | 'failed'
-  started_at: string
-  answered_at: string | null
-  ended_at: string | null
-  duration_seconds: number | null
-}
-
-export interface CallSignal {
-  id: string
-  call_log_id: string
-  sender_id: string
-  recipient_id: string
-  signal_type: 'offer' | 'answer' | 'ice' | 'bye' | 'busy'
-  payload: Record<string, unknown>
-  created_at: string
-}
-
 export interface LocationUpdate {
   id: string
   user_id: string
@@ -286,7 +259,7 @@ export interface LocationUpdate {
 
 export interface Review {
   id: string
-  trip_id: string
+  itinerary_id: string | null
   reviewer_id: string
   reviewee_id: string
   rating: number
@@ -337,13 +310,18 @@ export interface RegisterFormData {
   bio?: string
 }
 
-export interface TripFormData {
+export interface ItineraryFormData {
   title: string
   destination: string
   startDate: string
   endDate: string
   notes: string
-  stops: Omit<TripStop, 'id' | 'trip_id' | 'created_at'>[]
+  stops: Array<{
+    name: string
+    address: string
+    notes: string
+  }>
+  collaboratorEmails: string[]
 }
 
 // Search/Filter types
