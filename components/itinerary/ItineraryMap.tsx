@@ -6,11 +6,25 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { haversineKm, DA_NANG_DRIVE_FACTOR } from '@/lib/haversine'
 import type { TripStop, TripDay } from '@/lib/types'
+import { Avatar } from '@/components/ui/Avatar'
 
 const PRIMARY = '#FF6B35'
 const DAY_PALETTE = ['#FF6B35', '#075985', '#166534', '#92400E']
 
 const DA_NANG: [number, number] = [16.0544, 108.2023]
+
+export interface RemoteDragState {
+  lat: number
+  lng: number
+  byName: string
+  byAvatarUrl: string | null
+}
+
+export interface PresenceUser {
+  id: string
+  fullName: string
+  avatarUrl: string | null
+}
 
 export interface ItineraryMapStop extends Pick<TripStop, 'id' | 'name' | 'latitude' | 'longitude' | 'category' | 'stop_order'> {
   day_id: string | null
@@ -20,13 +34,17 @@ export interface ItineraryMapStop extends Pick<TripStop, 'id' | 'name' | 'latitu
 interface Props {
   stops: ItineraryMapStop[]
   days: TripDay[]
+  presenceUsers?: PresenceUser[]
+  remoteDrag?: Record<string, RemoteDragState>
   onStopClick?: (stopId: string) => void
+  onStopDragCommit?: (stopId: string, lat: number, lng: number) => void
   onAddPlace?: () => void
 }
 
-function pinIcon(idx: number, color: string): L.DivIcon {
+function pinIcon(idx: number, color: string, ghost = false): L.DivIcon {
+  const opacity = ghost ? 0.55 : 1
   return L.divIcon({
-    html: `<div style="width:28px;height:28px;background:${color};border:2px solid #FFFFFF;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-weight:600;font-size:11px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;box-shadow:0 1px 2px rgba(0,0,0,0.25);">${idx}</div>`,
+    html: `<div style="width:28px;height:28px;background:${color};border:2px solid #FFFFFF;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-weight:600;font-size:11px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;box-shadow:0 1px 2px rgba(0,0,0,0.25);opacity:${opacity};">${idx}</div>`,
     iconSize: [28, 28],
     className: '',
   })
@@ -53,7 +71,15 @@ function FitToStops({ stops }: { stops: ItineraryMapStop[] }) {
   return null
 }
 
-export default function ItineraryMap({ stops, days, onStopClick, onAddPlace }: Props) {
+export default function ItineraryMap({
+  stops,
+  days,
+  presenceUsers = [],
+  remoteDrag = {},
+  onStopClick,
+  onStopDragCommit,
+  onAddPlace,
+}: Props) {
   const mapRef = useRef<L.Map | null>(null)
 
   const dayColor = useMemo(() => {
@@ -138,8 +164,38 @@ export default function ItineraryMap({ stops, days, onStopClick, onAddPlace }: P
               />
             )
           })}
+          {Object.entries(remoteDrag).map(([stopId, drag]) => (
+            <Marker
+              key={`ghost-${stopId}`}
+              position={[drag.lat, drag.lng]}
+              icon={pinIcon(0, '#94A3B8', true)}
+              interactive={false}
+              keyboard={false}
+            />
+          ))}
         </MapContainer>
       </div>
+
+      {presenceUsers.length > 0 ? (
+        <div
+          className="absolute top-3 left-3 z-[400] flex -space-x-2"
+          aria-label={`${presenceUsers.length} other viewer${presenceUsers.length === 1 ? '' : 's'}`}
+        >
+          {presenceUsers.slice(0, 5).map((u) => (
+            <Avatar
+              key={u.id}
+              name={u.fullName}
+              src={u.avatarUrl}
+              size="sm"
+            />
+          ))}
+          {presenceUsers.length > 5 ? (
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-paper bg-surface text-[10px] font-semibold text-ink">
+              +{presenceUsers.length - 5}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {onAddPlace ? (
         <button

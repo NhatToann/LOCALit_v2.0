@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -21,7 +21,9 @@ import ActivityFeed from '@/components/itinerary/ActivityFeed'
 import ManageCompanions from '@/components/itinerary/ManageCompanions'
 import ItineraryHeader from '@/components/itinerary/ItineraryHeader'
 import ItineraryHero, { type ItineraryHeroPerson } from '@/components/itinerary/ItineraryHero'
-import ItineraryMap from '@/components/itinerary/ItineraryMap'
+import ItineraryMap, { type PresenceUser, type RemoteDragState } from '@/components/itinerary/ItineraryMap'
+import { useTripPresence } from '@/lib/realtime/useTripPresence'
+import { usePinDragBroadcast, type PinDragPayload } from '@/lib/realtime/usePinDrag'
 
 interface PageProps {
   params: Promise<{ connectionId: string }>
@@ -43,6 +45,43 @@ export default function SharedItineraryPage({ params }: PageProps) {
   const [trip, setTrip] = useState<Trip | null>(null)
   const [loading, setLoading] = useState(true)
   const [canEdit, setCanEdit] = useState(false)
+
+  // Realtime: who's viewing this trip + pin-drag broadcast
+  const presenceList = useTripPresence(
+    trip?.id ?? null,
+    me ? { id: me.id, fullName: me.full_name ?? 'Someone', avatarUrl: (me as any).avatar_url ?? null } : null,
+  )
+  const presenceUsers: PresenceUser[] = useMemo(
+    () =>
+      presenceList
+        .filter((p) => p.userId !== me?.id)
+        .map((p) => ({ id: p.userId, fullName: p.fullName, avatarUrl: p.avatarUrl })),
+    [presenceList, me?.id],
+  )
+  const { sendDrag } = usePinDragBroadcast({
+    tripId: trip?.id ?? null,
+    me: me ? { id: me.id, fullName: me.full_name ?? 'Someone' } : null,
+    onRemoteDrag: (p: PinDragPayload) => {
+      setRemoteDrag((prev) => ({
+        ...prev,
+        [p.stopId]: {
+          lat: p.lat,
+          lng: p.lng,
+          byName: p.byName,
+          byAvatarUrl: null,
+        },
+      }))
+      // Auto-clear ghost after 1.5s of silence
+      setTimeout(() => {
+        setRemoteDrag((prev) => {
+          if (!(p.stopId in prev)) return prev
+          const next = { ...prev }
+          delete next[p.stopId]
+          return next
+        })
+      }, 1500)
+    },
+  })
   const [tab, setTab] = useState<Tab>('plan')
   const [activity, setActivity] = useState<TripActivity[]>([])
   const [travelers, setTravelers] = useState<ItineraryHeroPerson[]>([])
@@ -50,6 +89,7 @@ export default function SharedItineraryPage({ params }: PageProps) {
   const [showActivity, setShowActivity] = useState(true)
   const [days, setDays] = useState<TripDay[]>([])
   const [stops, setStops] = useState<TripStop[]>([])
+  const [remoteDrag, setRemoteDrag] = useState<Record<string, RemoteDragState>>({})
 
   useEffect(() => {
     params.then((p) => setConnectionId(p.connectionId))
@@ -327,6 +367,8 @@ export default function SharedItineraryPage({ params }: PageProps) {
         <ItineraryMap
           stops={stops}
           days={days}
+          presenceUsers={presenceUsers}
+          remoteDrag={remoteDrag}
         />
       ) : null}
 
