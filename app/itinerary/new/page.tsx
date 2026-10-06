@@ -174,7 +174,7 @@ export default function NewItineraryPage() {
 
       <form onSubmit={handleSubmit} className="max-w-2xl space-y-4" noValidate>
         {/* Trip details */}
-        <fieldset className="border border-border rounded-sm bg-surface p-5">
+        <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
           <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
             <Compass size={11} aria-hidden="true" /> Trip details
           </legend>
@@ -265,7 +265,7 @@ export default function NewItineraryPage() {
         </fieldset>
 
         {/* Collaborators */}
-        <fieldset className="border border-border rounded-sm bg-surface p-5">
+        <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
           <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
             <UserPlus size={11} aria-hidden="true" /> Invite collaborators
             {emails.length > 0 ? (

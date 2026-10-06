@@ -122,7 +122,7 @@ export default function ItineraryListPage() {
       ) : null}
 
       {items.length === 0 ? (
-        <div className="border border-border rounded-sm p-12 bg-surface text-center">
+        <div className="border border-border rounded-sm p-12 bg-[#FFFFFF] text-center">
           <Inbox size={20} className="mx-auto text-muted mb-2" aria-hidden="true" />
           <h2 className="text-base font-semibold mb-1">No itineraries yet</h2>
           <p className="text-sm text-muted max-w-md mx-auto mb-4">
@@ -139,7 +139,7 @@ export default function ItineraryListPage() {
       ) : filtered.length === 0 ? (
         <p className="text-sm text-muted py-8 text-center">No itineraries in this section.</p>
       ) : (
-        <ul className="divide-y divide-border border border-border rounded-sm bg-surface">
+        <ul className="divide-y divide-border border border-border rounded-sm bg-[#FFFFFF]">
           {filtered.map((itin) => {
             const stopCount = Array.isArray((itin as any).stops) ? (itin as any).stops.length : 0
             const collabCount = Array.isArray((itin as any).collaborators) ? (itin as any).collaborators.length : 0

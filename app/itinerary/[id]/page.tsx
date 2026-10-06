@@ -25,6 +25,12 @@ import {
   Edit3,
   Briefcase,
   Link2,
+  Clock,
+  Hourglass,
+  Banknote,
+  Car,
+  DoorOpen,
+  Tag,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import type {
@@ -40,6 +46,71 @@ import { Avatar } from '@/components/ui/Avatar'
 const today = () => new Date().toISOString().slice(0, 10)
 
 type Tab = 'overview' | 'days' | 'stops' | 'collaborators' | 'settings'
+
+// Form payload for addStop/updateStop — single source of truth.
+type StopFormFields = {
+  name: string
+  address: string
+  notes: string
+  planned_time: string
+  duration_minutes: number | null
+  category: 'food' | 'sight' | 'transport' | 'stay' | 'activity' | 'other' | ''
+  transport: 'walk' | 'scooter' | 'taxi' | 'bike' | 'car' | ''
+  transport_note: string
+  opening_hours: string
+  est_cost_cents: number | null
+  photo_url: string
+}
+
+const STOP_CATEGORIES: Array<{ v: StopFormFields['category']; label: string }> = [
+  { v: '', label: '— pick one —' },
+  { v: 'sight', label: 'Sight' },
+  { v: 'food', label: 'Food' },
+  { v: 'activity', label: 'Activity' },
+  { v: 'transport', label: 'Transport' },
+  { v: 'stay', label: 'Stay' },
+  { v: 'other', label: 'Other' },
+]
+const TRANSPORT_OPTIONS: Array<{ v: StopFormFields['transport']; label: string }> = [
+  { v: '', label: '— pick one —' },
+  { v: 'walk', label: 'Walk' },
+  { v: 'scooter', label: 'Scooter' },
+  { v: 'taxi', label: 'Taxi' },
+  { v: 'bike', label: 'Bike' },
+  { v: 'car', label: 'Car' },
+]
+
+// Compute total minutes spent at stops in a day, plus earliest start /
+// latest end so the user can see whether the day is realistic.
+function computeDayTimeline(stops: ItineraryStop[]) {
+  let totalDuration = 0
+  let earliestStart: number | null = null // minutes since 00:00
+  let latestEnd: number | null = null
+  for (const s of stops) {
+    if (s.duration_minutes) totalDuration += s.duration_minutes
+    if (s.planned_time) {
+      const [hh, mm] = s.planned_time.slice(0, 5).split(':').map(Number)
+      if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
+        const start = hh * 60 + mm
+        if (earliestStart === null || start < earliestStart) earliestStart = start
+        const end = start + (s.duration_minutes ?? 0)
+        if (latestEnd === null || end > latestEnd) latestEnd = end
+      }
+    }
+  }
+  const fmt = (mins: number) => {
+    const h = Math.floor(mins / 60)
+    const m = mins % 60
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  }
+  return {
+    totalDuration,
+    earliestStart: earliestStart === null ? null : fmt(earliestStart),
+    latestEnd: latestEnd === null ? null : fmt(latestEnd),
+    span: earliestStart !== null && latestEnd !== null ? latestEnd - earliestStart : null,
+    hasAnyTime: stops.some((s) => s.planned_time),
+  }
+}
 
 export default function ItineraryDetailPage() {
   const params = useParams()
@@ -222,7 +293,7 @@ export default function ItineraryDetailPage() {
   }
 
   // ---------- Stop edits ----------
-  async function addStop(dayId: string | null, input: { name: string; address: string; notes: string; planned_time: string }) {
+  async function addStop(dayId: string | null, input: StopFormFields) {
     if (!itin) return
     startTransition(async () => {
       const supabase = createClient()
@@ -238,6 +309,13 @@ export default function ItineraryDetailPage() {
           address: input.address.trim() || null,
           notes: input.notes.trim() || null,
           planned_time: input.planned_time || null,
+          duration_minutes: input.duration_minutes || null,
+          category: input.category || null,
+          transport: input.transport || null,
+          transport_note: input.transport_note?.trim() || null,
+          opening_hours: input.opening_hours?.trim() || null,
+          est_cost_cents: input.est_cost_cents || null,
+          photo_url: input.photo_url?.trim() || null,
           added_by: currentUser?.id ?? null,
         })
         .select()
@@ -676,7 +754,7 @@ function OverviewTab({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-2 space-y-4">
-        <fieldset className="border border-border rounded-sm bg-surface p-5">
+        <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
           <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
             <Compass size={11} aria-hidden="true" /> Trip details
           </legend>
@@ -731,7 +809,7 @@ function OverviewTab({
             </div>
           )}
         </fieldset>
-        <fieldset className="border border-border rounded-sm bg-surface p-5">
+        <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
           <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
             <Briefcase size={11} aria-hidden="true" /> Plan snapshot
           </legend>
@@ -752,7 +830,7 @@ function OverviewTab({
         </fieldset>
       </div>
       <aside className="space-y-4">
-        <fieldset className="border border-border rounded-sm bg-surface p-4">
+        <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-4">
           <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
             <Users size={11} aria-hidden="true" /> Team
           </legend>
@@ -895,7 +973,7 @@ function DaysTab({
   saving: boolean
 }) {
   return (
-    <fieldset className="border border-border rounded-sm bg-surface p-5">
+    <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
       <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
         <Calendar size={11} aria-hidden="true" /> Days
       </legend>
@@ -1064,7 +1142,7 @@ function StopsTab({
   days: ItineraryDay[]
   stops: ItineraryStop[]
   isEditor: boolean
-  onAdd: (dayId: string | null, input: { name: string; address: string; notes: string; planned_time: string }) => Promise<void>
+  onAdd: (dayId: string | null, input: StopFormFields) => Promise<void>
   onUpdate: (id: string, patch: Partial<ItineraryStop>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   editingStopId: string | null
@@ -1094,12 +1172,31 @@ function StopsTab({
       ) : null}
       {days.map((d) => {
         const dayStops = stops.filter((s) => s.day_id === d.id)
+        const tl = computeDayTimeline(dayStops)
         return (
-          <fieldset key={d.id} className="border border-border rounded-sm bg-surface p-5">
+          <fieldset key={d.id} className="border border-border rounded-sm bg-[#FFFFFF] p-5">
             <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
               <Calendar size={11} aria-hidden="true" /> {d.title || `Day ${d.day_order}`}
               {d.date ? <span className="ml-1 tabular-nums">{new Date(d.date).toLocaleDateString('en-US')}</span> : null}
             </legend>
+            {tl.hasAnyTime || tl.totalDuration > 0 ? (
+              <p className="text-xs text-muted inline-flex flex-wrap items-center gap-x-3 gap-y-1 -mt-1 mb-3" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <span className="inline-flex items-center gap-1">
+                  <Clock size={10} aria-hidden="true" />
+                  {tl.earliestStart ?? '—'} → {tl.latestEnd ?? '—'}
+                  {tl.span != null ? ` (${formatMinutes(tl.span)})` : ''}
+                </span>
+                {tl.totalDuration > 0 ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Hourglass size={10} aria-hidden="true" />
+                    {formatMinutes(tl.totalDuration)} on-site
+                  </span>
+                ) : null}
+                <span>
+                  {dayStops.length} stop{dayStops.length === 1 ? '' : 's'}
+                </span>
+              </p>
+            ) : null}
             {dayStops.length === 0 && addingStop !== d.id ? (
               <p className="text-sm text-subtle italic py-2">No stops for this day.</p>
             ) : (
@@ -1112,20 +1209,34 @@ function StopsTab({
                           stop={s}
                           onCancel={() => setEditingStopId(null)}
                           onSave={onUpdate}
+                          onDelete={onDelete}
                           saving={saving}
                         />
                       </div>
                     ) : (
                       <div className="flex items-start gap-3 px-5 py-3">
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-sm bg-primary text-paper text-[11px] font-semibold flex-shrink-0 tabular-nums" aria-hidden="true">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-sm bg-primary text-paper text-[11px] font-semibold flex-shrink-0 tabular-nums" aria-hidden="true">
                           {idx + 1}
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-ink">
                             {s.name}
-                            {s.planned_time ? <span className="ml-2 text-xs text-muted tabular-nums">{s.planned_time.slice(0, 5)}</span> : null}
+                            {s.planned_time ? (
+                              <span className="ml-2 text-xs text-muted tabular-nums">
+                                <Clock size={10} className="inline-block mr-0.5" aria-hidden="true" />
+                                {s.planned_time.slice(0, 5)}
+                                {s.duration_minutes ? ` · ${formatMinutes(s.duration_minutes)}` : ''}
+                              </span>
+                            ) : null}
+                          </p>
+                          <p className="text-xs text-muted mt-0.5 inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                            {s.category ? <span className="badge badge-info text-[10px] capitalize">{s.category}</span> : null}
+                            {s.transport ? <span className="inline-flex items-center gap-1"><Car size={10} aria-hidden="true" /> {s.transport}</span> : null}
+                            {s.est_cost_cents ? <span className="inline-flex items-center gap-1"><Banknote size={10} aria-hidden="true" /> {vnd(s.est_cost_cents)}</span> : null}
+                            {s.opening_hours ? <span className="inline-flex items-center gap-1"><DoorOpen size={10} aria-hidden="true" /> {s.opening_hours}</span> : null}
                           </p>
                           {s.address ? <p className="text-xs text-muted mt-0.5 inline-flex items-center gap-1"><MapPin size={11} aria-hidden="true" /> {s.address}</p> : null}
+                          {s.transport_note ? <p className="text-xs text-muted mt-0.5 italic">{s.transport_note}</p> : null}
                           {s.notes ? <p className="text-xs text-ink mt-1">{s.notes}</p> : null}
                         </div>
                         {isEditor ? (
@@ -1137,14 +1248,6 @@ function StopsTab({
                               className="inline-flex items-center justify-center w-7 h-7 text-ink hover:bg-paper border border-border rounded-sm"
                             >
                               <Pencil size={12} aria-hidden="true" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDelete(s.id)}
-                              aria-label={`Remove stop ${idx + 1}`}
-                              className="inline-flex items-center justify-center w-7 h-7 text-muted hover:text-danger hover:bg-danger-bg border border-border rounded-sm"
-                            >
-                              <Trash2 size={12} aria-hidden="true" />
                             </button>
                           </div>
                         ) : null}
@@ -1165,13 +1268,21 @@ function StopsTab({
                 />
               </div>
             ) : isEditor ? (
-              <div className="pt-2">
+              <div className="pt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setAddingStop(d.id)}
-                  className="inline-flex items-center gap-1 h-8 px-2 text-xs font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+                  className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                 >
-                  <Plus size={12} aria-hidden="true" /> Add stop
+                  <Plus size={14} aria-hidden="true" /> Add stop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddingStop(d.id + '__blank')}
+                  aria-label="Add blank stop"
+                  className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+                >
+                  <Plus size={14} aria-hidden="true" /> + quick add
                 </button>
               </div>
             ) : null}
@@ -1179,11 +1290,11 @@ function StopsTab({
         )
       })}
       {days.length > 0 ? (
-        <fieldset className="border border-border rounded-sm bg-surface p-5">
+        <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
           <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
             <MapPin size={11} aria-hidden="true" /> Unassigned
           </legend>
-          {unassigned.length === 0 && addingStop !== 'unassigned' ? (
+          {unassigned.length === 0 && addingStop !== 'unassigned' && !addingStop?.endsWith('__blank') ? (
             <p className="text-sm text-subtle italic py-2">No unassigned stops.</p>
           ) : (
             <ol className="border-t border-border first:border-t-0 -mx-5">
@@ -1191,15 +1302,28 @@ function StopsTab({
                 <li key={s.id} className="border-b border-border last:border-b-0">
                   {editingStopId === s.id ? (
                     <div className="px-5 py-4">
-                      <StopEditForm stop={s} onCancel={() => setEditingStopId(null)} onSave={onUpdate} saving={saving} />
+                      <StopEditForm stop={s} onCancel={() => setEditingStopId(null)} onSave={onUpdate} onDelete={onDelete} saving={saving} />
                     </div>
                   ) : (
                     <div className="flex items-start gap-3 px-5 py-3">
-                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-sm bg-paper text-ink text-[11px] font-semibold flex-shrink-0 tabular-nums border border-border" aria-hidden="true">
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-sm bg-paper text-ink text-[11px] font-semibold flex-shrink-0 tabular-nums border border-border" aria-hidden="true">
                         {idx + 1}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-ink">{s.name}</p>
+                        <p className="text-sm font-semibold text-ink">
+                          {s.name}
+                          {s.planned_time ? (
+                            <span className="ml-2 text-xs text-muted tabular-nums">
+                              <Clock size={10} className="inline-block mr-0.5" aria-hidden="true" />
+                              {s.planned_time.slice(0, 5)}
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-xs text-muted mt-0.5 inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {s.category ? <span className="badge badge-info text-[10px] capitalize">{s.category}</span> : null}
+                          {s.transport ? <span className="inline-flex items-center gap-1"><Car size={10} aria-hidden="true" /> {s.transport}</span> : null}
+                          {s.est_cost_cents ? <span className="inline-flex items-center gap-1"><Banknote size={10} aria-hidden="true" /> {vnd(s.est_cost_cents)}</span> : null}
+                        </p>
                         {s.address ? <p className="text-xs text-muted mt-0.5 inline-flex items-center gap-1"><MapPin size={11} aria-hidden="true" /> {s.address}</p> : null}
                         {s.notes ? <p className="text-xs text-ink mt-1">{s.notes}</p> : null}
                       </div>
@@ -1207,9 +1331,6 @@ function StopsTab({
                         <div className="flex flex-col gap-1 flex-shrink-0">
                           <button type="button" onClick={() => setEditingStopId(s.id)} aria-label="Edit stop" className="inline-flex items-center justify-center w-7 h-7 text-ink hover:bg-paper border border-border rounded-sm">
                             <Pencil size={12} aria-hidden="true" />
-                          </button>
-                          <button type="button" onClick={() => onDelete(s.id)} aria-label="Remove stop" className="inline-flex items-center justify-center w-7 h-7 text-muted hover:text-danger hover:bg-danger-bg border border-border rounded-sm">
-                            <Trash2 size={12} aria-hidden="true" />
                           </button>
                         </div>
                       ) : null}
@@ -1219,7 +1340,7 @@ function StopsTab({
               ))}
             </ol>
           )}
-          {addingStop === 'unassigned' ? (
+          {addingStop === 'unassigned' || addingStop?.endsWith('__blank') ? (
             <div className="px-5 py-4 border-t border-border bg-paper">
               <StopEditForm
                 stop={null}
@@ -1230,13 +1351,13 @@ function StopsTab({
               />
             </div>
           ) : isEditor ? (
-            <div className="pt-2">
+            <div className="pt-3">
               <button
                 type="button"
                 onClick={() => setAddingStop('unassigned')}
-                className="inline-flex items-center gap-1 h-8 px-2 text-xs font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+                className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
               >
-                <Plus size={12} aria-hidden="true" /> Add unassigned stop
+                <Plus size={14} aria-hidden="true" /> Add unassigned stop
               </button>
             </div>
           ) : null}
@@ -1246,69 +1367,192 @@ function StopsTab({
   )
 }
 
+function formatMinutes(min: number): string {
+  if (min < 60) return `${min}m`
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+function vnd(cents: number): string {
+  // 1 VND = 1 unit. The DB column is `est_cost_cents` so we divide by 100
+  // to get the display value. Display in VND with thousand separators.
+  const v = Math.round(cents / 100)
+  return `${v.toLocaleString('en-US')}₫`
+}
+
 function StopEditForm({
   stop,
   onCancel,
   onSave,
   onCreate,
+  onDelete,
   saving,
 }: {
   stop: ItineraryStop | null
   onCancel: () => void
   onSave: (id: string, patch: Partial<ItineraryStop>) => Promise<void>
-  onCreate?: (input: { name: string; address: string; notes: string; planned_time: string }) => Promise<void>
+  onCreate?: (input: StopFormFields) => Promise<void>
+  onDelete?: (id: string) => Promise<void>
   saving: boolean
 }) {
   const [name, setName] = useState(stop?.name ?? '')
   const [address, setAddress] = useState(stop?.address ?? '')
   const [notes, setNotes] = useState(stop?.notes ?? '')
   const [plannedTime, setPlannedTime] = useState(stop?.planned_time?.slice(0, 5) ?? '')
+  const [duration, setDuration] = useState<string>(stop?.duration_minutes != null ? String(stop.duration_minutes) : '')
+  const [category, setCategory] = useState<StopFormFields['category']>((stop?.category as StopFormFields['category']) ?? '')
+  const [transport, setTransport] = useState<StopFormFields['transport']>((stop?.transport as StopFormFields['transport']) ?? '')
+  const [transportNote, setTransportNote] = useState(stop?.transport_note ?? '')
+  const [openingHours, setOpeningHours] = useState(stop?.opening_hours ?? '')
+  const [estCost, setEstCost] = useState<string>(stop?.est_cost_cents != null ? String(stop.est_cost_cents) : '')
+  const [photoUrl, setPhotoUrl] = useState(stop?.photo_url ?? '')
+
+  function collect(): StopFormFields {
+    const dur = duration.trim() ? Number(duration) : null
+    const cost = estCost.trim() ? Number(estCost) : null
+    return {
+      name: name.trim(),
+      address: address.trim(),
+      notes: notes.trim(),
+      planned_time: plannedTime,
+      duration_minutes: dur != null && !Number.isNaN(dur) ? dur : null,
+      category,
+      transport,
+      transport_note: transportNote,
+      opening_hours: openingHours,
+      est_cost_cents: cost != null && !Number.isNaN(cost) ? cost : null,
+      photo_url: photoUrl,
+    }
+  }
+
   return (
     <form
       onSubmit={async (e) => {
         e.preventDefault()
-        if (!name.trim()) return
+        const payload = collect()
+        if (!payload.name) return
         if (stop) {
           await onSave(stop.id, {
-            name: name.trim(),
-            address: address.trim() || null,
-            notes: notes.trim() || null,
-            planned_time: plannedTime || null,
+            name: payload.name,
+            address: payload.address || null,
+            notes: payload.notes || null,
+            planned_time: payload.planned_time || null,
+            duration_minutes: payload.duration_minutes,
+            category: payload.category || null,
+            transport: payload.transport || null,
+            transport_note: payload.transport_note.trim() || null,
+            opening_hours: payload.opening_hours.trim() || null,
+            est_cost_cents: payload.est_cost_cents,
+            photo_url: payload.photo_url.trim() || null,
           })
         } else if (onCreate) {
-          await onCreate({
-            name: name.trim(),
-            address: address.trim(),
-            notes: notes.trim(),
-            planned_time: plannedTime,
-          })
+          await onCreate(payload)
         }
       }}
-      className="space-y-2"
+      className="space-y-3"
     >
       <div className="form-group">
-        <label htmlFor={`stop-name-${stop?.id ?? 'new'}`} className="form-label">Name <span className="text-danger" aria-hidden="true">*</span></label>
-        <input id={`stop-name-${stop?.id ?? 'new'}`} type="text" required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} className="form-input" autoFocus />
+        <label htmlFor={`stop-name-${stop?.id ?? 'new'}`} className="form-label">
+          Name <span className="text-danger" aria-hidden="true">*</span>
+        </label>
+        <input id={`stop-name-${stop?.id ?? 'new'}`} type="text" required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} className="form-input" autoFocus placeholder="e.g. Marble Mountains, Bún chả Cá" />
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="form-group">
+          <label htmlFor={`stop-category-${stop?.id ?? 'new'}`} className="form-label inline-flex items-center gap-1">
+            <Tag size={11} aria-hidden="true" /> Category
+          </label>
+          <select id={`stop-category-${stop?.id ?? 'new'}`} value={category} onChange={(e) => setCategory(e.target.value as StopFormFields['category'])} className="form-input">
+            {STOP_CATEGORIES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label htmlFor={`stop-address-${stop?.id ?? 'new'}`} className="form-label inline-flex items-center gap-1">
+            <MapPin size={11} aria-hidden="true" /> Address
+          </label>
+          <input id={`stop-address-${stop?.id ?? 'new'}`} type="text" maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} className="form-input" placeholder="e.g. 81 Huyen Tran Cong Chua" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="form-group">
+          <label htmlFor={`stop-time-${stop?.id ?? 'new'}`} className="form-label inline-flex items-center gap-1">
+            <Clock size={11} aria-hidden="true" /> Start time
+          </label>
+          <input id={`stop-time-${stop?.id ?? 'new'}`} type="time" value={plannedTime} onChange={(e) => setPlannedTime(e.target.value)} className="form-input" />
+        </div>
+        <div className="form-group">
+          <label htmlFor={`stop-duration-${stop?.id ?? 'new'}`} className="form-label inline-flex items-center gap-1">
+            <Hourglass size={11} aria-hidden="true" /> Stay (min)
+          </label>
+          <input id={`stop-duration-${stop?.id ?? 'new'}`} type="number" min={0} max={1440} step={5} value={duration} onChange={(e) => setDuration(e.target.value)} className="form-input" placeholder="e.g. 90" />
+        </div>
+        <div className="form-group">
+          <label htmlFor={`stop-cost-${stop?.id ?? 'new'}`} className="form-label inline-flex items-center gap-1">
+            <Banknote size={11} aria-hidden="true" /> Est cost (VND)
+          </label>
+          <input id={`stop-cost-${stop?.id ?? 'new'}`} type="number" min={0} step={1000} value={estCost} onChange={(e) => setEstCost(e.target.value)} className="form-input" placeholder="e.g. 100000" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="form-group">
+          <label htmlFor={`stop-transport-${stop?.id ?? 'new'}`} className="form-label inline-flex items-center gap-1">
+            <Car size={11} aria-hidden="true" /> How you get there
+          </label>
+          <select id={`stop-transport-${stop?.id ?? 'new'}`} value={transport} onChange={(e) => setTransport(e.target.value as StopFormFields['transport'])} className="form-input">
+            {TRANSPORT_OPTIONS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label htmlFor={`stop-hours-${stop?.id ?? 'new'}`} className="form-label inline-flex items-center gap-1">
+            <DoorOpen size={11} aria-hidden="true" /> Opening hours
+          </label>
+          <input id={`stop-hours-${stop?.id ?? 'new'}`} type="text" maxLength={120} value={openingHours} onChange={(e) => setOpeningHours(e.target.value)} className="form-input" placeholder="e.g. Mon–Sun 06:00–18:00" />
+        </div>
+      </div>
+
       <div className="form-group">
-        <label htmlFor={`stop-address-${stop?.id ?? 'new'}`} className="form-label">Address</label>
-        <input id={`stop-address-${stop?.id ?? 'new'}`} type="text" maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} className="form-input" />
+        <label htmlFor={`stop-transport-note-${stop?.id ?? 'new'}`} className="form-label">Transport note</label>
+        <input id={`stop-transport-note-${stop?.id ?? 'new'}`} type="text" maxLength={200} value={transportNote} onChange={(e) => setTransportNote(e.target.value)} className="form-input" placeholder="e.g. take bus 1 from Han Market, 15 min ride" />
       </div>
+
       <div className="form-group">
-        <label htmlFor={`stop-time-${stop?.id ?? 'new'}`} className="form-label">Planned time</label>
-        <input id={`stop-time-${stop?.id ?? 'new'}`} type="time" value={plannedTime} onChange={(e) => setPlannedTime(e.target.value)} className="form-input" />
+        <label htmlFor={`stop-photo-${stop?.id ?? 'new'}`} className="form-label">Photo URL (optional)</label>
+        <input id={`stop-photo-${stop?.id ?? 'new'}`} type="url" maxLength={500} value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} className="form-input" placeholder="https://…" />
       </div>
+
       <div className="form-group">
         <label htmlFor={`stop-notes-${stop?.id ?? 'new'}`} className="form-label">Notes</label>
-        <textarea id={`stop-notes-${stop?.id ?? 'new'}`} rows={2} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} className="form-input form-textarea" />
+        <textarea id={`stop-notes-${stop?.id ?? 'new'}`} rows={2} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} className="form-input form-textarea" placeholder="Anything to remember — dress code, reservation, what to order…" />
       </div>
-      <div className="flex flex-wrap gap-2">
+
+      <div className="flex flex-wrap items-center gap-2">
         <button type="submit" disabled={saving || !name.trim()} className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50">
-          {saving ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />} {stop ? 'Save' : 'Add stop'}
+          {saving ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />} {stop ? 'Save stop' : 'Add stop'}
         </button>
         <button type="button" onClick={onCancel} disabled={saving} className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper">
           <X size={13} aria-hidden="true" /> Cancel
         </button>
+        {stop && onDelete ? (
+          <button
+            type="button"
+            onClick={async () => {
+              if (window.confirm('Remove this stop from the itinerary?')) {
+                await onDelete(stop.id)
+              }
+            }}
+            disabled={saving}
+            className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-danger border border-border-strong hover:bg-danger-bg ml-auto"
+          >
+            <Trash2 size={13} aria-hidden="true" /> Remove stop
+          </button>
+        ) : null}
+        <span className="text-[10px] text-subtle ml-auto">
+          Estimated cost is in VND ÷ 100
+        </span>
       </div>
     </form>
   )
@@ -1347,7 +1591,7 @@ function CollaboratorsTab({
   const [role, setRole] = useState<'editor' | 'viewer'>('editor')
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <fieldset className="border border-border rounded-sm bg-surface p-5">
+      <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
         <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
           <Users size={11} aria-hidden="true" /> Team
         </legend>
@@ -1422,7 +1666,7 @@ function CollaboratorsTab({
         ) : null}
       </fieldset>
 
-      <fieldset className="border border-border rounded-sm bg-surface p-5">
+      <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
         <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
           <Share2 size={11} aria-hidden="true" /> Share link
         </legend>
@@ -1503,7 +1747,7 @@ function SettingsTab({
     )
   }
   return (
-    <fieldset className="border border-border rounded-sm bg-surface p-5">
+    <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
       <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
         <Edit3 size={11} aria-hidden="true" /> Settings
       </legend>
