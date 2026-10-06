@@ -20,22 +20,21 @@
 
 BEGIN;
 
--- Safety: pre-check there are no FK references from other tables.
+-- Safety: pre-check there are no FK references FROM other tables TO these tables.
+-- (FKs going OUT from these tables are fine — DROP CASCADE handles them.)
 DO $$
 DECLARE
   fk_count INT;
 BEGIN
   SELECT COUNT(*) INTO fk_count
-  FROM information_schema.table_constraints
-  WHERE constraint_type = 'FOREIGN KEY'
-    AND table_schema = 'public'
-    AND (
-      constraint_name LIKE '%trip_bookings%'
-      OR constraint_name LIKE '%trip_budget%'
-      OR constraint_name LIKE '%webrtc_signals%'
-    );
+  FROM information_schema.referential_constraints rc
+  JOIN information_schema.constraint_column_usage ccu
+    ON rc.unique_constraint_name = ccu.constraint_name
+    AND rc.unique_constraint_schema = ccu.constraint_schema
+  WHERE ccu.table_schema = 'public'
+    AND ccu.table_name IN ('trip_bookings','trip_budget','webrtc_signals');
   IF fk_count > 0 THEN
-    RAISE EXCEPTION 'Refusing to drop: % FK constraints reference these tables. Inspect first.', fk_count;
+    RAISE EXCEPTION 'Refusing to drop: % FK constraints FROM other tables reference these. Inspect first.', fk_count;
   END IF;
 END $$;
 

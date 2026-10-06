@@ -8,23 +8,19 @@ import {
   Calendar,
   Backpack,
   AlertTriangle,
-  Clock,
-  Pencil,
-  Share2,
-  Copy,
-  Pin,
   ArrowLeft,
-  Check,
+  Pencil,
+  Pin,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import type { Connection, Trip, Profile, TripActivity } from '@/lib/types'
-import { Avatar } from '@/components/ui/Avatar'
-import { daysUntilExpiry, expiryLabel } from '@/lib/connection-stages'
 import PlanTab from '@/components/itinerary/PlanTab'
 import DaysTab from '@/components/itinerary/DaysTab'
 import PackingTab from '@/components/itinerary/PackingTab'
 import ActivityFeed from '@/components/itinerary/ActivityFeed'
 import ManageCompanions from '@/components/itinerary/ManageCompanions'
+import ItineraryHeader from '@/components/itinerary/ItineraryHeader'
+import ItineraryHero, { type ItineraryHeroPerson } from '@/components/itinerary/ItineraryHero'
 
 interface PageProps {
   params: Promise<{ connectionId: string }>
@@ -48,11 +44,9 @@ export default function SharedItineraryPage({ params }: PageProps) {
   const [canEdit, setCanEdit] = useState(false)
   const [tab, setTab] = useState<Tab>('plan')
   const [activity, setActivity] = useState<TripActivity[]>([])
-  const [travelers, setTravelers] = useState<Array<{ id: string; full_name: string; avatar_url: string | null; nationality: string | null; role: string }>>([])
-  const [coBuddies, setCoBuddies] = useState<Array<{ id: string; full_name: string; avatar_url: string | null; specialties: string[]; role: string }>>([])
+  const [travelers, setTravelers] = useState<ItineraryHeroPerson[]>([])
+  const [coBuddies, setCoBuddies] = useState<ItineraryHeroPerson[]>([])
   const [showActivity, setShowActivity] = useState(true)
-  const [showShareMenu, setShowShareMenu] = useState(false)
-  const [copyOk, setCopyOk] = useState(false)
 
   useEffect(() => {
     params.then((p) => setConnectionId(p.connectionId))
@@ -163,8 +157,7 @@ export default function SharedItineraryPage({ params }: PageProps) {
           id: r.profile?.id ?? r.tourist_id,
           full_name: r.profile?.full_name ?? 'Traveler',
           avatar_url: r.profile?.avatar_url ?? null,
-          nationality: r.tourist?.nationality ?? null,
-          role: r.role,
+          role: (r.role === 'lead' ? 'lead' : 'companion'),
         })),
       )
       setCoBuddies(
@@ -172,8 +165,7 @@ export default function SharedItineraryPage({ params }: PageProps) {
           id: r.profile?.id ?? r.buddy_id,
           full_name: r.profile?.full_name ?? 'Buddy',
           avatar_url: r.profile?.avatar_url ?? null,
-          specialties: r.buddy?.specialties ?? [],
-          role: r.role,
+          role: (r.role === 'lead' ? 'lead' : 'co-buddy'),
         })),
       )
 
@@ -256,18 +248,6 @@ export default function SharedItineraryPage({ params }: PageProps) {
       })
   }
 
-  async function copyShareLink() {
-    if (!trip?.share_token) return
-    const url = `${window.location.origin}/itinerary/share/${trip.share_token}`
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopyOk(true)
-      setTimeout(() => setCopyOk(false), 2000)
-    } catch {
-      window.prompt('Copy this link:', url)
-    }
-  }
-
   if (loading) {
     return (
       <div className="container-page py-16 text-center">
@@ -308,193 +288,23 @@ export default function SharedItineraryPage({ params }: PageProps) {
   const tourist = connection.tourist as any
   const buddyName = buddy?.profile?.full_name ?? 'Buddy'
   const touristName = tourist?.profile?.full_name ?? 'Traveler'
-  const buddyAvatar = buddy?.profile?.avatar_url
-  const touristAvatar = tourist?.profile?.avatar_url
-  const daysLeft = connection.status === 'accepted' ? daysUntilExpiry(connection.updated_at) : null
 
   return (
     <div className="container-page py-6 lg:py-8 space-y-4">
-      {/* Top breadcrumb */}
-      <div className="flex items-center justify-between gap-2">
-        <Link
-          href={me?.role === 'buddy' ? '/dashboard' : '/dashboard'}
-          className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink"
-        >
-          <ArrowLeft size={14} aria-hidden="true" />
-          Back
-        </Link>
-        {trip?.share_token ? (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowShareMenu((s) => !s)}
-              className="inline-flex items-center gap-1 h-8 px-3 text-sm rounded-sm bg-surface text-ink border border-border-strong hover:bg-paper"
-              aria-label="Share itinerary"
-            >
-              <Share2 size={13} aria-hidden="true" />
-              Share
-            </button>
-            {showShareMenu ? (
-              <div className="absolute right-0 top-full mt-1 z-20 w-72 p-3 bg-surface border border-border rounded-sm shadow-focus">
-                <p className="text-xs text-muted mb-2">
-                  Anyone with this link can read (not edit) your itinerary.
-                </p>
-                <button
-                  type="button"
-                  onClick={copyShareLink}
-                  className="w-full inline-flex items-center justify-center gap-1 h-8 px-3 text-xs font-medium rounded-sm bg-primary text-paper hover:bg-primary-hover"
-                >
-                  {copyOk ? (
-                    <>
-                      <Check size={12} aria-hidden="true" /> Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={12} aria-hidden="true" /> Copy public link
-                    </>
-                  )}
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      <ItineraryHeader
+        tripShareToken={trip?.share_token ?? null}
+        dashboardHref="/dashboard"
+      />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden border border-border rounded-sm bg-surface">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "url('https://images.unsplash.com/photo-1602002418082-a4443e081dd1?w=1600&q=70&auto=format&fit=crop')",
-            opacity: 0.18,
-          }}
-          aria-hidden="true"
-        />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(90deg, color-mix(in srgb, var(--color-paper) 95%, transparent) 0%, color-mix(in srgb, var(--color-paper) 70%, transparent) 100%)',
-          }}
-          aria-hidden="true"
-        />
-        <div className="relative p-6 lg:p-8">
-          <p className="text-eyebrow text-primary mb-2">
-            Shared itinerary
-            <span
-              className="ml-2 italic text-muted"
-              style={{ letterSpacing: '0.02em' }}
-              aria-hidden="true"
-            >
-              lịch trình chung
-            </span>
-          </p>
-          <h1 className="text-page-title mb-2">{trip?.title ?? 'Da Nang itinerary'}</h1>
-          <p className="text-sm text-muted mb-4 max-w-xl">
-            {travelers.length > 1 || coBuddies.length > 1
-              ? `This trip has ${travelers.length} traveler${travelers.length === 1 ? '' : 's'} and ${coBuddies.length} guide${coBuddies.length === 1 ? '' : 's'}. All accepted participants can read; leads can edit.`
-              : `Both ${touristName} and ${buddyName} can edit this page. Changes save automatically.`}
-          </p>
-          <div className="flex flex-wrap items-center gap-3 mb-3">
-            <span className="badge badge-primary text-xs">
-              Travelers (
-              <span
-                style={{
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {travelers.length}
-              </span>
-              )
-            </span>
-            <ul className="flex flex-wrap items-center gap-2">
-              {travelers.length === 0 ? (
-                <li className="text-xs text-muted">No travelers yet.</li>
-              ) : (
-                travelers.map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex items-center gap-2 border border-border rounded-sm pl-1 pr-3 py-1 bg-paper"
-                  >
-                    <Avatar name={t.full_name} src={t.avatar_url} size="xs" />
-                    <span className="text-xs font-medium text-ink truncate max-w-[120px]">
-                      {t.full_name}
-                    </span>
-                    {t.role === 'lead' ? (
-                      <span className="badge badge-warning text-[10px]">Lead</span>
-                    ) : null}
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="badge badge-success text-xs">
-              Buddies (
-              <span
-                style={{
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {coBuddies.length}
-              </span>
-              )
-            </span>
-            <ul className="flex flex-wrap items-center gap-2">
-              {coBuddies.length === 0 ? (
-                <li className="text-xs text-muted">No buddies yet.</li>
-              ) : (
-                coBuddies.map((b) => (
-                  <li
-                    key={b.id}
-                    className="flex items-center gap-2 border border-border rounded-sm pl-1 pr-3 py-1 bg-paper"
-                  >
-                    <Avatar name={b.full_name} src={b.avatar_url} size="xs" />
-                    <span className="text-xs font-medium text-ink truncate max-w-[120px]">
-                      {b.full_name}
-                    </span>
-                    {b.role === 'lead' ? (
-                      <span className="badge badge-warning text-[10px]">Lead</span>
-                    ) : null}
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 mt-4">
-            <span className="hidden sm:inline text-subtle">·</span>
-            <span
-              className={`badge badge-${
-                connection.status === 'accepted'
-                  ? 'success'
-                  : connection.status === 'declined'
-                    ? 'danger'
-                    : 'warning'
-              }`}
-            >
-              {connection.status}
-            </span>
-            {daysLeft !== null ? (
-              <span className="text-xs text-muted inline-flex items-center gap-1">
-                <Clock size={12} aria-hidden="true" />
-                {expiryLabel(daysLeft)}
-              </span>
-            ) : null}
-          </div>
-          {!canEdit ? (
-            <div className="alert alert-warning mt-4" role="alert">
-              <AlertTriangle size={16} aria-hidden="true" />
-              <span>
-                Editing unlocks once the buddy accepts the connection. You can
-                still read the plan.
-              </span>
-            </div>
-          ) : null}
-        </div>
-      </section>
+      <ItineraryHero
+        title={trip?.title ?? null}
+        connection={connection}
+        travelers={travelers}
+        coBuddies={coBuddies}
+        touristName={touristName}
+        buddyName={buddyName}
+        canEdit={canEdit}
+      />
 
       {/* Tabs */}
       <section
