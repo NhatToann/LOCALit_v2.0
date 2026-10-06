@@ -6,6 +6,26 @@ export type ConnectionStatus = 'pending' | 'accepted' | 'declined'
 export type ConnectionLifecycle = 'search' | 'active' | 'ended'
 export type ItineraryStatus = 'planning' | 'confirmed' | 'completed' | 'cancelled'
 export type ItineraryVisibility = 'private' | 'shared'
+
+export type NotificationType =
+  | 'message'
+  | 'connection_request'
+  | 'connection_accepted'
+  | 'connection_declined'
+  | 'trip_update'
+
+export interface Notification {
+  id: string
+  user_id: string
+  type: NotificationType
+  title: string
+  body: string | null
+  link: string | null
+  actor_id: string | null
+  actor_name: string | null
+  read_at: string | null
+  created_at: string
+}
 export type CollaboratorRole = 'owner' | 'editor' | 'viewer'
 export type CollaboratorStatus = 'invited' | 'accepted' | 'declined' | 'revoked'
 

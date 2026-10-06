@@ -7,6 +7,7 @@ import { Menu, User, LogOut, X, MapPin } from 'lucide-react';
 import { createClient } from '@/utils/supabase/auth';
 import { useRouter } from 'next/navigation';
 import { NavHint } from './NavHint';
+import NotificationBell from '@/components/notifications/NotificationBell';
 
 /**
  * Header (2026-10-01 — unified, single web).
@@ -121,9 +122,11 @@ export default function Header({ userName, userId }: HeaderProps) {
           })}
         </nav>
 
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {isLoggedIn ? (
-            <div ref={menuRef} className="relative">
+            <>
+              <NotificationBell userId={userId} />
+              <div ref={menuRef} className="relative">
               <button
                 onClick={() => setMenuOpen((s) => !s)}
                 className="p-1 rounded-full transition-colors duration-150 hover:bg-paper"
@@ -163,7 +166,8 @@ export default function Header({ userName, userId }: HeaderProps) {
                   </button>
                 </div>
               ) : null}
-            </div>
+              </div>
+            </>
           ) : (
             <>
               <Link
