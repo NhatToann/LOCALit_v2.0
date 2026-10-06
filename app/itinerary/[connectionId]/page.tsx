@@ -22,6 +22,7 @@ import ManageCompanions from '@/components/itinerary/ManageCompanions'
 import ItineraryHeader from '@/components/itinerary/ItineraryHeader'
 import ItineraryHero, { type ItineraryHeroPerson } from '@/components/itinerary/ItineraryHero'
 import ItineraryMap, { type PresenceUser, type RemoteDragState } from '@/components/itinerary/ItineraryMap'
+import OperationalInsights from '@/components/itinerary/OperationalInsights'
 import { useTripPresence } from '@/lib/realtime/useTripPresence'
 import { usePinDragBroadcast, type PinDragPayload } from '@/lib/realtime/usePinDrag'
 
@@ -90,6 +91,13 @@ export default function SharedItineraryPage({ params }: PageProps) {
   const [days, setDays] = useState<TripDay[]>([])
   const [stops, setStops] = useState<TripStop[]>([])
   const [remoteDrag, setRemoteDrag] = useState<Record<string, RemoteDragState>>({})
+  const [weather, setWeather] = useState<{
+    tempC: number | null
+    windKph: number | null
+    summary: string | null
+  }>({ tempC: null, windKph: null, summary: null })
+  const [weatherLoading, setWeatherLoading] = useState(false)
+  const [weatherError, setWeatherError] = useState<string | null>(null)
 
   useEffect(() => {
     params.then((p) => setConnectionId(p.connectionId))
@@ -289,6 +297,48 @@ export default function SharedItineraryPage({ params }: PageProps) {
     }
   }, [trip?.id])
 
+  // Weather: fetch from server proxy when trip has start_date
+  useEffect(() => {
+    if (!trip?.start_date) {
+      setWeather({ tempC: null, windKph: null, summary: null })
+      return
+    }
+    let cancelled = false
+    setWeatherLoading(true)
+    setWeatherError(null)
+    const params = new URLSearchParams({
+      lat: '16.0544',
+      lng: '108.2023',
+      date: trip.start_date,
+    })
+    fetch(`/api/weather?${params.toString()}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}))
+          throw new Error(j.error ?? `HTTP ${r.status}`)
+        }
+        return r.json()
+      })
+      .then((d: { tempC?: number; windKph?: number; summary?: string }) => {
+        if (cancelled) return
+        setWeather({
+          tempC: typeof d.tempC === 'number' ? d.tempC : null,
+          windKph: typeof d.windKph === 'number' ? d.windKph : null,
+          summary: d.summary ?? null,
+        })
+      })
+      .catch((e: Error) => {
+        if (cancelled) return
+        setWeatherError(e.message)
+      })
+      .finally(() => {
+        if (!cancelled) setWeatherLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [trip?.start_date])
+
   function logActivity(verb: string, payload: Record<string, unknown> = {}) {
     if (!trip || !me) return
     const supabase = createClient()
@@ -369,6 +419,20 @@ export default function SharedItineraryPage({ params }: PageProps) {
           days={days}
           presenceUsers={presenceUsers}
           remoteDrag={remoteDrag}
+        />
+      ) : null}
+
+      {trip ? (
+        <OperationalInsights
+          days={days}
+          stops={stops}
+          budgetEstimate={null}
+          tripStartDate={trip.start_date ?? null}
+          weatherTempC={weather.tempC}
+          weatherWindKph={weather.windKph}
+          weatherSummary={weather.summary}
+          weatherLoading={weatherLoading}
+          weatherError={weatherError}
         />
       ) : null}
 
