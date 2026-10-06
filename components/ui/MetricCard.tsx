@@ -31,7 +31,7 @@ export function MetricCard({
       <p
         className="text-5xl font-medium text-ink mb-3"
         style={{
-          fontFamily: 'var(--font-mono, ui-monospace, SFMono-Regular, monospace)',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
           fontVariantNumeric: 'tabular-nums',
           letterSpacing: '-0.02em',
         }}
