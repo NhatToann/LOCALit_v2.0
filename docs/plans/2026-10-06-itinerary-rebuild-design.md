@@ -48,7 +48,7 @@ app/itinerary/[connectionId]/page.tsx          # orchestrator (~200 dòng, giả
 │   ├── StopCard.tsx                           # drag-drop, inline edit
 │   └── DaySummary.tsx                         # distance/time/warning
 ├── OperationalInsights.tsx                    # 4-5 chip metric
-├── BudgetTracker.tsx                          # dùng trip_budget (0 rows hiện tại)
+├── BudgetTracker.tsx                          # dùng trips.budget_estimate (added Phase 0)
 ├── PackingSmartList.tsx                       # per-traveler mode
 ├── NotesTab.tsx                               # 5 trường structured
 ├── ManageCompanions.tsx                       # giữ nguyên
