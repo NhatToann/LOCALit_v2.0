@@ -33,6 +33,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 import { validatePassword } from '@/utils/password-validator'
 import { issueOtpForSignup, type PendingSignupPayload } from '@/utils/otp'
+import { findProfileIdByEmail } from '@/utils/db-pg'
 import bcrypt from 'bcryptjs'
 
 interface StartBody {
@@ -94,7 +95,11 @@ export async function POST(req: NextRequest) {
   // we skip the duplicate check so you can re-register an existing email
   // while testing without manually deleting the old profile row first.
   // Both flags must be set; OTP_PREVIEW alone is not enough.
-  const admin = createAdminClient()
+  //
+  // 2026-10-07: switched to pg-direct (utils/db-pg.ts) because the
+  // Supabase REST admin client returned "Invalid API key" — the
+  // SUPABASE_SERVICE_ROLE_KEY in Vercel had been rotated in the Supabase
+  // dashboard. The pg connection bypasses the API entirely.
   let skipExistingCheck = false
   if (process.env.OTP_PREVIEW === 'true' && process.env.OTP_PREVIEW_ALLOW_REUSED === '1') {
     skipExistingCheck = true
@@ -102,13 +107,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (!skipExistingCheck) {
-    const { data: existingProfile } = await admin
-      .from('profiles')
-      .select('id')
-      .eq('email', emailStr)
-      .maybeSingle()
-
-    if (existingProfile) {
+    const existing = await findProfileIdByEmail(emailStr)
+    if (existing.data) {
       // Don't leak that the email exists. Same generic 400 as other failures.
       console.warn(`[signup/start] email already registered: ${emailStr}`)
       return NextResponse.json(

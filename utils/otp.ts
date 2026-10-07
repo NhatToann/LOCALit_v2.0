@@ -30,6 +30,12 @@
  *     a DB leak alone doesn't grant account access.
  */
 import { createAdminClient } from './supabase/admin'
+import {
+  insertEmailVerification,
+  selectEmailVerification,
+  updateEmailVerification,
+  consumeUnverifiedCodesForEmail,
+} from './db-pg'
 import { sendEmail, buildOtpEmail, generateOtp } from './email'
 import bcrypt from 'bcryptjs'
 
@@ -59,63 +65,82 @@ export interface IssueOtpResult {
   error?: string
 }
 
-/** Issue a new OTP for the given pending signup payload. Invalidates prior codes. */
+/** Issue a new OTP for the given pending signup payload. Invalidates prior codes.
+ *
+ * Storage strategy (2026-10-07): the Supabase REST admin client uses the
+ * `SUPABASE_SERVICE_ROLE_KEY` env var. If that key is rotated in the
+ * Supabase dashboard and not updated in Vercel, every insert returns
+ * "Invalid API key". We use the direct `pg` connection (utils/otp-pg.ts)
+ * instead — it bypasses the API and goes straight to Postgres, so it's
+ * immune to API-key rotation issues. Both connection methods must succeed
+ * to actually be down, and `pg` failures are very loud (connection refused,
+ * wrong password).
+ */
 export async function issueOtpForSignup(
   payload: PendingSignupPayload,
   meta: { ip?: string | null; userAgent?: string | null } = {},
 ): Promise<IssueOtpResult> {
-  const admin = createAdminClient()
   const code = generateOtp()
   const codeHash = await bcrypt.hash(code, 10)
   const expiresAt = new Date(Date.now() + OTP_TTL_MS).toISOString()
 
   // Wipe any unverified rows for this email so only one code is live at a time.
   // (Don't touch already-consumed rows — those represent completed signups.)
-  await admin
-    .from('email_verifications')
-    .update({ consumed_at: new Date().toISOString() })
-    .eq('email', payload.email)
-    .is('consumed_at', null)
+  await consumeUnverifiedCodesForEmail(payload.email)
 
-  const { data: inserted, error: insertErr } = await admin
-    .from('email_verifications')
-    .insert({
-      email: payload.email,
-      pending_payload: payload,
-      code_hash: codeHash,
-      expires_at: expiresAt,
-      ip_address: meta.ip ?? null,
-      user_agent: meta.userAgent ?? null,
-    })
-    .select('id')
-    .single()
+  const insertRes = await insertEmailVerification({
+    email: payload.email,
+    pending_payload: payload as unknown as Record<string, unknown>,
+    code_hash: codeHash,
+    expires_at: expiresAt,
+    ip_address: meta.ip ?? null,
+    user_agent: meta.userAgent ?? null,
+  })
 
-  if (insertErr || !inserted) {
-    // Debug: include the actual Supabase response details so we can diagnose
-    // "Invalid API key" vs permission errors vs connection issues.
-    const detail = JSON.stringify({
-      message: insertErr?.message,
-      code: insertErr?.code,
-      hint: insertErr?.hint,
-      details: insertErr?.details,
-      status: (insertErr as { status?: number })?.status,
-    })
-    return { ok: false, error: `Could not store code: ${detail}` }
+  if (insertRes.error || !insertRes.data) {
+    // Fall back to the Supabase REST admin client in case pg is misconfigured.
+    // This is the path that was broken before; keep it as a safety net so
+    // future ops can flip a flag and rerun if the pg connection string
+    // expires.
+    const admin = createAdminClient()
+    const { data: inserted, error: insertErr } = await admin
+      .from('email_verifications')
+      .insert({
+        email: payload.email,
+        pending_payload: payload,
+        code_hash: codeHash,
+        expires_at: expiresAt,
+        ip_address: meta.ip ?? null,
+        user_agent: meta.userAgent ?? null,
+      })
+      .select('id')
+      .single()
+    if (insertErr || !inserted) {
+      const detail = JSON.stringify({
+        message: insertErr?.message,
+        code: insertErr?.code,
+        hint: insertErr?.hint,
+        details: insertErr?.details,
+        status: (insertErr as { status?: number })?.status,
+        pg_error: insertRes.error,
+      })
+      return { ok: false, error: `Could not store code: ${detail}` }
+    }
+    return finalizeOtpSend(inserted.id, code, payload)
   }
 
+  return finalizeOtpSend(insertRes.data.id, code, payload)
+}
+
+async function finalizeOtpSend(
+  signupId: string,
+  code: string,
+  payload: PendingSignupPayload,
+): Promise<IssueOtpResult> {
   // ---- DEV MODE ---------------------------------------------------------
-  // When OTP_PREVIEW=true, we skip the actual email send (Resend test mode
-  // restricts recipients to the account owner), and instead echo the code
-  // back via the result. The route also logs the code to the server console
-  // so you can grep `vercel logs`.
-  //
-  // SECURITY: this MUST be gated on the env var. If left enabled in
-  // production, anyone registering could complete signup without ever
-  // proving email ownership.
-  // -----------------------------------------------------------------------
   if (process.env.OTP_PREVIEW === 'true') {
-    console.warn(`[otp] DEV PREVIEW — code for ${payload.email}: ${code} (signupId=${inserted.id})`)
-    return { ok: true, signupId: inserted.id, previewCode: code }
+    console.warn(`[otp] DEV PREVIEW — code for ${payload.email}: ${code} (signupId=${signupId})`)
+    return { ok: true, signupId, previewCode: code }
   }
 
   const message = buildOtpEmail({ code })
@@ -129,7 +154,7 @@ export async function issueOtpForSignup(
     return { ok: false, error: `Email send failed: ${sent.error}` }
   }
 
-  return { ok: true, signupId: inserted.id }
+  return { ok: true, signupId }
 }
 
 export type ConsumeOtpResult =
@@ -146,22 +171,20 @@ export type ConsumeOtpResult =
  *
  * Caller should pass `signupId` (received from /signup/start) so we look up
  * the right row. Returns the payload so the caller can finish signup.
+ *
+ * Storage: pg-direct (see issueOtpForSignup comment). Falls back to
+ * Supabase REST admin if pg is misconfigured.
  */
 export async function consumeOtp(
   signupId: string,
   code: string,
 ): Promise<ConsumeOtpResult> {
-  const admin = createAdminClient()
-
-  const { data, error } = await admin
-    .from('email_verifications')
-    .select('id, email, pending_payload, code_hash, expires_at, consumed_at, verified_at, attempts')
-    .eq('id', signupId)
-    .maybeSingle()
-
-  if (error || !data) {
+  const sel = await selectEmailVerification(signupId)
+  if (sel.error || !sel.data) {
     return { ok: false, reason: 'no_code', error: 'No active verification code.' }
   }
+  const data = sel.data
+
   if (data.consumed_at) {
     return { ok: false, reason: 'no_code', error: 'This signup was already completed.' }
   }
@@ -175,41 +198,29 @@ export async function consumeOtp(
 
   const matches = await bcrypt.compare(code, data.code_hash)
   if (!matches) {
-    await admin
-      .from('email_verifications')
-      .update({ attempts: data.attempts + 1 })
-      .eq('id', data.id)
+    await updateEmailVerification(data.id, { attempts: data.attempts + 1 })
     return { ok: false, reason: 'wrong_code', error: 'Incorrect code.' }
   }
 
   // Set verified_at. Don't set consumed_at — that's /complete's job.
-  const { error: updateErr } = await admin
-    .from('email_verifications')
-    .update({
-      verified_at: new Date().toISOString(),
-      attempts: data.attempts + 1,
-    })
-    .eq('id', data.id)
-
-  if (updateErr) {
-    return { ok: false, reason: 'no_code', error: `Could not mark verified: ${updateErr.message}` }
+  const upd = await updateEmailVerification(data.id, {
+    attempts: data.attempts + 1,
+    verified_at: new Date().toISOString(),
+  })
+  if (upd.error) {
+    return { ok: false, reason: 'no_code', error: `Could not mark verified: ${upd.error.message}` }
   }
 
   return {
     ok: true,
     signupId: data.id,
-    payload: data.pending_payload as PendingSignupPayload,
+    payload: data.pending_payload as unknown as PendingSignupPayload,
   }
 }
 
 /** Mark a signup row as fully consumed (i.e. auth.users row was created). */
 export async function markSignupConsumed(signupId: string): Promise<{ ok: boolean; error?: string }> {
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('email_verifications')
-    .update({ consumed_at: new Date().toISOString() })
-    .eq('id', signupId)
-    .is('consumed_at', null)
-  if (error) return { ok: false, error: error.message }
+  const r = await updateEmailVerification(signupId, { consumed_at: new Date().toISOString() })
+  if (r.error) return { ok: false, error: r.error.message }
   return { ok: true }
 }

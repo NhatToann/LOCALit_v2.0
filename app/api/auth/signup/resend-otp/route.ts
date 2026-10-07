@@ -15,7 +15,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 import { issueOtpForSignup } from '@/utils/otp'
-import { createAdminClient } from '@/utils/supabase/admin'
+import { selectEmailVerification } from '@/utils/db-pg'
 
 interface ResendBody {
   signupId?: string
@@ -39,17 +39,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing signupId.' }, { status: 400 })
   }
 
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('email_verifications')
-    .select('email, pending_payload, consumed_at, verified_at')
-    .eq('id', signupId)
-    .maybeSingle()
-
-  if (error || !data) {
+  // pg-direct (immune to SUPABASE_SERVICE_ROLE_KEY rotation; see
+  // utils/otp-pg.ts header comment for why we bypass the REST admin).
+  const sel = await selectEmailVerification(signupId)
+  if (sel.error || !sel.data) {
     // Don't leak whether the signup exists.
     return NextResponse.json({ error: 'No active signup to resend for.' }, { status: 404 })
   }
+  const data = sel.data
   if (data.consumed_at) {
     return NextResponse.json({ error: 'This signup was already completed.' }, { status: 410 })
   }

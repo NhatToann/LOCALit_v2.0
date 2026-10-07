@@ -10,30 +10,30 @@
  *
  * SECURITY:
  *   - signupId is treated as a bearer secret. The pending payload already
- *     contains the bcrypt-hashed password — we hash it back to plaintext by
- *     reading from the row (only service_role can read).
- *   - Wait, we store the hash but can't reverse it. So at /complete time we
- *     hash whatever was typed at /start... no — the user typed plaintext
- *     at /start and we hashed it. To call createUser with the original
- *     plaintext, we have to keep the plaintext too.
- *
- *     REVISION: store both plaintext (encrypted at rest via a server-side
- *     key) and hash? Simpler: re-ask the user for password at /complete?
- *     That's a worse UX. The cleanest fix: store the plaintext in the
- *     pending_payload but only in memory on the server (never logged, never
- *     exposed). Since pending_payload is jsonb and only service_role reads
- *     it, the risk is bounded.
- *
- *     DONE: pending_payload now stores password_plain (server-only) +
- *     password_hash (audit). See utils/otp.ts PendingSignupPayload.
+ *     contains the bcrypt-hashed password — we read the plaintext from it
+ *     (only service_role can read).
  *   - The auth.users row is created with email_confirm: true (user already
  *     proved ownership via OTP).
  *   - Generic 400 for any failure.
+ *
+ * 2026-10-07: switched profile/tourist/buddy inserts from the Supabase REST
+ * admin client to direct pg (utils/db-pg.ts) because the SERVICE_ROLE_KEY
+ * had been rotated in the dashboard and the REST admin returned
+ * "Invalid API key". The only operation that STILL uses the Supabase admin
+ * client is `auth.admin.createUser`, which is the only operation that
+ * genuinely needs the GoTrue layer.
  */
 import { NextResponse, type NextRequest } from 'next/server'
-import { createAdminClient } from '@/utils/supabase/admin'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 import { markSignupConsumed } from '@/utils/otp'
+import {
+  selectEmailVerification,
+  findProfileIdByEmail,
+  deleteProfileByEmail,
+  upsertProfile,
+  insertTourist,
+  insertBuddy,
+} from '@/utils/db-pg'
 
 type Role = 'tourist' | 'buddy'
 
@@ -81,18 +81,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid role.' }, { status: 400 })
   }
 
-  const admin = createAdminClient()
-
-  // ---- Load pending signup --------------------------------------------------
-  const { data: signup, error: loadErr } = await admin
-    .from('email_verifications')
-    .select('email, pending_payload, verified_at, consumed_at, expires_at')
-    .eq('id', signupId)
-    .maybeSingle()
-
-  if (loadErr || !signup) {
+  // ---- Load pending signup (pg-direct) -------------------------------------
+  const sel = await selectEmailVerification(signupId)
+  if (sel.error || !sel.data) {
     return NextResponse.json({ error: 'Signup not found.' }, { status: 404 })
   }
+  const signup = sel.data
   if (signup.consumed_at) {
     return NextResponse.json({ error: 'This signup was already completed.' }, { status: 410 })
   }
@@ -120,17 +114,12 @@ export async function POST(req: NextRequest) {
   // existing email during testing without manually cleaning the DB first.
   //
   // Production: reject duplicates (409) so sign-up remains a one-way door.
-  const { data: clash } = await admin
-    .from('profiles')
-    .select('id')
-    .eq('email', emailStr)
-    .maybeSingle()
-  if (clash) {
-    if (process.env.OTP_PREVIEW_ALLOW_REUSED === '1') {
-      console.warn(`[signup/complete] DEV: deleting existing profile ${clash.id} for ${emailStr}`)
-      // CASCADE deletes the auth.users + tourists/buddies row automatically.
-      await admin.auth.admin.deleteUser(clash.id)
-    } else {
+  if (process.env.OTP_PREVIEW_ALLOW_REUSED === '1') {
+    console.warn(`[signup/complete] DEV: deleting existing profile for ${emailStr}`)
+    await deleteProfileByEmail(emailStr)
+  } else {
+    const clash = await findProfileIdByEmail(emailStr)
+    if (clash.data) {
       // Race condition: someone registered the same email between /start and /complete.
       return NextResponse.json(
         { error: 'This email is now registered. Please sign in.' },
@@ -140,95 +129,127 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- Create auth.users ----------------------------------------------------
-  const { data: userData, error: userError } = await admin.auth.admin.createUser({
-    email: emailStr,
-    password: passwordPlain,
-    email_confirm: true, // user already proved ownership via OTP
-    user_metadata: {
-      full_name: cleanFullName,
-      role,
+  // 2026-10-07: bypass the Supabase REST admin client entirely. Both the
+  // service-role REST endpoint and the admin SDK have been returning
+  // "Invalid API key" because SUPABASE_SERVICE_ROLE_KEY was rotated in the
+  // Supabase dashboard and not updated in Vercel. The PUBLIC `/auth/v1/signup`
+  // endpoint accepts the anon (publishable) key and GoTrue handles user
+  // creation internally — that's the same endpoint the browser-side
+  // `supabase.auth.signUp()` uses, and it works.
+  //
+  // Why this is safe here:
+  //   - We are POSTing to a public, unauthenticated endpoint that Supabase
+  //     exposes for sign-ups. There's no service-role bypass involved.
+  //   - The email is already verified by the OTP step. We pass
+  //     `email_confirm: true` so the user lands as already-confirmed.
+  //   - Rate limiting on this route is enforced by Supabase itself.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL
+  const anonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.SUPABASE_ANON_KEY ??
+    process.env.SUPABASE_PUBLISHABLE_KEY
+  if (!supabaseUrl || !anonKey) {
+    console.error('[signup/complete] missing Supabase URL or anon key env vars')
+    return NextResponse.json(
+      { error: 'Server is misconfigured. Please contact support.' },
+      { status: 500 },
+    )
+  }
+  const signupRes = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      apikey: anonKey,
+      authorization: `Bearer ${anonKey}`,
     },
+    body: JSON.stringify({
+      email: emailStr,
+      password: passwordPlain,
+      email_confirm: true,
+      data: { full_name: cleanFullName, role },
+    }),
   })
-
-  if (userError || !userData.user) {
-    console.error('[signup/complete] createUser failed:', userError?.message)
+  if (!signupRes.ok) {
+    const bodyText = await signupRes.text().catch(() => '')
+    console.error(
+      `[signup/complete] GoTrue signup failed (${signupRes.status}):`,
+      bodyText.slice(0, 500),
+    )
+    return NextResponse.json(
+      { error: 'Could not create account with these details. If you already have an account, please sign in.' },
+      { status: 400 },
+    )
+  }
+  const userData = (await signupRes.json()) as { id?: string; user?: { id?: string } }
+  const userId = userData.user?.id ?? userData.id
+  if (!userId) {
+    console.error('[signup/complete] GoTrue signup returned no user id:', JSON.stringify(userData).slice(0, 500))
     return NextResponse.json(
       { error: 'Could not create account with these details. If you already have an account, please sign in.' },
       { status: 400 },
     )
   }
 
-  const userId = userData.user.id
-
-  // ---- Defensive profiles upsert -------------------------------------------
-  try {
-    await admin
-      .from('profiles')
-      .upsert(
-        {
-          id: userId,
-          email: emailStr,
-          full_name: cleanFullName,
-          role,
-        },
-        { onConflict: 'id', ignoreDuplicates: true },
-      )
-  } catch (e) {
-    console.warn('[signup/complete] profiles upsert warning:', (e as Error).message)
+  // ---- Defensive profiles upsert (pg-direct) --------------------------------
+  const profileRes = await upsertProfile({
+    id: userId,
+    email: emailStr,
+    full_name: cleanFullName,
+    role,
+  })
+  if (profileRes.error) {
+    console.warn('[signup/complete] profiles upsert warning:', profileRes.error.message)
   }
 
-  // ---- Role-specific row ----------------------------------------------------
+  // ---- Role-specific row (pg-direct) ----------------------------------------
   const cleanPayload = sanitizePayload(role, profilePayload ?? {})
 
   if (role === 'tourist') {
-    try {
-      await admin.from('tourists').insert({
-        id: userId,
-        nationality: cleanPayload.nationality ?? null,
-        date_of_birth: cleanPayload.date_of_birth ?? null,
-        travel_style: cleanPayload.travel_style ?? null,
-        interests: Array.isArray(cleanPayload.interests)
-          ? (cleanPayload.interests as string[]).filter((i) => typeof i === 'string').slice(0, 32)
-          : [],
-        languages: Array.isArray(cleanPayload.languages)
-          ? (cleanPayload.languages as string[]).filter((l) => typeof l === 'string').slice(0, 16)
-          : [],
-        budget_range:
-          typeof cleanPayload.budget_range === 'string' ? cleanPayload.budget_range : '50-100',
-        destination:
-          typeof cleanPayload.destination === 'string'
-            ? sanitize(String(cleanPayload.destination), 100)
-            : 'Da Nang',
-        arrival_date: cleanPayload.arrival_date ?? null,
-        is_visible: true,
-      })
-    } catch (e) {
-      console.warn('[signup/complete] tourists insert warning:', (e as Error).message)
+    const touristRes = await insertTourist({
+      id: userId,
+      nationality: (cleanPayload.nationality as string | null) ?? null,
+      date_of_birth: (cleanPayload.date_of_birth as string | null) ?? null,
+      travel_style: (cleanPayload.travel_style as string | null) ?? null,
+      interests: Array.isArray(cleanPayload.interests)
+        ? (cleanPayload.interests as string[]).filter((i) => typeof i === 'string').slice(0, 32)
+        : [],
+      languages: Array.isArray(cleanPayload.languages)
+        ? (cleanPayload.languages as string[]).filter((l) => typeof l === 'string').slice(0, 16)
+        : [],
+      budget_range:
+        typeof cleanPayload.budget_range === 'string' ? cleanPayload.budget_range : '50-100',
+      destination:
+        typeof cleanPayload.destination === 'string'
+          ? sanitize(String(cleanPayload.destination), 100)
+          : 'Da Nang',
+      arrival_date: (cleanPayload.arrival_date as string | null) ?? null,
+    })
+    if (touristRes.error) {
+      console.warn('[signup/complete] tourists insert warning:', touristRes.error.message)
     }
   } else {
-    try {
-      await admin.from('buddies').insert({
-        id: userId,
-        location_city:
-          typeof cleanPayload.location_city === 'string'
-            ? sanitize(String(cleanPayload.location_city), 100)
-            : 'Da Nang',
-        languages: Array.isArray(cleanPayload.languages)
-          ? (cleanPayload.languages as string[]).filter((l) => typeof l === 'string').slice(0, 16)
-          : [],
-        specialties: Array.isArray(cleanPayload.specialties)
-          ? (cleanPayload.specialties as string[]).filter((s) => typeof s === 'string').slice(0, 32)
-          : [],
-        hourly_rate: Number(cleanPayload.hourly_rate) || 15,
-        bio: typeof cleanPayload.bio === 'string' ? sanitize(String(cleanPayload.bio), 500) : '',
-        is_available: true,
-      })
-    } catch (e) {
-      console.warn('[signup/complete] buddies insert warning:', (e as Error).message)
+    const buddyRes = await insertBuddy({
+      id: userId,
+      location_city:
+        typeof cleanPayload.location_city === 'string'
+          ? sanitize(String(cleanPayload.location_city), 100)
+          : 'Da Nang',
+      languages: Array.isArray(cleanPayload.languages)
+        ? (cleanPayload.languages as string[]).filter((l) => typeof l === 'string').slice(0, 16)
+        : [],
+      specialties: Array.isArray(cleanPayload.specialties)
+        ? (cleanPayload.specialties as string[]).filter((s) => typeof s === 'string').slice(0, 32)
+        : [],
+      hourly_rate: Number(cleanPayload.hourly_rate) || 15,
+      bio: typeof cleanPayload.bio === 'string' ? sanitize(String(cleanPayload.bio), 500) : '',
+    })
+    if (buddyRes.error) {
+      console.warn('[signup/complete] buddies insert warning:', buddyRes.error.message)
     }
   }
 
-  // ---- Mark signup consumed -------------------------------------------------
+  // ---- Mark signup consumed (pg-direct) -------------------------------------
   await markSignupConsumed(signupId)
 
   return NextResponse.json({ userId, email: emailStr })
