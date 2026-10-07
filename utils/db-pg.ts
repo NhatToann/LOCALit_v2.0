@@ -387,7 +387,10 @@ export async function findProfileIdByEmail(email: string): Promise<DbResult<{ id
 //   - Password is bcrypt-hashed here to match what GoTrue would store.
 // ---------------------------------------------------------------------------
 
-import bcrypt from 'bcryptjs'
+// (no top-level bcrypt import — we use Postgres's built-in crypt() function
+// with gen_salt('bf'), which is what GoTrue uses for sign-in password
+// validation. bcryptjs produces a hash format that GoTrue's pgcrypto
+// verification rejects.)
 
 export async function createAuthUser(args: {
   email: string
@@ -401,60 +404,76 @@ export async function createAuthUser(args: {
     await c.connect()
     await c.query('BEGIN')
     const userId = crypto.randomUUID()
-    const encryptedPassword = await bcrypt.hash(args.password, 10)
-    const now = new Date().toISOString()
 
-    // Insert into auth.users. Bypass RLS by being `postgres` role.
-    // NOTE: we avoid ::jsonb casts because the JSON strings contain bcrypt
-    // hash characters like $2a$10$... which the pg prepared-statement
-    // parser misinterprets as $N placeholder patterns, causing "requires N
-    // parameters" mismatches. Instead we pass plain strings and rely on
-    // pg's implicit casting (text → jsonb is automatic in Postgres).
+    // Strategy proven by scripts/fix-seed-users.mjs:
+    //   1. INSERT a minimal auth.users row (just id + email + non-null defaults)
+    //   2. UPDATE all the GoTrue-required columns with proper defaults
+    //   3. INSERT auth.identities row
+    // Doing the whole thing in one INSERT left a few columns NULL (e.g.
+    // email_change, recovery_token) which made GoTrue's signin query fail
+    // with "Database error querying schema".
+
+    // Step 1: minimal insert
     await c.query(
-      `INSERT INTO auth.users (
-         instance_id, id, aud, role, email,
-         encrypted_password, email_confirmed_at,
-         raw_app_meta_data, raw_user_meta_data,
-         created_at, updated_at,
-         is_sso_user, is_anonymous,
-         email_change_token_current, email_change_confirm_status,
-         phone_change, phone_change_token, reauthentication_token
-       ) VALUES (
-         '00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2,
-         $3, $4,
-         $5, $6,
-         $4, $4,
-         false, false,
-         '', 0,
-         '', '', ''
-       )`,
+      `INSERT INTO auth.users (id, email, instance_id, aud, role)
+       VALUES ($1, $2, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated')`,
+      [userId, args.email],
+    )
+
+    // Step 2: full UPDATE with crypt() + all the default columns
+    // Use crypt($pw, gen_salt('bf')) because that's what GoTrue's signin path
+    // verifies against. bcryptjs produces a slightly different format.
+    await c.query(
+      `UPDATE auth.users
+       SET aud = COALESCE(aud, 'authenticated'),
+           role = COALESCE(role, 'authenticated'),
+           instance_id = COALESCE(instance_id, '00000000-0000-0000-0000-000000000000'::uuid),
+           encrypted_password = crypt($2, gen_salt('bf')),
+           email_confirmed_at = COALESCE(email_confirmed_at, now()),
+           confirmation_token = COALESCE(confirmation_token, ''),
+           email_change = COALESCE(email_change, ''),
+           email_change_token_new = COALESCE(email_change_token_new, ''),
+           email_change_token_current = COALESCE(email_change_token_current, ''),
+           recovery_token = COALESCE(recovery_token, ''),
+           reauthentication_token = COALESCE(reauthentication_token, ''),
+           phone_change = COALESCE(phone_change, ''),
+           phone_change_token = COALESCE(phone_change_token, ''),
+           raw_app_meta_data = COALESCE(raw_app_meta_data, '{"provider":"email","providers":["email"]}'::jsonb),
+           raw_user_meta_data = COALESCE(raw_user_meta_data, $3::jsonb),
+           created_at = COALESCE(created_at, now()),
+           is_anonymous = false,
+           is_sso_user = false,
+           email_change_confirm_status = COALESCE(email_change_confirm_status, 0),
+           updated_at = now()
+       WHERE id = $1::uuid`,
       [
         userId,
-        args.email,
-        encryptedPassword,
-        now,
-        JSON.stringify({ provider: 'email', providers: ['email'] }),
+        args.password,
         JSON.stringify({ full_name: args.full_name, role: args.role }),
       ],
     )
 
-    // Insert the matching auth.identities row. Without this, signInWithPassword
-    // will fail because the user has no identity record.
-    // Same fix: avoid ::jsonb cast, pass plain string, let pg cast.
+    // Step 3: insert the matching auth.identities row. Without this,
+    // signInWithPassword fails because the user has no identity record.
+    // We DO NOT use ::jsonb cast on identity_data here because the seed
+    // script (fix-seed-users.mjs) does — and it works. jsonb_build_object
+    // is safer than text→jsonb because it builds the JSON from values.
     await c.query(
       `INSERT INTO auth.identities (
-         id, user_id, identity_data, provider, provider_id, created_at, updated_at
+         id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at
        ) VALUES (
-         $1, $2, $3, 'email', $4, $5, $6
-       )`,
-      [
-        crypto.randomUUID(),
-        userId,
-        JSON.stringify({ sub: userId, email: args.email, email_verified: true, phone_verified: false }),
-        args.email,
-        now,
-        now,
-      ],
+         gen_random_uuid(),
+         $1::uuid,
+         jsonb_build_object('sub', $1::text, 'email', $2::text, 'email_verified', true, 'phone_verified', false),
+         'email',
+         $2::text,
+         now(),
+         now(),
+         now()
+       )
+       ON CONFLICT (provider, provider_id) DO UPDATE
+         SET last_sign_in_at = now(), updated_at = now()`,
+      [userId, args.email],
     )
 
     await c.query('COMMIT')
