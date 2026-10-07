@@ -33,6 +33,7 @@ import {
   upsertProfile,
   insertTourist,
   insertBuddy,
+  createAuthUser,
 } from '@/utils/db-pg'
 
 type Role = 'tourist' | 'buddy'
@@ -129,67 +130,36 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- Create auth.users ----------------------------------------------------
-  // 2026-10-07: bypass the Supabase REST admin client entirely. Both the
-  // service-role REST endpoint and the admin SDK have been returning
-  // "Invalid API key" because SUPABASE_SERVICE_ROLE_KEY was rotated in the
-  // Supabase dashboard and not updated in Vercel. The PUBLIC `/auth/v1/signup`
-  // endpoint accepts the anon (publishable) key and GoTrue handles user
-  // creation internally — that's the same endpoint the browser-side
-  // `supabase.auth.signUp()` uses, and it works.
-  //
-  // Why this is safe here:
-  //   - We are POSTing to a public, unauthenticated endpoint that Supabase
-  //     exposes for sign-ups. There's no service-role bypass involved.
-  //   - The email is already verified by the OTP step. We pass
-  //     `email_confirm: true` so the user lands as already-confirmed.
-  //   - Rate limiting on this route is enforced by Supabase itself.
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL
-  const anonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.SUPABASE_ANON_KEY ??
-    process.env.SUPABASE_PUBLISHABLE_KEY
-  if (!supabaseUrl || !anonKey) {
-    console.error('[signup/complete] missing Supabase URL or anon key env vars')
-    return NextResponse.json(
-      { error: 'Server is misconfigured. Please contact support.' },
-      { status: 500 },
-    )
-  }
-  const signupRes = await fetch(`${supabaseUrl}/auth/v1/signup`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      apikey: anonKey,
-      authorization: `Bearer ${anonKey}`,
-    },
-    body: JSON.stringify({
-      email: emailStr,
-      password: passwordPlain,
-      email_confirm: true,
-      data: { full_name: cleanFullName, role },
-    }),
+  // 2026-10-07: direct insert into auth.users + auth.identities via pg
+  // (utils/db-pg.createAuthUser). We previously hit the public
+  // /auth/v1/signup endpoint here, but on the free tier that endpoint
+  // triggers Supabase's project-wide email-send rate limit (4 emails/hr)
+  // and fails with `over_email_send_rate_limit`. Since we've already
+  // verified the email via our own OTP, there's no reason to ask GoTrue
+  // to send another confirmation email — we just create the row directly.
+  const authRes = await createAuthUser({
+    email: emailStr,
+    password: passwordPlain,
+    full_name: cleanFullName,
+    role,
   })
-  if (!signupRes.ok) {
-    const bodyText = await signupRes.text().catch(() => '')
-    console.error(
-      `[signup/complete] GoTrue signup failed (${signupRes.status}):`,
-      bodyText.slice(0, 500),
-    )
+  if (authRes.error || !authRes.data) {
+    const message = authRes.error?.message ?? 'unknown'
+    const code = authRes.error?.code
+    console.error(`[signup/complete] createAuthUser failed:`, message, code)
+    // Surface duplicate email as 409, anything else as 400 generic.
+    if (code === '23505') {
+      return NextResponse.json(
+        { error: 'This email is already registered. Please sign in.' },
+        { status: 409 },
+      )
+    }
     return NextResponse.json(
       { error: 'Could not create account with these details. If you already have an account, please sign in.' },
       { status: 400 },
     )
   }
-  const userData = (await signupRes.json()) as { id?: string; user?: { id?: string } }
-  const userId = userData.user?.id ?? userData.id
-  if (!userId) {
-    console.error('[signup/complete] GoTrue signup returned no user id:', JSON.stringify(userData).slice(0, 500))
-    return NextResponse.json(
-      { error: 'Could not create account with these details. If you already have an account, please sign in.' },
-      { status: 400 },
-    )
-  }
+  const userId = authRes.data.id
 
   // ---- Defensive profiles upsert (pg-direct) --------------------------------
   const profileRes = await upsertProfile({

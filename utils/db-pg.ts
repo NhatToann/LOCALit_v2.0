@@ -364,3 +364,99 @@ export async function findProfileIdByEmail(email: string): Promise<DbResult<{ id
     await c.end()
   }
 }
+
+// ---------------------------------------------------------------------------
+//  auth.users + auth.identities — direct insert (bypasses GoTrue)
+//
+// Why this exists (2026-10-07):
+//   The /auth/v1/signup endpoint is rate-limited per Supabase project
+//   (~4 emails/hour on the free tier). When triggered, every signup
+//   fails with `over_email_send_rate_limit`. We avoid that by inserting
+//   the auth row directly via pg, the same way seed-accounts.mjs does it.
+//
+// What this does NOT do (vs the real GoTrue path):
+//   - Does NOT trigger any confirmation/recovery email (we already
+//     verified via OTP, so this is correct).
+//   - Does NOT call auth hooks (on_auth_user_created still fires because
+//     that's a database trigger, not a GoTrue hook).
+//   - Sets `email_confirmed_at` directly so the user is signed in as
+//     already-confirmed.
+//
+// SECURITY:
+//   - Requires the `postgres` role (the pg pooler URL uses it).
+//   - Password is bcrypt-hashed here to match what GoTrue would store.
+// ---------------------------------------------------------------------------
+
+import bcrypt from 'bcryptjs'
+
+export async function createAuthUser(args: {
+  email: string
+  password: string
+  full_name: string
+  role: 'tourist' | 'buddy'
+}): Promise<DbResult<{ id: string }>> {
+  const c = createPgClient()
+  if (!c) return { data: null, error: { message: 'pg client not configured' } }
+  try {
+    await c.connect()
+    await c.query('BEGIN')
+    const userId = crypto.randomUUID()
+    const encryptedPassword = await bcrypt.hash(args.password, 10)
+    const now = new Date().toISOString()
+
+    // Insert into auth.users. Bypass RLS by being `postgres` role.
+    await c.query(
+      `INSERT INTO auth.users (
+         instance_id, id, aud, role, email,
+         encrypted_password, email_confirmed_at,
+         raw_app_meta_data, raw_user_meta_data,
+         created_at, updated_at,
+         is_sso_user, is_anonymous,
+         email_change_token_current, email_change_confirm_status,
+         phone_change, phone_change_token, reauthentication_token
+       ) VALUES (
+         '00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2,
+         $3, $4,
+         $5::jsonb, $6::jsonb,
+         $4, $4,
+         false, false,
+         '', 0,
+         '', '', ''
+       )`,
+      [
+        userId,
+        args.email,
+        encryptedPassword,
+        now,
+        JSON.stringify({ provider: 'email', providers: ['email'] }),
+        JSON.stringify({ full_name: args.full_name, role: args.role }),
+      ],
+    )
+
+    // Insert the matching auth.identities row. Without this, signInWithPassword
+    // will fail because the user has no identity record.
+    await c.query(
+      `INSERT INTO auth.identities (
+         id, user_id, identity_data, provider, provider_id, created_at, updated_at
+       ) VALUES (
+         $1, $1, $2::jsonb, 'email', $3, $4, $4
+       )`,
+      [
+        crypto.randomUUID(),
+        userId,
+        JSON.stringify({ sub: userId, email: args.email, email_verified: true, phone_verified: false }),
+        args.email,
+        now,
+      ],
+    )
+
+    await c.query('COMMIT')
+    return { data: { id: userId }, error: null }
+  } catch (e) {
+    await c.query('ROLLBACK').catch(() => {})
+    const err = e as { message?: string; code?: string; detail?: string }
+    return { data: null, error: { message: err.message ?? 'unknown', code: err.code, details: err.detail } }
+  } finally {
+    await c.end()
+  }
+}
