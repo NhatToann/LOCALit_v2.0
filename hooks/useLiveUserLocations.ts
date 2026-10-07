@@ -190,6 +190,8 @@ export function useLiveUserLocations(opts: Options = {}) {
       lastPublishRef.current = now
       const sb = supabaseRef.current
       const uid = userIdRef.current
+      // eslint-disable-next-line no-console
+      console.log('[live-locations] publish attempt', { uid, lat, lng })
       if (!sb || !uid) return
       // Update the user's existing row, or insert if none exists yet. We
       // use a separate UPDATE + INSERT instead of upsert because
@@ -220,16 +222,19 @@ export function useLiveUserLocations(opts: Options = {}) {
         ? await sb.from('location_updates').update(payload).eq('id', existing.id)
         : await sb.from('location_updates').insert(payload)
       if (error) {
-        if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_CALL_DEBUG === '1') {
-          // eslint-disable-next-line no-console
-          console.log('[dlog] live-locations write failed:', error.message)
-        }
+        // eslint-disable-next-line no-console
+        console.log('[live-locations] write failed:', error.message, error.code)
+      } else {
+        // eslint-disable-next-line no-console
+        console.log('[live-locations] write OK')
       }
     }
 
     function onPos(pos: GeolocationPosition) {
       setSelfGranted(true)
       setSelfDenied(false)
+      // eslint-disable-next-line no-console
+      console.log('[live-locations] got position', pos.coords.latitude, pos.coords.longitude)
       publish(pos.coords.latitude, pos.coords.longitude)
     }
     function onErr() {

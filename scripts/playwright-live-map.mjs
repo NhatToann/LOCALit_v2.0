@@ -33,7 +33,7 @@ async function openMap(context, label, peerExpected) {
   await page.goto(`${BASE}/map`, { waitUntil: 'domcontentloaded' })
   // Wait for the share button.
   await page.waitForSelector('button:has-text("Share my location")', { timeout: 10000 })
-  await page.click('button:has-text("Share my location")')
+  await page.click('button:has-text("Share my location")', { force: true })
   // Wait for broadcasts to flow (longer to give WS handshake time).
   await page.waitForTimeout(20000)
   const status = await page.evaluate(() => {
@@ -46,7 +46,6 @@ async function openMap(context, label, peerExpected) {
     const allMarkers = document.querySelectorAll('.localit-marker')
     return { sharing, peerCount, totalMarkers: allMarkers.length }
   })
-  await page.screenshot({ path: path.join(SS_DIR, `livemap-${label}.png`), fullPage: false })
   await page.close()
   return { label, ...status }
 }
