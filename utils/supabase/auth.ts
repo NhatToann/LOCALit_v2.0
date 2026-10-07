@@ -3,7 +3,16 @@ export { createClient } from './client'
 
 import { createBrowserClient } from '@supabase/ssr'
 
-function getBrowserClient() {
+// RAM OPTIMIZATION (2026-10-08): previous implementation created a fresh
+// Supabase client on every call (signUp/signIn/signOut/resetPassword/etc.).
+// Every fresh client opens its own Realtime WebSocket and Auth state
+// machine — under React's re-render cycle this leaked RAM (and WebSocket
+// connections) until the GC caught up, sometimes 30–60s after a route
+// change. We now cache one browser client per JS realm and reuse it.
+let _browserClient: ReturnType<typeof createBrowserClient> | null = null
+
+function getBrowserClient(): ReturnType<typeof createBrowserClient> {
+  if (_browserClient) return _browserClient
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_PROJECT_URL ||
@@ -12,11 +21,12 @@ function getBrowserClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     ''
-  return createBrowserClient(supabaseUrl, supabaseAnonKey)
+  _browserClient = createBrowserClient(supabaseUrl, supabaseAnonKey)
+  return _browserClient
 }
 
-// Auth helpers — each call uses a fresh browser client so callers don't have to
-// worry about leaking session state across requests during signup flows.
+// Auth helpers — single shared browser client so re-renders don't open
+// extra Realtime sockets.
 export async function signUp(email: string, password: string, fullName: string, role: 'tourist' | 'buddy') {
   const supabase = getBrowserClient()
   const { data, error } = await supabase.auth.signUp({

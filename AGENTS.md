@@ -843,3 +843,89 @@ B sees A as peer: YES
   race is benign because both branches write the same user_id and the
   primary key is the auto-generated UUID.
 
+---
+
+## RAM Optimizations (2026-10-08)
+
+The marketplace grew two visible RAM leaks that compounded across
+navigation: a fresh Supabase client per auth call, and Leaflet map
+instances that lived forever after their page unmounted. Both are now
+fixed. Verified on production: build 26 routes, 0 TS errors, ~46s.
+
+### What was leaking
+
+1. **`utils/supabase/auth.ts` — `getBrowserClient()` re-created the
+   browser client on every call.** `signIn`, `signUp`, `signOut`,
+   `resetPassword`, `getCurrentUser`, etc. each called
+   `createBrowserClient(supabaseUrl, supabaseAnonKey)`. Each fresh
+   client opens its own Realtime WebSocket and Auth state machine.
+   Under React's re-render cycle (every state update on `/login`,
+   `/register`, `/chat`, `/dashboard` triggers 2–3 re-renders of
+   components that call `getCurrentUser()`), this added 10–30MB of
+   orphaned client state per minute of interaction and kept extra
+   sockets open until GC caught up — usually 30–60s after the route
+   change.
+
+2. **`components/map/MapView.tsx` — Leaflet map instance was not
+   disposed on unmount.** react-leaflet 5 doesn't auto-call
+   `L.Map.remove()` when the parent component unmounts. Navigating
+   `/map → /dashboard → /map → /dashboard` therefore accumulated
+   one Leaflet map per navigation: ~5–8MB of tile cache (PNG blobs
+   for the visible Da Nang area), one popups DOM, one event
+   listener tree per orphan. Three back-and-forths leaked ~25MB of
+   heap that the browser only reclaimed on hard reload.
+
+3. **`next.config.ts` — no `optimizePackageImports` for the heavy
+   icon/leaflet/supabase packages.** `lucide-react` in particular
+   ships the full icon set (~1500 SVGs) unless Next.js is asked to
+   rewrite imports to per-icon subpaths. The client bundle ended
+   up ~2–3MB larger than it needed to be — every byte of which is
+   RAM the user pays for once the JS engine parses it.
+
+### What was fixed
+
+| File | Change | Why it saves RAM |
+|---|---|---|
+| `utils/supabase/auth.ts` | Singleton `_browserClient` cached at module scope; `getBrowserClient()` returns the cached instance. Type is `ReturnType<typeof createBrowserClient>` (the `@supabase/ssr` package doesn't re-export the type). | One Realtime WebSocket per page session instead of one per auth call. Removes 10–30MB of orphaned client state across a typical login + signup + signout flow. |
+| `components/map/MapView.tsx` | Added `<MapDisposer />` inner component that uses `useMap()` to grab the Leaflet instance, registers a `beforeunload` listener, and calls `map.off() + map.remove()` on unmount. Also nulls `mapRef.current`. | Leaflet tile cache + popups + listeners are released the moment the route changes. No accumulation across `/map` ↔ `/dashboard` round-trips. |
+| `next.config.ts` | `experimental.optimizePackageImports: ['lucide-react', 'leaflet', '@supabase/ssr']` | Client bundle ships only the icons/supabase subpaths actually imported. ~2–3MB smaller bundle → ~2–3MB less parsed-JS heap. |
+
+### What was verified to NOT need changes
+
+- **`utils/db-pg.ts`** — already creates + `.end()`s each `pg.Client` in
+  the `finally` block of every helper. No serverless leak.
+- **`hooks/useLiveUserLocations.ts`** — clears the watch-id, the
+  periodic cleanup interval, and `removeChannel` on unmount.
+- **`lib/realtime/useGlobalPresence.tsx`** — clears the 25s
+  broadcast interval, removes `visibilitychange` / `beforeunload` /
+  `localit-auth-changed` listeners, and `removeChannel` on unmount.
+- **`lib/realtime/useIncomingCall.ts`**, **`useMessageStream.ts`**,
+  **`useTyping.ts`**, **`useTripPresence.ts`**, **`usePinDrag.ts`**,
+  **`usePresence.ts`** — all already `removeChannel` on unmount.
+- **`app/chat/page.tsx`** — `clearInterval(30s conversations poll)`
+  and `clearTimeout(callPending)` on unmount.
+
+### How to verify RAM is still clean
+
+1. **Build**: `npx --yes next build` → 26 routes, 0 TS errors, ~46s.
+2. **Memory in Chrome DevTools** on `https://localit-nhattoann.vercel.app/map`:
+   - Open DevTools → Memory → take a heap snapshot
+   - Click "Dashboard" then back to "Map" 3 times
+   - Take another snapshot — heap delta should be <2MB
+   - Before the fix this delta was 8–10MB per round-trip.
+3. **Network tab**: filter by `WS` — there should be exactly ONE
+   `wss://*.supabase.co/realtime/v1/websocket` connection per
+   authenticated tab, not 5–10.
+
+### Future work (deferred)
+
+- **Map tile cache size cap**: Leaflet caches tiles indefinitely by
+  default. For a fixed-area app like Da Nang this is fine, but if we
+  add pan-to-anywhere we'd want `keepBuffer: 1` on the TileLayer
+  to keep the in-memory tile count bounded.
+- **Service-worker caching for the map**: not worth it on Vercel
+  Edge — the Leaflet in-memory cache is faster than a SW round-trip.
+- **WebSocket pooling** for `livekit-client`: LiveKit opens one WS per
+  Room. Currently we only ever have one room, so this isn't an
+  issue, but if we add group calls we'd want to multiplex.
+

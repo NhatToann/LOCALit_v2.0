@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // RAM OPTIMIZATION (2026-10-08): tree-shake large icon/leaflet/lucide
+  // packages so the client bundle ships only the glyphs actually imported.
+  // lucide-react in particular ships the full icon set (~1500 SVGs) unless
+  // we ask Next to scan and rewrite to per-icon subpath imports.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "leaflet", "@supabase/ssr"],
+  },
   async headers() {
     return [
       {

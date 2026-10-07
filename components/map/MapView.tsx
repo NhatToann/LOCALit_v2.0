@@ -75,8 +75,6 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
     let cancelled = false
     async function load() {
       const supabase = createClient()
-
-      // Use safe_buddies (rounded coords) for public discovery — anon callers
       // can't read buddies.latitude directly since the 2026-09-26 PII tighten.
       // safe_buddies exposes the same shape the map pins need.
       const { data: buddyData } = await supabase
@@ -152,6 +150,36 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
     return null
   }
 
+  // RAM OPTIMIZATION (2026-10-08): react-leaflet 5 doesn't auto-dispose the
+  // underlying L.Map instance on unmount. Without this, navigating away
+  // from /map, /browse, /dashboard (all of which mount MapView) leaves the
+  // Leaflet DOM (tile cache + popups + listeners) and a WebSocket worth of
+  // geometry buffers attached to the closed component tree. Over a session
+  // of /map → /dashboard → /map → /dashboard, that grows unbounded.
+  // We register a window unload hook and a React unmount hook (via a
+  // tiny inner component) to call .remove() on the map instance.
+  function MapDisposer() {
+    const map = useMap()
+    useEffect(() => {
+      mapRef.current = map
+      const teardown = () => {
+        try {
+          map.off()
+          map.remove()
+        } catch {
+          /* ignore double-remove */
+        }
+        mapRef.current = null
+      }
+      window.addEventListener('beforeunload', teardown)
+      return () => {
+        window.removeEventListener('beforeunload', teardown)
+        teardown()
+      }
+    }, [map])
+    return null
+  }
+
   return (
     <div style={{ position: 'relative', height, width: '100%' }}>
       <MapContainer
@@ -160,6 +188,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         style={{ height: '100%', width: '100%' }}
         ref={(m) => { mapRef.current = m }}
       >
+        <MapDisposer />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
