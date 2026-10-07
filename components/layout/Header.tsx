@@ -8,7 +8,6 @@ import { createClient } from '@/utils/supabase/auth';
 import { useRouter } from 'next/navigation';
 import { NavHint } from './NavHint';
 import NotificationBell from '@/components/notifications/NotificationBell';
-import { LikesBadge } from './LikesBadge';
 
 /**
  * Header (2026-10-01 — unified, single web).
@@ -33,7 +32,6 @@ const GUEST_LINKS = [
 const LOGGED_IN_LINKS = [
   { path: '/dashboard', label: 'Dashboard', labelVi: 'Tổng quan' },
   { path: '/swipe', label: 'Swipe', labelVi: 'Lướt' },
-  { path: '/likes', label: 'Likes', labelVi: 'Thích' },
   { path: '/browse', label: 'Buddies', labelVi: 'Hướng dẫn viên' },
   { path: '/trips', label: 'Trips', labelVi: 'Chuyến đi' },
   { path: '/chat', label: 'Messages', labelVi: 'Tin nhắn' },
@@ -119,7 +117,6 @@ export default function Header({ userName, userId }: HeaderProps) {
                 >
                   {link.labelVi}
                 </span>
-                {link.path === '/likes' && userId ? <LikesBadge userId={userId} /> : null}
                 <NavHint />
               </Link>
             );
@@ -223,7 +220,6 @@ export default function Header({ userName, userId }: HeaderProps) {
                 aria-current={active ? 'page' : undefined}
               >
                 {link.label}
-                {link.path === '/likes' && userId ? <LikesBadge userId={userId} /> : null}
               </Link>
             );
           })}
