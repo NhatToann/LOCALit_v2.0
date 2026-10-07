@@ -110,8 +110,6 @@ export function useLiveUserLocations(opts: Options = {}) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'location_updates' },
         (payload) => {
-          // eslint-disable-next-line no-console
-          console.log('[live-locations] postgres_changes received', JSON.stringify(payload).slice(0, 200))
           const row = (payload.new ?? payload.old) as
             | { user_id?: string; latitude?: number; longitude?: number; updated_at?: string }
             | null
@@ -206,8 +204,6 @@ export function useLiveUserLocations(opts: Options = {}) {
             (data.user?.email ? String(data.user.email).split('@')[0] : 'You')
         }
       }
-      // eslint-disable-next-line no-console
-      console.log('[live-locations] publish attempt', { uid, lat, lng })
       if (!uid) return
       // Update the user's existing row, or insert if none exists yet. We
       // use a separate UPDATE + INSERT instead of upsert because
@@ -237,20 +233,15 @@ export function useLiveUserLocations(opts: Options = {}) {
       const { error } = existing
         ? await sb.from('location_updates').update(payload).eq('id', existing.id)
         : await sb.from('location_updates').insert(payload)
-      if (error) {
+      if (error && process.env.NEXT_PUBLIC_CALL_DEBUG === '1') {
         // eslint-disable-next-line no-console
-        console.log('[live-locations] write failed:', error.message, error.code)
-      } else {
-        // eslint-disable-next-line no-console
-        console.log('[live-locations] write OK')
+        console.log('[dlog] live-locations write failed:', error.message)
       }
     }
 
     function onPos(pos: GeolocationPosition) {
       setSelfGranted(true)
       setSelfDenied(false)
-      // eslint-disable-next-line no-console
-      console.log('[live-locations] got position', pos.coords.latitude, pos.coords.longitude)
       publish(pos.coords.latitude, pos.coords.longitude)
     }
     function onErr() {

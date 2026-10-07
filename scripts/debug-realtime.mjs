@@ -48,8 +48,8 @@ await Promise.all([
   })(),
 ])
 
-await A.page.waitForTimeout(20000)
-await B.page.waitForTimeout(20000)
+await A.page.waitForTimeout(30000)
+await B.page.waitForTimeout(30000)
 
 const aText = await A.page.evaluate(() => document.body.innerText.match(/(\d+) live tourist/)?.[1])
 const bText = await B.page.evaluate(() => document.body.innerText.match(/(\d+) live tourist/)?.[1])
