@@ -31,6 +31,7 @@ import {
   Car,
   DoorOpen,
   Tag,
+  LayoutGrid,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import type {
@@ -42,10 +43,11 @@ import type {
   ItineraryShare,
 } from '@/lib/types'
 import { Avatar } from '@/components/ui/Avatar'
+import ItineraryDayBoard from '@/components/itinerary/ItineraryDayBoard'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
-type Tab = 'overview' | 'days' | 'stops' | 'collaborators' | 'settings'
+type Tab = 'overview' | 'board' | 'days' | 'stops' | 'collaborators' | 'settings'
 
 // Form payload for addStop/updateStop — single source of truth.
 type StopFormFields = {
@@ -618,6 +620,7 @@ export default function ItineraryDetailPage() {
       <nav className="border-b border-border flex flex-wrap" role="tablist" aria-label="Itinerary sections">
         {([
           { v: 'overview', label: 'Overview', icon: Compass },
+          { v: 'board', label: 'Board', icon: LayoutGrid, count: stops.length },
           { v: 'days', label: 'Days', icon: Calendar, count: days.length },
           { v: 'stops', label: 'Stops', icon: MapPin, count: stops.length },
           { v: 'collaborators', label: 'Collaborators', icon: Users, count: collaborators.length + 1 },
@@ -655,6 +658,19 @@ export default function ItineraryDetailPage() {
           onSave={patchItin}
           onDelete={deleteItin}
           saving={isPending}
+        />
+      ) : null}
+
+      {tab === 'board' ? (
+        <BoardTab
+          days={days}
+          stops={stops}
+          isEditor={isEditor}
+          meId={currentUser?.id ?? ''}
+          onCardClick={(stopId) => {
+            const s = stops.find((x) => x.id === stopId)
+            if (s) setEditingStopId(stopId)
+          }}
         />
       ) : null}
 
@@ -719,6 +735,115 @@ export default function ItineraryDetailPage() {
         />
       ) : null}
     </div>
+  )
+}
+
+// =====================================================================
+// Board tab — Trello-style drag-drop across morning/afternoon/evening
+// =====================================================================
+function BoardTab({
+  days,
+  stops,
+  isEditor,
+  meId,
+  onCardClick,
+}: {
+  days: ItineraryDay[]
+  stops: ItineraryStop[]
+  isEditor: boolean
+  meId: string
+  onCardClick: (stopId: string) => void
+}) {
+  const [activeDayId, setActiveDayId] = useState<string | null>(days[0]?.id ?? null)
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null)
+
+  // If days list shrinks and the active one disappears, fall back.
+  useEffect(() => {
+    if (days.length === 0) {
+      setActiveDayId(null)
+      return
+    }
+    if (!activeDayId || !days.some((d) => d.id === activeDayId)) {
+      setActiveDayId(days[0].id)
+    }
+  }, [days, activeDayId])
+
+  const activeDay = days.find((d) => d.id === activeDayId) ?? null
+  const dayStops = activeDay
+    ? stops
+        .filter((s) => s.day_id === activeDay.id)
+        .sort((a, b) => (a.stop_order ?? 0) - (b.stop_order ?? 0))
+    : []
+
+  if (days.length === 0) {
+    return (
+      <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
+        <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
+          <LayoutGrid size={11} aria-hidden="true" /> Board
+        </legend>
+        <div className="border border-dashed border-border rounded-sm p-6 bg-paper text-center">
+          <LayoutGrid size={20} className="mx-auto text-muted mb-2" aria-hidden="true" />
+          <p className="text-sm font-medium text-ink mb-1">No days yet</p>
+          <p className="text-xs text-muted">
+            Add a day on the <strong>Days</strong> tab first, then come back here to drag stops between morning, afternoon and evening.
+          </p>
+        </div>
+      </fieldset>
+    )
+  }
+
+  return (
+    <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5">
+      <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
+        <LayoutGrid size={11} aria-hidden="true" /> Board
+      </legend>
+
+      {/* Day selector chips */}
+      <nav className="flex flex-wrap gap-1.5 mb-4" aria-label="Select day">
+        {days.map((d) => {
+          const active = d.id === activeDayId
+          return (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => setActiveDayId(d.id)}
+              aria-pressed={active}
+              className={[
+                'inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-sm border transition-colors',
+                active
+                  ? 'border-primary text-primary bg-primary/5'
+                  : 'border-border text-ink hover:bg-paper',
+              ].join(' ')}
+            >
+              <span className="tabular-nums font-semibold">D{d.day_order}</span>
+              <span className="text-muted truncate max-w-[120px]">
+                {d.title || (d.date ? new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Untitled')}
+              </span>
+            </button>
+          )
+        })}
+      </nav>
+
+      {conflictMessage ? (
+        <div className="mb-3 px-3 py-2 bg-warning-bg border border-warning rounded-sm text-xs text-warning inline-flex items-center gap-2" role="status">
+          <AlertTriangle size={12} aria-hidden="true" />
+          {conflictMessage}
+        </div>
+      ) : null}
+
+      {activeDay ? (
+        <ItineraryDayBoard
+          dayId={activeDay.id}
+          initialStops={dayStops}
+          canEdit={isEditor}
+          meId={meId}
+          onCardClick={onCardClick}
+          onConflict={(stopName) =>
+            setConflictMessage(`${stopName} was just moved by another collaborator — refresh to see the latest.`)
+          }
+        />
+      ) : null}
+    </fieldset>
   )
 }
 

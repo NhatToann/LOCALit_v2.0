@@ -175,9 +175,14 @@ export interface ItineraryStop {
   added_by: string | null
   created_at: string
   updated_at: string
+  /** Per-stop drag-drop override (see lib/itinerary/buckets.ts). */
+  day_bucket_override: ItineraryBucket | null
   // Joined
   added_by_profile?: Profile
 }
+
+/** Bucket window for an itinerary stop. */
+export type ItineraryBucket = 'morning' | 'afternoon' | 'evening' | 'unscheduled'
 
 export interface ItineraryCollaborator {
   id: string
