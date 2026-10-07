@@ -91,7 +91,16 @@ export async function issueOtpForSignup(
     .single()
 
   if (insertErr || !inserted) {
-    return { ok: false, error: `Could not store code: ${insertErr?.message ?? 'unknown'}` }
+    // Debug: include the actual Supabase response details so we can diagnose
+    // "Invalid API key" vs permission errors vs connection issues.
+    const detail = JSON.stringify({
+      message: insertErr?.message,
+      code: insertErr?.code,
+      hint: insertErr?.hint,
+      details: insertErr?.details,
+      status: (insertErr as { status?: number })?.status,
+    })
+    return { ok: false, error: `Could not store code: ${detail}` }
   }
 
   // ---- DEV MODE ---------------------------------------------------------
