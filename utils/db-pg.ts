@@ -447,6 +447,7 @@ export async function createAuthUser(args: {
         JSON.stringify({ sub: userId, email: args.email, email_verified: true, phone_verified: false }),
         args.email,
         now,
+        now,
       ],
     )
 
