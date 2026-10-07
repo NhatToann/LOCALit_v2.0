@@ -58,6 +58,7 @@ export function useLiveUserLocations(opts: Options = {}) {
   const nameRef = useRef<string>('You')
   const lastPublishRef = useRef<number>(0)
   const watchIdRef = useRef<number | null>(null)
+  const subscribedRef = useRef<boolean>(false)
 
   // Initialise channel + identity once on mount; keeps subscriptions alive
   // even if `enabled` toggles, so we never miss a peer update.
@@ -95,7 +96,17 @@ export function useLiveUserLocations(opts: Options = {}) {
       setLiveLocations(prev => prev.filter(e => e.userId !== id))
     })
 
-    channel.subscribe()
+    channel.subscribe((status: string, err?: unknown) => {
+      // 'SUBSCRIBED' = Realtime WS handshake completed; safe to broadcast.
+      // Before this, channel.send() falls back to REST which Supabase
+      // returns ERR_ABORTED on after the first hit, causing peer markers
+      // to never appear on the other user's map.
+      subscribedRef.current = status === 'SUBSCRIBED'
+      if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_CALL_DEBUG === '1') {
+        // eslint-disable-next-line no-console
+        console.log('[dlog] live-locations channel status=', status, err ?? '')
+      }
+    })
 
     getCurrentUser().then(user => {
       if (cancelled) return
@@ -153,6 +164,11 @@ export function useLiveUserLocations(opts: Options = {}) {
       lastPublishRef.current = now
       const ch = channelRef.current
       if (!ch || !userIdRef.current) return
+      // Only publish once the channel's SUBSCRIBED handshake completed;
+      // before that the SDK silently falls back to REST which aborts in
+      // this project. We still drop the broadcast (peers re-receive us
+      // on the next watch tick once subscribed).
+      if (!subscribedRef.current) return
       ch.send({
         type: 'broadcast',
         event: 'loc:update',
@@ -189,10 +205,11 @@ export function useLiveUserLocations(opts: Options = {}) {
         navigator.geolocation.clearWatch(watchIdRef.current)
         watchIdRef.current = null
       }
-      // Best-effort leave broadcast
+      // Best-effort leave broadcast (only if the channel is actually
+      // subscribed; otherwise this would fall back to REST and fail).
       const ch = channelRef.current
       const uid = userIdRef.current
-      if (ch && uid) {
+      if (ch && uid && subscribedRef.current) {
         try {
           ch.send({
             type: 'broadcast',
@@ -209,7 +226,7 @@ export function useLiveUserLocations(opts: Options = {}) {
     function onUnload() {
       const ch = channelRef.current
       const uid = userIdRef.current
-      if (ch && uid) {
+      if (ch && uid && subscribedRef.current) {
         try {
           ch.send({
             type: 'broadcast',
