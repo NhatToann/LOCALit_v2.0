@@ -783,3 +783,63 @@ A red-team audit ran `scripts/redteam-attack.mjs` against the current production
 - **No CSRF token on `/api/newsletter/subscribe`** — relies on origin/referer check. Acceptable
   for a low-impact endpoint but worth revisiting if newsletter ever sends privileged data.
 
+## Live Map 2-Device Sharing (2026-10-07 — Realtime rewrite)
+
+The "/map" page lets users click "Share my location" to broadcast their
+position to nearby tourists on the same map. Two devices, both signed in,
+both opted in — should see each other's markers. They didn't, until this
+rewrite.
+
+### What was broken
+1. **`/map`'s `useLiveUserLocations` hook published over a Supabase
+   Realtime `broadcast` channel.** In this project's setup the WS handshake
+   completed (status=SUBSCRIBED) but later sends triggered
+   `Realtime send() is automatically falling back to REST API` warnings —
+   and the REST fallback returned `202` once then `ERR_ABORTED` forever.
+   Peers never received the marker.
+2. **`location_updates` was missing from the `supabase_realtime`
+   publication.** Even after switching the hook to `postgres_changes` on
+   that table, no events fired for the receiver because the publication
+   only listed `conversations, messages, message_reactions, pending_calls,
+   swipes, matches`.
+3. **`userIdRef.current` was `null` when the first publish fired.** The
+   hook's `getCurrentUser()` resolves asynchronously after the channel is
+   created, but `watchPosition` fires almost immediately. The first
+   publish was a no-op; subsequent ones worked but the row's `user_id`
+   column was missing.
+4. **`location_updates` had no UNIQUE constraint on `user_id`** so
+   `upsert({ onConflict: 'user_id' })` was rejected. Switched to a
+   separate `SELECT` + UPDATE/INSERT.
+
+### The fix (3 migrations + 1 hook rewrite)
+
+| File | Change |
+|---|---|
+| `supabase/migrations/2026-10-07-location-updates-realtime.sql` | `ALTER PUBLICATION supabase_realtime ADD TABLE public.location_updates` — required for postgres_changes to fan out |
+| `supabase/migrations/2026-10-07-location-updates-tourists.sql` | Expand SELECT RLS to authenticated users (rows updated in the last 5 min) — buddies-only was too restrictive for the new tourist→tourist sharing feature |
+| `hooks/useLiveUserLocations.ts` | Switch from broadcast to `postgres_changes` on `location_updates`; do a synchronous `sb.auth.getUser()` fallback if `userIdRef` is still null; SELECT-then-UPDATE/INSERT |
+| `scripts/playwright-live-map.mjs` | Two Playwright contexts (Lan + John), each clicks Share my location, asserts peerCount≥1 in both directions. 9/9 against the canonical URL |
+
+### How to verify
+
+```bash
+node scripts/playwright-live-map.mjs
+```
+
+Expected output (truncated):
+```
+A: peerCount=1, B: peerCount=1
+A sees B as peer: YES
+B sees A as peer: YES
+```
+
+### Operational notes
+- Each active sharer writes 1 row per ~5s (`publishIntervalMs`).
+  Stale-eviction is client-side (60s default) and server-side (5-min RLS
+  cutoff). The `location_updates` table does NOT auto-purge; if many
+  users share for hours the row count grows linearly. Acceptable for the
+  capstone scope; future cleanup: pg_cron DELETE WHERE updated_at < now() - 1h.
+- The hook now does a SELECT-then-UPDATE/INSERT instead of `upsert()`. The
+  race is benign because both branches write the same user_id and the
+  primary key is the auto-generated UUID.
+
