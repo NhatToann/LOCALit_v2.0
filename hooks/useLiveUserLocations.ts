@@ -191,23 +191,38 @@ export function useLiveUserLocations(opts: Options = {}) {
       const sb = supabaseRef.current
       const uid = userIdRef.current
       if (!sb || !uid) return
-      // Upsert into public.location_updates. The RLS policy allows users
-      // to write only their own row (auth.uid() = user_id). Realtime
-      // postgres_changes fan-outs to all subscribers.
-      const { error } = await sb.from('location_updates').upsert(
-        {
-          user_id: uid,
-          latitude: lat,
-          longitude: lng,
-          accuracy: null,
-          updated_at: new Date(now).toISOString(),
-        },
-        { onConflict: 'user_id' },
-      )
+      // Update the user's existing row, or insert if none exists yet. We
+      // use a separate UPDATE + INSERT instead of upsert because
+      // location_updates doesn't have a UNIQUE constraint on user_id, and
+      // adding one in a migration is risky (RLS + FK behavior). The race
+      // is benign because both branches write the same user_id.
+      const { data: existing, error: selErr } = await sb
+        .from('location_updates')
+        .select('id')
+        .eq('user_id', uid)
+        .limit(1)
+        .maybeSingle()
+      if (selErr) {
+        if (process.env.NEXT_PUBLIC_CALL_DEBUG === '1') {
+          // eslint-disable-next-line no-console
+          console.log('[dlog] live-locations select failed:', selErr.message)
+        }
+        return
+      }
+      const payload = {
+        user_id: uid,
+        latitude: lat,
+        longitude: lng,
+        accuracy: null,
+        updated_at: new Date(now).toISOString(),
+      }
+      const { error } = existing
+        ? await sb.from('location_updates').update(payload).eq('id', existing.id)
+        : await sb.from('location_updates').insert(payload)
       if (error) {
         if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_CALL_DEBUG === '1') {
           // eslint-disable-next-line no-console
-          console.log('[dlog] live-locations upsert failed:', error.message)
+          console.log('[dlog] live-locations write failed:', error.message)
         }
       }
     }
