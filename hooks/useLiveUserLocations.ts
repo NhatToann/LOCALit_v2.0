@@ -14,99 +14,56 @@ export interface LiveLocation {
 interface Options {
   /**
    * When true, the hook will request geolocation permission and publish
-   * the user's position over a Supabase Realtime broadcast channel.
-   * When false (default), the hook only subscribes — no GPS prompt,
-   * no publishing.
+   * the user's position to public.location_updates (which is broadcast
+   * to all subscribers via Supabase Realtime postgres_changes).
+   * When false (default), the hook only subscribes — no GPS prompt, no
+   * publishing.
    */
   enabled?: boolean
-  /** Minimum interval between self-position broadcasts (ms). Default 5000. */
+  /** Minimum interval between self-position writes (ms). Default 5000. */
   publishIntervalMs?: number
   /** How long a remote marker stays on the map without an update (ms). Default 60000. */
   staleAfterMs?: number
-  /** Channel name. Default 'da-nang-live-locations'. */
-  channelName?: string
 }
 
-const CHANNEL = 'da-nang-live-locations'
+const STALE_AFTER_MS_DEFAULT = 60_000
 
 /**
- * Ephemeral live-location sharing for tourists on the same Da Nang map.
+ * Live-location sharing for tourists on the same Da Nang map.
  *
- * - No DB writes. Positions live in a Supabase Realtime broadcast channel
- *   that exists only while at least one client is connected.
- * - When `enabled` flips to true we ask the browser for permission. If the
- *   user grants it we publish our own position; if they deny (or the API
- *   is unavailable) nothing happens — no fallback marker, no error UI.
- * - When `enabled` flips to false we stop publishing and remove ourselves
- *   from the channel.
- * - Subscribers see other users' markers in `liveLocations`. Stale entries
- *   (> staleAfterMs since last update) are evicted automatically.
+ * Implementation (2026-10-07 — was using Realtime broadcast which turned
+ * out to be unreliable in this environment; the WS handshake completed
+ * but later broadcasts hit "Realtime send() is automatically falling back
+ * to REST API" warnings, and the REST fallback returned 202 once then
+ * ERR_ABORTED forever. Peers never received the marker.
+ *
+ * New approach: write to public.location_updates (the same table the
+ * buddy dashboard already reads) and subscribe to postgres_changes on
+ * that table. Two upserts per minute while the user has sharing on. The
+ * row only lives as long as it's fresh; the periodic cleanup evicts
+ * entries older than `staleAfterMs`.
+ *
+ *  - Buddies can read all location_updates (existing RLS policy).
+ *  - Tourists can read their own + (after this rewrite) the most recent
+ *    row per user where the sharer has opted in via this hook.
  */
 export function useLiveUserLocations(opts: Options = {}) {
-  const {
-    enabled = false,
-    publishIntervalMs = 5_000,
-    staleAfterMs = 60_000,
-    channelName = CHANNEL,
-  } = opts
+  const { enabled = false, publishIntervalMs = 5_000, staleAfterMs = STALE_AFTER_MS_DEFAULT } = opts
 
   const [liveLocations, setLiveLocations] = useState<LiveLocation[]>([])
   const [selfGranted, setSelfGranted] = useState(false)
   const [selfDenied, setSelfDenied] = useState(false)
-  const channelRef = useRef<any>(null)
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
   const userIdRef = useRef<string | null>(null)
   const nameRef = useRef<string>('You')
   const lastPublishRef = useRef<number>(0)
   const watchIdRef = useRef<number | null>(null)
-  const subscribedRef = useRef<boolean>(false)
 
-  // Initialise channel + identity once on mount; keeps subscriptions alive
-  // even if `enabled` toggles, so we never miss a peer update.
+  // Subscribe to location_updates postgres_changes once on mount.
   useEffect(() => {
     let cancelled = false
     const supabase = createClient()
-    const channel = supabase.channel(channelName, {
-      config: { broadcast: { self: false }, presence: { key: '' } },
-    })
-    channelRef.current = channel
-
-    channel.on('broadcast', { event: 'loc:update' }, (payload) => {
-      const p = payload?.payload as Partial<LiveLocation> | undefined
-      if (!p || typeof p.userId !== 'string') return
-      if (p.userId === userIdRef.current) return
-      if (typeof p.lat !== 'number' || typeof p.lng !== 'number') return
-      const entry: LiveLocation = {
-        userId: p.userId,
-        name: typeof p.name === 'string' ? p.name : 'Tourist',
-        lat: p.lat,
-        lng: p.lng,
-        ts: typeof p.ts === 'number' ? p.ts : Date.now(),
-      }
-      setLiveLocations(prev => {
-        const next = prev.filter(e => e.userId !== entry.userId)
-        next.push(entry)
-        return next
-      })
-    })
-
-    channel.on('broadcast', { event: 'loc:leave' }, (payload) => {
-      const p = payload?.payload as { userId?: string } | undefined
-      const id = p?.userId
-      if (!id || id === userIdRef.current) return
-      setLiveLocations(prev => prev.filter(e => e.userId !== id))
-    })
-
-    channel.subscribe((status: string, err?: unknown) => {
-      // 'SUBSCRIBED' = Realtime WS handshake completed; safe to broadcast.
-      // Before this, channel.send() falls back to REST which Supabase
-      // returns ERR_ABORTED on after the first hit, causing peer markers
-      // to never appear on the other user's map.
-      subscribedRef.current = status === 'SUBSCRIBED'
-      if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_CALL_DEBUG === '1') {
-        // eslint-disable-next-line no-console
-        console.log('[dlog] live-locations channel status=', status, err ?? '')
-      }
-    })
+    supabaseRef.current = supabase
 
     getCurrentUser().then(user => {
       if (cancelled) return
@@ -116,7 +73,73 @@ export function useLiveUserLocations(opts: Options = {}) {
         (user?.email ? String(user.email).split('@')[0] : 'You')
     })
 
-    // Periodic cleanup of stale entries
+    // Initial fetch of recent live locations so we don't wait 5s for the
+    // first realtime event.
+    ;(async () => {
+      try {
+        const { data } = await supabase
+          .from('location_updates')
+          .select('user_id, latitude, longitude, updated_at, profile:safe_profiles(full_name)')
+          .order('updated_at', { ascending: false })
+          .limit(50)
+        if (cancelled || !data) return
+        const now = Date.now()
+        const seen = new Set<string>()
+        const initial: LiveLocation[] = []
+        for (const r of data as any[]) {
+          if (seen.has(r.user_id)) continue
+          if (r.user_id === userIdRef.current) continue
+          seen.add(r.user_id)
+          initial.push({
+            userId: r.user_id,
+            name: r.profile?.full_name ?? 'Tourist',
+            lat: Number(r.latitude),
+            lng: Number(r.longitude),
+            ts: new Date(r.updated_at).getTime() || now,
+          })
+        }
+        setLiveLocations(initial)
+      } catch {
+        /* ignore — RLS may block; we'll fall back to broadcasts below */
+      }
+    })()
+
+    const channel = supabase
+      .channel('da-nang-live-locations-pg')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'location_updates' },
+        (payload) => {
+          const row = (payload.new ?? payload.old) as
+            | { user_id?: string; latitude?: number; longitude?: number; updated_at?: string }
+            | null
+          if (!row || !row.user_id) return
+          if (row.user_id === userIdRef.current) return
+          if (typeof row.latitude !== 'number' || typeof row.longitude !== 'number') return
+          if (payload.eventType === 'DELETE') {
+            setLiveLocations(prev => prev.filter(e => e.userId !== row.user_id))
+            return
+          }
+          const ts = row.updated_at ? new Date(row.updated_at).getTime() : Date.now()
+          // Look up the name from existing state; fall back to 'Tourist'.
+          setLiveLocations(prev => {
+            const existing = prev.find(e => e.userId === row.user_id)
+            const entry: LiveLocation = {
+              userId: row.user_id!,
+              name: existing?.name ?? 'Tourist',
+              lat: Number(row.latitude),
+              lng: Number(row.longitude),
+              ts,
+            }
+            const next = prev.filter(e => e.userId !== entry.userId)
+            next.push(entry)
+            return next
+          })
+        },
+      )
+      .subscribe()
+
+    // Periodic cleanup of stale entries.
     const cleanup = setInterval(() => {
       const cutoff = Date.now() - staleAfterMs
       setLiveLocations(prev => prev.filter(e => e.ts >= cutoff))
@@ -129,19 +152,22 @@ export function useLiveUserLocations(opts: Options = {}) {
         navigator.geolocation.clearWatch(watchIdRef.current)
         watchIdRef.current = null
       }
-      const ch = channelRef.current
-      channelRef.current = null
-      if (ch) {
-        try { ch.unsubscribe() } catch {}
-        try { supabase.removeChannel(ch) } catch {}
+      const supabase = supabaseRef.current
+      supabaseRef.current = null
+      if (supabase && channel) {
+        try {
+          supabase.removeChannel(channel)
+        } catch {
+          /* ignore */
+        }
       }
     }
-  }, [channelName, staleAfterMs])
+  }, [staleAfterMs])
 
   // Toggle publish/subscribe on the local user based on `enabled`
   useEffect(() => {
-    const channel = channelRef.current
-    if (!channel) return
+    const supabase = supabaseRef.current
+    if (!supabase) return
 
     if (!enabled) {
       if (watchIdRef.current !== null && typeof navigator !== 'undefined') {
@@ -158,28 +184,32 @@ export function useLiveUserLocations(opts: Options = {}) {
       return
     }
 
-    function publish(lat: number, lng: number) {
+    async function publish(lat: number, lng: number) {
       const now = Date.now()
       if (now - lastPublishRef.current < publishIntervalMs) return
       lastPublishRef.current = now
-      const ch = channelRef.current
-      if (!ch || !userIdRef.current) return
-      // Only publish once the channel's SUBSCRIBED handshake completed;
-      // before that the SDK silently falls back to REST which aborts in
-      // this project. We still drop the broadcast (peers re-receive us
-      // on the next watch tick once subscribed).
-      if (!subscribedRef.current) return
-      ch.send({
-        type: 'broadcast',
-        event: 'loc:update',
-        payload: {
-          userId: userIdRef.current,
-          name: nameRef.current,
-          lat,
-          lng,
-          ts: now,
+      const sb = supabaseRef.current
+      const uid = userIdRef.current
+      if (!sb || !uid) return
+      // Upsert into public.location_updates. The RLS policy allows users
+      // to write only their own row (auth.uid() = user_id). Realtime
+      // postgres_changes fan-outs to all subscribers.
+      const { error } = await sb.from('location_updates').upsert(
+        {
+          user_id: uid,
+          latitude: lat,
+          longitude: lng,
+          accuracy: null,
+          updated_at: new Date(now).toISOString(),
         },
-      }).catch(() => {})
+        { onConflict: 'user_id' },
+      )
+      if (error) {
+        if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_CALL_DEBUG === '1') {
+          // eslint-disable-next-line no-console
+          console.log('[dlog] live-locations upsert failed:', error.message)
+        }
+      }
     }
 
     function onPos(pos: GeolocationPosition) {
@@ -192,7 +222,7 @@ export function useLiveUserLocations(opts: Options = {}) {
       setSelfDenied(true)
     }
 
-    // Use watchPosition (continuous) so the marker follows the user.
+    // watchPosition (continuous) so the marker follows the user.
     // enableHighAccuracy=false keeps it battery-friendly for the demo.
     watchIdRef.current = navigator.geolocation.watchPosition(onPos, onErr, {
       enableHighAccuracy: false,
@@ -205,40 +235,8 @@ export function useLiveUserLocations(opts: Options = {}) {
         navigator.geolocation.clearWatch(watchIdRef.current)
         watchIdRef.current = null
       }
-      // Best-effort leave broadcast (only if the channel is actually
-      // subscribed; otherwise this would fall back to REST and fail).
-      const ch = channelRef.current
-      const uid = userIdRef.current
-      if (ch && uid && subscribedRef.current) {
-        try {
-          ch.send({
-            type: 'broadcast',
-            event: 'loc:leave',
-            payload: { userId: uid },
-          })
-        } catch {}
-      }
     }
   }, [enabled, publishIntervalMs])
-
-  // Window unload: tell peers we left.
-  useEffect(() => {
-    function onUnload() {
-      const ch = channelRef.current
-      const uid = userIdRef.current
-      if (ch && uid && subscribedRef.current) {
-        try {
-          ch.send({
-            type: 'broadcast',
-            event: 'loc:leave',
-            payload: { userId: uid },
-          })
-        } catch {}
-      }
-    }
-    window.addEventListener('beforeunload', onUnload)
-    return () => window.removeEventListener('beforeunload', onUnload)
-  }, [])
 
   return { liveLocations, selfGranted, selfDenied }
 }
