@@ -405,6 +405,11 @@ export async function createAuthUser(args: {
     const now = new Date().toISOString()
 
     // Insert into auth.users. Bypass RLS by being `postgres` role.
+    // NOTE: we avoid ::jsonb casts because the JSON strings contain bcrypt
+    // hash characters like $2a$10$... which the pg prepared-statement
+    // parser misinterprets as $N placeholder patterns, causing "requires N
+    // parameters" mismatches. Instead we pass plain strings and rely on
+    // pg's implicit casting (text → jsonb is automatic in Postgres).
     await c.query(
       `INSERT INTO auth.users (
          instance_id, id, aud, role, email,
@@ -417,7 +422,7 @@ export async function createAuthUser(args: {
        ) VALUES (
          '00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2,
          $3, $4,
-         $5::jsonb, $6::jsonb,
+         $5, $6,
          $4, $4,
          false, false,
          '', 0,
@@ -435,11 +440,12 @@ export async function createAuthUser(args: {
 
     // Insert the matching auth.identities row. Without this, signInWithPassword
     // will fail because the user has no identity record.
+    // Same fix: avoid ::jsonb cast, pass plain string, let pg cast.
     await c.query(
       `INSERT INTO auth.identities (
          id, user_id, identity_data, provider, provider_id, created_at, updated_at
        ) VALUES (
-         $1, $1, $2::jsonb, 'email', $3, $4, $4
+         $1, $2, $3, 'email', $4, $5, $6
        )`,
       [
         crypto.randomUUID(),
