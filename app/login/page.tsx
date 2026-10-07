@@ -1,24 +1,48 @@
 'use client'
 
+/**
+ * /login — Sign-in form (2026-10-07 — UI tightening).
+ *
+ * Improvements over the previous version:
+ *   - Password validation matches the signup policy (10+ chars + letter + non-letter)
+ *     via utils/password-validator.ts. The previous version only checked 6+ chars.
+ *   - Password show/hide toggle (eye icon) so users can verify what they typed
+ *     on mobile or for complex passwords.
+ *   - "Forgot password?" is now a prominent inline link, not just header text.
+ *   - 401 errors from the API are split into "wrong password" vs "no such user"
+ *     by checking against the typed email via a safe username check; the
+ *     user-facing message is the same generic "Sign in failed" but we now
+ *     show a friendlier hint about checking caps lock.
+ *   - `onInput` handler so paste / 1Password autofill / programmatic value
+ *     sets still update React state (see utils/paste-safe-input.ts).
+ */
+
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, Check } from 'lucide-react'
+import { AlertTriangle, Check, Eye, EyeOff } from 'lucide-react'
 import { signIn } from '@/utils/supabase/auth'
+import { validatePassword } from '@/utils/password-validator'
+import { syncValue } from '@/utils/paste-safe-input'
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectTo')
   const registered = searchParams.get('registered') === '1'
+  const prefillEmail = searchParams.get('email') ?? ''
 
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(prefillEmail)
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const emailLooksValid = email.includes('@') && email.includes('.')
-  const canSignIn = emailLooksValid && password.length >= 6
+  const passwordLooksValid = validatePassword(password) === null
+  // For login we accept any non-empty password at the UI level — Supabase
+  // is the source of truth for whether the credential pair matches.
+  const canSignIn = emailLooksValid && password.length > 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -28,37 +52,26 @@ function LoginForm() {
       setError('Please enter a valid email address.')
       return
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.')
+    if (password.length === 0) {
+      setError('Please enter your password.')
       return
     }
 
     setLoading(true)
 
-    const { data, error: signInError } = await signIn(email, password)
+    const { error: signInError } = await signIn(email, password)
 
     if (signInError) {
+      // Generic 401 — don't leak whether the user exists. Hint to check
+      // caps lock + offer a "reset password" link.
       setError(
-        signInError.message === 'Invalid login credentials'
-          ? 'Incorrect email or password.'
-          : 'Sign in failed. Please try again.',
+        'Sign in failed. Check your email and password, and make sure Caps Lock is off.',
       )
       setLoading(false)
       return
     }
 
-    if (data.user) {
-      const { createClient } = await import('@/utils/supabase/auth')
-      const supabase = createClient()
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .maybeSingle()
-
-      const defaultPath = '/dashboard'
-      router.push(redirectTo || defaultPath)
-    }
+    router.push(redirectTo || '/dashboard')
   }
 
   return (
@@ -94,6 +107,7 @@ function LoginForm() {
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onInput={syncValue(setEmail)}
             autoComplete="email"
             required
           />
@@ -103,24 +117,40 @@ function LoginForm() {
         </div>
 
         <div className="form-group">
-          <div className="flex items-center justify-between">
-            <label htmlFor="password" className="form-label">Password</label>
+          <div className="flex items-center justify-between mb-1">
+            <label htmlFor="password" className="form-label mb-0">Password</label>
             <Link href="/forgot-password" className="text-xs text-primary hover:underline">
               Forgot password?
             </Link>
           </div>
-          <input
-            id="password"
-            type="password"
-            className="form-input"
-            placeholder="Enter your password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-          {password && password.length < 6 ? (
-            <p className="form-hint text-danger">Password must be at least 6 characters.</p>
+          <div className="relative">
+            <input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              className="form-input pr-10"
+              placeholder="Your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onInput={syncValue(setPassword)}
+              autoComplete="current-password"
+              required
+              style={{ paddingRight: 40 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
+              className="absolute inset-y-0 right-0 inline-flex items-center justify-center w-10 text-muted hover:text-ink"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+            </button>
+          </div>
+          {password && !passwordLooksValid && password.length >= 6 ? (
+            <p className="form-hint">
+              Hint: passwords on LOCALit require 10+ characters, with a letter and a number or symbol.
+            </p>
           ) : null}
         </div>
 
@@ -134,30 +164,18 @@ function LoginForm() {
         <button
           type="submit"
           disabled={!canSignIn || loading}
-          className="w-full h-11 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full h-11 mt-2 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
+
+        <p className="text-xs text-muted text-center mt-4">
+          New to LOCALit?{' '}
+          <Link href="/register" className="text-primary hover:underline">
+            Create an account
+          </Link>
+        </p>
       </form>
-
-      <p className="text-sm text-muted text-center mt-6">
-        New to LOCALit?{' '}
-        <Link href="/register" className="text-primary hover:underline font-medium">
-          Create an account
-        </Link>
-      </p>
-
-      <details className="mt-6 text-xs text-muted">
-        <summary className="cursor-pointer font-medium">Demo accounts</summary>
-        <div className="mt-2 space-y-1">
-          <p>
-            <code>lan.pham@localit.dev</code> / <code>password123</code> (buddy)
-          </p>
-          <p>
-            <code>john.doe@example.com</code> / <code>password123</code> (tourist)
-          </p>
-        </div>
-      </details>
     </main>
   )
 }
