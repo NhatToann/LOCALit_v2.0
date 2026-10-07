@@ -180,6 +180,14 @@ export async function consumeOtp(
   code: string,
 ): Promise<ConsumeOtpResult> {
   const sel = await selectEmailVerification(signupId)
+  console.warn(`[consumeOtp] select result for ${signupId}:`, JSON.stringify({
+    hasData: !!sel.data,
+    error: sel.error,
+    consumed_at: sel.data?.consumed_at,
+    expires_at: sel.data?.expires_at,
+    attempts: sel.data?.attempts,
+    verified_at: sel.data?.verified_at,
+  }))
   if (sel.error || !sel.data) {
     return { ok: false, reason: 'no_code', error: 'No active verification code.' }
   }
