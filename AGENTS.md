@@ -136,8 +136,8 @@ Type scale: `text-xs` through `text-6xl` (rem-based, see design.md Section 3.2)
   - `vercel ls --prod` shows the latest hash URL — every deploy produces a
     new `localit-XXXXXXXXXXX-nhattoann.vercel.app` URL, but the canonical
     alias above is what users see and share. **Do not hard-code the hash URL.**
-  - Last deploy: 2026-09-26 (security hardening pass — email enumeration
-    closed, auth trigger rebuilt, password policy tightened)
+  - Last deploy: 2026-10-07 (auth signup flow rewrite — pg-direct
+    `auth.users` insert, real-account sign-in verified end-to-end)
 - **Stale URLs that should NOT be shared**: every prior deployment URL
   (e.g., `localit-menf0nwha-nhattoann.vercel.app` from the dashboard
   redesign) remains publicly accessible as an immutable Vercel deployment.
@@ -318,10 +318,38 @@ If a preview URL returns 200 but client-side data fetch fails, the env vars in P
 - **Production URLs change per deploy.** The URL `localit-ax3tzd5l3` is stale (no longer aliased). Always get the current URL from `vercel ls --prod` (first line is latest).
 - **Node.js `fetch` to production Vercel URL gets 302 → `vercel.com/sso-api`** (Vercel Deployment Protection gate). Use `vercel curl <url>` for programmatic checks, or accept 302 as "reachable but gated" in diagnostics.
 
-### Supabase Auth Sign-Up (500 error)
-- Direct `POST /auth/v1/signup` from the Node/pg layer returns `500: Database error saving new user`. This is GoTrue's internal error and happens because the INSERT path to `auth.users` and `auth.identities` goes through Supabase's own gateway, not the postgres role we have access to.
-- **Workaround**: Sign-ups via the client-side Supabase JS SDK (`signUp()` in `utils/supabase/auth.ts`) work fine because the SDK calls the GoTrue API directly. Do NOT simulate sign-up via direct pg inserts unless you also insert `auth.identities` and handle the full row schema.
-- The `scripts/diag-db-flows.mjs` test inserts into `auth.users` directly (bypassing GoTrue) ONLY for testing FK/trigger integrity. Never use this pattern in production code.
+### Supabase Auth Sign-Up (500 error) — RESOLVED 2026-10-07
+- **Root cause**: Supabase's public `/auth/v1/signup` endpoint is rate-limited
+  per project (~4 emails/hour on the free tier) and fails with
+  `over_email_send_rate_limit` because it sends a confirmation email by
+  default. GoTrue's sign-in path also requires the `auth.users` row to
+  have every GoTrue-required column populated (email_change, recovery_token,
+  phone_change_token, etc.) — values that the default column defaults
+  populate if you DON'T list it in the INSERT clause, but stay NULL if you
+  explicitly set them in a single INSERT.
+- **Fix**: `utils/db-pg.ts → createAuthUser()` now does the proven
+  fix-seed-users.mjs pattern:
+   1. INSERT a minimal `auth.users` row (id, email, instance_id, aud, role)
+   2. UPDATE all GoTrue-required columns with `COALESCE(col, default)`,
+      using `crypt($pw, gen_salt('bf'))` from pgcrypto for the password
+      (matches what GoTrue's signin path validates against — bcryptjs
+      produces a slightly different format that pgcrypto rejects).
+   3. INSERT the matching `auth.identities` row with `jsonb_build_object(...)`.
+  Password is bcrypt-hashed-equivalent, email is pre-verified by our own
+  OTP step, no extra email is dispatched, no GoTrue email rate limit is hit.
+- **Verified end-to-end**: created `e2e-real@autotest.dev` via the
+  `/api/auth/signup/{start,verify-otp,complete}` flow, signed in via the
+  `/login` UI → landed on `/dashboard` for `e2e-real`. JWT access_token
+  issued by Supabase, full_name + role present in user_metadata.
+- **Edge cases handled**:
+   - `auth.instances` row required for instance_id lookup
+     (`'00000000-0000-0000-0000-000000000000'` was inserted on 2026-10-07
+     by `scripts/insert-instance.mjs`).
+   - `::jsonb` casts in INSERT values trigger pg prepared-statement parser
+     to misinterpret the bcrypt `$2a$10$…` chars inside JSON strings as
+     `$N` placeholders, causing "bind message supplies N parameters,
+     but prepared statement requires M" errors. Solution: avoid the
+     `::jsonb` cast — Postgres auto-casts text → jsonb.
 
 ### Register Page Step Order (2026-09-26)
 - `/register` flow now: **Step 0 = Personal info (name/phone/email/password/terms)** → **Step 1 = Role (Tourist/Buddy)** → **Step 2 = Tags & bio (role-specific)**.
