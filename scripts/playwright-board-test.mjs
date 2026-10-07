@@ -160,7 +160,6 @@ function fail(name, e) { console.log('  ✗', name, '—', e?.message || e); fai
   } catch (e) {
     fail('uncaught', e)
     try { await page.screenshot({ path: 'scripts/screenshots/board-failure.png', fullPage: true }) } catch {}
-    // Dump main form area for diagnosis
     try {
       const main = await page.evaluate(() => {
         const m = document.querySelector('main')
