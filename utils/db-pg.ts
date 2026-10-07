@@ -36,23 +36,51 @@
 
 import { Client } from 'pg'
 
+// Two ways to connect — depending on what's set in the env:
+//
+// 1. **POSTGRES_URL** (full connection string) — preferred in serverless
+//    environments. Goes through Supavisor (the connection pooler), which
+//    Vercel can route to. Vercel cannot make direct TCP connections to
+//    Supabase's `db.<ref>.supabase.co` host from inside a serverless
+//    function — DNS resolution fails (`ENOTFOUND`). The pooler URL is
+//    different and works.
+//
+// 2. **POSTGRES_HOST + POSTGRES_PASSWORD** — used as a fallback (e.g.
+//    for migrations running locally). Works on a developer machine but
+//    not from Vercel functions.
+//
+// If neither is set, all helper functions return `error: 'pg not configured'`
+// and the caller falls back to the Supabase REST admin client.
 const HOST = process.env.POSTGRES_HOST
 const PORT = Number(process.env.POSTGRES_PORT ?? 5432)
 const PASSWORD = process.env.POSTGRES_PASSWORD
 const USER = process.env.POSTGRES_USER ?? 'postgres'
 const DATABASE = process.env.POSTGRES_DB ?? 'postgres'
+const POOLER_URL = process.env.POSTGRES_URL ?? process.env.POSTGRES_URL_NON_POOLING
 
 /** Build a one-shot pg client. Caller is responsible for .end(). */
 export function createPgClient(): Client | null {
-  if (!HOST || !PASSWORD) return null
-  return new Client({
-    host: HOST,
-    port: PORT,
-    user: USER,
-    password: PASSWORD,
-    database: DATABASE,
-    ssl: { rejectUnauthorized: false },
-  })
+  if (POOLER_URL) {
+    // Strip the `?pgbouncer=true` / `?sslmode=...` options and let pg figure
+    // it out — pg accepts both `connectionString` and `ssl` overrides, but
+    // mixing URL-encoded params with explicit options can confuse TLS.
+    const base = POOLER_URL.split('?')[0]
+    return new Client({
+      connectionString: base,
+      ssl: { rejectUnauthorized: false },
+    })
+  }
+  if (HOST && PASSWORD) {
+    return new Client({
+      host: HOST,
+      port: PORT,
+      user: USER,
+      password: PASSWORD,
+      database: DATABASE,
+      ssl: { rejectUnauthorized: false },
+    })
+  }
+  return null
 }
 
 export interface DbResult<T> {
