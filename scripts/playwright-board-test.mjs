@@ -3,7 +3,16 @@
 // drag a stop between buckets, verify the new column count.
 import { chromium } from 'playwright'
 
-const PROD_URL = 'https://localit-nhattoann.vercel.app'
+const PROD_URL = process.env.PROD_URL || 'https://localit-nhattoann.vercel.app'
+// Vercel automation-bypass secret (scope = "automation-bypass") so the
+// browser can skip the SSO wall on every fresh deployment. Read from
+// `scripts/.vercel-bypass-secret` so the secret doesn't live in this
+// committed file.
+import { readFileSync, existsSync } from 'node:fs'
+let BYPASS_SECRET = process.env.VERCEL_BYPASS_SECRET
+if (!BYPASS_SECRET && existsSync('scripts/.vercel-bypass-secret')) {
+  BYPASS_SECRET = readFileSync('scripts/.vercel-bypass-secret', 'utf8').trim()
+}
 const ITIN_ID = process.env.ITIN_ID || '48ec487b-4a3a-4639-bcf0-fedbd9e90bd0'
 const EMAIL = process.env.LAN_EMAIL || 'lan.pham@localit.dev'
 const PASSWORD = process.env.LAN_PASS || 'password123'
@@ -16,7 +25,12 @@ function fail(name, e) { console.log('  ✗', name, '—', e?.message || e); fai
 
 ;(async () => {
   const browser = await chromium.launch({ headless: true })
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    extraHTTPHeaders: BYPASS_SECRET
+      ? { 'x-vercel-protection-bypass': BYPASS_SECRET }
+      : undefined,
+  })
   const page = await ctx.newPage()
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
@@ -25,10 +39,13 @@ function fail(name, e) { console.log('  ✗', name, '—', e?.message || e); fai
 
   try {
     // 1. Login
-    await page.goto(PROD_URL + '/login', { waitUntil: 'domcontentloaded' })
-    await page.waitForSelector('input[type="email"]', { timeout: 10_000 })
-    await page.fill('input[type="email"]', EMAIL)
-    await page.fill('input[type="password"]', PASSWORD)
+    await page.goto(PROD_URL + '/login', { waitUntil: 'load' })
+    // Login page is a client component, BAILOUT_TO_CLIENT_SIDE_RENDERING.
+    // Wait for hydration to mount the form.
+    await page.waitForSelector('input[name="email"], #email', { timeout: 30_000, state: 'attached' })
+    await page.waitForSelector('input[name="password"], #password', { timeout: 5_000, state: 'attached' })
+    await page.fill('input[name="email"], #email', EMAIL)
+    await page.fill('input[name="password"], #password', PASSWORD)
     await page.click('button[type="submit"]')
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 10_000 })
     ok('logged in as ' + EMAIL)
@@ -143,6 +160,16 @@ function fail(name, e) { console.log('  ✗', name, '—', e?.message || e); fai
   } catch (e) {
     fail('uncaught', e)
     try { await page.screenshot({ path: 'scripts/screenshots/board-failure.png', fullPage: true }) } catch {}
+    // Dump main form area for diagnosis
+    try {
+      const main = await page.evaluate(() => {
+        const m = document.querySelector('main')
+        return m ? m.innerHTML : 'NO MAIN'
+      })
+      console.log('--- main head ---')
+      console.log(main.slice(0, 3000))
+      console.log('--- end ---')
+    } catch {}
   } finally {
     await browser.close()
     if (failures.length > 0) {
