@@ -150,14 +150,18 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
     return null
   }
 
-  // RAM OPTIMIZATION (2026-10-08): react-leaflet 5 doesn't auto-dispose the
-  // underlying L.Map instance on unmount. Without this, navigating away
-  // from /map, /browse, /dashboard (all of which mount MapView) leaves the
-  // Leaflet DOM (tile cache + popups + listeners) and a WebSocket worth of
-  // geometry buffers attached to the closed component tree. Over a session
-  // of /map → /dashboard → /map → /dashboard, that grows unbounded.
-  // We register a window unload hook and a React unmount hook (via a
-  // tiny inner component) to call .remove() on the map instance.
+  // RAM OPTIMIZATION (2026-10-08): react-leaflet 5 already calls
+  // `map.remove()` on unmount (see node_modules/react-leaflet/lib/MapContainer.js).
+  // Calling it a second time from `MapDisposer` triggered
+  // "Map container is being reused by another instance" and
+  // "_leaflet_pos undefined" TypeError on /dashboard and /map (see
+  // scripts/diag-map-realtime-leak.mjs, 2 segment errors in 30s).
+  //
+  // What we still need to do on unmount:
+  //   - call `map.off()` to release event listeners Leaflet would
+  //     otherwise keep in its internal registry.
+  //   - null `mapRef.current` so any stale ref doesn't dangle.
+  // react-leaflet handles the rest.
   function MapDisposer() {
     const map = useMap()
     useEffect(() => {
@@ -165,9 +169,8 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
       const teardown = () => {
         try {
           map.off()
-          map.remove()
         } catch {
-          /* ignore double-remove */
+          /* ignore — react-leaflet will dispose the instance */
         }
         mapRef.current = null
       }
