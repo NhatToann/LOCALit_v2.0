@@ -65,3 +65,7 @@ dev-server-err.log
 
 # Auth cookie scratch files used by probe scripts
 auth-cookie-*.txt
+
+# Vercel automation-bypass secret used by E2E browser tests
+# (read by scripts/playwright-*.mjs to skip the SSO wall).
+/scripts/.vercel-bypass-secret

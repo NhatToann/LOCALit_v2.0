@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/utils/supabase/auth';
-import { Briefcase, Users, Clock, Send, MapPin, Calendar, User, Search, MessageCircle, UserCircle, Compass, Phone } from 'lucide-react';
+import { Briefcase, Users, Clock, Send, MapPin, Calendar, User, Search, MessageCircle, UserCircle, Compass, Phone, Heart } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/Avatar';
-import type { Profile, Trip, Connection } from '@/lib/types';
+import type { Profile, Itinerary, Connection } from '@/lib/types';
 import { useLiveUserLocations } from '@/hooks/useLiveUserLocations';
 import { getConnectionStage, daysUntilExpiry, expiryLabel } from '@/lib/connection-stages';
 
@@ -17,14 +17,14 @@ const DEFAULT_LOCATION = { lat: 16.0544, lng: 108.2023 };
 
 export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [buddies, setBuddies] = useState<any[]>([]);
   const [reviewsCount, setReviewsCount] = useState(0);
   const [userLocation, setUserLocation] = useState(DEFAULT_LOCATION);
   const [hasGpsFix, setHasGpsFix] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [coBuddyCountByTrip, setCoBuddyCountByTrip] = useState<Record<string, number>>({});
+  const [coBuddyCountByItin, setCoBuddyCountByItin] = useState<Record<string, number>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
@@ -66,7 +66,9 @@ export default function DashboardPage() {
     const channel = supabase
       .channel(`dash-${profile.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'connections' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'itineraries' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'itinerary_collaborators' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'itinerary_stops' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'buddies' }, refresh)
       .subscribe()
     return () => {
@@ -84,13 +86,13 @@ export default function DashboardPage() {
         return;
       }
 
-      const [{ data: p }, { data: t }, { data: c }, { data: buddyPins }, { count: rCount }, { data: coBuddies }] = await Promise.all([
+      const [{ data: p }, { data: t }, { data: c }, { data: buddyPins }, { count: rCount }, { data: collaboratorCount }] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
         supabase
-          .from('trips')
-          .select('*, buddy:buddies(id, location_city, latitude, longitude, profile:safe_profiles(full_name, is_online))')
-          .eq('tourist_id', user.id)
-          .order('created_at', { ascending: false }),
+          .from('itineraries')
+          .select('*, owner:safe_profiles!itineraries_owner_id_fkey(full_name, avatar_url, is_online), stops:itinerary_stops(id, day_id, name, lat, lng)')
+          .eq('owner_id', user.id)
+          .order('start_date', { ascending: true, nullsFirst: false }),
         supabase
           .from('connections')
           .select('*, buddy:buddies(*, profile:safe_profiles(full_name, avatar_url, is_online))')
@@ -110,21 +112,23 @@ export default function DashboardPage() {
           .select('id', { count: 'exact', head: true })
           .eq('reviewer_id', user.id),
         supabase
-          .from('trip_buddies')
-          .select('trip_id, role')
-          .in('role', ['co-buddy']),
+          .from('itinerary_collaborators')
+          .select('itinerary_id, role')
+          .eq('status', 'accepted')
+          .in('role', ['editor', 'viewer'])
+          .neq('user_id', user.id),
       ])
 
       setProfile(p ?? null)
-      setTrips((t || []) as Trip[])
+      setItineraries((t || []) as Itinerary[])
       setConnections((c || []) as Connection[])
       setBuddies(buddyPins ?? [])
       setReviewsCount(rCount ?? 0)
       const coMap: Record<string, number> = {}
-      for (const row of coBuddies || []) {
-        coMap[row.trip_id] = (coMap[row.trip_id] || 0) + 1
+      for (const row of collaboratorCount || []) {
+        coMap[row.itinerary_id] = (coMap[row.itinerary_id] || 0) + 1
       }
-      setCoBuddyCountByTrip(coMap)
+      setCoBuddyCountByItin(coMap)
     } catch (err) {
       setLoadError((err as Error).message || 'Could not load dashboard.')
     } finally {
@@ -161,7 +165,7 @@ export default function DashboardPage() {
   const pending = connections.filter((c) => c.status === 'pending')
 
   const stats = [
-    { label: 'Trips', labelVi: 'Chuyến đi', value: trips.length, icon: Briefcase, tone: 'primary' as const },
+    { label: 'Itineraries', labelVi: 'Lịch trình', value: itineraries.length, icon: Briefcase, tone: 'primary' as const },
     { label: 'Buddies connected', labelVi: 'Đã kết nối', value: accepted.length, icon: Users, tone: 'success' as const },
     { label: 'Pending requests', labelVi: 'Đang chờ', value: pending.length, icon: Clock, tone: 'warning' as const },
     { label: 'Reviews sent', labelVi: 'Đánh giá', value: reviewsCount, icon: Send, tone: 'info' as const },
@@ -191,8 +195,8 @@ export default function DashboardPage() {
           Welcome back, {firstName}
         </h1>
         <p className="text-base text-muted mb-6 max-w-2xl">
-          You have {pending.length} pending {pending.length === 1 ? 'request' : 'requests'} and {trips.length}{' '}
-          {trips.length === 1 ? 'trip' : 'trips'} on your Da Nang itinerary.
+          You have {pending.length} pending {pending.length === 1 ? 'request' : 'requests'} and {itineraries.length}{' '}
+          {itineraries.length === 1 ? 'itinerary' : 'itineraries'} on your Da Nang trip.
         </p>
         <div className="flex flex-wrap gap-3">
           <Link
@@ -203,7 +207,7 @@ export default function DashboardPage() {
             Find buddies
           </Link>
           <Link
-            href="/trips/create"
+            href="/itinerary/new"
             className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
           >
             <Briefcase size={16} aria-hidden="true" />
@@ -346,96 +350,84 @@ export default function DashboardPage() {
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Trips */}
-        <section className="lg:col-span-2 border border-border rounded-sm bg-surface" aria-labelledby="trips-title">
+        {/* Itineraries */}
+        <section className="lg:col-span-2 border border-border rounded-sm bg-surface" aria-labelledby="itineraries-title">
           <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-3">
             <div>
-              <h2 id="trips-title" className="text-lg font-semibold">
-                Your trips
+              <h2 id="itineraries-title" className="text-lg font-semibold">
+                Your itineraries
               </h2>
               <p className="text-sm text-muted">Itineraries you are planning with local buddies.</p>
             </div>
             <div className="flex items-center gap-2">
               <Link
-                href="/trips/create"
+                href="/itinerary/new"
                 className="inline-flex items-center gap-1 h-8 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
               >
                 <Briefcase size={14} aria-hidden="true" />
-                Plan a trip
+                Plan an itinerary
               </Link>
-              <Link href="/trips" className="text-sm text-primary hover:underline">
+              <Link href="/itinerary" className="text-sm text-primary hover:underline">
                 See all
               </Link>
             </div>
           </header>
           <div className="p-6">
-            {trips.length === 0 ? (
+            {itineraries.length === 0 ? (
               <EmptyState
                 icon={Briefcase}
-                title="You do not have any trips yet"
+                title="You do not have any itineraries yet"
                 description="Plan a Da Nang itinerary to share with a buddy."
                 action={
                   <Link
-                    href="/trips/create"
+                    href="/itinerary/new"
                     className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                   >
-                    Plan your first trip
+                    Plan your first itinerary
                   </Link>
                 }
               />
             ) : (
               <ul className="divide-y divide-border">
-                {trips.slice(0, 5).map((trip) => {
-                  const buddy = trip.buddy as any
+                {itineraries.slice(0, 5).map((itin) => {
+                  const stopCount = Array.isArray((itin as any).stops) ? (itin as any).stops.length : 0
+                  const collaboratorCount = coBuddyCountByItin[itin.id] ?? 0
                   const statusTone =
-                    trip.status === 'completed'
+                    itin.status === 'completed'
                       ? 'info'
-                      : trip.status === 'confirmed'
+                      : itin.status === 'confirmed'
                         ? 'success'
-                        : trip.status === 'cancelled'
+                        : itin.status === 'cancelled'
                           ? 'danger'
                           : 'warning'
                   return (
-                    <li key={trip.id}>
+                    <li key={itin.id}>
                       <Link
-                        href={
-                          connections.find(
-                            (cc) =>
-                              cc.tourist_id === trip.tourist_id &&
-                              cc.buddy_id === trip.buddy_id,
-                          )?.id
-                            ? `/itinerary/${connections.find((cc) => cc.tourist_id === trip.tourist_id && cc.buddy_id === trip.buddy_id)!.id}`
-                            : `/trips/${trip.id}`
-                        }
+                        href={`/itinerary/${itin.id}`}
                         className="flex items-center justify-between gap-3 py-3 px-2 -mx-2 rounded-sm hover:bg-paper transition-colors duration-150"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-ink truncate">{trip.title}</p>
+                          <p className="text-sm font-medium text-ink truncate">{itin.title}</p>
                           <p className="text-xs text-muted mt-0.5">
                             <MapPin size={12} className="inline mr-1" aria-hidden="true" />
-                            {trip.destination}
-                            {trip.start_date ? (
+                            {itin.destination}
+                            {itin.start_date ? (
                               <>
                                 {' · '}
                                 <Calendar size={12} className="inline mr-1" aria-hidden="true" />
-                                {new Date(trip.start_date).toLocaleDateString('en-US')}
+                                {new Date(itin.start_date).toLocaleDateString('en-US')}
+                                {itin.end_date ? ` – ${new Date(itin.end_date).toLocaleDateString('en-US')}` : ''}
                               </>
                             ) : null}
                           </p>
-                          {buddy?.profile?.full_name ? (
-                            <p className="text-xs text-muted mt-0.5">
-                              <User size={12} className="inline mr-1" aria-hidden="true" />
-                              {buddy.profile.full_name}
-                            </p>
-                          ) : null}
+                          <p className="text-xs text-muted mt-0.5">
+                            <Compass size={12} className="inline mr-1" aria-hidden="true" />
+                            {stopCount} stop{stopCount === 1 ? '' : 's'}
+                            {collaboratorCount > 0 ? ` · ${collaboratorCount} collaborator${collaboratorCount === 1 ? '' : 's'}` : ''}
+                          </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`badge badge-${statusTone}`}>{trip.status}</span>
-                          {trip.status === 'completed' && buddy?.id ? (
-                            <span className="inline-flex items-center h-8 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong">
-                              Review
-                            </span>
-                          ) : null}
+                          <span className={`badge badge-${statusTone}`}>{itin.status}</span>
                           <Compass
                             size={14}
                             className="text-subtle flex-shrink-0"
@@ -487,8 +479,8 @@ export default function DashboardPage() {
                   const avatarUrl = buddy?.profile?.avatar_url
                   const stage = getConnectionStage(c.status)
                   const daysLeft = c.status === 'accepted' ? daysUntilExpiry(c.updated_at) : null
-                  const tripId = trips.find((tt) => tt.buddy_id === buddy?.id && tt.tourist_id === c.tourist_id)?.id
-                  const extraBuddies = tripId ? coBuddyCountByTrip[tripId] || 0 : 0
+                  const itinId = itineraries.find((tt) => tt.owner_id === c.tourist_id)?.id
+                  const extraBuddies = itinId ? coBuddyCountByItin[itinId] || 0 : 0
                   return (
                     <li key={c.id} className="py-3">
                       <div className="flex items-center gap-3 min-w-0">
@@ -541,22 +533,22 @@ export default function DashboardPage() {
         <h2 className="text-lg font-semibold mb-3">Quick actions</h2>
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <QuickAction
+            href="/swipe"
+            icon={Heart}
+            title="Swipe to match"
+            subtitle="Find buddies that share your interests"
+          />
+          <QuickAction
             href="/browse"
             icon={Search}
             title="Find buddies"
             subtitle="Browse verified local guides"
           />
           <QuickAction
-            href="/trips/create"
+            href="/itinerary/new"
             icon={Briefcase}
             title="Plan a new trip"
             subtitle="Sketch a Da Nang itinerary"
-          />
-          <QuickAction
-            href="/profile"
-            icon={User}
-            title="Edit profile"
-            subtitle="Interests, languages, arrival"
           />
         </ul>
       </section>

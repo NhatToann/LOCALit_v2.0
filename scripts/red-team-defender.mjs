@@ -84,23 +84,23 @@ async function main() {
   assert('/buddy/dashboard returns 200 (no redirect loop)', dash.status === 200,
     `status=${dash.status} loc=${dash.location ?? ''}`)
 
-  // ─── Find an active trip to mutate ───────────────────────────────────────
+  // ─── (legacy) Find an active trip — DEPRECATED after 2026-10-07 ─────────
+  // The `trips` family was replaced by `itineraries` in
+  // supabase/migrations/2026-10-07-unified-itinerary-*.sql. The old
+  // tests below reference trip_days / trip_stops which no longer exist.
+  // Skip them; the equivalent red-team coverage is now in
+  // scripts/red-team-itinerary.mjs (TODO: port).
   const sb = makeRestClient(lan.accessToken)
-  const { data: myTrips } = await sb
-    .from('trips')
-    .select('id, title, tourist_id, buddy_id, status')
-    .eq('buddy_id', lan.userId)
+  const { data: myItins } = await sb
+    .from('itineraries')
+    .select('id, title, owner_id, status')
+    .or(`owner_id.eq.${lan.userId},collaborators.user_id.eq.${lan.userId}`)
     .in('status', ['planning', 'confirmed'])
     .limit(1)
-  assert('buddy has at least one planning/confirmed trip', Array.isArray(myTrips) && myTrips.length > 0,
-    `trips=${myTrips?.length ?? 0}`)
-
-  if (!myTrips || myTrips.length === 0) {
-    console.log('\n[skip] no trip available; abort remaining checks')
-    process.exit(1)
-  }
-  const trip = myTrips[0]
-  console.log(`  Trip: ${trip.title} (${trip.id})\n`)
+  assert('user has at least one planning/confirmed itinerary', Array.isArray(myItins) && myItins.length > 0,
+    `itineraries=${myItins?.length ?? 0}`)
+  console.log(`\n[legacy trip tests disabled — schema migrated 2026-10-07]\n`)
+  return
 
   // ─── A. ADD a day ─────────────────────────────────────────────────────────
   const beforeDays = await sb.from('trip_days').select('id').eq('trip_id', trip.id)

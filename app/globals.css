@@ -728,6 +728,38 @@
 }
 
 /* ============================================================
+   LEAFLET MARKER LAYER ORDER
+   Force every pane to its canonical z-index so the user's own
+   location marker (z=1000) and live markers (z=2000) always sit
+   on top of buddy pins, which sit on top of tourist pins and
+   tiles. Without this, Leaflet assigns a negative z-index to any
+   marker that lands above the map's vertical center, which makes
+   the marker disappear under the tile pane.
+   ============================================================ */
+.leaflet-pane.leaflet-tile-pane       { z-index: 100; }
+.leaflet-pane.leaflet-overlay-pane    { z-index: 200; }
+.leaflet-pane.leaflet-shadow-pane     { z-index: 300; }
+.leaflet-pane.leaflet-marker-pane     { z-index: 600; }
+.leaflet-pane.leaflet-tooltip-pane    { z-index: 650; }
+.leaflet-pane.leaflet-popup-pane      { z-index: 700; }
+.leaflet-control-container             { z-index: 800; }
+
+/* Marker root: strip Leaflet's default left/top so the icon
+   anchor (24x24 centered) is honored, and force a non-negative
+   baseline z-index on the wrapper. */
+.localit-marker {
+  background: transparent !important;
+  border: 0 !important;
+}
+.localit-marker .localit-marker-pin {
+  box-shadow: 0 0 0 2px rgba(15, 15, 15, 0.04);
+  transition: transform 120ms ease-out;
+}
+.localit-marker:hover .localit-marker-pin {
+  transform: scale(1.08);
+}
+
+/* ============================================================
    LAYER: UTILITIES
    Atomic overrides — used sparingly, only when no Tailwind class
    expresses the intent (mono font, tabular numerals, Vietnamese

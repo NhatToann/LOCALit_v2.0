@@ -7,6 +7,7 @@ import { Menu, User, LogOut, X, MapPin } from 'lucide-react';
 import { createClient } from '@/utils/supabase/auth';
 import { useRouter } from 'next/navigation';
 import { NavHint } from './NavHint';
+import NotificationBell from '@/components/notifications/NotificationBell';
 
 /**
  * Header (2026-10-01 — unified, single web).
@@ -30,6 +31,7 @@ const GUEST_LINKS = [
 
 const LOGGED_IN_LINKS = [
   { path: '/dashboard', label: 'Dashboard', labelVi: 'Tổng quan' },
+  { path: '/swipe', label: 'Swipe', labelVi: 'Lướt' },
   { path: '/browse', label: 'Buddies', labelVi: 'Hướng dẫn viên' },
   { path: '/trips', label: 'Trips', labelVi: 'Chuyến đi' },
   { path: '/chat', label: 'Messages', labelVi: 'Tin nhắn' },
@@ -107,7 +109,7 @@ export default function Header({ userName, userId }: HeaderProps) {
                 aria-current={active ? 'page' : undefined}
                 aria-label={link.label}
               >
-                <span className="text-sm font-medium leading-none">{link.label}</span>
+<span className="text-sm font-medium leading-none">{link.label}</span>
                 <span
                   className="text-[10px] italic leading-none"
                   style={{ letterSpacing: '0.02em' }}
@@ -121,9 +123,11 @@ export default function Header({ userName, userId }: HeaderProps) {
           })}
         </nav>
 
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {isLoggedIn ? (
-            <div ref={menuRef} className="relative">
+            <>
+              <NotificationBell userId={userId} />
+              <div ref={menuRef} className="relative">
               <button
                 onClick={() => setMenuOpen((s) => !s)}
                 className="p-1 rounded-full transition-colors duration-150 hover:bg-paper"
@@ -163,7 +167,8 @@ export default function Header({ userName, userId }: HeaderProps) {
                   </button>
                 </div>
               ) : null}
-            </div>
+              </div>
+            </>
           ) : (
             <>
               <Link
@@ -209,7 +214,7 @@ export default function Header({ userName, userId }: HeaderProps) {
               <Link
                 key={link.path}
                 href={link.path}
-                className={`text-lg font-medium ${
+                className={`text-lg font-medium flex items-center gap-2 ${
                   active ? 'text-primary' : 'text-ink hover:text-primary'
                 }`}
                 aria-current={active ? 'page' : undefined}

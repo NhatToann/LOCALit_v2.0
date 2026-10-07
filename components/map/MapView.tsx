@@ -44,18 +44,24 @@ const INK = '#0F0F0F'
 const INFO = '#075985'
 
 function flatIcon(letter: string, bg: string): L.DivIcon {
+  // zIndexOffset is set on the Marker, not the icon, but we add a base
+  // class on the icon's root so the marker can be re-targeted via CSS.
   return L.divIcon({
-    html: `<div style="width:24px;height:24px;background:${bg};border:2px solid #FFFFFF;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-weight:600;font-size:11px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;letter-spacing:-0.02em;">${letter}</div>`,
+    html: `<div class="localit-marker-pin" style="width:24px;height:24px;background:${bg};border:2px solid #FFFFFF;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-weight:600;font-size:11px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;letter-spacing:-0.02em;">${letter}</div>`,
     iconSize: [24, 24],
-    className: '',
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
+    className: 'localit-marker',
   })
 }
 
 function livePulseIcon(): L.DivIcon {
   return L.divIcon({
-    html: `<div style="position:relative;width:18px;height:18px;background:${INFO};border:2px solid #FFFFFF;border-radius:50%;"></div><div style="position:absolute;top:-5px;left:-5px;width:28px;height:28px;background:${INFO};border-radius:50%;opacity:0.18;"></div>`,
+    html: `<div class="localit-marker-pin" style="position:relative;width:18px;height:18px;background:${INFO};border:2px solid #FFFFFF;border-radius:50%;"></div><div style="position:absolute;top:-5px;left:-5px;width:28px;height:28px;background:${INFO};border-radius:50%;opacity:0.18;"></div>`,
     iconSize: [28, 28],
-    className: '',
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -14],
+    className: 'localit-marker',
   })
 }
 
@@ -167,6 +173,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
           <Marker
             position={[userLocation.lat, userLocation.lng]}
             icon={selfLiveOverride ? livePulseIcon() : flatIcon('Y', INK)}
+            zIndexOffset={1000}
           >
             <Popup>
               <strong>{selfLiveOverride ? 'You (live)' : 'You are here'}</strong>
@@ -179,6 +186,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
             key={`buddy-${b.id}`}
             position={[b.lat, b.lng]}
             icon={flatIcon('B', PRIMARY)}
+            zIndexOffset={500}
             eventHandlers={{ click: () => onSelectBuddy?.(b.id) }}
           >
             <Popup>
@@ -224,7 +232,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         ))}
 
         {tourists.map((t) => (
-          <Marker key={`tourist-${t.id}`} position={[t.lat, t.lng]} icon={flatIcon('T', '#737373')}>
+          <Marker key={`tourist-${t.id}`} position={[t.lat, t.lng]} icon={flatIcon('T', '#737373')} zIndexOffset={100}>
             <Popup>
               <strong>{t.name}</strong>
               <div style={{ fontSize: 12, color: '#737373' }}>Tourist</div>
@@ -233,7 +241,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         ))}
 
         {liveLocations.map((l) => (
-          <Marker key={`live-${l.userId}`} position={[l.lat, l.lng]} icon={livePulseIcon()}>
+          <Marker key={`live-${l.userId}`} position={[l.lat, l.lng]} icon={livePulseIcon()} zIndexOffset={2000}>
             <Popup>
               <strong>{l.name}</strong>
               <div style={{ fontSize: 12, color: '#737373' }}>Sharing live</div>

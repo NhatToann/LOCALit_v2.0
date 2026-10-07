@@ -92,9 +92,15 @@ function ChatInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const buddyParam = searchParams.get('buddy')
+  // "with" is the symmetric param a buddy uses to open a chat with a
+  // tourist (the tourist-side uses ?buddy=). Both reuse the same
+  // openConversationWithBuddy() helper which branches on myRole.
+  const withParam = searchParams.get('with')
   const callParam = searchParams.get('call')
   const convParam = searchParams.get('c')
   const qParam = searchParams.get('q')
+
+  const openWithParam = withParam || buddyParam
 
   const [myId, setMyId] = useState<string | null>(null)
   const [myName, setMyName] = useState<string>('')
@@ -168,8 +174,8 @@ function ChatInner() {
   }, [myId])
 
   useEffect(() => {
-    if (buddyParam && myId) openConversationWithBuddy(buddyParam)
-  }, [buddyParam, myId])
+    if (openWithParam && myId) openConversationWithBuddy(openWithParam)
+  }, [openWithParam, myId])
 
   useEffect(() => {
     if (convParam && myId) {
