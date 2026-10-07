@@ -110,6 +110,8 @@ export function useLiveUserLocations(opts: Options = {}) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'location_updates' },
         (payload) => {
+          // eslint-disable-next-line no-console
+          console.log('[live-locations] postgres_changes received', JSON.stringify(payload).slice(0, 200))
           const row = (payload.new ?? payload.old) as
             | { user_id?: string; latitude?: number; longitude?: number; updated_at?: string }
             | null
