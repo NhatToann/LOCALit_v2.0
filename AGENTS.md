@@ -929,3 +929,125 @@ fixed. Verified on production: build 26 routes, 0 TS errors, ~46s.
   Room. Currently we only ever have one room, so this isn't an
   issue, but if we add group calls we'd want to multiplex.
 
+---
+
+## RAM/Leaflet Fix Round 2 (2026-10-08, follow-up)
+
+The two fixes above shipped in commit `2d60308` but **only the
+`next.config.ts` portion actually took effect**. The singleton in
+`utils/supabase/auth.ts` was defeated by an unsingleton'd re-export
+of `createClient` from `./client`, and the new `MapDisposer`'s
+`map.remove()` raced with react-leaflet 5's own `map.remove()`. Both
+problems hit production within hours.
+
+### What was actually broken in production (verified by
+[`scripts/diag-map-realtime-leak.mjs`](scripts/diag-map-realtime-leak.mjs))
+
+Logged-in user opens `/dashboard`, sit 30 seconds:
+
+```
+bindRealtimeAuth calls in 30s: 47   (expected: 1)
+Realtime send() falling back:   1
+"Map container is being reused by another instance" errors: 1
+"_leaflet_pos undefined" TypeError:                    1
+[app] segment error total:                            2
+```
+
+Screenshot of the rendered page (no error overlay thanks to the
+`[app] segment error` boundary swallowing both errors):
+`scripts/screenshots/diag-map-realtime-leak.png` (taken before
+the fix; the map looks fine even though Leaflet is screaming).
+
+### Root causes
+
+1. **`utils/supabase/auth.ts` line 1 was**
+   `export { createClient } from './client'`. The non-singleton
+   `./client` re-exported to **every one of the 44 client modules**
+   that imported `createClient`. Each call:
+   - ran a fresh `createBrowserClient(...)`
+   - called `bindRealtimeAuth(supabase)`
+   - registered an `onAuthStateChange` listener
+   - opened a new Realtime WebSocket
+
+   React's re-render cycle on `/dashboard` (state updates every 1–3 s
+   from `liveLocations`, `buddies`, `userLocation`, etc.) called
+   `createClient()` ~47× in 30 s, producing 47 WebSockets + 47
+   subscription closures. The `[dlog]` lines the user sees flooding
+   their console are a 1:1 count of those calls.
+
+2. **`components/map/MapView.tsx` `<MapDisposer>` called both
+   `map.off()` AND `map.remove()`.** react-leaflet 5
+   (`node_modules/react-leaflet/lib/MapContainer.js`) already calls
+   `map.remove()` in its unmount cleanup. The disposer's call fires
+   FIRST (child effect cleanup runs before parent unmount), then
+   react-leaflet's call fires on an already-disposed map → Leaflet
+   throws "Map container is being reused by another instance". The
+   follow-up `_leaflet_pos undefined` TypeError is `FlyToUser`'s
+   `setView` racing the teardown.
+
+### The fix (committed `84b3f94`)
+
+| File | Change |
+|---|---|
+| `utils/supabase/auth.ts` | Replaced `export { createClient } from './client'` with a local singleton `createClient()`. The first call constructs `_client` + runs `bindRealtimeAuth` + registers `onAuthStateChange` once; subsequent calls return the cached instance. `getBrowserClient` removed (rolled into `createClient`). |
+| `utils/supabase/client-binding.ts` (NEW) | Houses `readSessionFromLocalStorage`, `readSessionFromCookie`, `readAccessToken`, `bindRealtimeAuth`, and the `BrowserSupabaseClient` type alias (`SupabaseClient<any, 'public'>`). |
+| `utils/supabase/client.ts` | Now a thin re-export: `export { createClient } from './auth'`. The old in-place `createClient` + `bindRealtimeAuth` definitions deleted. |
+| `components/map/MapView.tsx` | `<MapDisposer>` no longer calls `map.remove()`. It calls `map.off()` only (release event listeners) and nulls `mapRef.current`. The actual `map.remove()` is react-leaflet's job. |
+| `scripts/diag-map-realtime-leak.mjs` (NEW) | Playwright-based repro: login as `lan.pham@localit.dev`, navigate to a target page (default `/dashboard`, override with `--url=/map` etc.), wait 30 s, count `bindRealtimeAuth` console lines + page errors, exit 1 on regression. |
+
+### Verification
+
+```
+# Before fix (production, /dashboard):
+bindRealtimeAuth_calls: 47
+container_reused_count:  1
+leaflet_pos_undefined:   1
+segment_errors:          2
+→ FAIL
+
+# After fix (production, /dashboard):
+bindRealtimeAuth_calls:  1
+container_reused_count:  0
+leaflet_pos_undefined:   0
+segment_errors:          0
+→ PASS
+
+# After fix (production, /map):
+bindRealtimeAuth_calls:  1
+container_reused_count:  0
+leaflet_pos_undefined:   0
+segment_errors:          0
+→ PASS
+```
+
+Build: 26 routes, 0 TS errors, ~19 s. Deployed to
+`localit-h2v1ml0tc-nhattoann.vercel.app` and re-aliased
+`localit-nhattoann.vercel.app` / `localit-vn.vercel.app` to point at
+it (per the Vercel alias gotcha — `vercel --prod` does NOT auto-move
+canonical aliases).
+
+### How to run the diagnostic
+
+```bash
+node scripts/diag-map-realtime-leak.mjs                  # /dashboard
+node scripts/diag-map-realtime-leak.mjs --url=/map       # /map
+node scripts/diag-map-realtime-leak.mjs --url=/chat      # /chat
+```
+
+The script uses the Vercel bypass token `w6XAcwiXyFf9Pea8I6zwVONXAhc8Xs9A`
+and the seed account `lan.pham@localit.dev / password123`. CI
+exit 1 on any Leaflet error or `bindRealtimeAuth > 5` calls per 30 s.
+
+### Pitfall to remember
+
+> **`export { createClient } from './client'` defeats the singleton.**
+> Any module that re-exports a "constructor" function
+> bypasses module-level caching. The fix MUST live in the
+> re-exported function, not behind a `getXxx()` helper that
+> no caller actually uses. Same trap applies to any other
+> constructor we cache (Prisma, LiveKit Room, etc.).
+
+> **`react-leaflet 5 DOES auto-`remove()` on unmount.** Do not
+> call `map.remove()` from a side-effect. Use `map.off()` to
+> release listeners and let the framework dispose the instance.
+
