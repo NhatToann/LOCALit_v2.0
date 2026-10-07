@@ -13,7 +13,7 @@ const ctx = await browser.newContext({
 const page = await ctx.newPage()
 page.on('console', msg => {
   const t = msg.text()
-  if (t.includes('[dlog]') || t.includes('live-locations') || t.includes('postgres')) {
+  if (t.includes('live-locations') || t.includes('postgres')) {
     console.log(`[${msg.type()}]`, t.slice(0, 300))
   }
 })
@@ -27,5 +27,5 @@ await page.waitForURL('**/dashboard', { timeout: 15000 })
 await page.goto(`${BASE}/map`, { waitUntil: 'domcontentloaded' })
 await page.waitForSelector('button:has-text("Share my location")', { timeout: 10000 })
 await page.click('button:has-text("Share my location")', { force: true })
-await page.waitForTimeout(15000)
+await page.waitForTimeout(20000)
 await browser.close()

@@ -189,10 +189,24 @@ export function useLiveUserLocations(opts: Options = {}) {
       if (now - lastPublishRef.current < publishIntervalMs) return
       lastPublishRef.current = now
       const sb = supabaseRef.current
-      const uid = userIdRef.current
+      let uid = userIdRef.current
+      if (!sb) return
+      // userIdRef is populated by getCurrentUser() which resolves async after
+      // the channel is created. If publish fires before that resolves,
+      // try a synchronous session peek first.
+      if (!uid) {
+        const { data } = await sb.auth.getUser()
+        uid = data.user?.id ?? null
+        if (uid) {
+          userIdRef.current = uid
+          nameRef.current =
+            (data.user?.user_metadata?.full_name as string | undefined) ??
+            (data.user?.email ? String(data.user.email).split('@')[0] : 'You')
+        }
+      }
       // eslint-disable-next-line no-console
       console.log('[live-locations] publish attempt', { uid, lat, lng })
-      if (!sb || !uid) return
+      if (!uid) return
       // Update the user's existing row, or insert if none exists yet. We
       // use a separate UPDATE + INSERT instead of upsert because
       // location_updates doesn't have a UNIQUE constraint on user_id, and
