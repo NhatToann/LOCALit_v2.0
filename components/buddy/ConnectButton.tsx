@@ -103,13 +103,23 @@ export default function ConnectButton({
     if (!myId) return
     startTransition(async () => {
       const supabase = createClient()
-      // Legacy columns tourist_id/buddy_id remain NOT NULL — we mirror
-      // requester_id/recipient_id values into them so existing RLS +
-      // indexes continue to work. New consumers should read
-      // requester_id / recipient_id; legacy rows still resolve.
-      const legacy = viewerAs === 'tourist'
-        ? { tourist_id: myId, buddy_id: recipientId }
-        : { tourist_id: myId, buddy_id: recipientId } // schema has only these two; the requester as a buddy still writes tourist_id=myId for legacy compat
+      // tourist_id / buddy_id are legacy columns kept for backwards
+      // compatibility with the original RLS / index. They are nullable
+      // and no longer carry the requester / recipient semantic. We
+      // populate them ONLY when the requester actually plays the
+      // matching role; otherwise we leave them null. The new columns
+      // (requester_id / recipient_id) are the source of truth.
+      const legacy: Record<string, string> = {}
+      if (viewerAs === 'tourist') {
+        legacy.tourist_id = myId
+        legacy.buddy_id = recipientId
+      } else {
+        // Buddy→tourist. The requester is a buddy, the recipient is a
+        // tourist. We mirror them into the legacy columns for
+        // analytics queries that still read tourist_id/buddy_id.
+        legacy.buddy_id = myId
+        legacy.tourist_id = recipientId
+      }
       const { data, error: insErr } = await supabase
         .from('connections')
         .insert({
@@ -308,7 +318,7 @@ export default function ConnectButton({
           Connected
         </span>
         <a
-          href={`/chat?buddy=${recipientId}`}
+          href={`/chat?with=${recipientId}`}
           className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
         >
           Open chat
@@ -317,11 +327,27 @@ export default function ConnectButton({
     )
   }
 
-  // Declined (or any unknown state) — give the requester a way to retry
+  // Declined (or any unknown state) — give the requester a way to
+  // retry. We DELETE the prior declined row before re-opening the
+  // form so the partial unique index
+  // (requester_id, recipient_id) doesn't reject the new insert.
+  function retryAfterDecline() {
+    if (!connection) { setShowForm(true); return }
+    startTransition(async () => {
+      const supabase = createClient()
+      const { error: delErr } = await supabase
+        .from('connections')
+        .delete()
+        .eq('id', connection.id)
+      if (delErr) { setError(delErr.message); return }
+      setConnection(null)
+      setShowForm(true)
+    })
+  }
   return (
     <button
       type="button"
-      onClick={() => { setConnection(null); setShowForm(true) }}
+      onClick={retryAfterDecline}
       disabled={isPending}
       className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
     >
