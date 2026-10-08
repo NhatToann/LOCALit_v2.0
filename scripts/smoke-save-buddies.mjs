@@ -18,7 +18,9 @@ import { Client } from 'pg'
 
 const BASE = 'https://localit-nhattoann.vercel.app'
 const BYPASS = 'w6XAcwiXyFf9Pea8I6zwVONXAhc8Xs9A'
-const SEED_EMAIL = 'john.doe@example.com'
+// Sarah.m is a confirmed-tourist seed (role='tourist' on public.profiles).
+// John Doe is a buddy in the seed (despite the email), so do NOT use him.
+const SEED_EMAIL = 'sarah.m@example.com'
 const SEED_PW = 'password123'
 const DB_PW = process.env.DB_PW || 'that1arlecchino'
 const DB_HOST = 'db.pqvnjgyqbxlylawwogjv.supabase.co'
@@ -46,13 +48,26 @@ const { rows: userRows } = await pg.query(
 )
 if (userRows.length === 0) {
   console.error(`FATAL: seed user ${SEED_EMAIL} not found`)
+  await pg.end()
   process.exit(2)
 }
 const userId = userRows[0].id
 
+// Sanity: confirm the seed user actually has role='tourist' so the
+// API's role check passes.
+const { rows: profileRows } = await pg.query(
+  `SELECT role FROM public.profiles WHERE id = $1`,
+  [userId],
+)
+if (profileRows[0]?.role !== 'tourist') {
+  console.error(`FATAL: ${SEED_EMAIL} role=${profileRows[0]?.role} (expected tourist)`)
+  await pg.end()
+  process.exit(2)
+}
+
 // 2. Pick 2 buddy IDs that exist in public.buddies (Da Nang)
 const { rows: buddyRows } = await pg.query(
-  `SELECT id, full_name FROM public.buddies b
+  `SELECT b.id, p.full_name FROM public.buddies b
    JOIN public.profiles p ON p.id = b.id
    WHERE b.location_city = 'Da Nang'
      AND b.latitude IS NOT NULL AND b.longitude IS NOT NULL
@@ -71,6 +86,16 @@ await pg.query(
 )
 console.log(`Cleared swipes for ${SEED_EMAIL}. Will save: ${buddyA.full_name} (${buddyA.id}), ${buddyB.full_name} (${buddyB.id})`)
 
+// Verify the DB is now clean
+const { rows: pre } = await pg.query(
+  `SELECT COUNT(*)::int AS n FROM public.swipes WHERE swiper_role='tourist' AND swiper_id=$1`,
+  [userId],
+)
+if (pre[0].n !== 0) {
+  console.error(`FATAL: ${pre[0].n} pre-existing swipes still present after cleanup`)
+  await pg.end()
+  process.exit(2)
+}
 const browser = await chromium.launch({ headless: true })
 try {
   const ctx = await browser.newContext({
@@ -78,6 +103,9 @@ try {
     viewport: { width: 1280, height: 900 },
   })
   const page = await ctx.newPage()
+  // Clear any cookies/storage persisted from a prior run.
+  await ctx.clearCookies()
+  await page.goto('about:blank')
 
   // Login
   await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
@@ -89,8 +117,8 @@ try {
   ])
 
   // Open /browse
-  await page.goto(`${BASE}/browse`, { waitUntil: 'networkidle', timeout: 30000 })
-  await page.waitForSelector('li button[aria-expanded]', { timeout: 15000 })
+  await page.goto(`${BASE}/browse`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+  await page.waitForSelector('li button[aria-expanded]', { timeout: 30000 })
 
   // Sanity: the DB API starts empty
   const r0 = await page.evaluate(async () => {
@@ -99,16 +127,50 @@ try {
   })
   assert('saved-ids starts empty', Array.isArray(r0.saved_ids) && r0.saved_ids.length === 0, JSON.stringify(r0))
 
-  // Save the first two buddies via the in-page Save button.
-  // Each list row has a button with the heart icon; aria-pressed flips.
-  const saveButtons = page.locator('li button[aria-pressed]')
-  const count = await saveButtons.count()
-  assert('browse has at least 2 save buttons', count >= 2, `count=${count}`)
+  // Each list row is a <li>. The header button has aria-expanded.
+  // When clicked, the same <li> renders a button[aria-pressed] (Save).
+  // We pick the first two rows, expand each, then click its Save.
+  const rowCount = await page.locator('li button[aria-expanded]').count()
+  assert('browse has at least 2 rows', rowCount >= 2, `rowCount=${rowCount}`)
 
-  await saveButtons.nth(0).click()
-  await saveButtons.nth(1).click()
+  // Helper: expand row at index i (clicking its header) and click
+  // the Save button that appears inside the same <li>.
+  const saveAt = async (i) => {
+    // Find the row by its header button.
+    const header = page.locator('li button[aria-expanded]').nth(i)
+    await header.click()
+    // Wait until the aria-expanded flips to "true" on this row, and
+    // a button[aria-pressed] becomes visible inside the same <li>.
+    await page.waitForFunction(
+      (idx) => {
+        const rows = document.querySelectorAll('li')
+        const headers = document.querySelectorAll('li button[aria-expanded]')
+        const h = headers[idx]
+        if (!h || h.getAttribute('aria-expanded') !== 'true') return false
+        // Walk up to the <li>
+        let el = h.parentElement
+        while (el && el.tagName !== 'LI') el = el.parentElement
+        if (!el) return false
+        return !!el.querySelector('button[aria-pressed]')
+      },
+      i,
+      { timeout: 5000 },
+    )
+    // Click the Save button inside that <li>.
+    await page.evaluate((idx) => {
+      const headers = document.querySelectorAll('li button[aria-expanded]')
+      const h = headers[idx]
+      let el = h.parentElement
+      while (el && el.tagName !== 'LI') el = el.parentElement
+      const save = el.querySelector('button[aria-pressed]')
+      if (save) save.click()
+    }, i)
+  }
+
+  await saveAt(0)
+  await saveAt(1)
   // Wait for the two POST /api/swipe calls to settle
-  await page.waitForTimeout(1500)
+  await page.waitForTimeout(2000)
 
   const r1 = await page.evaluate(async () => {
     const r = await fetch('/api/swipe/saved-ids', { cache: 'no-store' })
@@ -116,16 +178,30 @@ try {
   })
   assert('saved-ids now has 2 entries', r1.saved_ids?.length === 2, JSON.stringify(r1.saved_ids))
 
-  // Reload — verify hearts survive the round-trip
-  await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForSelector('li button[aria-pressed]', { timeout: 15000 })
-  const pressedCount = await page.locator('li button[aria-pressed="true"]').count()
+  // Reload — verify hearts survive the round-trip. After reload the
+  // page hydrates savedBuddies from /api/swipe/saved-ids, so any row
+  // in the saved set will render its Save button with aria-pressed=true
+  // (once expanded). The default sort is location-first, so the two
+  // closest buddies (which we just saved) should be at the top.
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('li button[aria-expanded]', { timeout: 30000 })
+  // Expand the first two rows.
+  for (let i = 0; i < 2; i++) {
+    await page.evaluate((idx) => {
+      const headers = document.querySelectorAll('li button[aria-expanded]')
+      const h = headers[idx]
+      if (!h) return
+      h.click()
+    }, i)
+  }
+  await page.waitForTimeout(1000)
+  const pressedCount = await page.locator('button[aria-pressed="true"]').count()
   assert('after reload, 2 hearts still filled', pressedCount === 2, `pressed=${pressedCount}`)
 
   // Unsave the first one
-  const firstPressed = page.locator('li button[aria-pressed="true"]').first()
+  const firstPressed = page.locator('button[aria-pressed="true"]').first()
   await firstPressed.click()
-  await page.waitForTimeout(1200)
+  await page.waitForTimeout(1500)
   const r2 = await page.evaluate(async () => {
     const r = await fetch('/api/swipe/saved-ids', { cache: 'no-store' })
     return await r.json()
