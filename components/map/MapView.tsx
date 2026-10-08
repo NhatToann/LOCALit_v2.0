@@ -367,3 +367,5 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
 }
 
 export { DEFAULT_LOCATION }
+
+// rebuild trigger 2026-10-08 22:13
