@@ -1051,3 +1051,82 @@ exit 1 on any Leaflet error or `bindRealtimeAuth > 5` calls per 30 s.
 > call `map.remove()` from a side-effect. Use `map.off()` to
 > release listeners and let the framework dispose the instance.
 
+---
+
+## RAM/Map Round 3 (2026-10-08, follow-up — final)
+
+Three more map wins + one consumer-side callback memoization
+shipped on top of rounds 1 and 2.
+
+### What was still leaking
+
+1. **`components/map/MapView.tsx` — `flatIcon()` and `livePulseIcon()`
+   allocated a fresh `L.DivIcon` on every Marker render.** Each call
+   to `L.divIcon({...})` produces a new HTMLDivElement + serialized
+   inline-style HTML string. With 6 buddy markers + the self marker +
+   50+ live tourist markers, every re-render (every buddy/location
+   state update, ~1–3s on /dashboard and /map) was throwing away
+   ~50–60 fresh icon objects and creating new ones.
+
+2. **`components/map/MapView.tsx` — Supabase fetch was not cancellable
+   on unmount.** `safe_buddies` + `location_updates` SELECTs used
+   `await supabase.from(...).select(...)` with no `abortSignal`. If
+   the user navigated away within 100ms of mount, the response still
+   resolved and ran `setBuddies`/`setTourists` on the now-unmounted
+   component closure — classic "setState on unmounted" memory leak
+   holding the buddy array in the socket buffer for 30–60s.
+
+3. **`components/map/MapView.tsx` `MapDisposer` only flushed event
+   listeners, not Leaflet's tile cache.** Each Leaflet TileLayer
+   keeps a `Map<key, HTMLImageElement>` of decoded tile PNGs. On a
+   closed-but-not-reloaded tab, this can hold 5–10MB of tile bitmaps
+   in JS heap for the 30–60s GC window. The new disposer walks
+   `map.eachLayer` and calls `layer._tiles.clear()` so the bitmaps
+   are released immediately.
+
+4. **`app/map/page.tsx` — `useLocationWatcher` callback deps churned
+   geolocation subscriptions.** `onGranted` and `onDenied` were
+   inline arrow functions, so a fresh identity every render. The
+   hook's `useEffect` deps included them, so it tore down and
+   re-created `watchPosition` on every parent state update —
+   5–10×/s on /map. Each churn allocated a fresh watch handle and
+   called `geolocation.clearWatch` on the previous one. Battery
+   drain on mobile; visible as `WatchPosition` calls in
+   Performance tab. Now memoized with `useCallback` + empty deps.
+
+### The fix (committed `741ac29` + `1ddf1f9`)
+
+| File | Change | Why it saves RAM |
+|---|---|---|
+| `components/map/MapView.tsx` | Module-scope `ICON_CACHE` Map; `flatIcon()` and `livePulseIcon()` look up the cache first. | One icon per (letter, color) pair, reused across all re-renders. ~2–3KB saved per marker per re-render. |
+| `components/map/MapView.tsx` | Supabase `from().select()` chains get `.abortSignal(abortCtrl.signal)`. `useEffect` cleanup calls `abortCtrl.abort()`. | Stops the socket-buffered response from writing setState on an unmounted component. |
+| `components/map/MapView.tsx` | `MapDisposer` `beforeunload` walks `map.eachLayer` and calls `layer._tiles.clear()`. | Tile PNGs released immediately on tab close, not 30–60s later. |
+| `components/map/MapView.tsx` | `MapResizer` debounce uses `useRef` instead of `(setTimeout as any)._r`. | The previous "stash the handle on the timer instance" pattern was undefined on the first observer tick. |
+| `app/map/page.tsx` | `useCallback` on `onGpsGranted` / `onGpsDenied` with empty deps. | `useLocationWatcher` effect no longer re-fires on every render; watchPosition handle stable for the page lifetime. |
+| `lib/realtime/useMessageStream.ts` | `console.warn` gated behind `NODE_ENV !== 'production'`. | Chat page console stays silent in production; aligns with the workspace `console.log in production code` rule. |
+
+### How to verify RAM is still clean
+
+1. `npx --yes next build` → 26 routes, 0 TS errors, ~21s.
+2. DevTools → Memory → take a heap snapshot on /map.
+3. Navigate to /dashboard and back 3 times.
+4. Take another snapshot — heap delta should be <1MB.
+5. Performance tab: filter `scripting` and look for
+ `useLocationWatcher` / `watchPosition` — should fire once on
+ /map mount, not 5–10×/s.
+
+### Pitfall to remember
+
+> **Module-level `Map` caches need keys that are stable across
+> renders.** The `ICON_CACHE` is keyed by `"flat:Y:ink"`,
+> `"flat:B:primary"`, etc. — derived from the visual identity,
+> not from any React state. If you ever key the cache by a
+> props value that changes per render, the cache misses on
+> every call and you lose the win.
+
+> **Always memoize callbacks passed to hooks with effect deps.**
+> The `useLocationWatcher` incident is the third time an inline
+> arrow has caused effect thrashing in this project (see also
+> the auth user subscription cleanup in round 2). Default to
+> `useCallback` whenever the callback goes into a deps array.
+
