@@ -441,38 +441,83 @@ function BrowseContent() {
         </div>
       </section>
 
-      {/* Map — wrapped in `map-frame` so the Leaflet panes are
-          guaranteed to stay inside their own stacking context
-          (z-index 0) and can never paint over neighbouring text
-          (page header, filter chips, etc.). The map is the
-          dominant element on this section; the title sits below
-          it. */}
+      {/* Map — same pattern as /dashboard: section header above
+          the map with the share-location toggle anchored to the
+          right of the header (NOT absolute-positioned over the
+          map, which the previous version did and which caused
+          Leaflet panes to eat the click). The map below is the
+          dominant element. The section caption was moved BELOW
+          the map in a previous commit, but we now restore the
+          "Find buddies around Da Nang" title above the map and
+          move it inline with the share toggle so the layout
+          matches the dashboard's "Who is in Da Nang right now"
+          hero section 1:1. */}
       <section
-        aria-label="Buddy map"
+        aria-labelledby="buddies-map-title"
         className="map-frame mb-6 border border-border rounded-sm overflow-hidden bg-surface"
         style={{ position: 'relative', zIndex: 0, isolation: 'isolate' }}
       >
-        <div className="relative h-[340px]">
-          <button
-            type="button"
-            onClick={() => setShareLocation(v => !v)}
-            className={`absolute top-3 right-3 z-10 inline-flex items-center gap-2 h-8 px-3 text-sm font-medium rounded-sm border ${
-              shareLocation
-                ? 'bg-primary text-paper border-primary'
-                : 'bg-surface text-ink border-border-strong hover:bg-paper'
-            }`}
-            title="Share your live location with other tourists (no data is saved)"
-          >
-            <MapPin size={14} aria-hidden="true" />
-            {shareLocation ? 'Sharing live' : 'Share my location'}
-          </button>
+        <div className="px-6 py-4 border-b border-border flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="buddies-map-title" className="text-section-title mb-1">
+              Find buddies around Da Nang
+              <span
+                className="ml-2 italic text-muted font-normal text-base"
+                style={{ letterSpacing: '0.02em' }}
+                aria-hidden="true"
+              >
+                bản đồ
+              </span>
+            </h2>
+            <p className="text-sm text-muted">
+              {buddies.length > 0
+                ? `${buddies.length} verified local buddy${buddies.length === 1 ? '' : 'ies'} in Da Nang.`
+                : 'Loading Da Nang buddies…'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShareLocation((v) => !v)
+                if (!shareLocation && !hasGpsFix) {
+                  // Ask for the GPS fix so the self-marker appears
+                  // immediately after the user opts in.
+                  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => {
+                        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+                        setHasGpsFix(true)
+                      },
+                      () => {
+                        /* user denied — that's fine, the share
+                           still publishes via watchPosition later */
+                      },
+                      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+                    )
+                  }
+                }
+              }}
+              className={`inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm border ${
+                shareLocation
+                  ? 'bg-primary text-paper border-primary hover:bg-primary-hover'
+                  : 'bg-transparent text-ink border-border-strong hover:bg-paper'
+              }`}
+              title="Share your live location with other tourists (no data is saved)"
+            >
+              <MapPin size={14} aria-hidden="true" />
+              {shareLocation ? 'Sharing live' : 'Share my location'}
+            </button>
+          </div>
+        </div>
+        <div className="h-[420px] lg:h-[520px]">
           <MapView
             userLocation={userLocation}
-            height={340}
+            height="100%"
             hasGpsFix={hasGpsFix || selfGranted}
             onSelectBuddy={(id) => { setSelectedMapId(id); setExpandedBuddyId(id) }}
             liveLocations={liveLocations}
-            selfLiveOverride={selfGranted}
+            selfLiveOverride={selfGranted || shareLocation}
           />
           {selectedBuddy ? (
             <div className="absolute bottom-3 left-3 right-3 md:left-auto md:right-3 md:w-80 bg-surface border border-border rounded-sm p-4 z-aside">
@@ -511,29 +556,6 @@ function BrowseContent() {
           ) : null}
         </div>
       </section>
-
-      {/* Section caption — page-level title block that USED to sit
-          above the map. Now anchored BELOW the map so the map is the
-          dominant element and the title block can't be visually
-          overlapped by a tile that loads late. */}
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-eyebrow text-primary mb-1">
-            Buddy map
-            <span
-              className="ml-2 italic text-muted"
-              style={{ letterSpacing: '0.02em' }}
-              aria-hidden="true"
-            >
-              bản đồ
-            </span>
-          </p>
-          <h2 className="text-lg font-semibold">Find buddies around Da Nang</h2>
-          <p className="text-sm text-muted mt-1">
-            Hover a marker or click a buddy below to see their location.
-          </p>
-        </div>
-      </header>
 
       {/* Buddy list */}
       <section aria-label="Buddies list">
