@@ -102,12 +102,16 @@ export function useMessageStream(
         )
         .subscribe((status, err) => {
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            console.warn('[useMessageStream] channel error', err)
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn('[useMessageStream] channel error', err)
+            }
           }
         })
       channelRef.current = channel
     } catch (e) {
-      console.warn('[useMessageStream] subscribe threw', e)
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[useMessageStream] subscribe threw', e)
+      }
     }
 
     return () => {
