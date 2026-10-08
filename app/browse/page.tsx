@@ -441,27 +441,17 @@ function BrowseContent() {
         </div>
       </section>
 
-      {/* Map */}
+      {/* Map — wrapped in `map-frame` so the Leaflet panes are
+          guaranteed to stay inside their own stacking context
+          (z-index 0) and can never paint over neighbouring text
+          (page header, filter chips, etc.). The map is the
+          dominant element on this section; the title sits below
+          it. */}
       <section
         aria-label="Buddy map"
-        className="mb-6 border border-border rounded-sm overflow-hidden bg-surface"
+        className="map-frame mb-6 border border-border rounded-sm overflow-hidden bg-surface"
+        style={{ position: 'relative', zIndex: 0, isolation: 'isolate' }}
       >
-        <div className="px-6 py-4 border-b border-border">
-          <p className="text-eyebrow text-primary mb-1">
-            Buddy map
-            <span
-              className="ml-2 italic text-muted"
-              style={{ letterSpacing: '0.02em' }}
-              aria-hidden="true"
-            >
-              bản đồ
-            </span>
-          </p>
-          <h2 className="text-lg font-semibold">Find buddies around Da Nang</h2>
-          <p className="text-sm text-muted mt-1">
-            Hover a marker or click a buddy below to see their location.
-          </p>
-        </div>
         <div className="relative h-[340px]">
           <button
             type="button"
@@ -485,7 +475,7 @@ function BrowseContent() {
             selfLiveOverride={selfGranted}
           />
           {selectedBuddy ? (
-            <div className="absolute bottom-3 left-3 right-3 md:left-auto md:right-3 md:w-80 bg-surface border border-border rounded-sm p-4">
+            <div className="absolute bottom-3 left-3 right-3 md:left-auto md:right-3 md:w-80 bg-surface border border-border rounded-sm p-4 z-aside">
               <button
                 type="button"
                 onClick={() => setSelectedMapId(null)}
@@ -521,6 +511,29 @@ function BrowseContent() {
           ) : null}
         </div>
       </section>
+
+      {/* Section caption — page-level title block that USED to sit
+          above the map. Now anchored BELOW the map so the map is the
+          dominant element and the title block can't be visually
+          overlapped by a tile that loads late. */}
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-eyebrow text-primary mb-1">
+            Buddy map
+            <span
+              className="ml-2 italic text-muted"
+              style={{ letterSpacing: '0.02em' }}
+              aria-hidden="true"
+            >
+              bản đồ
+            </span>
+          </p>
+          <h2 className="text-lg font-semibold">Find buddies around Da Nang</h2>
+          <p className="text-sm text-muted mt-1">
+            Hover a marker or click a buddy below to see their location.
+          </p>
+        </div>
+      </header>
 
       {/* Buddy list */}
       <section aria-label="Buddies list">

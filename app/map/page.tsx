@@ -124,8 +124,8 @@ export default function MapPage() {
       ) : null}
 
       <div
-        className="relative border border-border rounded-sm overflow-hidden bg-surface"
-        style={{ height: 'calc(100vh - 360px)', minHeight: 420 }}
+        className="map-frame relative border border-border rounded-sm overflow-hidden bg-surface"
+        style={{ position: 'relative', zIndex: 0, isolation: 'isolate', height: 'calc(100vh - 360px)', minHeight: 420 }}
       >
         <MapView
           userLocation={userLocation}

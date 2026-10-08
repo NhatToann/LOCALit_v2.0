@@ -757,6 +757,21 @@
   .z-legend   { z-index: 1000; } /* legend card, below detail popup */
   .z-aside    { z-index: 1100; } /* selected-buddy detail card */
   .z-toast    { z-index: 1200; } /* loading / error toasts above all */
+
+  /* Map frame — every MapView must be wrapped in a parent that
+     establishes a new stacking context, so the tile pane (z=100)
+     and marker pane (z=600) inside the Leaflet container cannot
+     visually escape upward and overlap siblings (page header,
+     section header, filter chips). Without `isolation: isolate`
+     on the parent, a Leaflet pane that momentarily extends past
+     its bounds during tile loading can paint over neighbouring
+     text. With this, the map is GUARANTEED to be the lowest
+     layer within its own stacking context. */
+  .map-frame  {
+    position: relative;
+    isolation: isolate;
+    z-index: 0;
+  }
 }
 
 /* Marker root: strip Leaflet's default left/top so the icon

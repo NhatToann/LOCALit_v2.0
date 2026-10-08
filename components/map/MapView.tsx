@@ -184,7 +184,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
   }
 
   return (
-    <div style={{ position: 'relative', height, width: '100%' }}>
+    <div className="map-frame relative" style={{ position: 'relative', height, width: '100%', zIndex: 0, isolation: 'isolate' }}>
       <MapContainer
         center={[userLocation.lat, userLocation.lng]}
         zoom={13}
