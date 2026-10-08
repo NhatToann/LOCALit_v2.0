@@ -179,29 +179,69 @@ try {
   assert('saved-ids now has 2 entries', r1.saved_ids?.length === 2, JSON.stringify(r1.saved_ids))
 
   // Reload — verify hearts survive the round-trip. After reload the
-  // page hydrates savedBuddies from /api/swipe/saved-ids, so any row
-  // in the saved set will render its Save button with aria-pressed=true
-  // (once expanded). The default sort is location-first, so the two
-  // closest buddies (which we just saved) should be at the top.
+  // page hydrates savedBuddies from /api/swipe/saved-ids, then re-renders
+  // each row's Save button with aria-pressed=true if the buddy is in
+  // the saved set. The page uses a single `expandedBuddyId` state
+  // (accordion), so we expand one row at a time and check the
+  // pressed heart for that row.
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.waitForSelector('li button[aria-expanded]', { timeout: 30000 })
-  // Expand the first two rows.
-  for (let i = 0; i < 2; i++) {
+  // Give the page time to fetch saved-ids and re-render.
+  await page.waitForTimeout(2500)
+
+  // Grab the saved IDs from the API.
+  const savedIds = r1.saved_ids.slice() // from the previous fetch
+  // For each saved ID, find the matching row's buddy name. We do
+  // this by querying the buddy table directly (one small request).
+  const nameById = await page.evaluate(async (ids) => {
+    // The page has the buddies list; we expose their name from the
+    // collapsed header paragraphs.
+    const headers = Array.from(document.querySelectorAll('li button[aria-expanded]'))
+    const names = headers
+      .map((h) => h.querySelector('p.text-sm.font-medium')?.textContent?.trim() || '')
+      .filter(Boolean)
+    return names
+  }, savedIds)
+  // The page doesn't expose IDs in the DOM, so we approximate by
+  // expanding the first N rows where N = savedIds.length, and
+  // counting pressed hearts in each.
+  let pressedFound = 0
+  for (let i = 0; i < savedIds.length; i++) {
+    // Expand row i (and ensure previous expanded row collapses; the
+    // page only allows one expanded at a time, so this is a sequence
+    // of single-row expansions).
     await page.evaluate((idx) => {
       const headers = document.querySelectorAll('li button[aria-expanded]')
       const h = headers[idx]
       if (!h) return
-      h.click()
+      if (h.getAttribute('aria-expanded') === 'false') h.click()
     }, i)
+    await page.waitForTimeout(400)
+    // Count pressed hearts (should be 1 if this row is saved, 0 otherwise).
+    const c = await page.locator('button[aria-pressed="true"]').count()
+    pressedFound += c
+    // Collapse before next iteration.
+    await page.evaluate((idx) => {
+      const headers = document.querySelectorAll('li button[aria-expanded]')
+      const h = headers[idx]
+      if (h.getAttribute('aria-expanded') === 'true') h.click()
+    }, i)
+    await page.waitForTimeout(200)
   }
-  await page.waitForTimeout(1000)
-  const pressedCount = await page.locator('button[aria-pressed="true"]').count()
-  assert('after reload, 2 hearts still filled', pressedCount === 2, `pressed=${pressedCount}`)
+  assert('after reload, all saved hearts still filled', pressedFound === savedIds.length, `pressedFound=${pressedFound}, savedIds=${savedIds.length}`)
 
-  // Unsave the first one
-  const firstPressed = page.locator('button[aria-pressed="true"]').first()
-  await firstPressed.click()
-  await page.waitForTimeout(1500)
+  // Unsave one. Expand the first row (which should be one of the
+  // saved buddies since location-first sort put them on top), click
+  // its Save button, then verify the API count dropped.
+  await page.evaluate((idx) => {
+    const headers = document.querySelectorAll('li button[aria-expanded]')
+    const h = headers[idx]
+    if (h.getAttribute('aria-expanded') === 'false') h.click()
+  }, 0)
+  await page.waitForTimeout(500)
+  const firstSave = page.locator('button[aria-pressed]').first()
+  await firstSave.click()
+  await page.waitForTimeout(2000)
   const r2 = await page.evaluate(async () => {
     const r = await fetch('/api/swipe/saved-ids', { cache: 'no-store' })
     return await r.json()
