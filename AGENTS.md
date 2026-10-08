@@ -1189,3 +1189,68 @@ component closure for 30-60s.
 > add `.abortSignal(signal)` to the supabase-js chain and only
 > fall back to `racedAbort` when the builder rejects the method.
 
+---
+
+## Browse Default Sort + Save-Buddy DB Persistence (2026-10-08)
+
+The `/browse` page had two real-user-blocking bugs:
+
+1. The "Suggested" list (default view, no active search) sorted
+ buddies by **rating only**, so a tourist in Son Tra kept seeing
+ buddies from Hai Van Pass / Hoi An first. The user asked for
+ **location proximity first, then tag overlap, then rating**.
+2. The heart icon on each buddy row saved to **`localStorage` only**.
+ New devices, new accounts, or a hard browser-data wipe lost every
+ saved buddy. The user registered a fresh account and asked why
+ nothing they "saved" carried over.
+
+### What changed
+
+| File | Change | Why |
+|---|---|---|
+| `app/browse/page.tsx` | Default `activeFilter === 'all'` sort now runs `haversineKm` against the user's `userLocation`, then canonical-tag overlap (`CANONICAL_TAGS` set membership), then `rating_avg` desc. Only fires when `tokens.length === 0` (so search results keep their text-match order). | Tourist at 16.05,108.20 sees buddies within 1–3 km first; same-distance buddies are broken by tag relevance. |
+| `app/browse/page.tsx` | `toggleSave` now optimistically updates `savedBuddies`, POSTs to `/api/swipe` (save) or DELETEs `/api/swipe` (unsave). Hydration effect fetches `/api/swipe/saved-ids` on mount; one-shot migration copies any legacy `localStorage` entries to the DB then clears the local key. | Saved buddies persist across devices, page reloads, new accounts. |
+| `app/search/SearchContent.tsx` | Same DB-backed `toggleSave` + hydration swap. | Search page and browse page now share the same persistence layer. |
+| `app/api/swipe/route.ts` | Added `DELETE` handler — `supabase.from('swipes').delete().eq('swiper_id', user.id).eq('target_id', targetId)`. | One endpoint for both save and unsave. |
+| `app/api/swipe/saved-ids/route.ts` (NEW) | Server endpoint returning `{ saved_ids: string[] }` for the authenticated user. Reads `public.swipes` where `direction='like'` and `swiper_id=auth.uid()`. | Hydration is one fetch, not N. |
+| `supabase/migrations/2026-10-08-swipes-delete-grant.sql` (NEW) | `GRANT DELETE ON public.swipes TO authenticated` + `CREATE POLICY swipes_delete_own ON public.swipes FOR DELETE TO authenticated USING (auth.uid() = swiper_id)`. | `swipes` only had SELECT/INSERT/UPDATE granted previously; DELETE was 42501. |
+| `scripts/smoke-save-buddies.mjs` (NEW) | Playwright smoke (6 assertions) — empty start, save 2, reload-and-hydrate, unsave 1, location-first default sort. | Regression net for both fixes. |
+
+### Sort algorithm (the new default for `activeFilter === 'all'`)
+
+```typescript
+const canonicalSet = new Set<string>(CANONICAL_TAGS)
+const tagOverlap = (b: BuddyItem) =>
+  (b.specialties ?? []).filter((s) => canonicalSet.has(s)).length
+
+result.sort((a, b) => {
+  const distA = haversineKm(userLocation, { lat: a.latitude, lng: a.longitude })
+  const distB = haversineKm(userLocation, { lat: b.latitude, lng: b.longitude })
+  if (distA !== distB) return distA - distB
+  const tagA = tagOverlap(a)
+  const tagB = tagOverlap(b)
+  if (tagA !== tagB) return tagB - tagA
+  return (b.rating_avg ?? 0) - (a.rating_avg ?? 0)
+})
+```
+
+The 0.1 km minimum floor (set elsewhere in the file) prevents
+multiple buddies from collapsing to "0 km" when the user is standing
+on top of them.
+
+### Smoke test output (against canonical production)
+
+```
+PASS: saved-ids starts empty — {"saved_ids":[]}
+PASS: browse has at least 2 rows — rowCount=4
+PASS: saved-ids now has 2 entries — ["1111…","2222…"]
+PASS: after reload, all saved hearts still filled — pressedFound=2, savedIds=2
+PASS: after unsave, saved-ids drops to 1 — ["2222…"]
+PASS: default sort is location-first (first row distance == min) — {"firstKm":0.1,"minKm":0.1}
+All checks passed.
+```
+
+Deployed to `localit-fh4cwad3s-nhattoann.vercel.app`; canonical
+aliases `localit-nhattoann.vercel.app` and `localit-vn.vercel.app`
+re-pointed to it.
+
