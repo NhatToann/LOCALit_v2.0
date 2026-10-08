@@ -67,26 +67,63 @@ export default function SearchContent({
   const savedHydratedRef = useRef(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Hydrate saved buddies once
+  // Hydrate saved buddies from the database. The localStorage cache
+  // is treated as a one-shot migration source — any pre-DB saves are
+  // flushed to /api/swipe, then the cache is cleared.
   useEffect(() => {
-    setSavedBuddies(readSaved())
-    savedHydratedRef.current = true
+    let cancelled = false
+    async function hydrate() {
+      try {
+        const res = await fetch('/api/swipe/saved-ids', { cache: 'no-store' })
+        const data = (await res.json()) as { saved_ids?: string[] }
+        if (cancelled) return
+        let serverIds = Array.isArray(data.saved_ids) ? data.saved_ids : []
+
+        const legacy = readSaved()
+        if (legacy.length > 0) {
+          await Promise.all(
+            legacy.map(async (buddyId) => {
+              if (serverIds.includes(buddyId)) return
+              try {
+                await fetch('/api/swipe', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ target_id: buddyId, direction: 'like' }),
+                })
+                serverIds.push(buddyId)
+              } catch {
+                /* best effort */
+              }
+            }),
+          )
+          try { window.localStorage.removeItem(SAVED_KEY) } catch { /* ignore */ }
+        }
+
+        if (cancelled) return
+        setSavedBuddies(serverIds)
+      } catch {
+        /* leave list empty; UI handles no-saves */
+      } finally {
+        if (!cancelled) savedHydratedRef.current = true
+      }
+    }
+    void hydrate()
+    return () => { cancelled = true }
   }, [])
 
-  // Persist saved buddies
-  useEffect(() => {
-    if (!savedHydratedRef.current) return
+  const toggleSave = async (id: string) => {
+    const wasSaved = savedBuddies.includes(id)
+    setSavedBuddies((prev) => (wasSaved ? prev.filter((x) => x !== id) : [...prev, id]))
     try {
-      window.localStorage.setItem(SAVED_KEY, JSON.stringify(savedBuddies))
+      const res = await fetch('/api/swipe', {
+        method: wasSaved ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_id: id, direction: 'like' }),
+      })
+      if (!res.ok) throw new Error(`Save failed: ${res.status}`)
     } catch {
-      /* quota or private mode — ignore */
+      setSavedBuddies((prev) => (wasSaved ? [...prev, id] : prev.filter((x) => x !== id)))
     }
-  }, [savedBuddies])
-
-  const toggleSave = (id: string) => {
-    setSavedBuddies((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
   }
 
   // Debounce the query input by 250 ms before pushing to the URL

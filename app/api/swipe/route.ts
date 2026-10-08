@@ -126,3 +126,66 @@ export async function POST(request: NextRequest) {
     match,
   })
 }
+
+/**
+ * DELETE /api/swipe
+ *
+ * Removes a previously-recorded swipe. Used by the /browse "Save"
+ * toggle to unsave a buddy (and by the /swipe deck to retract a
+ * pass). The row is identified by the (swiper_id, target_id)
+ * pair — the swiper_role is derived server-side from profiles so
+ * the client can't fabricate a delete against another user's row.
+ *
+ * Body: { target_id: uuid }
+ * 200:  { ok: true, removed: boolean }
+ */
+export async function DELETE(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+  }
+
+  const body = await request.json().catch(() => null) as
+    | { target_id?: string }
+    | null
+  const targetId = body?.target_id
+
+  if (!targetId || typeof targetId !== 'string') {
+    return NextResponse.json({ error: 'target_id is required' }, { status: 400 })
+  }
+  if (targetId === user.id) {
+    return NextResponse.json(
+      { error: 'cannot unsave yourself' },
+      { status: 400 },
+    )
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle()
+  const role = profile?.role
+  if (role !== 'tourist' && role !== 'buddy') {
+    return NextResponse.json({ error: 'unsupported role' }, { status: 403 })
+  }
+
+  // Match clauses back to the table-level RLS (swiper can only see
+  // / delete their own swipes) so a tampered role still cannot wipe
+  // a peer's row.
+  const { data, error } = await supabase
+    .from('swipes')
+    .delete()
+    .eq('swiper_role', role)
+    .eq('swiper_id', user.id)
+    .eq('target_id', targetId)
+    .select('id')
+
+  if (error) {
+    return NextResponse.json({ error: error.message, code: error.code }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true, removed: (data ?? []).length > 0 })
+}

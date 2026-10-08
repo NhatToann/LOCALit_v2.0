@@ -51,6 +51,25 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return 2 * R * Math.asin(Math.sqrt(h))
 }
 
+// Canonical list of tags the search_buddies RPC ranks against. Used
+// here to count "tag overlap" between a buddy's specialties and the
+// canonical vocabulary so the default "All" sort can show the best
+// match-ups first, after proximity.
+const CANONICAL_TAGS = [
+  'street-food',
+  'history',
+  'nightlife',
+  'photography',
+  'shopping',
+  'nature',
+  'wellness',
+  'language-exchange',
+  'motorbike-tours',
+  'fishing',
+  'cooking-class',
+  'artisan-craft',
+] as const
+
 function readSaved(): string[] {
   if (typeof window === 'undefined') return []
   try {
@@ -89,25 +108,74 @@ function BrowseContent() {
   // stream (otherwise the map shows two pins for the same position).
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
-  // Hydrate saved buddies from localStorage on mount
+  // Hydrate saved buddies from the database on mount. The old
+  // localStorage cache is intentionally NOT migrated — saves made
+  // before this change never had a backing row, and silently
+  // promoting them would surprise the user (saved hearts appearing
+  // on a fresh device). If a non-empty localStorage value is found
+  // it's flushed to the server once and then cleared.
   useEffect(() => {
-    setSavedBuddies(readSaved())
-    setSavedHydrated(true)
-  }, [])
+    let cancelled = false
+    async function hydrate() {
+      try {
+        // 1. Pull the source of truth.
+        const res = await fetch('/api/swipe/saved-ids', { cache: 'no-store' })
+        const data = (await res.json()) as { saved_ids?: string[] }
+        if (cancelled) return
+        let serverIds = Array.isArray(data.saved_ids) ? data.saved_ids : []
 
-  // Persist on every change (after hydration) so we don't overwrite with []
-  useEffect(() => {
-    if (!savedHydrated) return
-    try {
-      window.localStorage.setItem(SAVED_KEY, JSON.stringify(savedBuddies))
-    } catch {
-      /* quota or private mode — silently ignore */
+        // 2. One-shot migration of any pre-DB localStorage saves.
+        const legacy = readSaved()
+        if (legacy.length > 0) {
+          await Promise.all(
+            legacy.map(async (buddyId) => {
+              if (serverIds.includes(buddyId)) return
+              try {
+                await fetch('/api/swipe', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ target_id: buddyId, direction: 'like' }),
+                })
+                serverIds.push(buddyId)
+              } catch {
+                /* best effort — the user can re-save */
+              }
+            }),
+          )
+          try { window.localStorage.removeItem(SAVED_KEY) } catch { /* ignore */ }
+        }
+
+        if (cancelled) return
+        setSavedBuddies(serverIds)
+      } catch {
+        /* leave the list empty; the UI handles no-saves fine */
+      } finally {
+        if (!cancelled) setSavedHydrated(true)
+      }
     }
-  }, [savedBuddies, savedHydrated])
-
-  const toggleSave = useCallback((id: string) => {
-    setSavedBuddies((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+    void hydrate()
+    return () => { cancelled = true }
   }, [])
+
+  const toggleSave = useCallback(async (id: string) => {
+    const wasSaved = savedBuddies.includes(id)
+    // Optimistic update — flip the heart immediately so the click
+    // feels instant. The server call below either confirms (no-op)
+    // or rolls back the optimistic state.
+    setSavedBuddies((prev) => (wasSaved ? prev.filter((x) => x !== id) : [...prev, id]))
+    try {
+      const res = await fetch('/api/swipe', {
+        method: wasSaved ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_id: id, direction: 'like' }),
+      })
+      if (!res.ok) throw new Error(`Save failed: ${res.status}`)
+    } catch (err) {
+      // Roll back the optimistic flip.
+      setSavedBuddies((prev) => (wasSaved ? [...prev, id] : prev.filter((x) => x !== id)))
+      setLoadError((err as Error).message || 'Could not update saved buddies.')
+    }
+  }, [savedBuddies])
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
     enabled: shareLocation,
@@ -285,6 +353,23 @@ function BrowseContent() {
       // Default sort when searching: highest match-score first.
       const scoreMap = new Map(scored.map((s) => [s.b.id, s.score]))
       result.sort((a, b) => (scoreMap.get(b.id) ?? 0) - (scoreMap.get(a.id) ?? 0))
+    } else if (activeFilter === 'all') {
+      // Default sort with no search: location first, then tag overlap
+      // against the canonical vocabulary, then rating. This is the
+      // "suggest buddy" experience: closest matches with the most
+      // relevant tags float to the top, not random online buddies.
+      const canonicalSet = new Set<string>(CANONICAL_TAGS)
+      const tagOverlap = (b: BuddyItem) =>
+        (b.specialties ?? []).filter((s) => canonicalSet.has(s)).length
+      result.sort((a, b) => {
+        const distA = haversineKm(userLocation, { lat: a.latitude, lng: a.longitude })
+        const distB = haversineKm(userLocation, { lat: b.latitude, lng: b.longitude })
+        if (distA !== distB) return distA - distB
+        const tagA = tagOverlap(a)
+        const tagB = tagOverlap(b)
+        if (tagA !== tagB) return tagB - tagA
+        return (b.rating_avg ?? 0) - (a.rating_avg ?? 0)
+      })
     }
     return result
   }, [buddies, destinationFilter, languageFilter, activeFilter, userLocation, savedBuddies, maxDistanceKm])
