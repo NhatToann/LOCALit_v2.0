@@ -1254,3 +1254,64 @@ Deployed to `localit-fh4cwad3s-nhattoann.vercel.app`; canonical
 aliases `localit-nhattoann.vercel.app` and `localit-vn.vercel.app`
 re-pointed to it.
 
+---
+
+## Browse Mixed Buddy+Tourist List (2026-10-09)
+
+The user reported that the matching/recommend page
+(`https://localit-nhattoann.vercel.app/browse`) was missing the
+newly-registered tourists (Phan Nhật Toàn, Tá Bảo, Test Real User,
+etc.) — only `safe_buddies` was being queried, so any user with a
+`public.tourists` row but no buddy row never appeared in the
+recommend list. The user asked to expand /browse to recommend BOTH
+buddies and tourists, with a role badge next to each name.
+
+### What changed
+
+| File | Change | Why |
+|---|---|---|
+| `supabase/migrations/2026-10-09-tourists-location-for-recommend.sql` | Added `location_city`, `latitude`, `longitude` columns to `public.tourists`. Backfilled any `destination='Da Nang'` tourist with the Han River default. New view `safe_tourists_with_location` (mirrors `safe_buddies`: 3-decimal coordinate rounding, anon+authenticated SELECT). | Tourists had no static location metadata; the new view exposes only non-null lat/lng so the public /browse query works without auth and without PII leaks. |
+| `app/browse/page.tsx` | Load `safe_buddies` + `safe_tourists_with_location` in parallel. Merge into one list with a `role: 'buddy' \| 'tourist'` field. Added role badge next to the name (`badge-primary` for buddies, `badge-neutral` for tourists). Tourist rows show "Interests" instead of "Specialties", hide Save (only buddies are saveable), hide hourly_rate, link to `/tourists/[id]`. | The recommend list now covers both sides of the marketplace. |
+| `app/browse/page.tsx` (sort) | The "All" location-first sort now uses `b.role === 'buddy' ? b.specialties : b.interests` as the tag-overlap pool, and adds `roleRank(buddy=0, tourist=1)` after the tag overlap step so buddies float above tourists on distance ties. Tourists still get surfaced right below them. | Buddies remain the user-actionable side of the marketplace, but tourists are visible immediately rather than hidden. |
+| `app/browse/page.tsx` (UI copy) | Header "Find local buddies in Da Nang" → "Find people in Da Nang". Sub-caption "Hướng dẫn viên địa phương" → "bạn đồng hành & hướng dẫn viên". Map section "Find buddies around Da Nang" → "Find people around Da Nang". Empty-state title "No buddies found" → "No people found in Da Nang". | Plain-language update so the page doesn't claim to be buddy-only. |
+| `components/map/MapView.tsx` | The map's tourist-pin load now queries `safe_tourists_with_location` FIRST (static home coords) and only falls back to `location_updates` (live broadcasts) for tourists not in the static view. Existing `seen` Set dedupe still wins on first match. | Tourists who set their home city but aren't currently broadcasting now show up on the map as a black "T" pin. |
+| `app/globals.css` | New `.badge-primary` class — `--color-primary` background, `--color-paper` text. | Used for the Buddy role badge in the merged list. |
+| `scripts/smoke-browse-mixed.mjs` (NEW) | 7-assertion Playwright smoke — ≥1 buddy + ≥1 tourist row, Phan Nhật Toàn + Tá Bảo both visible, only buddies have a Save button, map header says "people". Snapshot to `scripts/screenshots/browse-mixed-final.png`. | Regression net for the new mixed feed. |
+| `scripts/smoke-save-buddies.mjs` | Updated to pick the first 2 BUDDY rows in DOM order (not just the first 2 rows) and to expand every buddy row when re-checking post-reload hearts. | Tourists in the feed would otherwise break the "first 2 rows are buddies" assumption. |
+| `scripts/fix-seed-mismatch.mjs` (NEW) + `scripts/restore-lan-buddy.mjs` (NEW) + `scripts/cleanup-leftover-tourists.mjs` (NEW) + `scripts/backfill-tourist-locations.mjs` (NEW) | Idempotent fix scripts for the seed-data pollution that the new view exposed: Lan Pham (the 4.9-rated top demo buddy) was registered as `role='tourist'` on profiles but had a `buddies` row. The fix kept the buddy row, set her role to `buddy`, deleted the duplicate tourist row, and backfilled Sarah Miller's lat/lng from her last `location_updates` broadcast. | The new view surfaced the seed pollution; the fix scripts correct it permanently. |
+
+### Verification (against canonical production)
+
+```
+$ node scripts/smoke-browse-mixed.mjs
+[smoke] /browse rendered 10 rows
+[smoke] Buddy badges: 4, Tourist badges: 6
+PASS: at least 1 Buddy row — count=4
+PASS: at least 1 Tourist row — count=6
+PASS: Phan Nhật Toàn appears in the list
+PASS: Tá Bảo appears in the list
+PASS: every Buddy row has a Save button — count=4
+PASS: every Tourist row has NO Save button — count=6
+PASS: map header mentions "people" — header="Find people around Da Nangbản đồ"
+
+$ node scripts/smoke-save-buddies.mjs
+PASS: saved-ids starts empty
+PASS: browse has at least 2 rows — rowCount=10
+PASS: saved-ids now has 2 entries
+PASS: after reload, all saved hearts still filled
+PASS: after unsave, saved-ids drops to 1
+PASS: default sort is location-first
+All checks passed.
+```
+
+### Current Da Nang distribution (after seed fix)
+
+| Role | Count | Names |
+|---|---|---|
+| Buddy | 4 | Lan Pham, Linh Tran, Minh Nguyen, Tuan Vu |
+| Tourist | 6 | e2e-real, Mike Johnson, Phan Nhật Toàn, Sarah Miller, Tá Bảo, Test Real User |
+
+Deployed to `localit-687a72efo-nhattoann.vercel.app`; canonical
+aliases `localit-nhattoann.vercel.app` and `localit-vn.vercel.app`
+re-pointed to it.
+
