@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
@@ -42,11 +42,23 @@ export default function MapPage() {
   // their auth cookie was valid.
   const [signedIn, setSignedIn] = useState(false)
 
+  // RAM OPTIMIZATION (2026-10-08): useLocationWatcher re-runs its
+  // useEffect when onGranted / onDenied change. If those props are
+  // fresh arrow functions every render (as the previous inline
+  // `() => setHasGpsFix(true)` was), the effect re-fires every
+  // render — which calls `geolocation.clearWatch` + re-creates
+  // `watchPosition` on every parent state update, churning
+  // geolocation subscriptions and a watchPosition handle each
+  // pass. useCallback + empty deps gives a stable identity; the
+  // setters it calls are already stable per React docs.
+  const onGpsGranted = useCallback(() => setHasGpsFix(true), [])
+  const onGpsDenied = useCallback(() => setHasGpsFix(false), [])
+
   // Geolocation — used ONLY to position the user's dot on the map.
   const userLocation = useLocationWatcher({
     writeToDb: false,
-    onGranted: () => setHasGpsFix(true),
-    onDenied: () => setHasGpsFix(false),
+    onGranted: onGpsGranted,
+    onDenied: onGpsDenied,
   })
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
