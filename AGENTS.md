@@ -1130,3 +1130,62 @@ shipped on top of rounds 1 and 2.
 > the auth user subscription cleanup in round 2). Default to
 > `useCallback` whenever the callback goes into a deps array.
 
+---
+
+## RAM/Abort Round 4 (2026-10-08, follow-up)
+
+Three more RAM wins shipped on top of rounds 1–3, all focused on
+**aborting in-flight Supabase fetches** so a route change mid-flight
+doesn't leave a response body in the socket buffer holding a stale
+component closure for 30-60s.
+
+### What was still leaking
+
+1. **`app/dashboard/page.tsx` `load()` runs 6 parallel Supabase
+   queries from 3 different effects** (mount, realtime refresh on
+   `connections`/`itineraries`/`buddies`, 30s poll). Navigating
+   `/dashboard → /map` mid-flight left the response in the socket
+   buffer; the .then() wrote to the unmounted dashboard closure
+   (held by the JS heap for 30-60s). Each navigation accumulated
+   ~6 stale query result objects.
+
+2. **`app/chat/page.tsx` `loadConversations()` runs from 3 effects
+   too** (mount, 30s interval, realtime refresh on
+   `conversations`/`messages`). Same closure-hold problem; chat
+   is the most-visited page after dashboard so this hit the most.
+
+3. **Profile save toasts (`setSavedAt(Date.now())` + `setTimeout(() =>
+   setSavedAt(null), 3000)`)** in `TouristProfileView` and
+   `BuddyProfileView` scheduled a new timer on every save. Clicking
+   Save twice within 3s ran two competing timers — the first fired
+   3s after the FIRST click, not the last, so the toast sometimes
+   lingered after the user had already triggered a new save. Also
+   leaked on unmount mid-toast (setState warning).
+
+### The fix (committed `d90d701` + `c02bb53`)
+
+| File | Change | Why it saves RAM |
+|---|---|---|
+| `hooks/useAbort.ts` (NEW) | `useAbortFactory()` — per-call `AbortController` factory. Each `load()` call gets a fresh controller; the previous one is auto-aborted so the latest call wins. All controllers are auto-aborted on unmount. | Stops the socket-buffered response from writing setState into a stale closure. |
+| `hooks/useSafeTimeout.ts` (NEW) | Tracked `setTimeout` handle that auto-cancels the previous timer and clears on unmount. | Single live timer per component; no "stale toast still running after I already started a new one" UX bug. |
+| `app/dashboard/page.tsx` | `load()` calls `makeController()`, wraps each of the 6 parallel queries in a `racedAbort()` helper that races the Supabase call against the abort signal, and short-circuits the setState writes if `signal.aborted`. AbortError is caught silently. | One stale dashboard's 6 query results can no longer accumulate in the heap. |
+| `app/chat/page.tsx` | `loadConversations()` wraps the conversations + unread-counts queries in `racedAbort()`. State writes are gated on `!signal.aborted` after BOTH queries resolve. | Same as dashboard but for the most-frequently-visited page. |
+| `components/profile/TouristProfileView.tsx`, `BuddyProfileView.tsx` | `setSavedAt(null)` is now `toastTimer.schedule(() => setSavedAt(null), 3000)`. | Cancel-on-replace + unmount cleanup. |
+
+### Pitfall to remember
+
+> **The `postgrest-js` client API doesn't expose `.abortSignal()` for
+> `.maybeSingle()` and a few other builders.** TypeScript rejects
+> `.abortSignal(signal)` on those. The `racedAbort()` helper is the
+> portable workaround — it races the underlying promise against an
+> abort listener. Use it whenever you need to cancel a Supabase call
+> that doesn't support `AbortSignal` natively.
+
+> **`Promise.race` doesn't cancel the loser.** When the abort
+> signal wins, the underlying Supabase fetch keeps running until
+> the network round-trip completes. That's fine for RAM (the
+> response is dropped) but means we still pay the network cost.
+> If a route becomes hot enough that the wasted bandwidth matters,
+> add `.abortSignal(signal)` to the supabase-js chain and only
+> fall back to `racedAbort` when the builder rejects the method.
+
