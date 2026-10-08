@@ -377,6 +377,11 @@
     color: var(--color-muted);
   }
 
+  .badge-primary {
+    background-color: var(--color-primary);
+    color: var(--color-paper);
+  }
+
   /* ============================================================
      AVATAR — circular, sized variants
      ============================================================ */

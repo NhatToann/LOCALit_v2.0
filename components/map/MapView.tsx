@@ -137,6 +137,17 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
       }
 
       try {
+        // Static discoverable tourists (lat/lng from their tourist row).
+        // Pairs with the location_updates live pins below so a tourist
+        // who set their home city but isn't currently broadcasting still
+        // shows up on the map.
+        const { data: tStatic } = await supabase
+          .from('safe_tourists_with_location')
+          .select('id, location_city, latitude, longitude, profile:safe_profiles(full_name, is_online)')
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .abortSignal(abortCtrl.signal)
+
         // location_updates: tourists' live positions, anon can only read buddy-owned rows.
         // safe_profiles gives anon access to full_name/role/is_online (no PII).
         const { data: locs } = await supabase
@@ -146,10 +157,32 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
           .limit(50)
           .abortSignal(abortCtrl.signal)
 
-        if (!cancelled && locs) {
+        if (!cancelled) {
           const seen = new Set<string>()
           const tPins: BuddyPin[] = []
-          for (const l of locs as any[]) {
+
+          // Static pin wins on ties so a registered-but-idle tourist
+          // shows up at their home coordinate rather than being
+          // skipped just because they haven't pushed a heartbeat.
+          for (const t of (tStatic ?? []) as any[]) {
+            if (seen.has(t.id)) continue
+            seen.add(t.id)
+            tPins.push({
+              id: t.id,
+              name: t.profile?.full_name ?? 'Tourist',
+              city: t.location_city,
+              lat: t.latitude,
+              lng: t.longitude,
+              is_online: t.profile?.is_online ?? false,
+              languages: [],
+              specialties: [],
+              rating_avg: null,
+              hourly_rate: null,
+            })
+          }
+          // Live pins fill the gap for tourists whose static row is
+          // missing (older accounts predating safe_tourists_with_location).
+          for (const l of (locs ?? []) as any[]) {
             if (seen.has(l.user_id)) continue
             if (l.profile?.role !== 'tourist') continue
             seen.add(l.user_id)

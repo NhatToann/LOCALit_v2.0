@@ -12,20 +12,35 @@ import { Map as MapIcon, MapPin, Star, ChevronDown, Heart, MessageCircle, X, Sea
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
 
+/**
+ * Discoverable person on /browse — a buddy OR a tourist. Tourists are
+ * 2026-10-09 additions so newly-registered travellers (Phan Nhật Toàn,
+ * Tá Bảo, etc.) actually appear in the recommend list. The role badge
+ * in the row tells the user which side of the marketplace each name is on.
+ */
 interface BuddyItem {
   id: string
+  role: 'buddy' | 'tourist'
   full_name: string
   location_city: string
   latitude: number
   longitude: number
   languages: string[]
+  /** Buddy-only. Empty for tourists. */
   specialties: string[]
+  /** Buddy-only (USD / hour). */
   hourly_rate: number | null
+  /** Buddy-only. Tourists are not rated. */
   rating_avg: number | null
   rating_count: number
+  /** Buddy-only. */
   bio: string | null
   is_online: boolean
   avatar_url: string | null
+  /** Tourist-only. Empty for buddies. */
+  interests: string[]
+  /** Tourist-only. */
+  nationality: string | null
 }
 
 const FILTERS = [
@@ -215,55 +230,95 @@ function BrowseContent() {
       setLoading(true)
       try {
         const supabase = createClient()
-        const { data } = await supabase
-          // Public discovery: read rounded coordinates from safe_buddies so anon
-          // callers (and any auth caller with stale cookies) actually see pins.
-          .from('safe_buddies')
-          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, profile:safe_profiles(full_name, avatar_url, is_online)')
-          .eq('location_city', 'Da Nang')
-          .not('latitude', 'is', null)
-          .not('longitude', 'is', null)
+        // Pull buddies + tourists in parallel. safe_buddies already
+        // filters to non-null lat/lng; safe_tourists_with_location
+        // (created 2026-10-09) does the same for tourists so the
+        // recommend list now covers both sides of the marketplace.
+        const [buddiesRes, touristsRes] = await Promise.all([
+          supabase
+            .from('safe_buddies')
+            .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, profile:safe_profiles(full_name, avatar_url, is_online, role)')
+            .eq('location_city', 'Da Nang')
+            .not('latitude', 'is', null)
+            .not('longitude', 'is', null),
+          supabase
+            .from('safe_tourists_with_location')
+            .select('id, location_city, latitude, longitude, languages, interests, nationality, travel_style, profile:safe_profiles(full_name, avatar_url, is_online, role)')
+            .eq('location_city', 'Da Nang')
+            .not('latitude', 'is', null)
+            .not('longitude', 'is', null),
+        ])
 
-        if (!data) {
+        const buddyData = (buddiesRes.data ?? []) as any[]
+        const touristData = (touristsRes.data ?? []) as any[]
+
+        if (buddyData.length === 0 && touristData.length === 0) {
           setBuddies([])
           setLoading(false)
           return
         }
 
-        const buddyIds = (data as any[]).map((b) => b.id)
-        const { data: reviews } = await supabase
-          .from('reviews')
-          .select('reviewee_id, rating')
-          .in('reviewee_id', buddyIds)
-
+        // Ratings only apply to buddies.
+        const buddyIds = buddyData.map((b) => b.id)
         const ratingMap = new Map<string, { sum: number; count: number }>()
-        for (const r of reviews ?? []) {
-          const cur = ratingMap.get(r.reviewee_id) ?? { sum: 0, count: 0 }
-          cur.sum += r.rating
-          cur.count += 1
-          ratingMap.set(r.reviewee_id, cur)
+        if (buddyIds.length > 0) {
+          const { data: reviews } = await supabase
+            .from('reviews')
+            .select('reviewee_id, rating')
+            .in('reviewee_id', buddyIds)
+          for (const r of reviews ?? []) {
+            const cur = ratingMap.get(r.reviewee_id) ?? { sum: 0, count: 0 }
+            cur.sum += r.rating
+            cur.count += 1
+            ratingMap.set(r.reviewee_id, cur)
+          }
         }
 
-        const mapped: BuddyItem[] = (data as any[])
-          .filter((b) => b.latitude !== null && b.longitude !== null)
-          .map((b) => {
-            const r = ratingMap.get(b.id)
-            return {
-              id: b.id,
-              full_name: b.profile?.full_name ?? 'Buddy',
-              location_city: b.location_city,
-              latitude: b.latitude,
-              longitude: b.longitude,
-              languages: b.languages ?? [],
-              specialties: b.specialties ?? [],
-              hourly_rate: b.hourly_rate ?? null,
-              rating_avg: r && r.count > 0 ? r.sum / r.count : null,
-              rating_count: r?.count ?? 0,
-              bio: b.bio ?? null,
-              is_online: b.profile?.is_online ?? false,
-              avatar_url: b.profile?.avatar_url ?? null,
-            }
-          })
+        const mapped: BuddyItem[] = [
+          ...buddyData
+            .filter((b) => b.latitude !== null && b.longitude !== null)
+            .map((b) => {
+              const r = ratingMap.get(b.id)
+              return {
+                id: b.id,
+                role: 'buddy' as const,
+                full_name: b.profile?.full_name ?? 'Buddy',
+                location_city: b.location_city,
+                latitude: b.latitude,
+                longitude: b.longitude,
+                languages: b.languages ?? [],
+                specialties: b.specialties ?? [],
+                hourly_rate: b.hourly_rate ?? null,
+                rating_avg: r && r.count > 0 ? r.sum / r.count : null,
+                rating_count: r?.count ?? 0,
+                bio: b.bio ?? null,
+                is_online: b.profile?.is_online ?? false,
+                avatar_url: b.profile?.avatar_url ?? null,
+                interests: [],
+                nationality: null,
+              }
+            }),
+          ...touristData
+            .filter((t) => t.latitude !== null && t.longitude !== null)
+            .map((t) => ({
+              id: t.id,
+              role: 'tourist' as const,
+              full_name: t.profile?.full_name ?? 'Traveler',
+              location_city: t.location_city,
+              latitude: t.latitude,
+              longitude: t.longitude,
+              languages: t.languages ?? [],
+              specialties: [],
+              hourly_rate: null,
+              rating_avg: null,
+              rating_count: 0,
+              bio: null,
+              is_online: t.profile?.is_online ?? false,
+              avatar_url: t.profile?.avatar_url ?? null,
+              interests: t.interests ?? [],
+              nationality: t.nationality ?? null,
+            })),
+        ]
         setBuddies(mapped)
       } catch (err) {
         setLoadError((err as Error).message || 'Could not load buddies.')
@@ -356,11 +411,19 @@ function BrowseContent() {
     } else if (activeFilter === 'all') {
       // Default sort with no search: location first, then tag overlap
       // against the canonical vocabulary, then rating. This is the
-      // "suggest buddy" experience: closest matches with the most
-      // relevant tags float to the top, not random online buddies.
+      // "suggest" experience: closest matches with the most
+      // relevant tags float to the top. Tourists have no rating and
+      // no specialties, so we treat their `interests` as a free-form
+      // tag list for overlap purposes (siblings of specialties).
       const canonicalSet = new Set<string>(CANONICAL_TAGS)
+      const tagsFor = (b: BuddyItem) =>
+        b.role === 'buddy' ? b.specialties ?? [] : b.interests ?? []
       const tagOverlap = (b: BuddyItem) =>
-        (b.specialties ?? []).filter((s) => canonicalSet.has(s)).length
+        tagsFor(b).filter((s) => canonicalSet.has(s.toLowerCase())).length
+      // Bump buddies above tourists on ties so the list is biased
+      // toward the user-actionable side of the marketplace, but keep
+      // tourists visible right below them.
+      const roleRank = (b: BuddyItem) => (b.role === 'buddy' ? 0 : 1)
       result.sort((a, b) => {
         const distA = haversineKm(userLocation, { lat: a.latitude, lng: a.longitude })
         const distB = haversineKm(userLocation, { lat: b.latitude, lng: b.longitude })
@@ -368,6 +431,9 @@ function BrowseContent() {
         const tagA = tagOverlap(a)
         const tagB = tagOverlap(b)
         if (tagA !== tagB) return tagB - tagA
+        const roleA = roleRank(a)
+        const roleB = roleRank(b)
+        if (roleA !== roleB) return roleA - roleB
         return (b.rating_avg ?? 0) - (a.rating_avg ?? 0)
       })
     }
@@ -401,16 +467,20 @@ function BrowseContent() {
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-page-title">
-            {hasSearch ? 'Search results' : 'Find local buddies in Da Nang'}
+            {hasSearch ? 'Search results' : 'Find people in Da Nang'}
           </h1>
           <p className="text-sm text-muted mt-1">
-            <span>{loading ? 'Loading Da Nang buddies...' : `${filtered.length} ${filtered.length === 1 ? 'buddy' : 'buddies'}${destinationFilter ? ` for "${destinationFilter}"` : ''}`}</span>
+            <span>
+              {loading
+                ? 'Loading Da Nang people...'
+                : `${filtered.length} ${filtered.length === 1 ? 'person' : 'people'}${destinationFilter ? ` for "${destinationFilter}"` : ''}`}
+            </span>
             <span
               className="ml-2 italic text-subtle"
               style={{ letterSpacing: '0.01em' }}
               aria-hidden="true"
             >
-              {hasSearch ? 'kết quả' : 'Hướng dẫn viên địa phương'}
+              {hasSearch ? 'kết quả' : 'bạn đồng hành & hướng dẫn viên'}
             </span>
           </p>
         </div>
@@ -561,7 +631,7 @@ function BrowseContent() {
         <div className="px-6 py-4 border-b border-border flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 id="buddies-map-title" className="text-section-title mb-1">
-              Find buddies around Da Nang
+              Find people around Da Nang
               <span
                 className="ml-2 italic text-muted font-normal text-base"
                 style={{ letterSpacing: '0.02em' }}
@@ -572,8 +642,8 @@ function BrowseContent() {
             </h2>
             <p className="text-sm text-muted">
               {buddies.length > 0
-                ? `${buddies.length} verified local buddy${buddies.length === 1 ? '' : 'ies'} in Da Nang.`
-                : 'Loading Da Nang buddies…'}
+                ? `${buddies.length} ${buddies.length === 1 ? 'person' : 'people'} in Da Nang — local buddies and travelers near you.`
+                : 'Loading Da Nang people…'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -635,18 +705,27 @@ function BrowseContent() {
               <p className="text-xs text-muted mt-1">
                 <MapPin size={12} className="inline mr-1" aria-hidden="true" />
                 {selectedBuddy.location_city}
+                <span
+                  className={`ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded-pill font-medium ${
+                    selectedBuddy.role === 'buddy' ? 'bg-primary-bg text-primary' : 'bg-paper text-muted'
+                  }`}
+                >
+                  {selectedBuddy.role === 'buddy' ? 'Buddy' : 'Tourist'}
+                </span>
               </p>
               <p className="text-xs text-muted mt-1">
                 <Star size={12} className="inline mr-1" aria-hidden="true" />
-                {selectedBuddy.rating_avg ? selectedBuddy.rating_avg.toFixed(1) : '—'} · {selectedBuddy.languages.slice(0, 2).join(', ')}
+                {selectedBuddy.role === 'buddy' && selectedBuddy.rating_avg
+                  ? `${selectedBuddy.rating_avg.toFixed(1)} · ${selectedBuddy.languages.slice(0, 2).join(', ')}`
+                  : (selectedBuddy.languages.slice(0, 2).join(', ') || 'Traveler in Da Nang')}
               </p>
               <Link
-                href={`/buddies/${selectedBuddy.id}`}
+                href={selectedBuddy.role === 'buddy' ? `/buddies/${selectedBuddy.id}` : `/tourists/${selectedBuddy.id}`}
                 className="inline-flex items-center justify-center mt-2 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover w-full"
               >
                 View profile
               </Link>
-              {selectedBuddy.specialties.length > 0 ? (
+              {selectedBuddy.role === 'buddy' && selectedBuddy.specialties.length > 0 ? (
                 <Link
                   href={`/search?tag=${encodeURIComponent(selectedBuddy.specialties[0])}`}
                   className="inline-flex items-center justify-center mt-2 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper w-full"
@@ -659,8 +738,8 @@ function BrowseContent() {
         </div>
       </section>
 
-      {/* Buddy list */}
-      <section aria-label="Buddies list">
+      {/* Recommend list — buddies + tourists (role badge on each row). */}
+      <section aria-label="People in Da Nang">
         {loadError ? (
           <div className="alert alert-error mb-4" role="alert">
             <span>{loadError}</span>
@@ -683,7 +762,7 @@ function BrowseContent() {
             <h3 className="text-lg font-semibold mb-2">
               {activeFilter === 'saved'
                 ? 'You have not saved any buddies yet'
-                : 'No buddies found'}
+                : 'No people found in Da Nang'}
             </h3>
             <p className="text-sm text-muted mb-4">
               {activeFilter === 'saved'
@@ -694,7 +773,7 @@ function BrowseContent() {
               href="/browse"
               className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
             >
-              See all Da Nang buddies
+              See all Da Nang people
             </Link>
           </div>
         ) : (
@@ -703,6 +782,9 @@ function BrowseContent() {
               const expanded = expandedBuddyId === b.id
               const dist = haversineKm(userLocation, { lat: b.latitude, lng: b.longitude })
               const saved = savedBuddies.includes(b.id)
+              const isBuddy = b.role === 'buddy'
+              const profileHref = isBuddy ? `/buddies/${b.id}` : `/tourists/${b.id}`
+              const tags = isBuddy ? b.specialties : b.interests
               return (
                 <li key={b.id}>
                   <button
@@ -713,15 +795,23 @@ function BrowseContent() {
                     className="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-paper transition-colors duration-150"
                   >
                     <span
-                      className="flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold text-paper"
-                      style={{ backgroundColor: avatarColor(b.id) }}
+                      className="flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold text-paper shrink-0"
+                      style={{ backgroundColor: isBuddy ? avatarColor(b.id) : '#0F0F0F' }}
                       aria-hidden="true"
                     >
                       {b.full_name.charAt(0)}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
-                        {b.full_name}
+                        <span>{b.full_name}</span>
+                        <span
+                          className={`badge text-[10px] shrink-0 ${
+                            isBuddy ? 'badge-primary' : 'badge-neutral'
+                          }`}
+                          aria-label={isBuddy ? 'Local buddy' : 'Traveler'}
+                        >
+                          {isBuddy ? 'Buddy' : 'Tourist'}
+                        </span>
                         {matchScoreMap.get(b.id) ? (
                           <span
                             className="badge badge-info text-[10px]"
@@ -734,21 +824,31 @@ function BrowseContent() {
                       <p className="text-xs text-muted truncate">
                         <MapPin size={12} className="inline mr-1" aria-hidden="true" />
                         {b.location_city} · {dist.toFixed(1)} km away
+                        {b.nationality ? <> · {b.nationality}</> : null}
                       </p>
                     </div>
                     <div className="hidden md:flex flex-wrap gap-1 max-w-[200px]">
-                      {b.specialties.slice(0, 3).map((tag) => (
+                      {tags.slice(0, 3).map((tag) => (
                         <span key={tag} className="badge badge-neutral text-xs">
                           {tag}
                         </span>
                       ))}
                     </div>
                     <div className="text-right hidden sm:block">
-                      <p className="text-sm font-medium">
-                        <Star size={12} className="inline mr-1 text-warning" aria-hidden="true" />
-                        {b.rating_avg ? b.rating_avg.toFixed(1) : '—'}
-                      </p>
-                      <p className="text-xs text-muted">{b.rating_count} reviews</p>
+                      {isBuddy ? (
+                        <>
+                          <p className="text-sm font-medium">
+                            <Star size={12} className="inline mr-1 text-warning" aria-hidden="true" />
+                            {b.rating_avg ? b.rating_avg.toFixed(1) : '—'}
+                          </p>
+                          <p className="text-xs text-muted">{b.rating_count} reviews</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-muted">—</p>
+                          <p className="text-xs text-muted">traveler</p>
+                        </>
+                      )}
                     </div>
                     <ChevronDown
                       size={18}
@@ -771,15 +871,26 @@ function BrowseContent() {
                             ))}
                           </dd>
                         </div>
-                        <div>
-                          <dt className="text-eyebrow text-muted mb-2">Specialties</dt>
-                          <dd className="flex flex-wrap gap-1">
-                            {b.specialties.map((s) => (
-                              <span key={s} className="badge badge-neutral text-xs">{s}</span>
-                            ))}
-                          </dd>
-                        </div>
-                        {b.hourly_rate !== null ? (
+                        {isBuddy ? (
+                          <div>
+                            <dt className="text-eyebrow text-muted mb-2">Specialties</dt>
+                            <dd className="flex flex-wrap gap-1">
+                              {b.specialties.map((s) => (
+                                <span key={s} className="badge badge-neutral text-xs">{s}</span>
+                              ))}
+                            </dd>
+                          </div>
+                        ) : (
+                          <div>
+                            <dt className="text-eyebrow text-muted mb-2">Interests</dt>
+                            <dd className="flex flex-wrap gap-1">
+                              {b.interests.map((i) => (
+                                <span key={i} className="badge badge-neutral text-xs">{i}</span>
+                              ))}
+                            </dd>
+                          </div>
+                        )}
+                        {isBuddy && b.hourly_rate !== null ? (
                           <div>
                             <dt className="text-eyebrow text-muted mb-2">
                               Hourly rate
@@ -805,33 +916,51 @@ function BrowseContent() {
                               <OnlineIndicator userId={b.id} className="mt-2" />
                             </dd>
                           </div>
+                        ) : !isBuddy ? (
+                          <div>
+                            <dt className="text-eyebrow text-muted mb-2">
+                              Travel style
+                              <span
+                                className="ml-1 italic font-normal"
+                                style={{ letterSpacing: '0.02em' }}
+                                aria-hidden="true"
+                              >
+                                phong cách
+                              </span>
+                            </dt>
+                            <dd className="text-sm text-ink">
+                              {(b as BuddyItem).nationality || 'Traveler in Da Nang'}
+                            </dd>
+                          </div>
                         ) : null}
                       </dl>
                       <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => toggleSave(b.id)}
-                          aria-pressed={saved}
-                          className={`inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm border ${
-                            saved
-                              ? 'bg-primary-bg text-primary border-primary-bg'
-                              : 'bg-transparent text-ink border-border-strong hover:bg-surface'
-                          }`}
-                        >
-                          <Heart
-                            size={14}
-                            className={saved ? 'fill-primary text-primary' : ''}
-                            aria-hidden="true"
-                          />
-                          {saved ? 'Saved' : 'Save'}
-                        </button>
+                        {isBuddy ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleSave(b.id)}
+                            aria-pressed={saved}
+                            className={`inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm border ${
+                              saved
+                                ? 'bg-primary-bg text-primary border-primary-bg'
+                                : 'bg-transparent text-ink border-border-strong hover:bg-surface'
+                            }`}
+                          >
+                            <Heart
+                              size={14}
+                              className={saved ? 'fill-primary text-primary' : ''}
+                              aria-hidden="true"
+                            />
+                            {saved ? 'Saved' : 'Save'}
+                          </button>
+                        ) : null}
                         <Link
-                          href={`/buddies/${b.id}`}
+                          href={profileHref}
                           className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                         >
                           View profile
                         </Link>
-                        {b.specialties.length > 0 ? (
+                        {isBuddy && b.specialties.length > 0 ? (
                           <Link
                             href={`/search?tag=${encodeURIComponent(b.specialties[0])}`}
                             className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-surface"
