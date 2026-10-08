@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/utils/supabase/auth';
@@ -10,12 +10,20 @@ import { EmptyState } from '@/components/ui/Avatar';
 import type { Profile, Itinerary, Connection } from '@/lib/types';
 import { useLiveUserLocations } from '@/hooks/useLiveUserLocations';
 import { getConnectionStage, daysUntilExpiry, expiryLabel } from '@/lib/connection-stages';
+import { useAbortFactory } from '@/hooks/useAbort';
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false });
 
 const DEFAULT_LOCATION = { lat: 16.0544, lng: 108.2023 };
 
 export default function DashboardPage() {
+  // RAM OPTIMIZATION (2026-10-08): per-call AbortController factory.
+  // load() is invoked from 3 different effects (mount, realtime
+  // refresh, and a 30s poll) — each call needs its own controller so
+  // a slow in-flight request gets cancelled when a newer one starts.
+  // The factory also auto-aborts all controllers on unmount so a
+  // late response can't setState into a stale component closure.
+  const { makeController } = useAbortFactory()
   const [profile, setProfile] = useState<Profile | null>(null);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -79,6 +87,23 @@ export default function DashboardPage() {
   }, [profile?.id])
 
   async function load() {
+    const ctrl = makeController()
+    const { signal } = ctrl
+    // Helper: race the Supabase call against the abort signal. The
+    // postgrest-js client API doesn't expose .abortSignal() for
+    // .maybeSingle() and a couple of other builders (TypeScript
+    // rejects it), so we wrap the call: when the signal aborts, the
+    // returned promise rejects and the .then() chain short-circuits
+    // before any setState write.
+    function racedAbort<T>(p: PromiseLike<T>): PromiseLike<T> {
+      if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
+      return Promise.race([
+        Promise.resolve(p),
+        new Promise<T>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+        }),
+      ])
+    }
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -88,18 +113,18 @@ export default function DashboardPage() {
       }
 
       const [{ data: p }, { data: t }, { data: c }, { data: buddyPins }, { count: rCount }, { data: collaboratorCount }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>(),
-        supabase
+        racedAbort(supabase.from('profiles').select('*').eq('id', user.id).maybeSingle<Profile>()),
+        racedAbort(supabase
           .from('itineraries')
           .select('*, owner:safe_profiles!itineraries_owner_id_fkey(full_name, avatar_url, is_online), stops:itinerary_stops(id, day_id, name, lat, lng)')
           .eq('owner_id', user.id)
-          .order('start_date', { ascending: true, nullsFirst: false }),
-        supabase
+          .order('start_date', { ascending: true, nullsFirst: false })),
+        racedAbort(supabase
           .from('connections')
           .select('*, buddy:buddies(*, profile:safe_profiles(full_name, avatar_url, is_online))')
           .eq('tourist_id', user.id)
-          .order('created_at', { ascending: false }),
-        supabase
+          .order('created_at', { ascending: false })),
+        racedAbort(supabase
           .from('buddies')
           .select('id, location_city, latitude, longitude, is_available, is_online, profile:safe_profiles(full_name, is_online)')
           .eq('location_city', 'Da Nang')
@@ -107,18 +132,23 @@ export default function DashboardPage() {
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
           .order('is_online', { ascending: false })
-          .limit(20),
-        supabase
+          .limit(20)),
+        racedAbort(supabase
           .from('reviews')
           .select('id', { count: 'exact', head: true })
-          .eq('reviewer_id', user.id),
-        supabase
+          .eq('reviewer_id', user.id)),
+        racedAbort(supabase
           .from('itinerary_collaborators')
           .select('itinerary_id, role')
           .eq('status', 'accepted')
           .in('role', ['editor', 'viewer'])
-          .neq('user_id', user.id),
+          .neq('user_id', user.id)),
       ])
+
+      // RAM OPTIMIZATION: a newer load() call may have aborted us
+      // before our Promise.all settled. Skip the setState writes so
+      // the newer request's response wins.
+      if (signal.aborted) return
 
       setProfile(p ?? null)
       setItineraries((t || []) as Itinerary[])
@@ -131,9 +161,13 @@ export default function DashboardPage() {
       }
       setCoBuddyCountByItin(coMap)
     } catch (err) {
+      // AbortError is expected when a newer load() supersedes us or
+      // when the component unmounts mid-flight. Don't surface as a
+      // load error.
+      if ((err as Error)?.name === 'AbortError' || signal.aborted) return
       setLoadError((err as Error).message || 'Could not load dashboard.')
     } finally {
-      setLoading(false)
+      if (!signal.aborted) setLoading(false)
     }
   }
 

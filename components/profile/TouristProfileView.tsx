@@ -20,6 +20,7 @@ import {
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { Profile, Tourist } from '@/lib/types'
 import { Avatar } from '@/components/ui/Avatar'
+import { useSafeTimeout } from '@/hooks/useSafeTimeout'
 
 const INTERESTS = [
   'Beach',
@@ -190,6 +191,7 @@ const TABS: { id: Tab; label: string; icon: typeof User }[] = [
 ]
 
 export default function TouristProfileView() {
+  const toastTimer = useSafeTimeout()
   const [activeTab, setActiveTab] = useState<Tab>('personal')
   const [profile, setProfile] = useState<Profile | null>(null)
   const [tourist, setTourist] = useState<Tourist | null>(null)
@@ -325,7 +327,7 @@ export default function TouristProfileView() {
       return
     }
     setSavedAt(Date.now())
-    setTimeout(() => setSavedAt(null), 3000)
+    toastTimer.schedule(() => setSavedAt(null), 3000)
   }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {

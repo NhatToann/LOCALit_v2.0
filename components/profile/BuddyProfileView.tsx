@@ -52,6 +52,7 @@ import {
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { Profile, Buddy } from '@/lib/types'
 import { Avatar } from '@/components/ui/Avatar'
+import { useSafeTimeout } from '@/hooks/useSafeTimeout'
 
 const LANGUAGES = [
   'English',
@@ -224,6 +225,7 @@ function SwitchRoleSection({
 }
 
 export default function BuddyProfileView() {
+  const toastTimer = useSafeTimeout()
   const [activeTab, setActiveTab] = useState<Tab>('personal')
   const [profile, setProfile] = useState<Profile | null>(null)
   const [buddy, setBuddy] = useState<Buddy | null>(null)
@@ -381,7 +383,7 @@ export default function BuddyProfileView() {
       return
     }
     setSavedAt(Date.now())
-    setTimeout(() => setSavedAt(null), 3000)
+    toastTimer.schedule(() => setSavedAt(null), 3000)
   }
 
   // --- Avatar --------------------------------------------------------
