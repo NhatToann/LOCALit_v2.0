@@ -129,9 +129,30 @@ try {
 
   // Each list row is a <li>. The header button has aria-expanded.
   // When clicked, the same <li> renders a button[aria-pressed] (Save).
-  // We pick the first two rows, expand each, then click its Save.
+  // We pick the first two BUDDY rows (tourists don't have a Save
+  // button) and save those.
   const rowCount = await page.locator('li button[aria-expanded]').count()
   assert('browse has at least 2 rows', rowCount >= 2, `rowCount=${rowCount}`)
+
+  // Collect the indices of the first 2 BUDDY rows in DOM order.
+  // Tourists appear mixed in now (location-first sort groups by
+  // distance, so the 2 closest rows can be any role).
+  const buddyIndices = await page.evaluate(() => {
+    const out = []
+    const headers = document.querySelectorAll('li button[aria-expanded]')
+    for (let i = 0; i < headers.length; i++) {
+      const badge = headers[i].querySelector('.badge')
+      if (badge && badge.textContent.trim() === 'Buddy') {
+        out.push(i)
+        if (out.length === 2) break
+      }
+    }
+    return out
+  })
+  if (buddyIndices.length < 2) {
+    console.error(`FATAL: only ${buddyIndices.length} buddy rows visible`)
+    process.exit(2)
+  }
 
   // Helper: expand row at index i (clicking its header) and click
   // the Save button that appears inside the same <li>.
@@ -167,8 +188,8 @@ try {
     }, i)
   }
 
-  await saveAt(0)
-  await saveAt(1)
+  await saveAt(buddyIndices[0])
+  await saveAt(buddyIndices[1])
   // Wait for the two POST /api/swipe calls to settle
   await page.waitForTimeout(2000)
 
@@ -183,7 +204,10 @@ try {
   // each row's Save button with aria-pressed=true if the buddy is in
   // the saved set. The page uses a single `expandedBuddyId` state
   // (accordion), so we expand one row at a time and check the
-  // pressed heart for that row.
+  // pressed heart for that row. The /browse page is now mixed
+  // buddies + tourists, so we expand every row in DOM order (not
+  // just the first N) and count pressed hearts among the BUDDY
+  // rows.
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.waitForSelector('li button[aria-expanded]', { timeout: 30000 })
   // Give the page time to fetch saved-ids and re-render.
@@ -191,25 +215,19 @@ try {
 
   // Grab the saved IDs from the API.
   const savedIds = r1.saved_ids.slice() // from the previous fetch
-  // For each saved ID, find the matching row's buddy name. We do
-  // this by querying the buddy table directly (one small request).
-  const nameById = await page.evaluate(async (ids) => {
-    // The page has the buddies list; we expose their name from the
-    // collapsed header paragraphs.
-    const headers = Array.from(document.querySelectorAll('li button[aria-expanded]'))
-    const names = headers
-      .map((h) => h.querySelector('p.text-sm.font-medium')?.textContent?.trim() || '')
-      .filter(Boolean)
-    return names
-  }, savedIds)
-  // The page doesn't expose IDs in the DOM, so we approximate by
-  // expanding the first N rows where N = savedIds.length, and
-  // counting pressed hearts in each.
+  const buddyRowCount = await page.locator('li button[aria-expanded]').count()
   let pressedFound = 0
-  for (let i = 0; i < savedIds.length; i++) {
-    // Expand row i (and ensure previous expanded row collapses; the
-    // page only allows one expanded at a time, so this is a sequence
-    // of single-row expansions).
+  for (let i = 0; i < buddyRowCount; i++) {
+    // Only check buddy rows. Tourists don't have a Save button so
+    // they can't contribute to pressedFound.
+    const isBuddy = await page.evaluate((idx) => {
+      const headers = document.querySelectorAll('li button[aria-expanded]')
+      const h = headers[idx]
+      if (!h) return false
+      const badge = h.querySelector('.badge')
+      return badge && badge.textContent.trim() === 'Buddy'
+    }, i)
+    if (!isBuddy) continue
     await page.evaluate((idx) => {
       const headers = document.querySelectorAll('li button[aria-expanded]')
       const h = headers[idx]
@@ -217,7 +235,6 @@ try {
       if (h.getAttribute('aria-expanded') === 'false') h.click()
     }, i)
     await page.waitForTimeout(400)
-    // Count pressed hearts (should be 1 if this row is saved, 0 otherwise).
     const c = await page.locator('button[aria-pressed="true"]').count()
     pressedFound += c
     // Collapse before next iteration.
@@ -230,14 +247,17 @@ try {
   }
   assert('after reload, all saved hearts still filled', pressedFound === savedIds.length, `pressedFound=${pressedFound}, savedIds=${savedIds.length}`)
 
-  // Unsave one. Expand the first row (which should be one of the
-  // saved buddies since location-first sort put them on top), click
-  // its Save button, then verify the API count dropped.
+  // Unsave one. Expand the first BUDDY row (which should be one of
+  // the saved buddies since location-first sort put them on top),
+  // click its Save button, then verify the API count dropped.
+  // Use the first saved buddy's index — that row's Save button is
+  // guaranteed to be in the saved set.
+  const firstSavedIndex = buddyIndices[0]
   await page.evaluate((idx) => {
     const headers = document.querySelectorAll('li button[aria-expanded]')
     const h = headers[idx]
     if (h.getAttribute('aria-expanded') === 'false') h.click()
-  }, 0)
+  }, firstSavedIndex)
   await page.waitForTimeout(500)
   const firstSave = page.locator('button[aria-pressed]').first()
   await firstSave.click()

@@ -29,27 +29,32 @@ function assert(label, ok, extra) {
 }
 
 async function signIn(page) {
-  await page.goto(`${BASE}/login?bypass=${BYPASS}`, { waitUntil: 'domcontentloaded' })
-  await page.fill('input[type="email"]', SEED_EMAIL)
-  await page.fill('input[type="password"]', SEED_PW)
+  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
+  await page.fill('input#email', SEED_EMAIL)
+  await page.fill('input#password', SEED_PW)
   await Promise.all([
     page.waitForURL((u) => !u.toString().includes('/login'), { timeout: 30000 }),
-    page.click('button[type="submit"]'),
+    page.click('button:has-text("Sign in")'),
   ])
 }
 
 async function main() {
   const browser = await chromium.launch({ headless: true })
-  const ctx = await browser.newContext({ bypassCSP: true })
+  const ctx = await browser.newContext({
+    extraHTTPHeaders: { 'x-vercel-protection-bypass': BYPASS },
+    viewport: { width: 1280, height: 900 },
+  })
   const page = await ctx.newPage()
+  await ctx.clearCookies()
+  await page.goto('about:blank')
 
   // 1. Sign in
   await signIn(page)
   console.log(`[smoke] signed in as ${SEED_EMAIL}`)
 
   // 2. Navigate to /browse
-  await page.goto(`${BASE}/browse?bypass=${BYPASS}`, { waitUntil: 'networkidle' })
-  await page.waitForSelector('ul.divide-y > li', { timeout: 15000 })
+  await page.goto(`${BASE}/browse`, { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('ul.divide-y > li', { timeout: 30000 })
 
   // 3. Count rows
   const rowCount = await page.locator('ul.divide-y > li').count()
@@ -99,6 +104,10 @@ async function main() {
     /people/i.test(mapHeader),
     `header="${mapHeader}"`,
   )
+
+  // 8. Snapshot for the design QA
+  await page.screenshot({ path: 'scripts/screenshots/browse-mixed-final.png', fullPage: true })
+  console.log('[smoke] screenshot saved to scripts/screenshots/browse-mixed-final.png')
 
   await browser.close()
 
