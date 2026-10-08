@@ -744,6 +744,21 @@
 .leaflet-pane.leaflet-popup-pane      { z-index: 700; }
 .leaflet-control-container             { z-index: 800; }
 
+/* ============================================================
+   LAYER: MAP OVERLAYS
+   The map tile pane sits at z=100 (lowest). Leaflet markers
+   (z=600), popups (z=700) and the zoom control (z=800) sit on
+   top of the tiles. App-level overlays (legend, selected-buddy
+   popup, error alerts, loading toast) MUST sit on top of every
+   Leaflet pane so they are never occluded by a marker or by the
+   zoom control.
+   ============================================================ */
+@layer components {
+  .z-legend   { z-index: 1000; } /* legend card, below detail popup */
+  .z-aside    { z-index: 1100; } /* selected-buddy detail card */
+  .z-toast    { z-index: 1200; } /* loading / error toasts above all */
+}
+
 /* Marker root: strip Leaflet's default left/top so the icon
    anchor (24x24 centered) is honored, and force a non-negative
    baseline z-index on the wrapper. */

@@ -111,7 +111,142 @@ export default function MapPage() {
 
   return (
     <div className="container-page py-8">
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      {/* Map is the dominant element on this page — render it first,
+          then the page-level header (page title, share button, error
+          alert, status line) below it. This keeps the map visually
+          on top of any overflow and gives the header the bottom
+          anchor of the page rhythm. */}
+      {error ? (
+        <div className="alert alert-error mb-4" role="alert">
+          <AlertTriangle size={16} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+
+      <div
+        className="relative border border-border rounded-sm overflow-hidden bg-surface"
+        style={{ height: 'calc(100vh - 360px)', minHeight: 420 }}
+      >
+        <MapView
+          userLocation={userLocation}
+          height="100%"
+          hasGpsFix={hasGpsFix || selfGranted}
+          onSelectBuddy={(id) => setSelectedId(id)}
+          liveLocations={liveLocations}
+          selfLiveOverride={selfGranted}
+        />
+
+        {/* Legend — sits on top of every Leaflet pane (markers z=600,
+            popups z=700, control z=800) so the marker icons never
+            occlude the legend dots. See app/globals.css → .z-legend */}
+        <aside
+          className="absolute bottom-4 left-4 z-legend bg-surface border border-border rounded-sm p-3 text-xs"
+          aria-label="Map legend"
+        >
+          <p className="text-eyebrow text-muted mb-2">
+            Legend
+            <span
+              className="ml-1 italic text-subtle"
+              style={{ letterSpacing: '0.02em' }}
+              aria-hidden="true"
+            >
+              chú thích
+            </span>
+          </p>
+          <ul className="space-y-1">
+            <li className="flex items-center gap-2">
+              <span
+                className="w-3 h-3 rounded-full bg-primary inline-block"
+                aria-hidden="true"
+              />
+              Local buddy
+            </li>
+            <li className="flex items-center gap-2">
+              <span
+                className="w-3 h-3 rounded-full bg-info inline-block"
+                aria-hidden="true"
+              />
+              Tourist (saved)
+            </li>
+            <li className="flex items-center gap-2">
+              <span
+                className="w-3 h-3 rounded-full bg-info inline-block"
+                aria-hidden="true"
+              />
+              Live tourist
+            </li>
+            <li className="flex items-center gap-2">
+              <span
+                className="w-3 h-3 rounded-full bg-ink inline-block border border-surface"
+                aria-hidden="true"
+              />
+              You
+            </li>
+          </ul>
+        </aside>
+
+        {/* Selected popup — sits one layer above the legend so a long
+            legend never visually overlaps the detail card. */}
+        {selected ? (
+          <aside
+            className="absolute top-4 right-4 z-aside w-72 bg-surface border border-border rounded-sm p-4"
+            aria-label={`Selected buddy ${selected.name}`}
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              aria-label="Close"
+              className="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-sm text-muted hover:bg-paper hover:text-ink"
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+            <div className="flex items-center gap-3 mb-3">
+              {selected.avatar_url ? (
+                <img
+                  src={selected.avatar_url}
+                  alt={`${selected.name} avatar`}
+                  className="avatar avatar-lg"
+                  style={{ width: 56, height: 56, objectFit: 'cover' }}
+                />
+              ) : (
+                <span className="avatar avatar-lg" aria-hidden="true">
+                  {selected.name.charAt(0)}
+                </span>
+              )}
+              <div>
+                <p className="text-base font-semibold text-ink">{selected.name}</p>
+                <p className="text-xs text-muted">
+                  <MapPin size={12} className="inline-block mr-1 align-middle" aria-hidden="true" />
+                  {selected.city ?? 'Da Nang'}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-muted mb-3">
+              Speaks {selected.languages.slice(0, 3).join(', ') || 'multiple languages'}
+            </p>
+            <div className="flex gap-2">
+              <Link
+                href={`/buddies/${selected.id}`}
+                className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+              >
+                Profile
+              </Link>
+              <Link
+                href={`/chat?buddy=${selected.id}`}
+                className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+              >
+                <MessageCircle size={14} className="mr-1" aria-hidden="true" />
+                Message
+              </Link>
+            </div>
+          </aside>
+        ) : null}
+      </div>
+
+      {/* Page-level header BELOW the map. The share button, page
+          title, and status line are anchored to the bottom of the
+          map so the map remains the dominant element. */}
+      <header className="mt-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-eyebrow text-primary mb-2">
             Live map
@@ -185,130 +320,6 @@ export default function MapPage() {
           </Link>
         </div>
       </header>
-
-      {error ? (
-        <div className="alert alert-error mb-4" role="alert">
-          <AlertTriangle size={16} aria-hidden="true" />
-          <span>{error}</span>
-        </div>
-      ) : null}
-
-      <div
-        className="relative border border-border rounded-sm overflow-hidden bg-surface"
-        style={{ height: 'calc(100vh - 220px)', minHeight: 500 }}
-      >
-        <MapView
-          userLocation={userLocation}
-          height="100%"
-          hasGpsFix={hasGpsFix || selfGranted}
-          onSelectBuddy={(id) => setSelectedId(id)}
-          liveLocations={liveLocations}
-          selfLiveOverride={selfGranted}
-        />
-
-        {/* Legend */}
-        <aside
-          className="absolute bottom-4 left-4 z-[500] bg-surface border border-border rounded-sm p-3 text-xs"
-          aria-label="Map legend"
-        >
-          <p className="text-eyebrow text-muted mb-2">
-            Legend
-            <span
-              className="ml-1 italic text-subtle"
-              style={{ letterSpacing: '0.02em' }}
-              aria-hidden="true"
-            >
-              chú thích
-            </span>
-          </p>
-          <ul className="space-y-1">
-            <li className="flex items-center gap-2">
-              <span
-                className="w-3 h-3 rounded-full bg-primary inline-block"
-                aria-hidden="true"
-              />
-              Local buddy
-            </li>
-            <li className="flex items-center gap-2">
-              <span
-                className="w-3 h-3 rounded-full bg-info inline-block"
-                aria-hidden="true"
-              />
-              Tourist (saved)
-            </li>
-            <li className="flex items-center gap-2">
-              <span
-                className="w-3 h-3 rounded-full bg-info inline-block"
-                aria-hidden="true"
-              />
-              Live tourist
-            </li>
-            <li className="flex items-center gap-2">
-              <span
-                className="w-3 h-3 rounded-full bg-ink inline-block border border-surface"
-                aria-hidden="true"
-              />
-              You
-            </li>
-          </ul>
-        </aside>
-
-        {/* Selected popup */}
-        {selected ? (
-          <aside
-            className="absolute top-4 right-4 z-[500] w-72 bg-surface border border-border rounded-sm p-4"
-            aria-label={`Selected buddy ${selected.name}`}
-          >
-            <button
-              type="button"
-              onClick={() => setSelectedId(null)}
-              aria-label="Close"
-              className="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-sm text-muted hover:bg-paper hover:text-ink"
-            >
-              <X size={14} aria-hidden="true" />
-            </button>
-            <div className="flex items-center gap-3 mb-3">
-              {selected.avatar_url ? (
-                <img
-                  src={selected.avatar_url}
-                  alt={`${selected.name} avatar`}
-                  className="avatar avatar-lg"
-                  style={{ width: 56, height: 56, objectFit: 'cover' }}
-                />
-              ) : (
-                <span className="avatar avatar-lg" aria-hidden="true">
-                  {selected.name.charAt(0)}
-                </span>
-              )}
-              <div>
-                <p className="text-base font-semibold text-ink">{selected.name}</p>
-                <p className="text-xs text-muted">
-                  <MapPin size={12} className="inline-block mr-1 align-middle" aria-hidden="true" />
-                  {selected.city ?? 'Da Nang'}
-                </p>
-              </div>
-            </div>
-            <p className="text-xs text-muted mb-3">
-              Speaks {selected.languages.slice(0, 3).join(', ') || 'multiple languages'}
-            </p>
-            <div className="flex gap-2">
-              <Link
-                href={`/buddies/${selected.id}`}
-                className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-              >
-                Profile
-              </Link>
-              <Link
-                href={`/chat?buddy=${selected.id}`}
-                className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
-              >
-                <MessageCircle size={14} className="mr-1" aria-hidden="true" />
-                Message
-              </Link>
-            </div>
-          </aside>
-        ) : null}
-      </div>
     </div>
   )
 }

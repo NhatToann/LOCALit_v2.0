@@ -284,21 +284,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
 
       {loading ? (
         <div
-          style={{
-            position: 'absolute',
-            top: 16,
-            right: 16,
-            zIndex: 1000,
-            background: '#FFFFFF',
-            border: '1px solid #E5E5E0',
-            padding: '6px 12px',
-            borderRadius: 4,
-            fontSize: 13,
-            color: '#0F0F0F',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
+          className="absolute top-4 right-4 z-toast bg-paper border border-border rounded-sm p-2 text-xs text-ink flex items-center gap-2"
         >
           <div className="loading-spinner" style={{ width: 14, height: 14 }} aria-hidden="true" />
           Loading map...
