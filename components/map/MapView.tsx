@@ -33,6 +33,13 @@ interface Props {
   /** Hide the static "You are here" marker even when granted — useful when
    *  we want to use the broadcaster's own marker instead. */
   selfLiveOverride?: boolean
+  /** Current signed-in user id. When provided, the map will NEVER render
+   *  a live marker for this user — the self marker (or pulsing live self
+   *  marker) already represents their position. Fixes the duplicate-pin
+   *  bug where the publisher's own row was echoed back via the
+   *  `location_updates` postgres_changes subscription before
+   *  `getCurrentUser()` resolved. */
+  selfUserId?: string | null
 }
 
 const DEFAULT_LOCATION = { lat: 16.0544, lng: 108.2023 } // Da Nang
@@ -84,7 +91,7 @@ function livePulseIcon(): L.DivIcon {
   return icon
 }
 
-export default function MapView({ userLocation, height = '100%', showSelfMarker = true, hasGpsFix = false, onSelectBuddy, liveLocations = [], selfLiveOverride = false }: Props) {
+export default function MapView({ userLocation, height = '100%', showSelfMarker = true, hasGpsFix = false, onSelectBuddy, liveLocations = [], selfLiveOverride = false, selfUserId = null }: Props) {
   const [buddies, setBuddies] = useState<BuddyPin[]>([])
   const [tourists, setTourists] = useState<BuddyPin[]>([])
   const [loading, setLoading] = useState(true)
@@ -402,14 +409,23 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
           </Marker>
         ))}
 
-        {liveLocations.map((l) => (
-          <Marker key={`live-${l.userId}`} position={[l.lat, l.lng]} icon={livePulseIcon()} zIndexOffset={2000}>
-            <Popup>
-              <strong>{l.name}</strong>
-              <div style={{ fontSize: 12, color: '#737373' }}>Sharing live</div>
-            </Popup>
-          </Marker>
-        ))}
+        {liveLocations.map((l) => {
+          // Skip the broadcaster's own row — already represented by the
+          // self marker (or pulsing live self marker). The duplicate
+          // happens when the publish() call writes a row before
+          // userIdRef is populated, so the postgres_changes handler
+          // can't filter on the ref yet. Filtering at render time
+          // is the reliable backstop.
+          if (selfUserId && l.userId === selfUserId) return null
+          return (
+            <Marker key={`live-${l.userId}`} position={[l.lat, l.lng]} icon={livePulseIcon()} zIndexOffset={2000}>
+              <Popup>
+                <strong>{l.name}</strong>
+                <div style={{ fontSize: 12, color: '#737373' }}>Sharing live</div>
+              </Popup>
+            </Marker>
+          )
+        })}
       </MapContainer>
 
       {loading ? (

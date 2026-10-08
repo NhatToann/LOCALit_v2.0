@@ -29,6 +29,7 @@ export default function DashboardPage() {
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
     enabled: true,
+    selfUserId: profile?.id ?? null,
   });
 
   useEffect(() => {
@@ -250,6 +251,7 @@ export default function DashboardPage() {
             hasGpsFix={hasGpsFix || selfGranted}
             selfLiveOverride={selfGranted}
             liveLocations={liveLocations}
+            selfUserId={profile?.id ?? null}
           />
         </div>
       </section>

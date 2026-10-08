@@ -24,6 +24,12 @@ interface Options {
   publishIntervalMs?: number
   /** How long a remote marker stays on the map without an update (ms). Default 60000. */
   staleAfterMs?: number
+  /** Authenticated user id of the local user. When provided, the hook
+   *  filters the publisher's own row out of the postgres_changes stream
+   *  (in addition to the render-time filter in <MapView />), so the
+   *  map never shows two pins for the broadcaster. If omitted, the
+   *  hook falls back to its internal getCurrentUser() race. */
+  selfUserId?: string | null
 }
 
 const STALE_AFTER_MS_DEFAULT = 60_000
@@ -48,7 +54,7 @@ const STALE_AFTER_MS_DEFAULT = 60_000
  *    row per user where the sharer has opted in via this hook.
  */
 export function useLiveUserLocations(opts: Options = {}) {
-  const { enabled = false, publishIntervalMs = 5_000, staleAfterMs = STALE_AFTER_MS_DEFAULT } = opts
+  const { enabled = false, publishIntervalMs = 5_000, staleAfterMs = STALE_AFTER_MS_DEFAULT, selfUserId = null } = opts
 
   const [liveLocations, setLiveLocations] = useState<LiveLocation[]>([])
   const [selfGranted, setSelfGranted] = useState(false)
@@ -72,6 +78,13 @@ export function useLiveUserLocations(opts: Options = {}) {
         (user?.user_metadata?.full_name as string | undefined) ??
         (user?.email ? String(user.email).split('@')[0] : 'You')
     })
+
+    // Also seed from the prop if the caller already knows the user id.
+    // This is the reliable path — it covers the race where the
+    // postgres_changes event fires before getCurrentUser() resolves
+    // and the broadcaster's own row would otherwise be rendered
+    // as a second pin. See MapView selfUserId prop.
+    if (selfUserId) userIdRef.current = selfUserId
 
     // Initial fetch of recent live locations so we don't wait 5s for the
     // first realtime event.
@@ -162,7 +175,7 @@ export function useLiveUserLocations(opts: Options = {}) {
         }
       }
     }
-  }, [staleAfterMs])
+  }, [staleAfterMs, selfUserId])
 
   // Toggle publish/subscribe on the local user based on `enabled`
   useEffect(() => {

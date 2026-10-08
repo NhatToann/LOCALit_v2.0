@@ -84,6 +84,10 @@ function BrowseContent() {
   const [loadError, setLoadError] = useState<string | null>(null)
   // Distance slider — 50 means "Any distance" (no upper bound applied).
   const [maxDistanceKm, setMaxDistanceKm] = useState<number>(50)
+  // Current user id — used by MapView/useLiveUserLocations to filter out
+  // the publisher's own row from the location_updates postgres_changes
+  // stream (otherwise the map shows two pins for the same position).
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // Hydrate saved buddies from localStorage on mount
   useEffect(() => {
@@ -107,7 +111,19 @@ function BrowseContent() {
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
     enabled: shareLocation,
+    selfUserId: currentUserId,
   })
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null)
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserId(session?.user?.id ?? null)
+    })
+    return () => sub.subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
@@ -518,6 +534,7 @@ function BrowseContent() {
             onSelectBuddy={(id) => { setSelectedMapId(id); setExpandedBuddyId(id) }}
             liveLocations={liveLocations}
             selfLiveOverride={selfGranted || shareLocation}
+            selfUserId={currentUserId}
           />
           {selectedBuddy ? (
             <div className="absolute bottom-3 left-3 right-3 md:left-auto md:right-3 md:w-80 bg-surface border border-border rounded-sm p-4 z-aside">

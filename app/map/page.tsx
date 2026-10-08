@@ -41,6 +41,7 @@ export default function MapPage() {
   // out on geolocation were incorrectly flagged as "not signed in" even when
   // their auth cookie was valid.
   const [signedIn, setSignedIn] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // RAM OPTIMIZATION (2026-10-08): useLocationWatcher re-runs its
   // useEffect when onGranted / onDenied change. If those props are
@@ -63,6 +64,7 @@ export default function MapPage() {
 
   const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
     enabled: shareLocation && signedIn,
+    selfUserId: currentUserId,
   })
 
   // Check auth session once on mount + listen for changes.
@@ -70,9 +72,11 @@ export default function MapPage() {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
       setSignedIn(!!data.user)
+      setCurrentUserId(data.user?.id ?? null)
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setSignedIn(!!session?.user)
+      setCurrentUserId(session?.user?.id ?? null)
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -146,6 +150,7 @@ export default function MapPage() {
           onSelectBuddy={(id) => setSelectedId(id)}
           liveLocations={liveLocations}
           selfLiveOverride={selfGranted}
+          selfUserId={currentUserId}
         />
 
         {/* Legend — sits on top of every Leaflet pane (markers z=600,
