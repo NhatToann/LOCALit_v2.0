@@ -236,6 +236,15 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
     return null
   }
 
+  // CARTO Basemaps API key — set via NEXT_PUBLIC_CARTO_BASEMAPS_KEY
+  // (build-time inlined). Required as of 2026-10-08 to remove the
+  // "API KEY REQUIRED" watermark that CARTO now serves to unauthenticated
+  // tile requests. See `vercel env ls production` for the active key.
+  const CARTO_KEY = process.env.NEXT_PUBLIC_CARTO_BASEMAPS_KEY ?? ''
+  const TILE_URL = CARTO_KEY
+    ? `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+
   return (
     <div className="map-frame relative" style={{ position: 'relative', height, width: '100%', zIndex: 0, isolation: 'isolate' }}>
       <MapContainer
@@ -252,7 +261,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         <MapDisposer />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          url={TILE_URL}
           subdomains={['a', 'b', 'c', 'd']}
           maxZoom={19}
           minZoom={3}
