@@ -69,7 +69,6 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
   const [buddies, setBuddies] = useState<BuddyPin[]>([])
   const [tourists, setTourists] = useState<BuddyPin[]>([])
   const [loading, setLoading] = useState(true)
-  const mapRef = useRef<L.Map | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -142,11 +141,71 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
     return () => { cancelled = true }
   }, [])
 
-  function FlyToUser() {
+  // RECENTER — only when the user has actually moved more than ~50m
+  // AND not more than every 5s. The previous FlyToUser forced
+  // setView(zoom:13) on every map ready, which clobbered the user's
+  // chosen zoom level and reset the view whenever React re-rendered
+  // (every buddy/tourist state update). Now the map keeps whatever
+  // zoom the user picked, and only pans to follow them when they
+  // really move. flyTo (smooth) instead of setView (instant) so the
+  // user can still grab the map and pan away.
+  function RecenterOnUserMove() {
     const map = useMap()
+    const lastRef = useRef<{ lat: number; lng: number; t: number } | null>(null)
     useEffect(() => {
-      map.setView([userLocation.lat, userLocation.lng], 13)
+      const now = Date.now()
+      const last = lastRef.current
+      const moved = !last ||
+        Math.abs(last.lat - userLocation.lat) > 0.0005 ||
+        Math.abs(last.lng - userLocation.lng) > 0.0005
+      const cooled = !last || now - last.t > 5000
+      if (moved && cooled) {
+        map.flyTo([userLocation.lat, userLocation.lng], map.getZoom(), { animate: true, duration: 0.6 })
+        lastRef.current = { lat: userLocation.lat, lng: userLocation.lng, t: now }
+      }
+    }, [map, userLocation.lat, userLocation.lng])
+    return null
+  }
+
+  // RESIZER — react-leaflet 5 auto-calls invalidateSize() once on
+  // mount, but if the parent reflows after the map is ready (which
+  // is exactly what happens when the buddy list hydrates and pushes
+  // the page around) the tile pane keeps the old size and tiles
+  // stop rendering. We:
+  //  - call invalidateSize() after `loading` flips false (buddy
+  //    list is the biggest layout shift on /dashboard and /browse)
+  //  - observe the container with ResizeObserver and re-fire on
+  //    any size change
+  //  - also fire on next animation frame so we catch the first
+  //    paint that has the real height
+  function MapResizer() {
+    const map = useMap()
+    const containerRef = useRef<HTMLElement | null>(null)
+    useEffect(() => {
+      const raf = requestAnimationFrame(() => map.invalidateSize())
+      const t = setTimeout(() => map.invalidateSize(), 200)
+      const ro = new ResizeObserver(() => {
+        // Debounce — invalidateSize is cheap but DOM-thrashing
+        // neighbours during a fast drag is not.
+        clearTimeout((t as any)._r)
+        ;(t as any)._r = setTimeout(() => map.invalidateSize(), 100)
+      })
+      const el = map.getContainer()
+      containerRef.current = el
+      ro.observe(el)
+      return () => {
+        cancelAnimationFrame(raf)
+        clearTimeout(t)
+        ro.disconnect()
+      }
     }, [map])
+    // Re-fire when buddies finish hydrating — biggest layout shift.
+    useEffect(() => {
+      if (!loading) {
+        requestAnimationFrame(() => map.invalidateSize())
+        setTimeout(() => map.invalidateSize(), 50)
+      }
+    }, [map, loading])
     return null
   }
 
@@ -157,27 +216,21 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
   // "_leaflet_pos undefined" TypeError on /dashboard and /map (see
   // scripts/diag-map-realtime-leak.mjs, 2 segment errors in 30s).
   //
-  // What we still need to do on unmount:
-  //   - call `map.off()` to release event listeners Leaflet would
-  //     otherwise keep in its internal registry.
-  //   - null `mapRef.current` so any stale ref doesn't dangle.
-  // react-leaflet handles the rest.
+  // The disposer is now a no-op on unmount — react-leaflet handles
+  // cleanup. We still register `beforeunload` to call `map.off()`
+  // so all event listeners are released before the tab closes
+  // (otherwise a slow tab close can keep a Realtime socket open).
   function MapDisposer() {
     const map = useMap()
     useEffect(() => {
-      mapRef.current = map
       const teardown = () => {
-        try {
-          map.off()
-        } catch {
-          /* ignore — react-leaflet will dispose the instance */
-        }
-        mapRef.current = null
+        try { map.off() } catch { /* ignore */ }
       }
       window.addEventListener('beforeunload', teardown)
       return () => {
         window.removeEventListener('beforeunload', teardown)
-        teardown()
+        // Do NOT call map.off() or map.remove() on React unmount —
+        // react-leaflet 5 owns the instance lifecycle.
       }
     }, [map])
     return null
@@ -188,15 +241,25 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
       <MapContainer
         center={[userLocation.lat, userLocation.lng]}
         zoom={13}
+        scrollWheelZoom={true}
+        zoomControl={true}
+        attributionControl={true}
+        preferCanvas={false}
         style={{ height: '100%', width: '100%' }}
-        ref={(m) => { mapRef.current = m }}
+        worldCopyJump={true}
       >
+        <MapResizer />
         <MapDisposer />
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          subdomains={['a', 'b', 'c', 'd']}
+          maxZoom={19}
+          minZoom={3}
+          updateWhenZooming={false}
+          keepBuffer={2}
         />
-        <FlyToUser />
+        <RecenterOnUserMove />
 
         {/* Self marker — only when we have a real GPS fix (not the Da Nang fallback).
             When selfLiveOverride is true the user is actively broadcasting live,
