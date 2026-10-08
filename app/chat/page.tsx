@@ -49,6 +49,7 @@ import {
 } from '@/components/layout/ActiveCallSheet'
 import { postCallLog } from '@/lib/webrtc/call-log'
 import { activeCallStore } from '@/lib/realtime/useActiveCallStore'
+import { useAbortFactory } from '@/hooks/useAbort'
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '🔥', '🙏']
 const MAX_MESSAGE_LEN = 1000
@@ -101,6 +102,13 @@ function ChatInner() {
   const qParam = searchParams.get('q')
 
   const openWithParam = withParam || buddyParam
+
+  // RAM OPTIMIZATION (2026-10-08): per-call AbortController factory
+  // for the conversations list reload. loadConversations is invoked
+  // from 3 different effects (mount, 30s interval, realtime refresh)
+  // — without abort, a slow in-flight request held the response in
+  // the socket buffer for 30-60s after unmount.
+  const { makeController } = useAbortFactory()
 
   const [myId, setMyId] = useState<string | null>(null)
   const [myName, setMyName] = useState<string>('')
@@ -383,43 +391,59 @@ function ChatInner() {
   }
 
   async function loadConversations(uid: string) {
+    const ctrl = makeController()
+    const { signal } = ctrl
+    function racedAbort<T>(p: PromiseLike<T>): PromiseLike<T> {
+      if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
+      return Promise.race([
+        Promise.resolve(p),
+        new Promise<T>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+        }),
+      ])
+    }
     const supabase = createClient()
-    const { data } = await supabase
-      .from('conversations')
-      .select(
-        `
-        id, tourist_id, buddy_id, updated_at,
-        last_message_preview, last_message_at,
-        last_read_at_by_tourist, last_read_at_by_buddy,
-        pinned_message_id, typing_user_id,
-        tourist:tourists(profile:safe_profiles(full_name, avatar_url, is_online, id)),
-        buddy:buddies(location_city, hourly_rate, rating_avg, languages,
-                      profile:safe_profiles(full_name, avatar_url, is_online, id))
-      `,
-      )
-      .or(`tourist_id.eq.${uid},buddy_id.eq.${uid}`)
-      .order('last_message_at', { ascending: false, nullsFirst: false })
+    try {
+      const { data } = await racedAbort(supabase
+        .from('conversations')
+        .select(
+          `
+          id, tourist_id, buddy_id, updated_at,
+          last_message_preview, last_message_at,
+          last_read_at_by_tourist, last_read_at_by_buddy,
+          pinned_message_id, typing_user_id,
+          tourist:tourists(profile:safe_profiles(full_name, avatar_url, is_online, id)),
+          buddy:buddies(location_city, hourly_rate, rating_avg, languages,
+                        profile:safe_profiles(full_name, avatar_url, is_online, id))
+        `,
+        )
+        .or(`tourist_id.eq.${uid},buddy_id.eq.${uid}`)
+        .order('last_message_at', { ascending: false, nullsFirst: false }))
 
-    if (!data || data.length === 0) {
-      setConversations([])
-      return
-    }
+      if (signal.aborted) return
 
-    // Fetch unread counts in a single follow-up query (avoid the FK embed collision)
-    const convIds = (data as any[]).map((c) => c.id)
-    const { data: msgs } = await supabase
-      .from('messages')
-      .select('conversation_id, sender_id, is_read, created_at')
-      .in('conversation_id', convIds)
-      .eq('is_read', false)
+      if (!data || data.length === 0) {
+        setConversations([])
+        return
+      }
 
-    const unreadByConv: Record<string, number> = {}
-    for (const m of msgs ?? []) {
-      if (m.sender_id === uid) continue
-      unreadByConv[m.conversation_id] = (unreadByConv[m.conversation_id] ?? 0) + 1
-    }
+      // Fetch unread counts in a single follow-up query (avoid the FK embed collision)
+      const convIds = (data as any[]).map((c) => c.id)
+      const { data: msgs } = await racedAbort(supabase
+        .from('messages')
+        .select('conversation_id, sender_id, is_read, created_at')
+        .in('conversation_id', convIds)
+        .eq('is_read', false))
 
-    const mapped: ConvSummary[] = (data as any[]).map((c) => {
+      if (signal.aborted) return
+
+      const unreadByConv: Record<string, number> = {}
+      for (const m of msgs ?? []) {
+        if (m.sender_id === uid) continue
+        unreadByConv[m.conversation_id] = (unreadByConv[m.conversation_id] ?? 0) + 1
+      }
+
+      const mapped: ConvSummary[] = (data as any[]).map((c) => {
       const isTouristSide = c.tourist_id === uid
       const partner = isTouristSide ? c.buddy : c.tourist
       const partnerProfile = partner?.profile
@@ -448,6 +472,15 @@ function ChatInner() {
     })
     setConversations(mapped)
     if (mapped.length > 0 && !activeId) setActiveId(mapped[0].id)
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError' || signal.aborted) return
+      // Fall through — leave conversations as-is if the follow-up
+      // unread-count query failed. Better stale than blank.
+      if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_CALL_DEBUG === '1') {
+        // eslint-disable-next-line no-console
+        console.warn('[chat] loadConversations error:', (err as Error).message)
+      }
+    }
   }
 
   async function openConversationWithBuddy(otherBuddyId: string) {
