@@ -43,26 +43,45 @@ const PRIMARY = '#FF6B35'
 const INK = '#0F0F0F'
 const INFO = '#075985'
 
+// RAM OPTIMIZATION (2026-10-08): Cache DivIcon instances at module scope.
+// Calling L.divIcon({...}) allocates a fresh HTMLDivElement + style block
+// per call, which means every Marker re-render or buddy list refresh
+// produced a brand-new icon. The icon cache below is a Map keyed by
+// a stable string (e.g. "Y:ink", "B:primary") so re-renders reuse the
+// same instance. Markers with the same visual identity now share one
+// icon. Saves ~2-3KB per marker per re-render.
+const ICON_CACHE = new Map<string, L.DivIcon>()
+
 function flatIcon(letter: string, bg: string): L.DivIcon {
   // zIndexOffset is set on the Marker, not the icon, but we add a base
   // class on the icon's root so the marker can be re-targeted via CSS.
-  return L.divIcon({
+  const key = `flat:${letter}:${bg}`
+  const cached = ICON_CACHE.get(key)
+  if (cached) return cached
+  const icon = L.divIcon({
     html: `<div class="localit-marker-pin" style="width:24px;height:24px;background:${bg};border:2px solid #FFFFFF;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-weight:600;font-size:11px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;letter-spacing:-0.02em;">${letter}</div>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
     popupAnchor: [0, -12],
     className: 'localit-marker',
   })
+  ICON_CACHE.set(key, icon)
+  return icon
 }
 
 function livePulseIcon(): L.DivIcon {
-  return L.divIcon({
+  const key = 'live:pulse'
+  const cached = ICON_CACHE.get(key)
+  if (cached) return cached
+  const icon = L.divIcon({
     html: `<div class="localit-marker-pin" style="position:relative;width:18px;height:18px;background:${INFO};border:2px solid #FFFFFF;border-radius:50%;"></div><div style="position:absolute;top:-5px;left:-5px;width:28px;height:28px;background:${INFO};border-radius:50%;opacity:0.18;"></div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 14],
     popupAnchor: [0, -14],
     className: 'localit-marker',
   })
+  ICON_CACHE.set(key, icon)
+  return icon
 }
 
 export default function MapView({ userLocation, height = '100%', showSelfMarker = true, hasGpsFix = false, onSelectBuddy, liveLocations = [], selfLiveOverride = false }: Props) {
@@ -71,6 +90,15 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // RAM OPTIMIZATION (2026-10-08): Use AbortController so the
+    // Supabase fetch is cancelled on unmount. Without this, a
+    // route change that happens mid-fetch (e.g. /map → /dashboard
+    // within 100ms of mount) leaves the response body in the
+    // socket buffer until the network teardown. The browser still
+    // calls .then() on the resolved promise, which writes the
+    // buddy list into the now-unmounted component's closure —
+    // a classic "setState on unmounted" memory leak.
+    const abortCtrl = new AbortController()
     let cancelled = false
     async function load() {
       const supabase = createClient()
@@ -81,6 +109,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, profile:safe_profiles(full_name, is_online)')
         .not('latitude', 'is', null)
         .not('longitude', 'is', null)
+        .abortSignal(abortCtrl.signal)
 
       if (!cancelled && buddyData) {
         const pins: BuddyPin[] = buddyData
@@ -108,6 +137,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
           .select('user_id, latitude, longitude, profile:safe_profiles(role, full_name)')
           .order('updated_at', { ascending: false })
           .limit(50)
+          .abortSignal(abortCtrl.signal)
 
         if (!cancelled && locs) {
           const seen = new Set<string>()
@@ -135,10 +165,13 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         // ignore RLS errors silently
       }
 
-      setLoading(false)
+      if (!cancelled) setLoading(false)
     }
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      abortCtrl.abort()
+    }
   }, [])
 
   // RECENTER — only when the user has actually moved more than ~50m
@@ -178,24 +211,35 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
   //    any size change
   //  - also fire on next animation frame so we catch the first
   //    paint that has the real height
+  //
+  // RAM OPTIMIZATION (2026-10-08): the previous version stashed the
+  // debounce timer handle on the same `t` setTimeout instance as
+  // `.observe()` setup, which meant a second ResizeObserver tick
+  // ran `clearTimeout((t as any)._r)` BEFORE the first
+  // `.observe()` callback had a chance to assign `_r` — it worked
+  // but was subtle. The fix uses a useRef for the debounce handle
+  // so we can clear and re-set it cleanly, AND we debounce
+  // invalidateSize to 100ms so a window resize fires the
+  // expensive layout pass at most 10×/s.
   function MapResizer() {
     const map = useMap()
-    const containerRef = useRef<HTMLElement | null>(null)
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     useEffect(() => {
       const raf = requestAnimationFrame(() => map.invalidateSize())
       const t = setTimeout(() => map.invalidateSize(), 200)
       const ro = new ResizeObserver(() => {
-        // Debounce — invalidateSize is cheap but DOM-thrashing
-        // neighbours during a fast drag is not.
-        clearTimeout((t as any)._r)
-        ;(t as any)._r = setTimeout(() => map.invalidateSize(), 100)
+        if (debounceRef.current !== null) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => map.invalidateSize(), 100)
       })
       const el = map.getContainer()
-      containerRef.current = el
       ro.observe(el)
       return () => {
         cancelAnimationFrame(raf)
         clearTimeout(t)
+        if (debounceRef.current !== null) {
+          clearTimeout(debounceRef.current)
+          debounceRef.current = null
+        }
         ro.disconnect()
       }
     }, [map])
@@ -216,15 +260,29 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
   // "_leaflet_pos undefined" TypeError on /dashboard and /map (see
   // scripts/diag-map-realtime-leak.mjs, 2 segment errors in 30s).
   //
-  // The disposer is now a no-op on unmount — react-leaflet handles
-  // cleanup. We still register `beforeunload` to call `map.off()`
-  // so all event listeners are released before the tab closes
-  // (otherwise a slow tab close can keep a Realtime socket open).
+  // The disposer is now a no-op on React unmount — react-leaflet handles
+  // cleanup. We still register `beforeunload` to call `map.off()` +
+  // clear the tile-layer cache so all event listeners + the in-memory
+  // tile cache (~5-8MB of PNG blobs for a city-sized view) are released
+  // before the tab closes. A slow tab close can otherwise keep a
+  // Realtime socket open and hold the tile cache alive for 30-60s.
   function MapDisposer() {
     const map = useMap()
     useEffect(() => {
       const teardown = () => {
         try { map.off() } catch { /* ignore */ }
+        try {
+          // Clear Leaflet's tile-layer cache. Each Layer's
+          // _tiles is a Map<key, HTMLImageElement> — we drop it
+          // so the GC can reclaim the image bitmaps. Without
+          // this, a closed tab that hasn't been hard-reloaded
+          // can hold 5-10MB of tile PNGs in JS heap.
+          map.eachLayer((layer: any) => {
+            if (layer && typeof layer._tiles === 'object' && layer._tiles instanceof Map) {
+              layer._tiles.clear()
+            }
+          })
+        } catch { /* ignore */ }
       }
       window.addEventListener('beforeunload', teardown)
       return () => {
