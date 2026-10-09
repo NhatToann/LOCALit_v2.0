@@ -194,7 +194,7 @@ useEffect(() => {
         <div
           role="complementary"
           aria-label={`Call with ${active.partnerName} (minimised)`}
-          className="fixed bottom-4 right-4 z-50 w-64 bg-surface border border-border-strong rounded-sm shadow-[0_2px_12px_rgba(0,15,15,0.12)] overflow-hidden"
+          className="fixed bottom-4 right-4 z-50 w-64 bg-surface border border-border-strong rounded-sm shadow-[0_2px_12px_rgba(19,78,74,0.16)] overflow-hidden"
         >
           <div className="flex items-center gap-3 p-3">
             <div className="w-10 h-10 bg-primary/10 text-primary inline-flex items-center justify-center rounded-sm border border-primary/20">

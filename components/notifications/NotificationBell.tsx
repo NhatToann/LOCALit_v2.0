@@ -208,7 +208,7 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
           id="notification-panel"
           role="dialog"
           aria-label="Notifications"
-          className="absolute top-full right-0 mt-2 w-[360px] max-w-[calc(100vw-2rem)] bg-[#FFFFFF] border border-border rounded-sm z-50"
+          className="absolute top-full right-0 mt-2 w-[360px] max-w-[calc(100vw-2rem)] bg-surface border border-border rounded-sm z-50"
           style={{ boxShadow: 'var(--shadow-focus)' }}
         >
           <header className="flex items-center justify-between px-4 py-3 border-b border-border">

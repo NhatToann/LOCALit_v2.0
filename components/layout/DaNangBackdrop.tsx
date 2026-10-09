@@ -99,7 +99,7 @@ export default function DaNangBackdrop() {
       <div
         className="absolute inset-0"
         style={{
-          backgroundColor: 'rgba(250,250,247,0.45)',
+          backgroundColor: 'rgba(240, 253, 244, 0.6)',
         }}
       />
       {/* Tiny attribution mark, bottom-right, never visible to assistive tech */}

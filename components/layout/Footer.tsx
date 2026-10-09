@@ -8,11 +8,9 @@ import Link from 'next/link'
 export default function Footer() {
   return (
     <footer className="mt-16">
-      {/* Brand accent stripe — single solid color (no gradient).
-          2026-10-09: was a 3px-tall multi-stop gradient; now a solid
-          primary bar that signals "this is the brand color" without
-          using multiple colors. */}
-      <div className="h-[3px] bg-primary" aria-hidden="true" />
+      {/* Brand gradient stripe — the 6-stop teal/blue identity,
+          applied as a 3px-tall bar at the very top of the footer. */}
+      <div className="h-[3px] bg-gradient" aria-hidden="true" />
       <div className="border-t border-border bg-paper">
         <div className="max-w-7xl mx-auto px-6 py-12">
           <div className="mb-12 pb-8 border-b border-border">

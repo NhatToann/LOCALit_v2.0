@@ -176,7 +176,7 @@ export default function NotificationsPageClient({ userId, initialRows }: Props) 
         </div>
       </header>
 
-      <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-5 mb-6">
+      <fieldset className="border border-border rounded-sm bg-surface p-5 mb-6">
         <legend className="px-2 text-[11px] uppercase tracking-wide text-muted">Filters</legend>
         <div className="flex flex-wrap gap-2">
           {FILTERS.map((f) => (
@@ -217,7 +217,7 @@ export default function NotificationsPageClient({ userId, initialRows }: Props) 
           </p>
         </fieldset>
       ) : (
-        <fieldset className="border border-border rounded-sm bg-[#FFFFFF] p-0">
+        <fieldset className="border border-border rounded-sm bg-surface p-0">
           <legend className="px-2 text-[11px] uppercase tracking-wide text-muted">Activity</legend>
           <ul role="list" className="divide-y divide-border">
             {visible.map((n) => {

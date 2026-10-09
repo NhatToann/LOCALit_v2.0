@@ -127,10 +127,10 @@ export default function List({
         'flex flex-col w-72 max-w-full flex-shrink-0 rounded-md transition-shadow',
         // Dark board: each column is a slightly lighter slate so it
         // pops off the page background.
-        'bg-[#1E293B]',
-        isSectionOver ? 'ring-2 ring-primary ring-offset-1 ring-offset-[#0F172A]' : 'shadow-none',
+        'bg-[#134E4A]',
+        isSectionOver ? 'ring-2 ring-primary ring-offset-1 ring-offset-[#0A1F1D]' : 'shadow-none',
       ].join(' ')}
-      style={{ boxShadow: isSectionOver ? '0 0 0 1px rgba(255,107,53,0.5)' : 'none' }}
+      style={{ boxShadow: isSectionOver ? '0 0 0 1px rgba(52, 211, 153, 0.5)' : 'none' }}
     >
       <header
         className={`flex items-center gap-2 px-2.5 py-2 rounded-t-md ${tokens.headerBgClass}`}
@@ -144,7 +144,7 @@ export default function List({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="List title"
-              className="w-full text-sm h-8 bg-[#0F172A] border border-slate-600 text-slate-100 placeholder-slate-500 rounded-sm px-2 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full text-sm h-8 bg-[#0A1F1D] border border-primary-700 text-paper placeholder-muted rounded-sm px-2 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
             <div className="grid grid-cols-2 gap-2">
               <label className="text-[10px] text-slate-300 inline-flex items-center gap-1">
@@ -153,16 +153,16 @@ export default function List({
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="text-xs h-7 ml-auto bg-[#0F172A] border border-slate-600 text-slate-100 rounded-sm px-1.5 focus:border-primary focus:outline-none"
+                  className="text-xs h-7 ml-auto bg-[#0A1F1D] border border-primary-700 text-paper rounded-sm px-1.5 focus:border-primary focus:outline-none"
                 />
               </label>
-              <label className="text-[10px] text-slate-300 inline-flex items-center gap-1">
+              <label className="text-[10px] text-muted inline-flex items-center gap-1">
                 <Clock size={10} aria-hidden /> End
                 <input
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="text-xs h-7 ml-auto bg-[#0F172A] border border-slate-600 text-slate-100 rounded-sm px-1.5 focus:border-primary focus:outline-none"
+                  className="text-xs h-7 ml-auto bg-[#0A1F1D] border border-primary-700 text-paper rounded-sm px-1.5 focus:border-primary focus:outline-none"
                 />
               </label>
             </div>
@@ -186,7 +186,7 @@ export default function List({
                   setError(null)
                 }}
                 disabled={saving}
-                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-sm bg-transparent text-slate-200 border border-slate-600 hover:bg-[#0F172A]"
+                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-sm bg-transparent text-paper border border-primary-700 hover:bg-[#0A1F1D]"
               >
                 <X size={11} aria-hidden /> Cancel
               </button>
@@ -224,7 +224,7 @@ export default function List({
                 {menuOpen ? (
                   <div
                     role="menu"
-                    className="absolute right-0 top-7 z-10 w-44 bg-[#0F172A] border border-slate-700 rounded-sm shadow-lg"
+                    className="absolute right-0 top-7 z-10 w-44 bg-[#0A1F1D] border border-primary-700 rounded-sm shadow-lg"
                     onMouseLeave={() => setMenuOpen(false)}
                   >
                     <button
@@ -234,7 +234,7 @@ export default function List({
                         setMenuOpen(false)
                         setEditingHeader(true)
                       }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-100 hover:bg-[#1E293B]"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-paper hover:bg-[#134E4A]"
                     >
                       <Pencil size={11} aria-hidden /> Edit list
                     </button>
@@ -309,7 +309,7 @@ export default function List({
                   }
                 }}
                 placeholder="Enter a title for this card…"
-                className="w-full text-sm bg-[#0F172A] border border-slate-600 text-slate-100 placeholder-slate-500 rounded-sm p-2 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                className="w-full text-sm bg-[#0A1F1D] border border-primary-700 text-paper placeholder-muted rounded-sm p-2 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
               />
               <div className="flex items-center gap-1">
                 <button
@@ -338,7 +338,7 @@ export default function List({
             <button
               type="button"
               onClick={() => setComposing(true)}
-              className="inline-flex items-center gap-1.5 h-8 px-2 text-xs text-slate-300 hover:text-white hover:bg-[#334155] rounded-sm w-full justify-start transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-2 text-xs text-muted hover:text-ink hover:bg-[#134E4A] rounded-sm w-full justify-start transition-colors"
             >
               <Plus size={14} aria-hidden /> Add a card
             </button>

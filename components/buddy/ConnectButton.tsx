@@ -209,7 +209,7 @@ export default function ConnectButton({
       )
     }
     return (
-      <div className="w-full max-w-md border border-border rounded-sm bg-[#FFFFFF] p-3">
+      <div className="w-full max-w-md border border-border rounded-sm bg-surface p-3">
         <p className="text-xs text-muted mb-2">
           Send <strong>{recipientName}</strong> a short intro so they know why you want to connect.
         </p>

@@ -56,7 +56,7 @@ export default function OutgoingCallPanel() {
     <div
       role="status"
       aria-label={`Outgoing voice call to ${active.partnerName}`}
-      className="fixed top-20 right-4 z-[60] w-[min(360px,calc(100vw-2rem))] bg-surface border border-border-strong rounded-sm shadow-[0_2px_8px_rgba(15,15,15,0.08)] overflow-hidden"
+      className="fixed top-20 right-4 z-[60] w-[min(360px,calc(100vw-2rem))] bg-surface border border-border-strong rounded-sm shadow-[0_2px_8px_rgba(19,78,74,0.12)] overflow-hidden"
     >
       <div className="p-5">
         <p className="text-eyebrow text-primary mb-3">

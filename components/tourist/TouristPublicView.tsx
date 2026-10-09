@@ -50,7 +50,7 @@ export default function TouristPublicView({ tourist: t, profile: p }: Props) {
       <header className="mb-6 flex flex-wrap items-start gap-4">
         <span
           className="flex items-center justify-center w-16 h-16 rounded-full text-2xl font-semibold text-paper shrink-0"
-          style={{ backgroundColor: '#0F0F0F' }}
+          style={{ backgroundColor: '#134E4A' }}
           aria-hidden="true"
         >
           {p.full_name.charAt(0)}
@@ -169,7 +169,7 @@ export default function TouristPublicView({ tourist: t, profile: p }: Props) {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border border-border rounded-sm bg-[#FFFFFF] p-4">
+    <section className="border border-border rounded-sm bg-surface p-4">
       <h2 className="text-eyebrow text-muted mb-2">{title}</h2>
       {children}
     </section>

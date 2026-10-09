@@ -44,12 +44,14 @@ interface Props {
 
 const DEFAULT_LOCATION = { lat: 16.0544, lng: 108.2023 } // Da Nang
 
-// Map markers: brand palette only, no drop-shadow. Token-derived hex.
-// 2026-10-09 recolor: matching teal/blue gradient. PRIMARY is the
-// deep blue stop (#0063AE) so buddy pins match the brand CTA color.
-const PRIMARY = '#0063AE'
-const INK = '#0F0F0F'
-const INFO = '#075985'
+// Map markers: Tropical Jade palette only, no drop-shadow. Token-derived hex.
+// Buddy uses stop-3 jade teal (the rich mid-stop); self uses the deep ocean
+// stop-6; live broadcasts use the brand-pop stop-1 jade-mint so the pulse
+// reads against any backdrop.
+const PRIMARY = '#0D9488'
+const INK = '#134E4A'
+const INFO = '#34D399'
+const MUTED = '#4B5563'
 
 // RAM OPTIMIZATION (2026-10-08): Cache DivIcon instances at module scope.
 // Calling L.divIcon({...}) allocates a fresh HTMLDivElement + style block
@@ -67,7 +69,7 @@ function flatIcon(letter: string, bg: string): L.DivIcon {
   const cached = ICON_CACHE.get(key)
   if (cached) return cached
   const icon = L.divIcon({
-    html: `<div class="localit-marker-pin" style="width:24px;height:24px;background:${bg};border:2px solid #FFFFFF;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-weight:600;font-size:11px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;letter-spacing:-0.02em;">${letter}</div>`,
+    html: `<div class="localit-marker-pin" style="width:24px;height:24px;background:${bg};border:2px solid #ECFDF5;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#ECFDF5;font-weight:600;font-size:11px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;letter-spacing:-0.02em;">${letter}</div>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
     popupAnchor: [0, -12],
@@ -82,7 +84,7 @@ function livePulseIcon(): L.DivIcon {
   const cached = ICON_CACHE.get(key)
   if (cached) return cached
   const icon = L.divIcon({
-    html: `<div class="localit-marker-pin" style="position:relative;width:18px;height:18px;background:${INFO};border:2px solid #FFFFFF;border-radius:50%;"></div><div style="position:absolute;top:-5px;left:-5px;width:28px;height:28px;background:${INFO};border-radius:50%;opacity:0.18;"></div>`,
+    html: `<div class="localit-marker-pin" style="position:relative;width:18px;height:18px;background:${INFO};border:2px solid #ECFDF5;border-radius:50%;"></div><div style="position:absolute;top:-5px;left:-5px;width:28px;height:28px;background:${INFO};border-radius:50%;opacity:0.22;"></div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 14],
     popupAnchor: [0, -14],
@@ -403,9 +405,9 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
             <Popup>
               <div style={{ minWidth: 160 }}>
                 <strong style={{ display: 'block', marginBottom: 2 }}>{b.name}</strong>
-                <div style={{ fontSize: 12, color: '#737373' }}>{b.city ?? 'Da Nang'}</div>
+                <div style={{ fontSize: 12, color: '#4B5563' }}>{b.city ?? 'Da Nang'}</div>
                 {b.languages.length > 0 ? (
-                  <div style={{ fontSize: 12, marginTop: 4, color: '#0F0F0F' }}>
+                  <div style={{ fontSize: 12, marginTop: 4, color: '#0A1F1D' }}>
                     {b.languages.slice(0, 2).join(', ')}
                   </div>
                 ) : null}
@@ -415,7 +417,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
                   style={{
                     display: 'inline-block',
                     marginTop: 8,
-                    color: '#0F0F0F',
+                    color: '#0A1F1D',
                     fontWeight: 500,
                     fontSize: 12,
                     textDecoration: 'none',
@@ -429,7 +431,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
                   style={{
                     display: 'inline-block',
                     marginTop: 8,
-                    color: '#0063AE',
+                    color: '#0D9488',
                     fontWeight: 500,
                     fontSize: 12,
                     textDecoration: 'none',
@@ -443,10 +445,10 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         ))}
 
         {tourists.map((t) => (
-          <Marker key={`tourist-${t.id}`} position={[t.lat, t.lng]} icon={flatIcon('T', '#737373')} zIndexOffset={100}>
+          <Marker key={`tourist-${t.id}`} position={[t.lat, t.lng]} icon={flatIcon('T', MUTED)} zIndexOffset={100}>
             <Popup>
               <strong>{t.name}</strong>
-              <div style={{ fontSize: 12, color: '#737373' }}>Tourist</div>
+              <div style={{ fontSize: 12, color: '#4B5563' }}>Tourist</div>
             </Popup>
           </Marker>
         ))}
@@ -463,7 +465,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
             <Marker key={`live-${l.userId}`} position={[l.lat, l.lng]} icon={livePulseIcon()} zIndexOffset={2000}>
               <Popup>
                 <strong>{l.name}</strong>
-                <div style={{ fontSize: 12, color: '#737373' }}>Sharing live</div>
+                <div style={{ fontSize: 12, color: '#4B5563' }}>Sharing live</div>
               </Popup>
             </Marker>
           )

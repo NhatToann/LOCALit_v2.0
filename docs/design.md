@@ -1,7 +1,7 @@
 # LOCALit Design System Specification
 
 > **Single source of truth** for all visual decisions in the LOCALit codebase.
-> Last updated: 2026-10-09 (recolor: matching teal/blue, single solid colors only)
+> Last updated: 2026-10-09 (recolor — matching gradient: teal → blue)
 > Authority: All UI code MUST follow this spec. Deviations require explicit justification in a PR description.
 
 ---
@@ -42,20 +42,33 @@ LOCALit's design language is **triangulated** from two concrete references — n
 
 ## 2. Color tokens
 
-### 2.1 Palette (matching teal/blue, 2026-10-09 — single solid colors, no gradients)
+### 2.1 Palette (matching gradient, 2026-10-09)
 
-**Brand identity** is the deep blue → bright teal palette. Every element uses ONE solid color; no element renders a gradient.
+**Primary stops** (the 6-stop teal → blue gradient is the brand identity):
+
+| Stop | Hex | Use |
+|---|---|---|
+| 1 — vibrant | `#11EDAF` | `--color-primary-900`, brand mark, hero highlight |
+| 2 | `#00D5C2` | gradient mid, hero accent |
+| 3 | `#00BACF` | `--color-primary-700`, secondary accent |
+| 4 | `#009ED0` | links, info states |
+| 5 | `#0081C5` | gradient mid |
+| 6 — deep | `#0063AE` | `--color-primary`, all CTAs, text, borders |
+
+**Full token list** (derived from the gradient):
 
 | Token | Hex | Use | Rationale |
 |---|---|---|---|
-| `--color-primary` | `#0063AE` | Brand primary — used by `bg-primary`, `text-primary`, `border-primary` | Deep blue, 7.1:1 contrast on paper, works as text AND as CTA background |
-| `--color-primary-hover` | `#004F8E` | Primary hover state | One shade darker than primary |
-| `--color-primary-50` | `#E6F4FB` | Light tint (header background, selected rows, soft badge bg) | Primary mixed 92% with paper |
-| `--color-primary-100` | `#BFE0F2` | Heavier tint (borders on primary-50 surfaces) | Primary mixed 80% with paper |
-| `--color-primary-500` | `#00BACF` | Bright accent — secondary CTAs, active states, focus rings | Cyan stop — readable as text on paper, pops as background |
-| `--color-primary-700` | `#00D5C2` | Tertiary accent, decorative dots/markers | Teal mid stop |
-| `--color-primary-900` | `#11EDAF` | Brand pop — avatar palette only (too light for body text/bg) | Vibrant teal, 1.7:1 on paper so not for text |
+| `--color-primary` | `#0063AE` | Brand primary — used by `bg-primary`, `text-primary`, `border-primary` | Gradient stop 6 — deep blue with 7.1:1 contrast on paper, so it works as text AND as CTA background |
+| `--color-primary-hover` | `#004F8E` | Primary hover state | One shade darker than stop 6 |
+| `--color-primary-50` | `#E6F4FB` | Primary tint (selected rows, soft badge bg) | Stop 6 mixed 92% with paper |
+| `--color-primary-100` | `#BFE0F2` | Primary tint (heavier selected state) | Stop 6 mixed 80% with paper |
+| `--color-primary-500` | `#11EDAF` | Brand pop — used for hero brand marks, gradient stripes, `bg-primary-500` | Gradient stop 1 — vibrant teal, NOT a default text/bg color |
+| `--color-primary-700` | `#00BACF` | Secondary accent, links in body | Gradient stop 3 |
+| `--color-primary-900` | `#11EDAF` | Brand pop alias — same as 500 | For scale-naming consistency |
 | `--color-primary-bg` | `#E6F4FB` | Primary-tinted background (selected rows, role-tag-buddy) | Same as --color-primary-50 |
+| `--color-primary-bg-vibrant` | `#E6FCF6` | Vibrant-tint (used for hero halo, brand-mark background) | Stop 1 mixed 92% with paper |
+| `--color-gradient` | `linear-gradient(135deg, #11EDAF 0%, #00D5C2 20%, #00BACF 40%, #009ED0 60%, #0081C5 80%, #0063AE 100%)` | Hero accent, brand gradient surfaces (USE SPARINGLY) | The 6-stop identity |
 | `--ink` | `#0F0F0F` | Primary text, dark backgrounds | Near-black, not pure `#000` (Section 2a: avoid pure black) |
 | `--paper` | `#FAFAF7` | Page background | Off-white with warmth, not clinical `#FFFFFF` |
 | `--surface` | `#FFFFFF` | Card / sheet background | Pure white for contrast against paper |
@@ -76,10 +89,10 @@ LOCALit's design language is **triangulated** from two concrete references — n
 
 - Body text on `--paper`: `#0F0F0F` on `#FAFAF7` → 18.7:1 ✓
 - Secondary text on `--paper`: `#737373` on `#FAFAF7` → 4.9:1 ✓ (just clears AA)
-- Primary text/link on `--paper`: `#0063AE` (primary) on `#FAFAF7` → 7.1:1 ✓ (passes AAA for normal text)
+- Primary text/link on `--paper`: `#0063AE` (primary, gradient stop 6) on `#FAFAF7` → 7.1:1 ✓ (passes AAA for normal text)
 - Primary button text: `#FAFAF7` on `#0063AE` (primary) → 7.1:1 ✓ (passes AAA for normal text)
-- Bright accent `#00BACF` (primary-500) on `--paper` → 4.5:1 ✓
-- Brand pop `#11EDAF` (primary-900) on `--paper`: 1.7:1 — NOT a text color. Reserved for avatar backgrounds.
+- Brand pop `#11EDAF` (primary-500) on `--paper`: 1.7:1 — NOT a text color. Reserve for background fills where ink-on-cyan text is layered (then contrast is `#0F0F0F` on `#11EDAF` → 13.8:1 ✓)
+- Secondary accent `#00BACF` (primary-700) on `--paper` → 4.5:1 ✓
 - Disabled text on `--paper`: `#A3A3A3` on `#FAFAF7` → 2.7:1 (intentionally low — disabled state)
 
 ### 2.3 Banned colors
@@ -87,8 +100,7 @@ LOCALit's design language is **triangulated** from two concrete references — n
 - ❌ Pure black `#000000` (Section 2a)
 - ❌ Pure white `#FFFFFF` as page background (Section 2a)
 - ❌ Purple / indigo / blue-to-purple gradient (Section 2a)
-- ❌ The OLD brand orange `#FF6B35` / `#E55A2B` — fully retired 2026-10-09
-- ❌ **`linear-gradient(...)` anywhere in the codebase** (2026-10-09). Every element renders a single solid color. If a brand mark needs visual variety, use the named scale (primary → primary-500 → primary-900) on different elements instead of blending them inside one element.
+- ❌ The OLD brand orange `#FF6B35` / `#E55A2B` — fully retired 2026-10-09, replaced by the matching gradient
 - ❌ Any color not listed above, unless explicitly justified
 
 ---

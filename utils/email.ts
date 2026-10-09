@@ -157,14 +157,14 @@ export function buildOtpEmail(args: { code: string; appName?: string }): {
     `This code expires in 15 minutes. If you didn't request this, you can ignore the email.\n\n` +
     `— The ${appName} team`
   const html = `<!doctype html>
-<html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f7f7f9;padding:24px;color:#1a1a1a">
-  <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;padding:32px;border:1px solid #e5e7eb">
-    <h1 style="margin:0 0 8px 0;font-size:20px;color:#111">${appName}</h1>
-    <p style="margin:0 0 24px 0;color:#4b5563">Verify your email to finish signing up.</p>
-    <div style="font-size:32px;letter-spacing:8px;font-weight:700;background:#f3f4f6;border-radius:8px;padding:16px;text-align:center;color:#111">${args.code}</div>
-    <p style="margin:24px 0 0 0;color:#6b7280;font-size:14px">This code expires in <strong>15 minutes</strong>. If you didn't request this, you can safely ignore the email.</p>
-    <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
-    <p style="margin:0;color:#9ca3af;font-size:12px">— The ${appName} team</p>
+<html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#ECFDF5;padding:24px;color:#0A1F1D">
+  <div style="max-width:480px;margin:0 auto;background:#F0FDF4;border-radius:12px;padding:32px;border:1px solid #BBF7D0">
+    <h1 style="margin:0 0 8px 0;font-size:20px;color:#134E4A">${appName}</h1>
+    <p style="margin:0 0 24px 0;color:#4B5563">Verify your email to finish signing up.</p>
+    <div style="font-size:32px;letter-spacing:8px;font-weight:700;background:#D1FAE5;border-radius:8px;padding:16px;text-align:center;color:#0A1F1D">${args.code}</div>
+    <p style="margin:24px 0 0 0;color:#6B7280;font-size:14px">This code expires in <strong>15 minutes</strong>. If you didn't request this, you can safely ignore the email.</p>
+    <hr style="border:none;border-top:1px solid #BBF7D0;margin:24px 0">
+    <p style="margin:0;color:#6B7280;font-size:12px">— The ${appName} team</p>
   </div>
 </body></html>`
   return { subject, html, text }

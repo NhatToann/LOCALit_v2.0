@@ -15,42 +15,85 @@
    by re-declaring every --color-* at :root.dark.
    ============================================================ */
 @theme {
-  /* Primary brand — 2026-10-09 recolor: matching teal/blue (no gradient).
-   * Single-color token system. The 6-stop gradient has been retired —
-   * every element now uses ONE solid color. `--color-primary` is the
-   * deep blue stop (text & CTA background), `--color-primary-500`
-   * is the bright CTA accent. */
-  --color-primary: #0063AE;            /* deep blue — text & border */
-  --color-primary-hover: #004F8E;       /* deep blue darkened — text hover */
-  --color-primary-50: #E6F4FB;          /* tint of primary — selected bg */
-  --color-primary-100: #BFE0F2;         /* deeper tint */
-  --color-primary-500: #00BACF;         /* bright cyan — accent CTA */
-  --color-primary-700: #00D5C2;         /* secondary accent */
-  --color-primary-900: #11EDAF;         /* vibrant teal — brand pop */
-  --color-primary-bg: #E6F4FB;          /* primary-tinted background (default) */
+  /* Primary brand — 2026-10-09 recolor v2: Tropical Jade
+   * Anchor: Da Nang coastal palette where the river and the sea meet.
+   * 5 jade/emerald stops + 1 ocean stop at the end. Most backgrounds
+   * use a tinted (alpha-offset) variant of the base so the page
+   * reads as one continuous teal/green canvas rather than white-paper
+   * with colored accents. */
+  --color-primary: #134E4A;            /* stop 6 — ocean-dark teal (text & border) */
+  --color-primary-hover: #0F3F3C;       /* stop 6 darkened */
+  --color-primary-50: #ECFDF5;          /* 4% alpha of stop 1 — selected bg */
+  --color-primary-100: #D1FAE5;         /* 8% alpha of stop 1 — deeper tint */
+  --color-primary-500: #34D399;         /* stop 1 — jade mint, CTA background */
+  --color-primary-700: #0D9488;         /* stop 3 — jade teal, secondary CTA */
+  --color-primary-900: #065F46;         /* stop 4 — forest deep, vibrant accent */
+  --color-primary-bg: #ECFDF5;          /* 4% alpha tint */
+  --color-primary-bg-vibrant: #D1FAE5;  /* 8% alpha tint */
+  --color-gradient: linear-gradient(135deg, #34D399 0%, #10B981 20%, #0D9488 40%, #065F46 60%, #0E7490 80%, #134E4A 100%);
 
-  /* Neutrals (warm, not pure black/white per Section 2a) */
-  --color-ink: #0F0F0F;
-  --color-paper: #FAFAF7;
-  --color-surface: #FFFFFF;
-  --color-border: #E5E5E0;
-  --color-border-strong: #D4D4D0;
-  --color-muted: #737373;
-  --color-subtle: #A3A3A3;
+  /* Neutrals — jade-tinted, not pure black/white per Section 2a.
+   * Every neutral carries a slight teal hue so the page reads as one
+   * canvas rather than a black/white grid with colored accents. */
+  --color-ink: #0A1F1D;                 /* near-black with teal undertone */
+  --color-paper: #F0FDF4;              /* 4% alpha of stop 1 — page background */
+  --color-surface: #ECFDF5;            /* 8% alpha of stop 1 — card background */
+  --color-border: #BBF7D0;             /* 16% alpha of stop 1 — 1px borders */
+  --color-border-strong: #86EFAC;      /* 32% alpha of stop 1 — hover borders */
+  --color-muted: #4B5563;              /* slate-600, jade-tinted */
+  --color-subtle: #6B7280;             /* slate-500 */
 
-  /* Semantic (Tailwind-derived 800/100 contrast pairs) */
-  --color-success: #166534;
-  --color-success-bg: #DCFCE7;
-  --color-warning: #92400E;
+  /* Semantic — kept distinguishable but pulled into the jade family.
+   * Success = jade (matches brand). Warning/danger/info stay
+   * recognisable but each takes a small alpha-tint of its color. */
+  --color-success: #065F46;            /* forest deep — same as primary-900 */
+  --color-success-bg: #D1FAE5;         /* 8% alpha of stop 1 */
+  --color-success-border: #6EE7B7;     /* 24% alpha of stop 1 */
+  --color-warning: #92400E;            /* amber-800 — preserved */
   --color-warning-bg: #FEF3C7;
-  --color-danger: #991B1B;
-  --color-danger-bg: #FEE2E2;
-  --color-info: #075985;
-  --color-info-bg: #E0F2FE;
-  --color-success-border: #BBF7D0;
-  --color-danger-border: #FECACA;
-  --color-info-border: #BAE6FD;
   --color-warning-border: #FDE68A;
+  --color-danger: #991B1B;             /* red-800 — preserved */
+  --color-danger-bg: #FEE2E2;
+  --color-danger-border: #FECACA;
+  --color-info: #0E7490;               /* sea blue (stop 5) — fits the family */
+  --color-info-bg: #CFFAFE;            /* alpha of info */
+  --color-info-border: #A5F3FC;
+
+  /* Board (Trello convention: warm backdrop so columns pop) */
+  --color-board-bg: #DCFCE7;           /* 12% alpha of stop 1 */
+  /* Card hover shadow — single subtle elevation */
+  --shadow-card: 0 1px 1px rgba(19, 78, 74, 0.12);
+  --shadow-card-hover: 0 4px 8px rgba(19, 78, 74, 0.18);
+  /* Card label bar — jade-tinted (was the old rainbow). Now reads
+   * as a 6-stop jade family: light jade → emerald → teal → forest
+   * → sea → ocean. Each segment is one of our 6 primary stops. */
+  --label-list: linear-gradient(
+    to right,
+    #34D399 0 16px,
+    #10B981 16px 32px,
+    #0D9488 32px 48px,
+    #065F46 48px 64px,
+    #0E7490 64px 80px,
+    #134E4A 80px 96px
+  );
+
+  /* ============================================================
+     FOCUS MODE TOKENS — flat jade family (no gradients)
+     Used by /focus/* routes and the FocusRequestBanner.
+     These are the deepest jade variants — focus mode is the
+     "immersive" experience, so it goes darker than the global UI.
+     ============================================================ */
+  --focus-primary: #10B981;
+  --focus-primary-dark: #065F46;
+  --focus-primary-light: #34D399;
+  --focus-deep: #134E4A;
+  --focus-darkest: #0A1F1D;
+  --focus-medium: #0D9488;
+  --focus-surface: #ECFDF5;
+  --focus-bg: #F0FDF4;
+  --focus-border: #BBF7D0;
+  --focus-text: #0A1F1D;
+  --focus-muted: #4B5563;
 }
 
 /*
@@ -58,62 +101,71 @@
  * the design contract is single-tone flat (Da Nang tourism board print
  * tradition + Withlocals information density). Every `--color-*` token
  * lives at `:root` so `var(--color-ink)` etc. resolve directly without
- * needing a `.dark` class.
+ * needing a `.dark` class. The "dark" surfaces (e.g. itinerary board
+ * editor) intentionally diverge — see `--color-board-bg` and the inline
+ * alpha-jade variants in Board.tsx.
  */
 :root {
-  --color-primary: #0063AE;
-  --color-primary-hover: #004F8E;
-  --color-primary-50: #E6F4FB;
-  --color-primary-100: #BFE0F2;
-  --color-primary-500: #00BACF;
-  --color-primary-700: #00D5C2;
-  --color-primary-900: #11EDAF;
-  --color-primary-bg: #E6F4FB;
-  --color-ink: #0F0F0F;
-  --color-paper: #FAFAF7;
-  --color-surface: #FFFFFF;
-  --color-border: #E5E5E0;
-  --color-border-strong: #D4D4D0;
-  --color-muted: #737373;
-  --color-subtle: #A3A3A3;
-  --color-success: #166534;
-  --color-success-bg: #DCFCE7;
+  --color-primary: #134E4A;
+  --color-primary-hover: #0F3F3C;
+  --color-primary-50: #ECFDF5;
+  --color-primary-100: #D1FAE5;
+  --color-primary-500: #34D399;
+  --color-primary-700: #0D9488;
+  --color-primary-900: #065F46;
+  --color-primary-bg: #ECFDF5;
+  --color-primary-bg-vibrant: #D1FAE5;
+  --color-gradient: linear-gradient(135deg, #34D399 0%, #10B981 20%, #0D9488 40%, #065F46 60%, #0E7490 80%, #134E4A 100%);
+  --color-ink: #0A1F1D;
+  --color-paper: #F0FDF4;
+  --color-surface: #ECFDF5;
+  --color-border: #BBF7D0;
+  --color-border-strong: #86EFAC;
+  --color-muted: #4B5563;
+  --color-subtle: #6B7280;
+  --color-success: #065F46;
+  --color-success-bg: #D1FAE5;
+  --color-success-border: #6EE7B7;
   --color-warning: #92400E;
   --color-warning-bg: #FEF3C7;
+  --color-warning-border: #FDE68A;
   --color-danger: #991B1B;
   --color-danger-bg: #FEE2E2;
-  --color-info: #075985;
-  --color-info-bg: #E0F2FE;
-  --color-success-border: #BBF7D0;
   --color-danger-border: #FECACA;
-  --color-info-border: #BAE6FD;
-  --color-warning-border: #FDE68A;
+  --color-info: #0E7490;
+  --color-info-bg: #CFFAFE;
+  --color-info-border: #A5F3FC;
 
-  /* Board (Trello convention: warm grey backdrop so columns pop) */
-  --color-board-bg: #F1F2F4;
+  /* Board (Trello convention: jade-tinted backdrop so columns pop) */
+  --color-board-bg: #DCFCE7;
   /* Card hover shadow — single subtle elevation */
-  --shadow-card: 0 1px 1px rgba(9, 30, 66, 0.25);
-  --shadow-card-hover: 0 4px 8px rgba(9, 30, 66, 0.18);
-  /* Card label bar (the small horizontal color accent inside a card).
-   * 2026-10-09: single solid color (no gradient). Was a 6-color
-   * Trello-style rainbow gradient. */
-  --color-label: #0063AE;
+  --shadow-card: 0 1px 1px rgba(19, 78, 74, 0.12);
+  --shadow-card-hover: 0 4px 8px rgba(19, 78, 74, 0.18);
+  /* Card label bar — jade family 6 stops */
+  --label-list: linear-gradient(
+    to right,
+    #34D399 0 16px,
+    #10B981 16px 32px,
+    #0D9488 32px 48px,
+    #065F46 48px 64px,
+    #0E7490 64px 80px,
+    #134E4A 80px 96px
+  );
 
   /* ============================================================
-     FOCUS MODE TOKENS — flat teal palette (no gradients)
-     Used by /focus/* routes and the FocusRequestBanner.
+     FOCUS MODE TOKENS — flat jade family (no gradients)
      ============================================================ */
-  --focus-primary: #00AF91;
-  --focus-primary-dark: #007B8B;
-  --focus-primary-light: #00C882;
-  --focus-deep: #146175;
-  --focus-darkest: #2F4858;
-  --focus-medium: #009594;
-  --focus-surface: #FFFFFF;
-  --focus-bg: #FAFAFA;
-  --focus-border: #E0E0E0;
-  --focus-text: #2F4858;
-  --focus-muted: #7A8B95;
+  --focus-primary: #10B981;
+  --focus-primary-dark: #065F46;
+  --focus-primary-light: #34D399;
+  --focus-deep: #134E4A;
+  --focus-darkest: #0A1F1D;
+  --focus-medium: #0D9488;
+  --focus-surface: #ECFDF5;
+  --focus-bg: #F0FDF4;
+  --focus-border: #BBF7D0;
+  --focus-text: #0A1F1D;
+  --focus-muted: #4B5563;
 }
 
 /* ============================================================
@@ -955,4 +1007,20 @@
   .hover\:text-focus-deep:hover { color: var(--focus-deep); }
   .hover\:border-focus-primary:hover { border-color: var(--focus-primary); }
   .hover\:border-focus-primary-dark:hover { border-color: var(--focus-primary-dark); }
+
+  /* ============================================================
+     BRAND GRADIENT UTILITIES (2026-10-09 recolor)
+     Apply sparingly — hero brand mark, footer accent stripe, and
+     any surface that needs to display the 6-stop teal/blue identity.
+     Per docs/design.md Section 2.1, this is the only place the
+     full gradient is allowed.
+     ============================================================ */
+  .bg-gradient { background-image: var(--color-gradient); }
+  .text-gradient {
+    background-image: var(--color-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
 }

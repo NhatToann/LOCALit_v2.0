@@ -68,8 +68,8 @@ export default function SortableCard({
       className={[
         // Dark card: slate-700 surface, slate-600 border, bright
         // hover state, no left-border accent (that's for labels).
-        'group relative bg-[#334155] border border-slate-600 rounded-sm p-2.5 select-none',
-        'hover:border-slate-500 hover:bg-[#3F4F66]',
+        'group relative bg-[#134E4A] border border-primary-700 rounded-sm p-2.5 select-none',
+        'hover:border-primary-500 hover:bg-[#0D9488]',
         'hover:shadow-[0_4px_8px_rgba(0,0,0,0.4)]',
         'transition-[box-shadow,background-color,border-color] duration-150',
         canEdit ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',

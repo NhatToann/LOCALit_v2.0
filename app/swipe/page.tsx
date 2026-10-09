@@ -737,6 +737,6 @@ function avatarColor(seed: string): string {
   }
   // Brand palette (2026-10-09 — matching teal/blue gradient). Mirrors
   // --color-primary* in app/globals.css.
-  const palette = ['#0063AE', '#00BACF', '#11EDAF', '#009ED0', '#004F8E', '#0081C5']
+  const palette = ['#0D9488', '#34D399', '#10B981', '#065F46', '#0E7490', '#134E4A']
   return palette[Math.abs(hash) % palette.length]
 }

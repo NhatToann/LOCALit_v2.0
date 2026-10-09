@@ -27,8 +27,8 @@ export default function GlobalError({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#FAFAF7',
-          color: '#0F0F0F',
+          background: '#F0FDF4',
+          color: '#0A1F1D',
           padding: 24,
         }}
       >
@@ -36,14 +36,14 @@ export default function GlobalError({
           <LifeBuoy
             size={64}
             strokeWidth={1.5}
-            color="#0063AE"
+            color="#134E4A"
             style={{ marginBottom: 12 }}
             aria-hidden="true"
           />
           <h1 style={{ fontSize: 28, margin: '0 0 12px', fontWeight: 600, letterSpacing: '-0.02em' }}>
             Something went wrong
           </h1>
-          <p style={{ color: '#737373', margin: '0 0 24px', lineHeight: 1.6 }}>
+          <p style={{ color: '#4B5563', margin: '0 0 24px', lineHeight: 1.6 }}>
             We hit an unexpected error loading this page. The team has been notified.
             Try again, or head back home.
           </p>
@@ -52,9 +52,9 @@ export default function GlobalError({
               onClick={() => reset()}
               style={{
                 padding: '12px 22px',
-                background: '#0063AE',
-                color: '#FAFAF7',
-                border: '1px solid #0063AE',
+                background: '#134E4A',
+                color: '#F0FDF4',
+                border: '1px solid #134E4A',
                 borderRadius: 4,
                 fontWeight: 500,
                 cursor: 'pointer',
@@ -67,9 +67,9 @@ export default function GlobalError({
               href="/"
               style={{
                 padding: '12px 22px',
-                background: '#FFFFFF',
-                color: '#0F0F0F',
-                border: '1px solid #D4D4D0',
+                background: '#ECFDF5',
+                color: '#0A1F1D',
+                border: '1px solid #86EFAC',
                 borderRadius: 4,
                 fontWeight: 500,
                 textDecoration: 'none',
@@ -84,7 +84,7 @@ export default function GlobalError({
               style={{
                 marginTop: 24,
                 fontSize: 12,
-                color: '#A3A3A3',
+                color: '#6B7280',
                 fontFamily: 'ui-monospace, monospace',
               }}
             >

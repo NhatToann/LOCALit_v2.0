@@ -45,7 +45,10 @@ function colorFromName(name: string): string {
   // Brand palette (2026-10-09 — matching teal/blue gradient).
   // Derived from docs/design.md Section 2.1. Keep this in sync with
   // --color-primary* in app/globals.css.
-  const palette = ['#0063AE', '#00BACF', '#11EDAF', '#009ED0', '#004F8E', '#0081C5']
+  // 2026-10-09 Tropical Jade: 5 jade/emerald + 1 ocean stop. Keeps the
+  // teal/green family while adding enough variation that 8-row buddy
+  // lists don't repeat the same hue 3x in a row.
+  const palette = ['#0D9488', '#34D399', '#10B981', '#065F46', '#0E7490', '#134E4A']
   const idx = Math.abs(hash) % palette.length
   return palette[idx]
 }

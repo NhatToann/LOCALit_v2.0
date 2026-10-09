@@ -48,7 +48,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
       <header className="mb-6 flex flex-wrap items-start gap-4">
         <span
           className="flex items-center justify-center w-16 h-16 rounded-full text-2xl font-semibold text-paper shrink-0"
-          style={{ backgroundColor: '#0063AE' }}
+          style={{ backgroundColor: '#134E4A' }}
           aria-hidden="true"
         >
           {p.full_name.charAt(0)}
@@ -109,7 +109,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
       </header>
 
       {b.bio ? (
-        <section className="mb-6 border border-border rounded-sm bg-[#FFFFFF] p-5">
+        <section className="mb-6 border border-border rounded-sm bg-surface p-5">
           <h2 className="text-sm font-semibold text-ink mb-2">About</h2>
           <p className="text-sm text-ink leading-relaxed max-w-prose">{b.bio}</p>
         </section>
@@ -172,7 +172,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border border-border rounded-sm bg-[#FFFFFF] p-4">
+    <section className="border border-border rounded-sm bg-surface p-4">
       <h2 className="text-eyebrow text-muted mb-2">{title}</h2>
       {children}
     </section>
