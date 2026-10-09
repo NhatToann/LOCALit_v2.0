@@ -383,6 +383,37 @@
   }
 
   /* ============================================================
+     ROLE TAG — outlined pill for the buddy/tourist distinction on
+     /browse rows + the map popup. Two-tone: buddy uses the primary
+     (warm orange) border + text on a paper fill, traveler uses
+     ink border + text. Uppercase, tracked, no shadow.
+     ============================================================ */
+  .role-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1.2;
+    border-radius: 999px;
+    border: 1px solid;
+    background-color: var(--color-surface);
+  }
+
+  .role-tag-buddy {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+    background-color: var(--color-primary-bg, transparent);
+  }
+
+  .role-tag-traveler {
+    color: var(--color-ink);
+    border-color: var(--color-border-strong);
+  }
+
+  /* ============================================================
      AVATAR — circular, sized variants
      ============================================================ */
   .avatar {

@@ -706,11 +706,11 @@ function BrowseContent() {
                 <MapPin size={12} className="inline mr-1" aria-hidden="true" />
                 {selectedBuddy.location_city}
                 <span
-                  className={`ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded-pill font-medium ${
-                    selectedBuddy.role === 'buddy' ? 'bg-primary-bg text-primary' : 'bg-paper text-muted'
+                  className={`role-tag ml-2 ${
+                    selectedBuddy.role === 'buddy' ? 'role-tag-buddy' : 'role-tag-traveler'
                   }`}
                 >
-                  {selectedBuddy.role === 'buddy' ? 'Buddy' : 'Tourist'}
+                  {selectedBuddy.role === 'buddy' ? 'Buddy' : 'Traveler'}
                 </span>
               </p>
               <p className="text-xs text-muted mt-1">
@@ -805,12 +805,12 @@ function BrowseContent() {
                       <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
                         <span>{b.full_name}</span>
                         <span
-                          className={`badge text-[10px] shrink-0 ${
-                            isBuddy ? 'badge-primary' : 'badge-neutral'
+                          className={`role-tag shrink-0 ${
+                            isBuddy ? 'role-tag-buddy' : 'role-tag-traveler'
                           }`}
                           aria-label={isBuddy ? 'Local buddy' : 'Traveler'}
                         >
-                          {isBuddy ? 'Buddy' : 'Tourist'}
+                          {isBuddy ? 'Buddy' : 'Traveler'}
                         </span>
                         {matchScoreMap.get(b.id) ? (
                           <span

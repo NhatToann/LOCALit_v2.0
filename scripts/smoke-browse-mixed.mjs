@@ -82,7 +82,7 @@ async function main() {
   let buddyWithSave = 0
   for (let i = 0; i < rowCount; i++) {
     const row = page.locator('ul.divide-y > li').nth(i)
-    const isTourist = (await row.locator('text=Tourist').count()) > 0
+    const isTourist = (await row.locator('text=Traveler').count()) > 0
     const isBuddy = (await row.locator('text=Buddy').count()) > 0
     // Click to expand
     await row.locator('button[aria-expanded]').first().click()
