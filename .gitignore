@@ -69,3 +69,14 @@ auth-cookie-*.txt
 # Vercel automation-bypass secret used by E2E browser tests
 # (read by scripts/playwright-*.mjs to skip the SSO wall).
 /scripts/.vercel-bypass-secret
+
+# Scratch / verification one-off scripts (not part of the codebase)
+# Keep them out of the repo per docs/skill.md: "Scratch files
+# (check.html, scripts/test-*.mjs, etc.) committed" is banned.
+/scripts/list-seed-users.mjs
+/scripts/verify-*.mjs
+/tmp-*.mjs
+
+# Local Playwright screenshots from one-off probes (kept locally for
+# reference, not part of the build artifacts)
+/scripts/screenshots/
