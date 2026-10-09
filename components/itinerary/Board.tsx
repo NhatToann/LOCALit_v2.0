@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -77,13 +77,39 @@ export default function Board({
   const [savingDrop, setSavingDrop] = useState(false)
   const [dropError, setDropError] = useState<string | null>(null)
 
+  // Local mirror of `stops`. The parent re-passes the canonical
+  // stops on every realtime update; we sync that into local state
+  // but ONLY when the canonical stops actually differ (so we don't
+  // clobber an in-flight optimistic move with a stale prop). The
+  // drag handler updates local state synchronously so the card
+  // lands in the new list on the very next paint, with no waiting
+  // on the DB or the realtime echo.
+  const [localStops, setLocalStops] = useState<ItineraryStop[]>(stops)
+  useEffect(() => {
+    setLocalStops((prev) => {
+      if (prev.length === stops.length) {
+        let same = true
+        for (let i = 0; i < prev.length; i += 1) {
+          const a = prev[i]
+          const b = stops[i]
+          if (!b || a.id !== b.id || a.day_id !== b.day_id || a.stop_order !== b.stop_order) {
+            same = false
+            break
+          }
+        }
+        if (same) return prev
+      }
+      return stops
+    })
+  }, [stops])
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  const activeCard = activeCardId ? stops.find((s) => s.id === activeCardId) ?? null : null
-  const openCard = openCardId ? stops.find((s) => s.id === openCardId) ?? null : null
+  const activeCard = activeCardId ? localStops.find((s) => s.id === activeCardId) ?? null : null
+  const openCard = openCardId ? localStops.find((s) => s.id === openCardId) ?? null : null
 
   function onDragStart(e: DragStartEvent) {
     setActiveCardId(String(e.active.id))
@@ -93,7 +119,7 @@ export default function Board({
     setActiveCardId(null)
     const { active, over } = e
     if (!over) return
-    const sourceStop = stops.find((s) => s.id === active.id)
+    const sourceStop = localStops.find((s) => s.id === active.id)
     if (!sourceStop) return
 
     // Resolve target list and insertion index.
@@ -104,21 +130,21 @@ export default function Board({
     if (overId.startsWith('list-drop:')) {
       // Dropped onto an empty list body.
       targetListId = overId.slice('list-drop:'.length)
-      const listStops = sortStops(stops.filter((s) => s.day_id === targetListId))
+      const listStops = sortStops(localStops.filter((s) => s.day_id === targetListId))
       targetIndex = listStops.length
     } else if (days.some((d) => d.id === overId)) {
       // Dropped onto a list's <section> (header or footer area).
       targetListId = overId
-      const listStops = sortStops(stops.filter((s) => s.day_id === targetListId))
+      const listStops = sortStops(localStops.filter((s) => s.day_id === targetListId))
       targetIndex = listStops.length
     } else {
       // Dropped on a card.
-      const overStop = stops.find((s) => s.id === over.id)
+      const overStop = localStops.find((s) => s.id === over.id)
       if (!overStop || !overStop.day_id) {
         return
       }
       targetListId = overStop.day_id
-      const listStops = sortStops(stops.filter((s) => s.day_id === targetListId))
+      const listStops = sortStops(localStops.filter((s) => s.day_id === targetListId))
       const overIdx = listStops.findIndex((s) => s.id === over.id)
       // If dropping onto the same card, keep it where it is.
       if (overStop.id === sourceStop.id) {
@@ -133,10 +159,37 @@ export default function Board({
     const sourceListId = sourceStop.day_id
     // No-op: dropped into the same list at the same index.
     if (sourceListId === targetListId) {
-      const listStops = sortStops(stops.filter((s) => s.day_id === targetListId))
+      const listStops = sortStops(localStops.filter((s) => s.day_id === targetListId))
       const sourceIdx = listStops.findIndex((s) => s.id === active.id)
       if (sourceIdx === targetIndex || sourceIdx + 1 === targetIndex) return
     }
+
+    // 1) OPTIMISTIC: patch the LOCAL stops mirror so the card lands
+    //    in the destination list on the very next paint. The DB write
+    //    below is the source of truth; the realtime echo (which
+    //    carries the same id) is idempotent — the useEffect above
+    //    detects "local === prop" and skips the clobber.
+    setLocalStops((prev) => {
+      const moving = prev.find((s) => s.id === sourceStop.id)
+      if (!moving) return prev
+      const targetOthers = sortStops(prev.filter((s) => s.day_id === targetListId && s.id !== sourceStop.id))
+      const clampedIndex = Math.max(0, Math.min(targetIndex, targetOthers.length))
+      const newTarget = [
+        ...targetOthers.slice(0, clampedIndex),
+        { ...moving, day_id: targetListId },
+        ...targetOthers.slice(clampedIndex),
+      ].map((s, idx) => ({ ...s, stop_order: idx }))
+
+      if (sourceListId && sourceListId !== targetListId) {
+        const sourceOthers = sortStops(prev.filter((s) => s.day_id === sourceListId && s.id !== sourceStop.id)).map(
+          (s, idx) => ({ ...s, stop_order: idx }),
+        )
+        const untouched = prev.filter((s) => s.day_id !== targetListId && s.day_id !== sourceListId)
+        return [...untouched, ...sourceOthers, ...newTarget]
+      }
+      const untouched = prev.filter((s) => s.day_id !== targetListId)
+      return [...untouched, ...newTarget]
+    })
 
     setSavingDrop(true)
     setDropError(null)
@@ -144,7 +197,7 @@ export default function Board({
       try {
         const sb = createClient()
         const start = effectiveStart(sourceStop)
-        // 1) Move the card into the new list (or reorder within the same).
+        // 2) Move the card into the new list (or reorder within the same).
         const { error: e1 } = await sb
           .from('itinerary_stops')
           .update({
@@ -154,7 +207,7 @@ export default function Board({
           })
           .eq('id', sourceStop.id)
         if (e1) throw e1
-        // 2) Re-pack stop_order in the target list.
+        // 3) Re-pack stop_order in the target list.
         const { data: targetRows, error: e2 } = await sb
           .from('itinerary_stops')
           .select('id, start_time, planned_time, stop_order')
@@ -166,7 +219,7 @@ export default function Board({
             sb.from('itinerary_stops').update({ stop_order: idx }).eq('id', row.id).then(),
           ),
         )
-        // 3) If cross-list, re-pack the source list (minus the moved card).
+        // 4) If cross-list, re-pack the source list (minus the moved card).
         if (sourceListId && sourceListId !== targetListId) {
           const { data: sourceRows, error: e3 } = await sb
             .from('itinerary_stops')
@@ -258,7 +311,7 @@ export default function Board({
             </div>
           ) : (
             days.map((d) => {
-              const listStops = stops.filter((s) => s.day_id === d.id)
+              const listStops = localStops.filter((s) => s.day_id === d.id)
               return (
                 <div key={d.id} role="listitem" data-list-wrapper={d.id} className="flex-shrink-0">
                   <List
