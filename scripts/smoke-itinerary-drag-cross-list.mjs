@@ -109,12 +109,12 @@ async function freshTripWithTwoLists(p) {
   await p.locator('[aria-label="Trip board"]').waitFor({ state: 'visible', timeout: 10000 })
   // 3) Add list 1: "Saturday morning" → warm amber tone
   await p.locator('button', { hasText: /Add (another |first )?list/ }).first().click()
-  await p.locator('input[placeholder^="List title"]').first().fill('Saturday morning')
+  await p.locator('input[placeholder^="Enter list title"]').first().fill('Saturday morning')
   await p.locator('button', { hasText: 'Add list' }).first().click()
   await p.waitForTimeout(1500)
   // 4) Add list 2: "Sunday afternoon" → warm orange tone
   await p.locator('button', { hasText: /Add (another |first )?list/ }).first().click()
-  await p.locator('input[placeholder^="List title"]').first().fill('Sunday afternoon')
+  await p.locator('input[placeholder^="Enter list title"]').first().fill('Sunday afternoon')
   await p.locator('button', { hasText: 'Add list' }).first().click()
   await p.waitForTimeout(1500)
   // 5) Add a card in list 1
@@ -123,7 +123,7 @@ async function freshTripWithTwoLists(p) {
   const addCardBtn = lists.nth(0).locator('button', { hasText: 'Add a card' })
   await addCardBtn.waitFor({ state: 'visible', timeout: 10000 })
   await addCardBtn.click()
-  const composer = p.locator('textarea[placeholder^="Card name"]')
+  const composer = p.locator('textarea[placeholder^="Enter a title"]')
   await composer.waitFor({ state: 'visible', timeout: 10000 })
   await composer.fill('Marble Mountains')
   await p.locator('button', { hasText: 'Add card' }).last().click()
@@ -140,12 +140,26 @@ try {
   assert(morningTone === 'morning', `Saturday morning gets "morning" tone (got: ${morningTone})`)
   assert(afternoonTone === 'afternoon', `Sunday afternoon gets "afternoon" tone (got: ${afternoonTone})`)
 
-  const morningBorder = await page.locator('section[data-list-id]').nth(0).evaluate((el) => getComputedStyle(el).borderLeftColor)
-  const afternoonBorder = await page.locator('section[data-list-id]').nth(1).evaluate((el) => getComputedStyle(el).borderLeftColor)
-  console.log(`[info] morning border-left: ${morningBorder}, afternoon border-left: ${afternoonBorder}`)
-  assert(morningBorder !== 'rgba(0, 0, 0, 0)' && morningBorder !== 'rgb(229, 231, 235)', 'morning list has visible colored left border')
-  assert(afternoonBorder !== 'rgba(0, 0, 0, 0)' && afternoonBorder !== 'rgb(229, 231, 235)', 'afternoon list has visible colored left border')
-  assert(morningBorder !== afternoonBorder, 'two lists have different accent colors')
+  // Verify the per-list header is tinted by the list's tone.
+  // (We dropped the left-border accent in favour of the Trello-
+  // style header background tint, so check backgroundColor
+  // instead.)
+  const morningBg = await page.locator('section[data-list-id]').nth(0).locator('header').first().evaluate((el) => getComputedStyle(el).backgroundColor)
+  const afternoonBg = await page.locator('section[data-list-id]').nth(1).locator('header').first().evaluate((el) => getComputedStyle(el).backgroundColor)
+  console.log(`[info] morning header-bg: ${morningBg}, afternoon header-bg: ${afternoonBg}`)
+  assert(morningBg !== 'rgba(0, 0, 0, 0)' && morningBg !== 'rgb(255, 255, 255)', 'morning list has a tinted header background')
+  assert(afternoonBg !== 'rgba(0, 0, 0, 0)' && afternoonBg !== 'rgb(255, 255, 255)', 'afternoon list has a tinted header background')
+  assert(morningBg !== afternoonBg, 'two lists have different header tints')
+
+  // Verify the Trello-style board backdrop (#F1F2F4 warm grey)
+  const boardBg = await page.locator('[aria-label="Itinerary lists"]').first().evaluate((el) => getComputedStyle(el).backgroundColor)
+  console.log(`[info] board backdrop: ${boardBg}`)
+  assert(boardBg === 'rgb(241, 242, 244)', 'board backdrop is the Trello warm grey (#F1F2F4)')
+
+  // Verify the card has a colored label bar (Trello labels feature)
+  const cardLabelHex = await page.locator('article', { hasText: 'Marble Mountains' }).first().locator('div[title]').first().evaluate((el) => getComputedStyle(el).backgroundColor)
+  console.log(`[info] card label bar: ${cardLabelHex}`)
+  assert(cardLabelHex !== 'rgba(0, 0, 0, 0)' && cardLabelHex !== 'rgb(229, 231, 235)', 'card has a visible colored label bar')
 
   const card = page.locator('article', { hasText: 'Marble Mountains' }).first()
   const list1Body = page.locator('section[data-list-id]').nth(0).locator('ol[data-list-body]')

@@ -72,6 +72,24 @@
   --color-danger-border: #FECACA;
   --color-info-border: #BAE6FD;
   --color-warning-border: #FDE68A;
+
+  /* Board (Trello convention: warm grey backdrop so columns pop) */
+  --color-board-bg: #F1F2F4;
+  /* Card hover shadow — single subtle elevation */
+  --shadow-card: 0 1px 1px rgba(9, 30, 66, 0.25);
+  --shadow-card-hover: 0 4px 8px rgba(9, 30, 66, 0.18);
+  /* Card label bar (the small horizontal color accent inside a card) */
+  --label-list: linear-gradient(
+    to right,
+    #F59E0B 0 16px,
+    #10B981 16px 32px,
+    #3B82F6 32px 48px,
+    #8B5CF6 48px 64px,
+    #EC4899 64px 80px,
+    #EF4444 80px 96px,
+    #F97316 96px 112px,
+    #14B8A6 112px 128px
+  );
 }
 
 /* ============================================================

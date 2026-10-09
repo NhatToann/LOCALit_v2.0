@@ -124,14 +124,20 @@ export default function List({
       data-list-id={day.id}
       data-tone={tone}
       className={[
-        'flex flex-col w-72 max-w-full flex-shrink-0 bg-surface border border-border border-l-4 rounded-sm transition-shadow',
-        isSectionOver ? 'ring-2 ring-primary ring-offset-1' : '',
-        tokens.borderClass,
+        'flex flex-col w-72 max-w-full flex-shrink-0 rounded-md transition-shadow',
+        // Trello convention: column body is the same warm grey as the
+        // board backdrop, no left-border accent, subtle elevation
+        // (only on hover / when a card is being dragged over it).
+        'bg-[#EBECF0]',
+        isSectionOver ? 'ring-2 ring-primary ring-offset-1' : 'shadow-none',
       ].join(' ')}
+      style={{ boxShadow: isSectionOver ? '0 0 0 1px rgba(255,107,53,0.5)' : 'none' }}
     >
-      <header className={`px-3 py-2 border-b border-border rounded-t-sm ${tokens.headerBgClass}`}>
+      <header
+        className={`flex items-center gap-2 px-2.5 py-2 rounded-t-md ${tokens.headerBgClass}`}
+      >
         {editingHeader ? (
-          <div className="space-y-2">
+          <div className="w-full space-y-2">
             <input
               type="text"
               autoFocus
@@ -191,25 +197,19 @@ export default function List({
         ) : (
           <div className="flex items-start gap-2">
             <div className="flex-1 min-w-0">
-              <h3 className={`text-sm font-semibold truncate flex items-center gap-1.5 ${tokens.titleClass}`}>
-                <span
-                  aria-hidden
-                  className="inline-block w-2 h-2 rounded-sm flex-shrink-0"
-                  style={{ background: tokens.border }}
-                />
+              <h3 className={`text-[13px] font-semibold truncate ${tokens.titleClass}`}>
                 {day.title || 'Untitled list'}
+              </h3>
+              <div className="flex items-center gap-1.5 text-[11px] text-[#5E6C84] tabular-nums mt-0.5">
+                {day.date ? (
+                  <span>{new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                ) : null}
                 {range ? (
-                  <span className="text-[10px] text-muted font-normal tabular-nums whitespace-nowrap">
-                    <Clock size={9} className="inline-block mr-0.5 align-middle" aria-hidden />
-                    {range}
+                  <span className="inline-flex items-center gap-0.5">
+                    <Clock size={9} aria-hidden /> {range}
                   </span>
                 ) : null}
-              </h3>
-              <p className="text-[10px] text-subtle tabular-nums mt-0.5">
-                {day.date ? new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No date'}
-                <span className="mx-1" aria-hidden>·</span>
-                {sorted.length} card{sorted.length === 1 ? '' : 's'}
-              </p>
+              </div>
             </div>
             {canEdit ? (
               <div className="relative">
@@ -218,14 +218,14 @@ export default function List({
                   onClick={() => setMenuOpen((v) => !v)}
                   aria-label="List actions"
                   aria-expanded={menuOpen}
-                  className="inline-flex items-center justify-center w-7 h-7 text-muted hover:text-ink hover:bg-paper border border-border rounded-sm"
+                  className="inline-flex items-center justify-center w-6 h-6 text-muted hover:text-ink hover:bg-paper/50 rounded-sm"
                 >
                   <MoreHorizontal size={14} aria-hidden />
                 </button>
                 {menuOpen ? (
                   <div
                     role="menu"
-                    className="absolute right-0 top-8 z-10 w-44 bg-surface border border-border rounded-sm shadow-lg"
+                    className="absolute right-0 top-7 z-10 w-44 bg-surface border border-border rounded-sm shadow-lg"
                     onMouseLeave={() => setMenuOpen(false)}
                   >
                     <button
@@ -267,12 +267,12 @@ export default function List({
           data-list-body={day.id}
           aria-label={`Cards in ${day.title ?? 'list'}`}
           className={[
-            'flex-1 p-2 space-y-2 min-h-[100px] transition-colors rounded-sm',
-            isBodyOver ? 'bg-paper border border-dashed border-primary' : '',
+            'flex-1 p-2 space-y-2 min-h-[100px] transition-colors rounded-b-md',
+            isBodyOver ? 'bg-paper/60 ring-1 ring-primary' : '',
           ].join(' ')}
         >
           {sorted.length === 0 ? (
-            <li className="border border-dashed border-border rounded-sm px-3 py-4 text-[11px] text-subtle text-center italic pointer-events-none">
+            <li className="rounded-sm px-3 py-4 text-[11px] text-subtle text-center italic pointer-events-none">
               {canEdit ? 'Drop cards here or add one below' : 'No cards yet'}
             </li>
           ) : (
@@ -291,7 +291,7 @@ export default function List({
       </SortableContext>
 
       {canEdit ? (
-        <div className="px-2 pb-2 border-t border-border pt-2">
+        <div className="px-2 pb-2 pt-1.5">
           {composing ? (
             <div className="space-y-2">
               <textarea
@@ -309,18 +309,17 @@ export default function List({
                     setDraftName('')
                   }
                 }}
-                placeholder="Card name — e.g. Marble Mountains"
-                className="form-input text-sm"
+                placeholder="Enter a title for this card…"
+                className="w-full text-sm bg-white border border-[#DFE1E6] rounded-sm p-2 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
               />
               <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={addCard}
                   disabled={saving || !draftName.trim()}
-                  className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
+                  className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-sm bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
                 >
-                  {saving ? <Loader2 size={11} className="animate-spin" aria-hidden /> : <Plus size={11} aria-hidden />}
-                  Add card
+                  {saving ? <Loader2 size={11} className="animate-spin" aria-hidden /> : 'Add card'}
                 </button>
                 <button
                   type="button"
@@ -329,10 +328,10 @@ export default function List({
                     setDraftName('')
                   }}
                   disabled={saving}
-                  className="inline-flex items-center justify-center w-7 h-7 text-muted hover:text-ink hover:bg-paper border border-border rounded-sm"
+                  className="inline-flex items-center justify-center w-7 h-7 text-[#5E6C84] hover:text-[#172B4D] rounded-sm"
                   aria-label="Cancel add card"
                 >
-                  <X size={12} aria-hidden />
+                  <X size={14} aria-hidden />
                 </button>
               </div>
             </div>
@@ -340,9 +339,9 @@ export default function List({
             <button
               type="button"
               onClick={() => setComposing(true)}
-              className="inline-flex items-center gap-1 h-8 px-2 text-xs font-medium text-muted hover:text-ink hover:bg-paper rounded-sm w-full justify-start"
+              className="inline-flex items-center gap-1.5 h-8 px-2 text-xs text-[#5E6C84] hover:text-[#172B4D] hover:bg-white/80 rounded-sm w-full justify-start transition-colors"
             >
-              <Plus size={12} aria-hidden /> Add a card
+              <Plus size={14} aria-hidden /> Add a card
             </button>
           )}
         </div>

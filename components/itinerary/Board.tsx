@@ -281,9 +281,15 @@ export default function Board({
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveCardId(null)}
       >
-        <div className="flex gap-3 overflow-x-auto pb-3 items-start" role="list" aria-label="Itinerary lists">
+        {/* Trello board backdrop: warm grey, full-bleed, scrollable row */}
+        <div
+          className="flex gap-3 overflow-x-auto pb-3 items-start rounded-md"
+          role="list"
+          aria-label="Itinerary lists"
+          style={{ background: '#F1F2F4', padding: '12px' }}
+        >
           {days.length === 0 ? (
-            <div className="border border-dashed border-border rounded-sm bg-paper p-8 text-center w-full">
+            <div className="border border-dashed border-border rounded-md bg-white/60 p-8 text-center w-full">
               <p className="text-sm font-medium text-ink mb-1">No lists yet</p>
               <p className="text-xs text-muted mb-3">Start by adding the first list — a morning, a day, or a custom window.</p>
               {canEdit ? (
@@ -347,7 +353,7 @@ export default function Board({
                 <button
                   type="button"
                   onClick={() => setAddingList(true)}
-                  className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium text-muted hover:text-ink hover:bg-paper border border-dashed border-border rounded-sm w-full justify-center"
+                  className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-[#5E6C84] hover:text-[#172B4D] bg-white/60 hover:bg-white border-none rounded-md w-full justify-start transition-colors"
                 >
                   <Plus size={14} aria-hidden /> Add another list
                 </button>
@@ -414,7 +420,13 @@ function AddListForm({
     }
   }
   return (
-    <div className={size === 'empty' ? 'max-w-md mx-auto bg-surface border border-border rounded-sm p-3 text-left space-y-2' : 'bg-surface border border-border rounded-sm p-3 space-y-2'}>
+    <div
+      className={size === 'empty'
+        ? 'max-w-md mx-auto bg-white border border-[#DFE1E6] rounded-md p-3 text-left space-y-2'
+        : 'bg-white border border-[#DFE1E6] rounded-md p-2.5 space-y-2 w-72 flex-shrink-0'
+      }
+      style={size === 'inline' ? { background: '#EBECF0' } : undefined}
+    >
       <input
         type="text"
         autoFocus
@@ -429,29 +441,29 @@ function AddListForm({
             onCancel()
           }
         }}
-        placeholder="List title — e.g. Saturday morning"
-        className="form-input text-sm"
+        placeholder="Enter list title…"
+        className="w-full text-sm bg-white border border-[#DFE1E6] rounded-sm px-2 py-1.5 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
       />
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-1.5">
         <input
           type="date"
           value={draft.date}
           onChange={(e) => setDraft({ ...draft, date: e.target.value })}
-          className="form-input text-xs"
+          className="text-xs bg-white border border-[#DFE1E6] rounded-sm px-1.5 py-1 focus:border-primary focus:outline-none"
           aria-label="List date"
         />
         <input
           type="time"
           value={draft.start_time}
           onChange={(e) => setDraft({ ...draft, start_time: e.target.value })}
-          className="form-input text-xs"
+          className="text-xs bg-white border border-[#DFE1E6] rounded-sm px-1.5 py-1 focus:border-primary focus:outline-none"
           aria-label="List start time"
         />
         <input
           type="time"
           value={draft.end_time}
           onChange={(e) => setDraft({ ...draft, end_time: e.target.value })}
-          className="form-input text-xs"
+          className="text-xs bg-white border border-[#DFE1E6] rounded-sm px-1.5 py-1 focus:border-primary focus:outline-none"
           aria-label="List end time"
         />
       </div>
@@ -460,18 +472,17 @@ function AddListForm({
           type="button"
           onClick={handle}
           disabled={busy || !draft.title.trim()}
-          className="inline-flex items-center gap-1 h-8 px-2 text-xs font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
+          className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-sm bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
         >
-          {busy ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <Check size={12} aria-hidden />}
-          Add list
+          {busy ? <Loader2 size={12} className="animate-spin" aria-hidden /> : 'Add list'}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex items-center justify-center w-8 h-8 text-muted hover:text-ink hover:bg-paper border border-border rounded-sm"
+          className="inline-flex items-center justify-center w-7 h-7 text-[#5E6C84] hover:text-[#172B4D] rounded-sm"
           aria-label="Cancel add list"
         >
-          <X size={12} aria-hidden />
+          <X size={14} aria-hidden />
         </button>
       </div>
     </div>
