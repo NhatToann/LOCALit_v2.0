@@ -11,6 +11,7 @@ import {
   Video,
   PhoneOff,
   Paperclip,
+  MapPinPlus,
   Smile,
   X,
   Edit3,
@@ -29,8 +30,9 @@ import {
   MoreHorizontal,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
-import type { Message, Conversation, MessageReaction, Profile } from '@/lib/types'
+import type { Message, Conversation, MessageReaction, Profile, FocusRequest } from '@/lib/types'
 import { Avatar, EmptyState } from '@/components/ui/Avatar'
+import FocusRequestBanner from '@/components/focus/FocusRequestBanner'
 import { useMessageStream } from '@/lib/realtime/useMessageStream'
 import { useTyping } from '@/lib/realtime/useTyping'
 import { usePresence } from '@/lib/realtime/usePresence'
@@ -151,6 +153,12 @@ function ChatInner() {
     name: string
     avatar: string | null
   } | null>(null)
+
+  // ===== Focus Mode state (2026-10-09) =====
+  const [focusOutgoing, setFocusOutgoing] = useState<FocusRequest | null>(null)
+  const [focusIncoming, setFocusIncoming] = useState<FocusRequest | null>(null)
+  const [focusBusy, setFocusBusy] = useState(false)
+  const [focusError, setFocusError] = useState<string | null>(null)
   /** Hidden <audio> element ref. Receives the remote MediaStream from the
    *  WebRTC peer via srcObject so the browser plays the peer's audio.
    *  Without this, the connection reaches 'connected' state but no audio
@@ -159,6 +167,7 @@ function ChatInner() {
   const lastSentRef = useRef<number>(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const videoInputRef = useRef<HTMLInputElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
@@ -777,7 +786,7 @@ function ChatInner() {
     loadConversations(myId!)
   }
 
-  async function handleAttach(type: 'image' | 'file' | 'location') {
+  async function handleAttach(type: 'image' | 'file' | 'video' | 'location') {
     if (!activeId || !myId) return
     setShowAttachMenu(false)
     const supabase = createClient()
@@ -816,28 +825,50 @@ function ChatInner() {
       return
     }
 
-    // image or file picker
-    const input = type === 'image' ? imageInputRef.current : fileInputRef.current
+    // image / file / video picker
+    const input =
+      type === 'image'
+        ? imageInputRef.current
+        : type === 'video'
+          ? videoInputRef.current
+          : fileInputRef.current
     if (!input) return
     input.value = ''
     input.click()
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>, kind: 'image' | 'file') {
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>, kind: 'image' | 'file' | 'video') {
     const file = e.target.files?.[0]
     if (!file || !activeId || !myId) return
+
+    // Per-kind size limit: images 10MB, files 25MB, videos 50MB.
+    const limit =
+      kind === 'image' ? 10 * 1024 * 1024 : kind === 'video' ? 50 * 1024 * 1024 : 25 * 1024 * 1024
+    if (file.size > limit) {
+      setError(
+        `${kind === 'image' ? 'Image' : kind === 'video' ? 'Video' : 'File'} is too large. Max ${(limit / 1024 / 1024).toFixed(0)} MB.`,
+      )
+      return
+    }
+
     setUploading(true)
     setError('')
     try {
       const url = await uploadChatAttachment(createClient(), file)
       const supabase2 = createClient()
       const previewText =
-        kind === 'image' ? '📷 Photo' : `📎 ${file.name}`
+        kind === 'image'
+          ? '📷 Photo'
+          : kind === 'video'
+            ? '🎬 Video'
+            : `📎 ${file.name}`
+      const messageType: 'image' | 'file' | 'video' =
+        kind === 'image' ? 'image' : kind === 'video' ? 'video' : 'file'
       await supabase2.from('messages').insert({
         conversation_id: activeId,
         sender_id: myId,
         content: previewText,
-        message_type: kind,
+        message_type: messageType,
         metadata: {
           url,
           file_name: file.name,
@@ -861,6 +892,209 @@ function ChatInner() {
       setUploading(false)
     }
   }
+
+  // ============================================================
+  // Focus Mode handlers (2026-10-09)
+  // ============================================================
+  async function sendFocusRequest() {
+    if (!activeConv || !myId) return
+    if (!isPartnerOnline) {
+      setFocusError('Your buddy is offline. Try again when they come back.')
+      return
+    }
+    setFocusBusy(true)
+    setFocusError(null)
+    try {
+      const partnerId = activeConv.partner_id
+      const res = await fetch('/api/focus/request', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          recipient_id: partnerId,
+          conversation_id: activeConv.id,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (json.error === 'pending_request_exists' && json.request) {
+          setFocusOutgoing(json.request as FocusRequest)
+          return
+        }
+        if (json.error === 'requester_in_active_session' && json.session_id) {
+          router.push(`/focus/${json.session_id}`)
+          return
+        }
+        setFocusError(json.message ?? json.error ?? 'Could not send Focus request.')
+        return
+      }
+      setFocusOutgoing(json.request as FocusRequest)
+    } catch (err) {
+      setFocusError(`Network error: ${(err as Error).message}`)
+    } finally {
+      setFocusBusy(false)
+    }
+  }
+
+  async function cancelFocusRequest() {
+    if (!focusOutgoing) return
+    setFocusBusy(true)
+    try {
+      await fetch(`/api/focus/${focusOutgoing.id}/cancel`, { method: 'POST' })
+      setFocusOutgoing(null)
+    } finally {
+      setFocusBusy(false)
+    }
+  }
+
+  async function respondToFocus(action: 'accept' | 'decline') {
+    if (!focusIncoming) return
+    setFocusBusy(true)
+    setFocusError(null)
+    try {
+      const res = await fetch(`/api/focus/${focusIncoming.id}/respond`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setFocusError(json.message ?? json.error ?? 'Could not respond.')
+        return
+      }
+      if (action === 'accept' && json.session?.id) {
+        setFocusIncoming(null)
+        router.push(`/focus/${json.session.id}`)
+      } else {
+        setFocusIncoming(null)
+      }
+    } finally {
+      setFocusBusy(false)
+    }
+  }
+
+  // Realtime subscription for incoming focus requests
+  useEffect(() => {
+    if (!myId) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`focus-incoming-${myId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'focus_requests',
+          filter: `recipient_id=eq.${myId}`,
+        },
+        async (payload) => {
+          const row = payload.new as FocusRequest
+          if (row.status !== 'pending') return
+          // Hydrate requester profile
+          const { data: profile } = await supabase
+            .from('safe_profiles')
+            .select('*')
+            .eq('id', row.requester_id)
+            .maybeSingle()
+          setFocusIncoming({ ...row, requester: profile as Profile | undefined })
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'focus_requests',
+          filter: `requester_id=eq.${myId}`,
+        },
+        (payload) => {
+          const row = payload.new as FocusRequest
+          if (row.status === 'accepted') {
+            // We were the requester; the recipient accepted. The new
+            // session id isn't in this row — we re-fetch /api/focus/active.
+            setFocusOutgoing(null)
+            void fetch('/api/focus/active')
+              .then((r) => r.json())
+              .then((j) => {
+                if (j.session?.id) {
+                  router.push(`/focus/${j.session.id}`)
+                }
+              })
+              .catch(() => undefined)
+          } else if (
+            row.status === 'declined' ||
+            row.status === 'expired' ||
+            row.status === 'cancelled'
+          ) {
+            setFocusOutgoing(null)
+          }
+        },
+      )
+      .subscribe()
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [myId, router])
+
+  // Hydrate outgoing/incoming focus state on mount
+  useEffect(() => {
+    if (!myId) return
+    let cancelled = false
+    async function hydrate() {
+      try {
+        const supabase = createClient()
+        const nowIso = new Date().toISOString()
+        const [{ data: outgoing }, { data: incoming }] = await Promise.all([
+          supabase
+            .from('focus_requests')
+            .select('*')
+            .eq('requester_id', myId)
+            .eq('status', 'pending')
+            .gt('expires_at', nowIso)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from('focus_requests')
+            .select('*')
+            .eq('recipient_id', myId)
+            .eq('status', 'pending')
+            .gt('expires_at', nowIso)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ])
+        if (cancelled) return
+        if (outgoing) setFocusOutgoing(outgoing as FocusRequest)
+        if (incoming) {
+          const { data: profile } = await supabase
+            .from('safe_profiles')
+            .select('*')
+            .eq('id', incoming.requester_id)
+            .maybeSingle()
+          setFocusIncoming({
+            ...(incoming as FocusRequest),
+            requester: profile as Profile | undefined,
+          })
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    void hydrate()
+    return () => {
+      cancelled = true
+    }
+  }, [myId])
+
+  // When the conversation changes, reset focus state for the previous
+  // partner and re-hydrate (request might be tied to a different conv).
+  // NOTE: `activeConv` is computed inline at line ~1750; we read activeId
+  // directly so this effect doesn't depend on its declaration order.
+  useEffect(() => {
+    if (!activeId || !myId) return
+    setFocusOutgoing((cur) => (cur && cur.conversation_id === activeId ? cur : null))
+    setFocusIncoming((cur) => (cur && cur.conversation_id === activeId ? cur : null))
+  }, [activeId, myId])
 
   /**
    * Attach the remote MediaStream from the WebRTC peer to the hidden
@@ -1710,7 +1944,71 @@ function ChatInner() {
                     <PhoneOff size={15} aria-hidden="true" />
                   )}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (focusOutgoing) {
+                      void cancelFocusRequest()
+                    } else {
+                      void sendFocusRequest()
+                    }
+                  }}
+                  disabled={!isPartnerOnline || focusBusy}
+                  aria-label={
+                    !isPartnerOnline
+                      ? 'Focus unavailable — buddy offline'
+                      : focusOutgoing
+                        ? 'Cancel Focus request'
+                        : 'Start Focus Mode'
+                  }
+                  title={
+                    !isPartnerOnline
+                      ? 'Buddy is offline'
+                      : focusOutgoing
+                        ? 'Cancel Focus request'
+                        : 'Start Focus Mode'
+                  }
+                  className="inline-flex items-center gap-1 h-9 px-2 text-sm font-medium rounded-sm bg-focus-primary text-white border border-focus-primary hover:bg-focus-primary-dark disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-focus-primary"
+                >
+                  <MapPinPlus size={14} aria-hidden="true" />
+                  <span className="hidden sm:inline">
+                    {focusOutgoing ? 'Cancel' : 'Focus'}
+                  </span>
+                </button>
               </header>
+
+              {/* Focus request banner (incoming or outgoing) */}
+              {focusIncoming && activeConv && focusIncoming.conversation_id === activeConv.id ? (
+                <div className="px-4 pt-3">
+                  <FocusRequestBanner
+                    variant="incoming"
+                    request={focusIncoming}
+                    partner={focusIncoming.requester ?? null}
+                    busy={focusBusy}
+                    onAccept={() => respondToFocus('accept')}
+                    onDecline={() => respondToFocus('decline')}
+                  />
+                  {focusError ? (
+                    <p className="text-xs text-danger mt-1" role="alert">
+                      {focusError}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              {focusOutgoing && activeConv && focusOutgoing.conversation_id === activeConv.id ? (
+                <div className="px-4 pt-3">
+                  <FocusRequestBanner
+                    variant="outgoing"
+                    request={focusOutgoing}
+                    partner={{
+                      id: activeConv.partner_id,
+                      full_name: activeConv.partner_name,
+                    }}
+                    busy={focusBusy}
+                    onCancel={() => cancelFocusRequest()}
+                  />
+                </div>
+              ) : null}
 
               {/* Pinned message banner */}
               {pinnedMessage ? (
@@ -1852,6 +2150,13 @@ function ChatInner() {
                   </button>
                   <button
                     type="button"
+                    onClick={() => handleAttach('video')}
+                    className="inline-flex items-center gap-1 h-8 px-3 text-xs rounded-sm bg-surface text-ink border border-border-strong hover:bg-paper"
+                  >
+                    <Video size={12} aria-hidden="true" /> Video
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handleAttach('file')}
                     className="inline-flex items-center gap-1 h-8 px-3 text-xs rounded-sm bg-surface text-ink border border-border-strong hover:bg-paper"
                   >
@@ -1932,6 +2237,13 @@ function ChatInner() {
                   accept=".pdf,.txt,application/pdf,text/plain"
                   hidden
                   onChange={(e) => handleFile(e, 'file')}
+                />
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime,video/x-m4v"
+                  hidden
+                  onChange={(e) => handleFile(e, 'video')}
                 />
               </form>
               {error ? (
@@ -2225,6 +2537,16 @@ function MessageBubble({
                   alt={(message.metadata as any).file_name ?? 'attached image'}
                   className="rounded-sm max-w-full max-h-72 object-cover mb-1"
                 />
+              ) : null}
+              {message.message_type === 'video' && (message.metadata as any)?.url ? (
+                <video
+                  controls
+                  preload="metadata"
+                  className="rounded-sm max-w-full max-h-72 bg-black mb-1"
+                  src={(message.metadata as any).url}
+                >
+                  <track kind="captions" />
+                </video>
               ) : null}
               {message.message_type === 'file' && (message.metadata as any)?.url ? (
                 <a

@@ -8,6 +8,9 @@ export const NOTIFICATION_ICON: Record<NotificationType, string> = {
   connection_accepted: 'handshake',
   connection_declined: 'user-x',
   trip_update: 'map-pin',
+  focus_request: 'map-pin-plus',
+  focus_accepted: 'map-pin-check',
+  focus_declined: 'map-pin-x',
 }
 
 export const NOTIFICATION_LABEL: Record<NotificationType, string> = {
@@ -16,6 +19,9 @@ export const NOTIFICATION_LABEL: Record<NotificationType, string> = {
   connection_accepted: 'Connection accepted',
   connection_declined: 'Connection declined',
   trip_update: 'Trip update',
+  focus_request: 'Focus request',
+  focus_accepted: 'Focus accepted',
+  focus_declined: 'Focus declined',
 }
 
 export function relativeTime(iso: string): string {

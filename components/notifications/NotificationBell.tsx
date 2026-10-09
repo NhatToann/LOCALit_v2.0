@@ -9,6 +9,7 @@ import {
   Handshake,
   UserX,
   MapPin,
+  MapPinPlus,
   Check,
   CheckCheck,
   Loader2,
@@ -24,6 +25,9 @@ const ICONS: Record<NotificationType, React.ComponentType<{ size?: number; 'aria
   connection_accepted: Handshake,
   connection_declined: UserX,
   trip_update: MapPin,
+  focus_request: MapPinPlus,
+  focus_accepted: MapPinPlus,
+  focus_declined: MapPinPlus,
 }
 
 const TYPE_TONE: Record<NotificationType, string> = {
@@ -32,6 +36,9 @@ const TYPE_TONE: Record<NotificationType, string> = {
   connection_accepted: 'bg-success-bg text-success',
   connection_declined: 'bg-danger-bg text-danger',
   trip_update: 'bg-primary-bg text-primary',
+  focus_request: 'bg-focus-primary text-white',
+  focus_accepted: 'bg-success-bg text-success',
+  focus_declined: 'bg-danger-bg text-danger',
 }
 
 interface Props {

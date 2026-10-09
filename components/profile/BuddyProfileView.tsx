@@ -52,6 +52,7 @@ import {
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { Profile, Buddy } from '@/lib/types'
 import { Avatar } from '@/components/ui/Avatar'
+import TravelHistory from '@/components/profile/TravelHistory'
 import { useSafeTimeout } from '@/hooks/useSafeTimeout'
 
 const LANGUAGES = [
@@ -392,38 +393,79 @@ export default function BuddyProfileView() {
     const file = e.target.files?.[0]
     if (!file || !profile) return
     setAvatarError('')
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      setAvatarError('Use PNG, JPG, or WebP.')
+
+    // Allow common image formats including iPhone HEIC photos.
+    const allowedTypes = [
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'image/heic',
+      'image/heif',
+    ]
+    // Browsers often report HEIC as empty type — fallback by extension.
+    const ext = (file.name.split('.').pop() ?? '').toLowerCase()
+    const allowedExts = ['png', 'jpg', 'jpeg', 'webp', 'heic', 'heif']
+    if (!allowedTypes.includes(file.type) && !allowedExts.includes(ext)) {
+      setAvatarError(`Unsupported file type. Use PNG, JPG, WebP, or HEIC. (got: ${file.type || 'unknown'})`)
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setAvatarError('Max size is 5 MB.')
+    if (file.size > 10 * 1024 * 1024) {
+      setAvatarError(`Max size is 10 MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)} MB.`)
       return
     }
+
     setAvatarUploading(true)
-    const supabase = createClient()
-    const ext = file.name.split('.').pop()
-    const path = `${profile.id}/${Date.now()}.${ext}`
-    const { error: upErr } = await supabase.storage
-      .from('avatars')
-      .upload(path, file, { upsert: true, contentType: file.type })
-    if (upErr) {
-      setAvatarError(upErr.message)
+    try {
+      const supabase = createClient()
+      const safeExt = ext || 'jpg'
+      const path = `${profile.id}/${Date.now()}.${safeExt}`
+
+      // Detect content type from extension if browser didn't give us one.
+      const contentType =
+        file.type ||
+        (safeExt === 'png'
+          ? 'image/png'
+          : safeExt === 'webp'
+            ? 'image/webp'
+            : 'image/jpeg')
+
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, {
+          upsert: true,
+          contentType,
+          cacheControl: '3600',
+        })
+      if (upErr) {
+        // eslint-disable-next-line no-console
+        console.error('[avatar] upload failed:', upErr)
+        setAvatarError(`Upload failed: ${upErr.message}`)
+        return
+      }
+
+      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
+      const publicUrl = pub.publicUrl
+      const { error: upProfileErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', profile.id)
+      if (upProfileErr) {
+        // eslint-disable-next-line no-console
+        console.error('[avatar] profile update failed:', upProfileErr)
+        setAvatarError(`Could not save: ${upProfileErr.message}`)
+        return
+      }
+      setProfile({ ...profile, avatar_url: publicUrl })
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[avatar] unexpected error:', err)
+      setAvatarError(`Unexpected error: ${(err as Error).message}`)
+    } finally {
       setAvatarUploading(false)
-      return
+      // Clear the input so the same file can be re-selected if needed.
+      if (e.target) e.target.value = ''
     }
-    const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
-    const publicUrl = pub.publicUrl
-    const { error: upProfileErr } = await supabase
-      .from('profiles')
-      .update({ avatar_url: publicUrl })
-      .eq('id', profile.id)
-    setAvatarUploading(false)
-    if (upProfileErr) {
-      setAvatarError(upProfileErr.message)
-      return
-    }
-    setProfile({ ...profile, avatar_url: publicUrl })
   }
 
   async function handleRemoveAvatar() {
@@ -592,7 +634,7 @@ export default function BuddyProfileView() {
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/png,image/jpeg,image/webp"
+                accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
                 onChange={handleAvatarUpload}
                 className="hidden"
                 aria-hidden="true"
@@ -1094,6 +1136,11 @@ export default function BuddyProfileView() {
             </section>
           ) : null}
         </main>
+      </div>
+
+      {/* Travel history — past Focus sessions */}
+      <div className="mt-6">
+        <TravelHistory />
       </div>
     </div>
   )

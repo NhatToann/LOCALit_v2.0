@@ -90,6 +90,22 @@
     #F97316 96px 112px,
     #14B8A6 112px 128px
   );
+
+  /* ============================================================
+     FOCUS MODE TOKENS — flat teal palette (no gradients)
+     Used by /focus/* routes and the FocusRequestBanner.
+     ============================================================ */
+  --focus-primary: #00AF91;
+  --focus-primary-dark: #007B8B;
+  --focus-primary-light: #00C882;
+  --focus-deep: #146175;
+  --focus-darkest: #2F4858;
+  --focus-medium: #009594;
+  --focus-surface: #FFFFFF;
+  --focus-bg: #FAFAFA;
+  --focus-border: #E0E0E0;
+  --focus-text: #2F4858;
+  --focus-muted: #7A8B95;
 }
 
 /* ============================================================
@@ -896,4 +912,39 @@
       padding-bottom: 6rem;
     }
   }
+
+  /* ============================================================
+     FOCUS MODE UTILITIES
+     Flat teal palette — single solid color per element, no gradient.
+     ============================================================ */
+  .bg-focus-primary { background-color: var(--focus-primary); }
+  .bg-focus-primary-dark { background-color: var(--focus-primary-dark); }
+  .bg-focus-primary-light { background-color: var(--focus-primary-light); }
+  .bg-focus-medium { background-color: var(--focus-medium); }
+  .bg-focus-surface { background-color: var(--focus-surface); }
+  .bg-focus-bg { background-color: var(--focus-bg); }
+  .bg-focus-deep { background-color: var(--focus-deep); }
+  .bg-focus-darkest { background-color: var(--focus-darkest); }
+
+  .text-focus-primary { color: var(--focus-primary); }
+  .text-focus-primary-light { color: var(--focus-primary-light); }
+  .text-focus-text { color: var(--focus-text); }
+  .text-focus-darkest { color: var(--focus-darkest); }
+  .text-focus-muted { color: var(--focus-muted); }
+  .text-focus-deep { color: var(--focus-deep); }
+  .text-focus-medium { color: var(--focus-medium); }
+
+  .border-focus-primary { border-color: var(--focus-primary); }
+  .border-focus-border { border-color: var(--focus-border); }
+  .border-focus-medium { border-color: var(--focus-medium); }
+  .border-focus-text { border-color: var(--focus-text); }
+
+  .hover\:bg-focus-primary-dark:hover { background-color: var(--focus-primary-dark); }
+  .hover\:bg-focus-primary-light:hover { background-color: var(--focus-primary-light); }
+  .hover\:bg-focus-medium:hover { background-color: var(--focus-medium); }
+  .hover\:text-focus-primary:hover { color: var(--focus-primary); }
+  .hover\:text-focus-primary-dark:hover { color: var(--focus-primary-dark); }
+  .hover\:text-focus-deep:hover { color: var(--focus-deep); }
+  .hover\:border-focus-primary:hover { border-color: var(--focus-primary); }
+  .hover\:border-focus-primary-dark:hover { border-color: var(--focus-primary-dark); }
 }
