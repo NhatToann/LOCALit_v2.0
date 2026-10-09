@@ -137,46 +137,55 @@ export default function DaNangBackdrop() {
       aria-hidden="true"
       className="fixed inset-0 -z-10 overflow-hidden"
     >
-      {/* Photo layer — visible (0.85 opacity) so users can see the actual
-          landmark through transparent content boxes. Subtle blur + slight
-          saturation drop so text on top stays readable. */}
+      {/* Photo layer — full opacity so the Da Nang landmark is the page's
+          visual anchor. Slight saturation/contrast boost so the 4-color
+          wash on top still reads as 4 distinct colors. */}
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{
           backgroundImage: `url(${photo.src})`,
-          opacity: 0.85,
-          filter: 'saturate(0.9) contrast(1.02)',
+          opacity: 1,
+          filter: 'saturate(1.2) contrast(1.08) brightness(0.92)',
         }}
       />
-      {/* 4-color brand wash — the 4-role gradient (Tourist → Buddy → Info →
-          Hot) at 18% opacity diagonally. This guarantees all 4 colors are
-          visible somewhere on every page (the design constraint) without
-          making the photo unreadable. */}
+      {/* 4-color brand wash — the 4-role gradient at HIGH opacity (40-50%)
+          so every page visibly carries all 4 brand colors. Each color stop
+          is mixed at 50% so the photo still shows through underneath. */}
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage: 'linear-gradient(135deg, rgba(13,148,136,0.18) 0%, rgba(245,158,11,0.14) 35%, rgba(37,99,235,0.14) 70%, rgba(251,113,133,0.18) 100%)',
-          mixBlendMode: 'normal',
+          backgroundImage:
+            'linear-gradient(135deg, rgba(13,148,136,0.55) 0%, rgba(245,158,11,0.45) 33%, rgba(37,99,235,0.45) 66%, rgba(251,113,133,0.55) 100%)',
+          mixBlendMode: 'multiply',
         }}
       />
-      {/* Light paper wash so white surface cards stay readable. Kept thin
-          (35% opacity) so the photo still bleeds through where the content
-          uses `.surface-transparent` (82% paper). */}
+      {/* 4-color gradient overlay #2 — same stops but additive (screen) so
+          the brand colors pop without losing the photo detail. */}
       <div
         className="absolute inset-0"
         style={{
-          backgroundColor: 'rgba(240, 253, 244, 0.35)',
+          backgroundImage:
+            'linear-gradient(135deg, rgba(13,148,136,0.35) 0%, rgba(245,158,11,0.30) 33%, rgba(37,99,235,0.30) 66%, rgba(251,113,133,0.35) 100%)',
+          mixBlendMode: 'screen',
+        }}
+      />
+      {/* Light paper wash so white surface cards stay readable. Reduced to
+          15% so the 4-color wash + photo stay vivid. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundColor: 'rgba(240, 253, 244, 0.15)',
         }}
       />
       {/* Bottom-fade so footer reads on a darker strip without a hard edge */}
       <div
         className="absolute inset-x-0 bottom-0 h-32"
         style={{
-          background: 'linear-gradient(to bottom, transparent 0%, rgba(240,253,244,0.55) 100%)',
+          background: 'linear-gradient(to bottom, transparent 0%, rgba(240,253,244,0.35) 100%)',
         }}
       />
       {/* Tiny attribution mark, bottom-right, never visible to assistive tech */}
-      <span className="absolute bottom-2 right-3 text-[10px] text-subtle tracking-wider uppercase pointer-events-none select-none bg-surface/80 px-2 py-0.5 rounded-sm">
+      <span className="absolute bottom-2 right-3 text-[10px] text-white font-semibold tracking-wider uppercase pointer-events-none select-none bg-ink/70 px-2 py-0.5 rounded-sm">
         {photo.place}
       </span>
     </div>

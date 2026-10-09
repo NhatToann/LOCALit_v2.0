@@ -215,3 +215,153 @@ https://react.dev/link/hydration-mismatch
 [middleware] redirect to /login { pathname: '/chat', hasUser: false, cookies: [] }
 [middleware] redirect to /login { pathname: '/profile', hasUser: false, cookies: [] }
 [middleware] redirect to /login { pathname: '/dashboard', hasUser: false, cookies: [] }
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="login/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+        <RedirectBoundary>
+          <RedirectErrorBoundary router={{...}}>
+            <InnerLayoutRouter url="/login" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+              <SegmentViewNode type="page" pagePath="login/page...">
+                <SegmentTrieNode>
+                <ClientPageRoot Component={function LoginPage} serverProvidedParams={{...}}>
+                  <LoginPage params={Promise} searchParams={Promise}>
+                    <Suspense fallback={<main>}>
+                      <LoginForm>
+                        <main className="container-...">
+                          <div className="flex flex-..." role="list" aria-label="LOCALit br...">
+                            <span
+                              role="listitem"
+                              className="role-badge-tourist"
+                              title="Tourist role accent"
+-                             data-cursor-ref="e7"
+                            >
++                             Tourist
+                            <span
+                              role="listitem"
+                              className="role-badge-buddy"
+                              title="Buddy role accent"
+-                             data-cursor-ref="e8"
+                            >
++                             Buddy
+                            <span
+                              role="listitem"
+                              className="role-badge-info2"
+                              title="Info accent"
+-                             data-cursor-ref="e9"
+                            >
++                             Info
+                            <span
+                              role="listitem"
+                              className="role-badge-hot"
+                              title="Urgent accent"
+-                             data-cursor-ref="e10"
+                            >
++                             Hot
+                          <header className="mb-6 text-...">
+                            <h1
+                              className="text-page-title"
+-                             data-cursor-ref="e11"
+                            >
++                             Sign in
+                            <p
+                              className="text-sm text-muted mt-2"
+-                             data-cursor-ref="e12"
+                            >
++                             Welcome back. Continue your Da Nang trip with a verified local buddy.
+                          <form onSubmit={function handleSubmit} className="surface-tr..." noValidate={true}>
+                            <div className="form-group">
+                              <label
+                                htmlFor="email"
+                                className="form-label"
+-                               data-cursor-ref="e13"
+                              >
+                              <input
+                                id="email"
+                                type="email"
+                                className="form-input bg-tourist-50/60 border-tourist-border focus:border-tourist"
+                                placeholder="you@example.com"
+                                value=""
+                                onChange={function onChange}
+                                onInput={function onInput}
+                                autoComplete="email"
+                                required={true}
+-                               data-cursor-ref="e0"
+                              >
+                            <div className="form-group">
+                              <div className="flex items...">
+                                <label
+                                  htmlFor="password"
+                                  className="form-label mb-0"
+-                                 data-cursor-ref="e14"
+                                >
+                                <LinkComponent href="/forgot-pa..." className="text-xs te...">
+                                  <a
+                                    className="text-xs text-info2 hover:underline font-semibold"
+                                    ref={function}
+                                    onClick={function onClick}
+                                    onMouseEnter={function onMouseEnter}
+                                    onTouchStart={function onTouchStart}
+                                    href="/forgot-password"
+-                                   data-cursor-ref="e1"
+                                  >
++                                   Forgot password?
+                              <div className="relative">
+                                <input
+                                  id="password"
+                                  type="password"
+                                  className="form-input pr-10 bg-info2-50/60 border-info2-border focus:border-info2"
+                                  placeholder="Your password"
+                                  value=""
+                                  onChange={function onChange}
+                                  onInput={function onInput}
+                                  autoComplete="current-password"
+                                  required={true}
+                                  style={{paddingRight:40}}
+-                                 data-cursor-ref="e2"
+                                >
+                                <button
+                                  type="button"
+                                  onClick={function onClick}
+                                  aria-label="Show password"
+                                  aria-pressed={false}
+                                  className="absolute inset-y-0 right-0 inline-flex items-center justify-center w-10 t..."
+                                  tabIndex={-1}
+-                                 data-cursor-ref="e3"
+                                >
+                            <button
+                              type="submit"
+                              disabled={true}
+                              className="btn-buddy w-full h-11 mt-2"
+-                             data-cursor-ref="e4"
+                            >
++                             Sign in
+                            <p
+                              className="text-xs text-muted text-center mt-4"
+-                             data-cursor-ref="e15"
+                            >
+                              <LinkComponent href="/register" className="text-touri...">
+                                <a
+                                  className="text-tourist hover:text-tourist-hover font-semibold hover:underline"
+                                  ref={function}
+                                  onClick={function onClick}
+                                  onMouseEnter={function onMouseEnter}
+                                  onTouchStart={function onTouchStart}
+                                  href="/register"
+-                                 data-cursor-ref="e5"
+                                >
++                                 Create an account
+              ...
+            ...
+ 
