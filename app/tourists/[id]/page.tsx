@@ -21,7 +21,7 @@ async function fetchTourist(id: string): Promise<{
   const { data: t } = await supabase
     .from('safe_tourists')
     .select(
-      'id, nationality, travel_style, interests, languages, budget_range, arrival_date, destination, profile:safe_profiles(id, full_name, avatar_url, is_online, role)',
+      'id, nationality, travel_style, interests, languages, budget_range, arrival_date, destination, profile:safe_profiles(id, full_name, avatar_url, is_online, role, bio)',
     )
     .eq('id', id)
     .maybeSingle<Tourist & { profile: Profile }>()

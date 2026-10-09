@@ -113,6 +113,13 @@ export default function TouristPublicView({ tourist: t, profile: p }: Props) {
         </div>
       </header>
 
+      {p.bio ? (
+        <section className="mb-6 border border-border rounded-sm bg-surface p-5">
+          <h2 className="text-sm font-semibold text-ink mb-2">About</h2>
+          <p className="text-sm text-ink leading-relaxed max-w-prose">{p.bio}</p>
+        </section>
+      ) : null}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card title="Interests">
           {t.interests.length === 0 ? (

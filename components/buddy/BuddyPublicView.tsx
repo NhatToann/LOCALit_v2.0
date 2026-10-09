@@ -117,10 +117,17 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
         </div>
       </header>
 
-      {b.bio ? (
+      {p.bio || b.bio ? (
         <section className="mb-6 border border-border rounded-sm bg-surface p-5">
           <h2 className="text-sm font-semibold text-ink mb-2">About</h2>
-          <p className="text-sm text-ink leading-relaxed max-w-prose">{b.bio}</p>
+          {p.bio ? (
+            <p className="text-sm text-ink leading-relaxed max-w-prose">{p.bio}</p>
+          ) : null}
+          {b.bio && b.bio !== p.bio ? (
+            <p className="text-sm text-ink leading-relaxed max-w-prose mt-2 pt-2 border-t border-border">
+              {b.bio}
+            </p>
+          ) : null}
         </section>
       ) : null}
 
