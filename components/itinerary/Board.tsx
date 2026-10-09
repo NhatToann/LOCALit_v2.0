@@ -106,6 +106,11 @@ export default function Board({
       targetListId = overId.slice('list-drop:'.length)
       const listStops = sortStops(stops.filter((s) => s.day_id === targetListId))
       targetIndex = listStops.length
+    } else if (days.some((d) => d.id === overId)) {
+      // Dropped onto a list's <section> (header or footer area).
+      targetListId = overId
+      const listStops = sortStops(stops.filter((s) => s.day_id === targetListId))
+      targetIndex = listStops.length
     } else {
       // Dropped on a card.
       const overStop = stops.find((s) => s.id === over.id)

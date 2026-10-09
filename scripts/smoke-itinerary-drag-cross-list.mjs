@@ -46,11 +46,14 @@ async function loginAs(p, email, password) {
 async function freshTripWithTwoLists(p) {
   // 1) Sign in
   await loginAs(p, SEED_USER.email, SEED_USER.password)
-  // 2) Create new trip via the /itinerary/new form
+  // 2) Create new trip via /itinerary/new template picker
   await p.goto(`${BASE}/itinerary/new`, { waitUntil: 'domcontentloaded' })
   const title = `Drag Smoke ${Date.now()}`
-  await p.locator('input#title').fill(title)
-  await p.locator('button[type="submit"]').click()
+  // Pick the "Blank" template (last in grid) so we start with no lists
+  const blankBtn = p.locator('button[aria-pressed]').last()
+  await blankBtn.click()
+  await p.locator('input#trip-title').fill(title)
+  await p.locator('button[type="submit"]', { hasText: /Use this template/ }).click()
   await p.waitForURL(/\/itinerary\/[a-f0-9-]+$/, { timeout: 15000 })
   await p.waitForLoadState('domcontentloaded')
   await p.locator('[aria-label="Trip board"]').waitFor({ state: 'visible', timeout: 10000 })
@@ -67,10 +70,16 @@ async function freshTripWithTwoLists(p) {
   // 5) Add a card in list 1
   const lists = p.locator('section[data-list-id]')
   const list1Body = lists.nth(0).locator('ol[data-list-body]')
-  await list1Body.locator('button', { hasText: 'Add a card' }).click()
-  await list1Body.locator('textarea[placeholder^="Card name"]').fill('Marble Mountains')
-  await list1Body.locator('button', { hasText: 'Add card' }).click()
-  await p.waitForTimeout(2000)
+  const addCardBtn = list1Body.locator('..').locator('button', { hasText: 'Add a card' })
+  await addCardBtn.waitFor({ state: 'visible', timeout: 10000 })
+  await addCardBtn.click()
+  // The composer is in a sibling div below the <ol>
+  const composer = p.locator('textarea[placeholder^="Card name"]')
+  await composer.waitFor({ state: 'visible', timeout: 10000 })
+  await composer.fill('Marble Mountains')
+  // The Add card submit button is the one in the composer
+  await p.locator('button', { hasText: 'Add card' }).last().click()
+  await p.waitForTimeout(2500)
   return title
 }
 

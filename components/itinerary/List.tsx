@@ -50,7 +50,13 @@ export default function List({
   // The list body itself is a droppable: drop on empty space or
   // below the last card to append. ID = list-drop:<dayId> so the
   // board's onDragEnd can resolve it the same way as a card drop.
-  const { setNodeRef, isOver } = useDroppable({ id: `list-drop:${day.id}` })
+  const { setNodeRef: setBodyRef, isOver: isBodyOver } = useDroppable({ id: `list-drop:${day.id}` })
+  // The whole <section> is also a droppable, registered with the
+  // raw dayId (no prefix). This guarantees that dropping anywhere
+  // on a list — even between cards or into its footer — resolves
+  // to that list. closestCorners prefers the body, but if the
+  // mouse is over the header or the composer, this catches it.
+  const { setNodeRef: setSectionRef, isOver: isSectionOver } = useDroppable({ id: day.id })
 
   // Reset local form when remote day changes.
   useEffect(() => {
@@ -113,11 +119,13 @@ export default function List({
 
   return (
     <section
+      ref={setSectionRef}
       aria-label={day.title ?? 'List'}
       data-list-id={day.id}
       data-tone={tone}
       className={[
-        'flex flex-col w-72 max-w-full flex-shrink-0 bg-surface border border-border border-l-4 rounded-sm',
+        'flex flex-col w-72 max-w-full flex-shrink-0 bg-surface border border-border border-l-4 rounded-sm transition-shadow',
+        isSectionOver ? 'ring-2 ring-primary ring-offset-1' : '',
         tokens.borderClass,
       ].join(' ')}
     >
@@ -254,13 +262,13 @@ export default function List({
 
       <SortableContext items={sorted.map((s) => s.id)} strategy={verticalListSortingStrategy}>
         <ol
-          ref={setNodeRef}
+          ref={setBodyRef}
           data-droppable-list={day.id}
           data-list-body={day.id}
           aria-label={`Cards in ${day.title ?? 'list'}`}
           className={[
             'flex-1 p-2 space-y-2 min-h-[100px] transition-colors rounded-sm',
-            isOver ? 'bg-paper border border-dashed border-primary' : '',
+            isBodyOver ? 'bg-paper border border-dashed border-primary' : '',
           ].join(' ')}
         >
           {sorted.length === 0 ? (
