@@ -83,8 +83,6 @@ function LoginForm() {
       <div className="flex flex-wrap items-center justify-center gap-2 mb-6" role="list" aria-label="LOCALit brand colors">
         <span role="listitem" className="role-badge-tourist" title="Tourist role accent">Tourist</span>
         <span role="listitem" className="role-badge-buddy" title="Buddy role accent">Buddy</span>
-        <span role="listitem" className="role-badge-info2" title="Info accent">Info</span>
-        <span role="listitem" className="role-badge-hot" title="Urgent accent">Hot</span>
       </div>
 
       <header className="mb-6 text-center">
@@ -106,7 +104,7 @@ function LoginForm() {
 
       <form
         onSubmit={handleSubmit}
-        className="surface-transparent-strong border-2 border-tourist-border rounded-sm p-6"
+        className="bg-paper border-2 border-tourist-border rounded-sm p-6"
         noValidate
       >
         <div className="form-group">
@@ -126,17 +124,17 @@ function LoginForm() {
             required
           />
           {email && !emailLooksValid ? (
-            <p className="form-hint text-hot">Please enter a valid email address.</p>
+            <p className="form-hint text-buddy-ink">Please enter a valid email address.</p>
           ) : null}
         </div>
 
         <div className="form-group">
           <div className="flex items-center justify-between mb-1">
             <label htmlFor="password" className="form-label mb-0">
-              <span className="inline-block w-2 h-2 rounded-sm bg-info2 mr-2 align-middle" aria-hidden="true" />
+              <span className="inline-block w-2 h-2 rounded-sm bg-tourist mr-2 align-middle" aria-hidden="true" />
               Password
             </label>
-            <Link href="/forgot-password" className="text-xs text-info2 hover:underline font-semibold">
+            <Link href="/forgot-password" className="text-xs text-tourist hover:underline font-semibold">
               Forgot password?
             </Link>
           </div>
@@ -144,7 +142,7 @@ function LoginForm() {
             <input
               id="password"
               type={showPassword ? 'text' : 'password'}
-              className="form-input pr-10 bg-info2-50/60 border-info2-border focus:border-info2"
+              className="form-input pr-10 bg-tourist-50 border-tourist-border focus:border-tourist"
               placeholder="Your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -158,7 +156,7 @@ function LoginForm() {
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
               aria-pressed={showPassword}
-              className="absolute inset-y-0 right-0 inline-flex items-center justify-center w-10 text-info2 hover:text-info2-hover"
+              className="absolute inset-y-0 right-0 inline-flex items-center justify-center w-10 text-tourist hover:text-tourist-hover"
               tabIndex={-1}
             >
               {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}

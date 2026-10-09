@@ -183,7 +183,7 @@ function HomeContent() {
             value="0%"
             label="LOCALit commission through 2026 launch period"
             labelVi="hoa hồng"
-            tone="info2"
+            tone="primary"
           />
         </dl>
       </Section>
@@ -219,13 +219,13 @@ function HomeContent() {
               title: 'Meet up in Da Nang',
               body:
                 'Chat in-app to lock a meeting point. Voice and video calls work inside the chat once both sides are online. 0% LOCALit fee.',
-              cls: 'border-info2',
-              badgeCls: 'role-badge-info2-soft',
+              cls: 'border-primary',
+              badgeCls: 'role-badge-tourist-soft',
             },
           ].map((item) => (
             <li
               key={item.step}
-              className={`border-l-4 ${item.cls} rounded-sm p-6 surface-transparent-strong`}
+              className={`border-l-4 ${item.cls} rounded-sm p-6 bg-paper border border-border`}
             >
               <span className={item.badgeCls}>Step {item.step}</span>
               <h3 className="text-xl font-semibold text-ink mt-3 mb-3">{item.title}</h3>
@@ -242,43 +242,29 @@ function HomeContent() {
         </p>
       </Section>
 
-      {/* ============= 4-ROLE STRIP — every page must show all 4 colors ============= */}
+      {/* ============= 2-ROLE STRIP — every page shows the brand colors ============= */}
       <Section variant="dense" bordered ariaLabelledby="roles-title">
         <h2 id="roles-title" className="text-page-title mb-3 max-w-3xl">
-          Four colors, one Da Nang marketplace
+          Two colors, one Da Nang marketplace
         </h2>
         <p className="text-base text-muted max-w-2xl mb-8 leading-relaxed">
-          LOCALit uses four colors to mark the role of every person and every
-          button. Jade teal is for tourists, amber is for buddies, royal blue is
-          for information, and coral pink is for anything urgent or pending.
+          LOCALit uses two colors to mark the role of every person and every
+          button. Jade teal is for tourists, amber is for buddies. Information
+          and urgent states use the same jade family at different depths.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl">
-          <article className="border-2 border-tourist rounded-sm p-5 surface-transparent">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-4xl">
+          <article className="border-2 border-tourist rounded-sm p-5 bg-paper">
             <span className="role-badge-tourist">Tourist</span>
             <p className="text-eyebrow text-tourist mt-3 mb-1">xanh lục · jade teal</p>
             <p className="text-sm text-ink leading-relaxed">
               Travelers browsing Da Nang. Jade teal — calm, exploratory.
             </p>
           </article>
-          <article className="border-2 border-buddy rounded-sm p-5 surface-transparent">
+          <article className="border-2 border-buddy rounded-sm p-5 bg-paper">
             <span className="role-badge-buddy">Buddy</span>
             <p className="text-eyebrow text-buddy mt-3 mb-1">vàng · amber</p>
             <p className="text-sm text-ink leading-relaxed">
               Local guides offering their time. Amber — warm, hospitable.
-            </p>
-          </article>
-          <article className="border-2 border-info2 rounded-sm p-5 surface-transparent">
-            <span className="role-badge-info2-soft">Info</span>
-            <p className="text-eyebrow text-info2 mt-3 mb-1">xanh dương · royal blue</p>
-            <p className="text-sm text-ink leading-relaxed">
-              System messages, prices, language tags. Royal blue — informative.
-            </p>
-          </article>
-          <article className="border-2 border-hot rounded-sm p-5 surface-transparent">
-            <span className="role-badge-hot-soft">Hot</span>
-            <p className="text-eyebrow text-hot mt-3 mb-1">hồng · coral pink</p>
-            <p className="text-sm text-ink leading-relaxed">
-              Urgent and pending states. Coral pink — warm, action-required.
             </p>
           </article>
         </div>
@@ -293,7 +279,7 @@ function HomeContent() {
           Pricing, languages, safety, and how day trips work. Four answers, no
           filler.
         </p>
-        <dl className="faq-list max-w-3xl surface-transparent-strong p-6 rounded-sm">
+        <dl className="faq-list max-w-3xl bg-paper border border-border p-6 rounded-sm">
           {HOME_FAQ_VISIBLE.map((item, i) => (
             <div
               key={item.q}

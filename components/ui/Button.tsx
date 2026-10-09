@@ -7,9 +7,7 @@ type Variant =
   | 'ghost'
   | 'danger'
   | 'tourist'
-  | 'buddy'
-  | 'info2'
-  | 'hot';
+  | 'buddy';
 type Size = 'sm' | 'md' | 'lg';
 
 type ButtonProps = {
@@ -26,16 +24,13 @@ const variantClasses: Record<Variant, string> = {
   outline: 'bg-transparent text-ink border border-border-strong hover:bg-paper',
   ghost: 'bg-transparent text-muted border border-transparent hover:bg-paper hover:text-ink',
   danger: 'bg-danger-bg text-danger border border-danger-bg hover:bg-danger hover:text-paper',
-  // 4-role variants (2026-10-09 v3 recolor) — each role button has a
-  // strong, identity-bearing color so the action is never ambiguous.
+  // 2-role variants (2026-10-10 v5 recolor) — tourist (jade teal) and
+  // buddy (amber) are the only two action colors. Solid color, no
+  // gradient, no alpha tint.
   tourist:
     'bg-tourist text-white border border-tourist hover:bg-tourist-hover',
   buddy:
-    'bg-buddy text-[color:var(--color-buddy-ink)] border border-buddy hover:bg-buddy-hover',
-  info2:
-    'bg-info2 text-white border border-info2 hover:bg-info2-hover',
-  hot:
-    'bg-hot text-white border border-hot hover:bg-hot-hover',
+    'bg-buddy text-white border border-buddy hover:bg-buddy-hover',
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -48,11 +43,10 @@ const sizeClasses: Record<Size, string> = {
  * LOCALit Button — flat, 4px radius, no shadow (per design.md Section 6.1).
  * Hover darkens background by 1 step (no lift, no shadow).
  *
- * 4-role recolor (2026-10-09 v3): the {tourist, buddy, info2, hot}
- * variants are the recommended way to render an action button. Plain
- * `primary` still works (renders the default jade ocean dark) but every
- * page should pick a role-specific variant so the action's color matches
- * the action's role.
+ * 2-role recolor (2026-10-10 v5): the {tourist, buddy} variants are the
+ * recommended way to render an action button. Plain `primary` still works
+ * (renders the default jade teal) but every page should pick a role-specific
+ * variant so the action's color matches the action's role.
  *
  * Anti-slop check: never pill-shaped, never glowing, never with shadow.
  */

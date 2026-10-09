@@ -11,18 +11,15 @@
  *
  * Tabular numerals prevent layout shift when the value re-renders.
  *
- * 2026-10-09 v3 recolor: each metric picks a tone (tourist / buddy /
- * info2 / hot) and renders a colored top border + colored value. The tone
- * is one of the 4 brand colors — so on a single page with 3+ MetricCards
- * you can see all 4 colors at a glance.
+ * 2026-10-10 v5 recolor: tone is one of 2 brand colors (tourist / buddy)
+ * plus a neutral primary tone. No blue, no coral. Each card uses a
+ * SOLID colored top border, never an alpha tint.
  */
-type Tone = 'tourist' | 'buddy' | 'info2' | 'hot' | 'primary'
+type Tone = 'tourist' | 'buddy' | 'primary'
 
 const TONE_CLASSES: Record<Tone, { border: string; text: string; bg: string }> = {
   tourist: { border: 'border-tourist', text: 'text-tourist', bg: 'bg-tourist' },
-  buddy: { border: 'border-buddy', text: 'text-buddy', bg: 'bg-buddy' },
-  info2: { border: 'border-info2', text: 'text-info2', bg: 'bg-info2' },
-  hot: { border: 'border-hot', text: 'text-hot', bg: 'bg-hot' },
+  buddy: { border: 'border-buddy', text: 'text-buddy-ink', bg: 'bg-buddy' },
   primary: { border: 'border-primary', text: 'text-primary', bg: 'bg-primary' },
 }
 
@@ -41,7 +38,7 @@ export function MetricCard({
 }) {
   const t = TONE_CLASSES[tone]
   return (
-    <article className={`border-2 ${t.border} rounded-sm p-6 surface-transparent`}>
+    <article className={`border-2 ${t.border} bg-paper rounded-sm p-6`}>
       <p
         className="text-5xl font-medium text-ink mb-3"
         style={{

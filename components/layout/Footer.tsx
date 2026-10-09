@@ -1,15 +1,17 @@
 // components/layout/Footer.tsx — slim 4-column footer with AEO answer capsule.
-// 2026-10-09: 4-color brand gradient (Tourist → Buddy → Info → Hot) on the
-// top stripe. Per design.md Section 2.1, this is one of the two places
-// the full brand gradient is allowed (the other is the Header brand mark).
+// 2026-10-10: 2-color brand stripe (Tourist jade → Buddy amber). No blue, no
+// coral. Single solid color per element, no gradient on any item.
 import Link from 'next/link'
 
 export default function Footer() {
   return (
     <footer className="mt-16">
-      {/* 4-color brand gradient stripe — Tourist → Buddy → Info → Hot.
-          Shows all 4 role colors at the top of every page. */}
-      <div className="h-[3px] bg-gradient-4" aria-hidden="true" />
+      {/* 2-color brand stripe — solid jade teal on the left half, solid
+          amber on the right half. Two adjacent blocks, no gradient. */}
+      <div className="h-[3px] flex" aria-hidden="true">
+        <div className="flex-1 bg-tourist" />
+        <div className="flex-1 bg-buddy" />
+      </div>
       <div className="border-t border-border bg-surface/85 backdrop-blur-0">
         <div className="max-w-7xl mx-auto px-6 py-12">
           <div className="mb-12 pb-8 border-b border-border">

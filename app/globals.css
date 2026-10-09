@@ -1,243 +1,161 @@
 /* ============================================================
-   LOCALit Global Styles — v4.0 (4-color + Da Nang backdrop)
-   Last updated: 2026-10-09 (recolor v3 — 4-role palette)
+   LOCALit Global Styles — v5.0 (3-color solid recolor)
+   Last updated: 2026-10-10 (palette shrink — drop blue + coral)
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 /* ============================================================
-   ROLE PALETTE (v3 — 4 colors, 1 page must show all 4)
+   PALETTE (v5 — 3 colors, no blue, no coral)
 
-   Every page exposes all 4 colors:
-   - Tourist (jade teal #0D9488)   — CTA on /dashboard for tourist role
-   - Buddy   (amber yellow #F59E0B) — CTA on /dashboard for buddy role
-   - Info    (royal blue #2563EB)  — info / system messages
-   - Hot     (coral pink #FB7185)   — hot / urgent / pending state
+   The visual identity is a 3-color world:
+   - Jade teal (#0D9488)   — primary brand color, tourist role
+   - Mint   (#A7F3D0)     — light tint, surface accents
+   - Amber  (#D97706)     — buddy role, secondary CTA
 
-   These map to role-specific button utilities, badge tones, and
-   the brand gradient. The existing --color-primary family still
-   resolves to the deep ocean stop (#134E4A) so headings and
-   dark surfaces stay consistent.
+   These three map to role-specific button utilities, badge
+   tones, and the page background. No royal blue, no coral,
+   no gradients anywhere in the design system. Every surface
+   is a single solid color; saturation is boosted by deepening
+   the values, not by stacking alpha tints.
+
+   Reference palette (verified against user-provided swatch):
+     Jade teal  #0D9488
+     Mint light #A7F3D0
+     Amber deep #D97706
    ============================================================ */
 @theme {
-  /* Tourist: jade teal */
-  --color-tourist: #0D9488;
-  --color-tourist-hover: #0F766E;
-  --color-tourist-50: #F0FDFA;
+  /* Tourist: jade teal (deeper, more saturated) */
+  --color-tourist: #0F766E;
+  --color-tourist-hover: #115E59;
+  --color-tourist-50: #ECFEFF;
   --color-tourist-bg: #CCFBF1;
   --color-tourist-border: #5EEAD4;
   --color-tourist-ink: #134E4A;
 
-  /* Buddy: amber yellow */
-  --color-buddy: #F59E0B;
-  --color-buddy-hover: #D97706;
+  /* Buddy: amber yellow (deeper for visibility on photo backdrops) */
+  --color-buddy: #D97706;
+  --color-buddy-hover: #B45309;
   --color-buddy-50: #FFFBEB;
   --color-buddy-bg: #FEF3C7;
   --color-buddy-border: #FCD34D;
   --color-buddy-ink: #78350F;
 
-  /* Info: royal blue */
-  --color-info2: #2563EB;
-  --color-info2-hover: #1D4ED8;
-  --color-info2-50: #EFF6FF;
-  --color-info2-bg: #DBEAFE;
-  --color-info2-border: #93C5FD;
-  --color-info2-ink: #1E3A8A;
-
-  /* Hot: coral pink (urgent / pending) */
-  --color-hot: #FB7185;
-  --color-hot-hover: #F43F5E;
-  --color-hot-50: #FFF1F2;
-  --color-hot-bg: #FFE4E6;
-  --color-hot-border: #FDA4AF;
-  --color-hot-ink: #9F1239;
-
-  /* 4-color gradient — used for brand mark, hero, footer stripe */
-  --color-gradient-4: linear-gradient(135deg, #0D9488 0%, #F59E0B 35%, #2563EB 70%, #FB7185 100%);
-
-  /* DESIGN TOKENS (per design.md Section 2) */
-  --color-primary: #134E4A;            /* stop 6 — ocean-dark teal (text & border) */
-  --color-primary-hover: #0F3F3C;       /* stop 6 darkened */
-  --color-primary-50: #ECFDF5;          /* 4% alpha of stop 1 — selected bg */
-  --color-primary-100: #D1FAE5;         /* 8% alpha of stop 1 — deeper tint */
-  --color-primary-500: #34D399;         /* stop 1 — jade mint, CTA background */
-  --color-primary-700: #0D9488;         /* stop 3 — jade teal, secondary CTA */
-  --color-primary-900: #065F46;         /* stop 4 — forest deep, vibrant accent */
-  --color-primary-bg: #ECFDF5;          /* 4% alpha tint */
-  --color-primary-bg-vibrant: #D1FAE5;  /* 8% alpha tint */
-  --color-gradient: linear-gradient(135deg, #34D399 0%, #10B981 20%, #0D9488 40%, #065F46 60%, #0E7490 80%, #134E4A 100%);
-
-  /* Neutrals — jade-tinted, not pure black/white per Section 2a.
-   * Every neutral carries a slight teal hue so the page reads as one
-   * canvas rather than a black/white grid with colored accents. */
+  /* ============================================================
+     DESIGN TOKENS (per design.md Section 2)
+     Single solid color per surface, no alpha tints. Neutrals
+     are deep-jade tinted, not pure black/white per Section 2a.
+     ============================================================ */
+  --color-primary: #0F766E;            /* jade teal — same as tourist */
+  --color-primary-hover: #115E59;       /* deepened */
+  --color-primary-700: #0D9488;         /* brighter accent */
+  --color-primary-900: #134E4A;         /* deep ink */
+  --color-paper: #FFFFFF;              /* pure white card / page */
+  --color-surface: #F0FDFA;            /* mint-tinted card surface */
+  --color-surface-deep: #CCFBF1;       /* deeper mint for emphasis cards */
   --color-ink: #0A1F1D;                 /* near-black with teal undertone */
-  --color-paper: #F0FDF4;              /* 4% alpha of stop 1 — page background */
-  --color-surface: #ECFDF5;            /* 8% alpha of stop 1 — card background */
-  --color-border: #BBF7D0;             /* 16% alpha of stop 1 — 1px borders */
-  --color-border-strong: #86EFAC;      /* 32% alpha of stop 1 — hover borders */
+  --color-border: #A7F3D0;             /* mint-300 — visible at 1px */
+  --color-border-strong: #34D399;      /* mint-400 — hover borders */
   --color-muted: #4B5563;              /* slate-600, jade-tinted */
   --color-subtle: #6B7280;             /* slate-500 */
 
-  /* Semantic — kept distinguishable but pulled into the jade family.
-   * Success = jade (matches brand). Warning/danger/info stay
-   * recognisable but each takes a small alpha-tint of its color. */
-  --color-success: #065F46;            /* forest deep — same as primary-900 */
-  --color-success-bg: #D1FAE5;         /* 8% alpha of stop 1 */
-  --color-success-border: #6EE7B7;     /* 24% alpha of stop 1 */
-  --color-warning: #92400E;            /* amber-800 — preserved */
+  /* Semantic — pulled into the jade/amber family. No blue. */
+  --color-success: #065F46;            /* forest deep */
+  --color-success-bg: #D1FAE5;
+  --color-success-border: #6EE7B7;
+  --color-warning: #B45309;            /* amber-700 — visible on white */
   --color-warning-bg: #FEF3C7;
-  --color-warning-border: #FDE68A;
-  --color-danger: #991B1B;             /* red-800 — preserved */
+  --color-warning-border: #FCD34D;
+  --color-danger: #B91C1C;             /* red-700 — kept only for error states */
   --color-danger-bg: #FEE2E2;
   --color-danger-border: #FECACA;
-  --color-info: #0E7490;               /* sea blue (stop 5) — fits the family */
-  --color-info-bg: #CFFAFE;            /* alpha of info */
-  --color-info-border: #A5F3FC;
+  --color-info: #0F766E;               /* jade teal — fits the family */
+  --color-info-bg: #CCFBF1;
+  --color-info-border: #5EEAD4;
 
   /* Board (Trello convention: warm backdrop so columns pop) */
-  --color-board-bg: #DCFCE7;           /* 12% alpha of stop 1 */
+  --color-board-bg: #F0FDFA;
   /* Card hover shadow — single subtle elevation */
-  --shadow-card: 0 1px 1px rgba(19, 78, 74, 0.12);
-  --shadow-card-hover: 0 4px 8px rgba(19, 78, 74, 0.18);
-  /* Card label bar — jade-tinted (was the old rainbow). Now reads
-   * as a 6-stop jade family: light jade → emerald → teal → forest
-   * → sea → ocean. Each segment is one of our 6 primary stops. */
-  --label-list: linear-gradient(
-    to right,
-    #34D399 0 16px,
-    #10B981 16px 32px,
-    #0D9488 32px 48px,
-    #065F46 48px 64px,
-    #0E7490 64px 80px,
-    #134E4A 80px 96px
-  );
+  --shadow-card: 0 1px 1px rgba(15, 118, 110, 0.12);
+  --shadow-card-hover: 0 4px 8px rgba(15, 118, 110, 0.18);
 
   /* ============================================================
-     FOCUS MODE TOKENS — flat jade family (no gradients)
-     Used by /focus/* routes and the FocusRequestBanner.
-     These are the deepest jade variants — focus mode is the
-     "immersive" experience, so it goes darker than the global UI.
+     FOCUS MODE TOKENS — flat jade family
      ============================================================ */
-  --focus-primary: #10B981;
-  --focus-primary-dark: #065F46;
+  --focus-primary: #0F766E;
+  --focus-primary-dark: #115E59;
   --focus-primary-light: #34D399;
   --focus-deep: #134E4A;
   --focus-darkest: #0A1F1D;
   --focus-medium: #0D9488;
-  --focus-surface: #ECFDF5;
-  --focus-bg: #F0FDF4;
-  --focus-border: #BBF7D0;
+  --focus-surface: #F0FDFA;
+  --focus-bg: #FFFFFF;
+  --focus-border: #A7F3D0;
   --focus-text: #0A1F1D;
   --focus-muted: #4B5563;
 }
 
 /*
- * Light palette (only). Dark mode has been retired as of 2026-09-27 —
- * the design contract is single-tone flat (Da Nang tourism board print
- * tradition + Withlocals information density). Every `--color-*` token
- * lives at `:root` so `var(--color-ink)` etc. resolve directly without
- * needing a `.dark` class. The "dark" surfaces (e.g. itinerary board
- * editor) intentionally diverge — see `--color-board-bg` and the inline
- * alpha-jade variants in Board.tsx.
+ * Light palette (only). Single-mode design — no dark variant.
+ * Every `--color-*` token lives at `:root` so `var(--color-ink)`
+ * etc. resolve directly. The "dark" surfaces (e.g. itinerary
+ * board editor) intentionally diverge — see `--color-board-bg`.
  */
 :root {
-  /* ============================================================
-     4-ROLE PALETTE (2026-10-09 v3 recolor)
-     Every page must show all 4 colors:
-       Tourist  = jade teal  #0D9488
-       Buddy    = amber      #F59E0B
-       Info     = royal blue #2563EB
-       Hot      = coral pink #FB7185
-     ============================================================ */
-  --color-tourist: #0D9488;
-  --color-tourist-hover: #0F766E;
-  --color-tourist-50: #F0FDFA;
+  --color-tourist: #0F766E;
+  --color-tourist-hover: #115E59;
+  --color-tourist-50: #ECFEFF;
   --color-tourist-bg: #CCFBF1;
   --color-tourist-border: #5EEAD4;
   --color-tourist-ink: #134E4A;
 
-  --color-buddy: #F59E0B;
-  --color-buddy-hover: #D97706;
+  --color-buddy: #D97706;
+  --color-buddy-hover: #B45309;
   --color-buddy-50: #FFFBEB;
   --color-buddy-bg: #FEF3C7;
   --color-buddy-border: #FCD34D;
   --color-buddy-ink: #78350F;
 
-  --color-info2: #2563EB;
-  --color-info2-hover: #1D4ED8;
-  --color-info2-50: #EFF6FF;
-  --color-info2-bg: #DBEAFE;
-  --color-info2-border: #93C5FD;
-  --color-info2-ink: #1E3A8A;
-
-  --color-hot: #FB7185;
-  --color-hot-hover: #F43F5E;
-  --color-hot-50: #FFF1F2;
-  --color-hot-bg: #FFE4E6;
-  --color-hot-border: #FDA4AF;
-  --color-hot-ink: #9F1239;
-
-  --color-gradient-4: linear-gradient(135deg, #0D9488 0%, #F59E0B 35%, #2563EB 70%, #FB7185 100%);
-
-  --color-primary: #134E4A;
-  --color-primary-hover: #0F3F3C;
-  --color-primary-50: #ECFDF5;
-  --color-primary-100: #D1FAE5;
-  --color-primary-500: #34D399;
+  --color-primary: #0F766E;
+  --color-primary-hover: #115E59;
   --color-primary-700: #0D9488;
-  --color-primary-900: #065F46;
-  --color-primary-bg: #ECFDF5;
-  --color-primary-bg-vibrant: #D1FAE5;
-  --color-gradient: linear-gradient(135deg, #34D399 0%, #10B981 20%, #0D9488 40%, #065F46 60%, #0E7490 80%, #134E4A 100%);
+  --color-primary-900: #134E4A;
+  --color-paper: #FFFFFF;
+  --color-surface: #F0FDFA;
+  --color-surface-deep: #CCFBF1;
   --color-ink: #0A1F1D;
-  --color-paper: #F0FDF4;
-  --color-surface: #ECFDF5;
-  --color-border: #BBF7D0;
-  --color-border-strong: #86EFAC;
+  --color-border: #A7F3D0;
+  --color-border-strong: #34D399;
   --color-muted: #4B5563;
   --color-subtle: #6B7280;
+
   --color-success: #065F46;
   --color-success-bg: #D1FAE5;
   --color-success-border: #6EE7B7;
-  --color-warning: #92400E;
+  --color-warning: #B45309;
   --color-warning-bg: #FEF3C7;
-  --color-warning-border: #FDE68A;
-  --color-danger: #991B1B;
+  --color-warning-border: #FCD34D;
+  --color-danger: #B91C1C;
   --color-danger-bg: #FEE2E2;
   --color-danger-border: #FECACA;
-  --color-info: #0E7490;
-  --color-info-bg: #CFFAFE;
-  --color-info-border: #A5F3FC;
+  --color-info: #0F766E;
+  --color-info-bg: #CCFBF1;
+  --color-info-border: #5EEAD4;
 
-  /* Board (Trello convention: jade-tinted backdrop so columns pop) */
-  --color-board-bg: #DCFCE7;
-  /* Card hover shadow — single subtle elevation */
-  --shadow-card: 0 1px 1px rgba(19, 78, 74, 0.12);
-  --shadow-card-hover: 0 4px 8px rgba(19, 78, 74, 0.18);
-  /* Card label bar — jade family 6 stops */
-  --label-list: linear-gradient(
-    to right,
-    #34D399 0 16px,
-    #10B981 16px 32px,
-    #0D9488 32px 48px,
-    #065F46 48px 64px,
-    #0E7490 64px 80px,
-    #134E4A 80px 96px
-  );
+  --color-board-bg: #F0FDFA;
+  --shadow-card: 0 1px 1px rgba(15, 118, 110, 0.12);
+  --shadow-card-hover: 0 4px 8px rgba(15, 118, 110, 0.18);
 
-  /* ============================================================
-     FOCUS MODE TOKENS — flat jade family (no gradients)
-     ============================================================ */
-  --focus-primary: #10B981;
-  --focus-primary-dark: #065F46;
+  --focus-primary: #0F766E;
+  --focus-primary-dark: #115E59;
   --focus-primary-light: #34D399;
   --focus-deep: #134E4A;
   --focus-darkest: #0A1F1D;
   --focus-medium: #0D9488;
-  --focus-surface: #ECFDF5;
-  --focus-bg: #F0FDF4;
-  --focus-border: #BBF7D0;
+  --focus-surface: #F0FDFA;
+  --focus-bg: #FFFFFF;
+  --focus-border: #A7F3D0;
   --focus-text: #0A1F1D;
   --focus-muted: #4B5563;
 }
@@ -273,7 +191,7 @@
     font-size: 1rem;
     line-height: 1.6;
     color: var(--color-ink);
-    background-color: transparent;
+    background-color: var(--color-paper);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
@@ -365,12 +283,9 @@
   }
 
   /* ============================================================
-     ROLE-AWARE CTA (2026-10-09 v3 recolor)
-     The `bg-primary` Tailwind class resolves to the deep ocean
-     stop (#134E4A) which is the default when no role is set.
-     When <main data-role="tourist"> or <main data-role="buddy">
-     is present, the role-specific solid CTA rewrites it so
-     tourists see jade teal and buddies see amber.
+     ROLE-AWARE CTA
+     Tourists see jade teal (#0F766E), buddies see amber (#D97706).
+     White text on both, so the contrast stays AAA.
      ============================================================ */
   main[data-role="tourist"] .bg-primary,
   main[data-role="tourist"] [class*="bg-primary"] {
@@ -400,6 +315,7 @@
   main[data-role="buddy"] [class*="bg-primary"] {
     background-color: var(--color-buddy);
     border-color: var(--color-buddy);
+    color: #FFFFFF;
   }
   main[data-role="buddy"] .bg-primary:hover,
   main[data-role="buddy"] [class*="bg-primary"]:hover {
@@ -417,14 +333,6 @@
     border-color: var(--color-buddy);
   }
   main[data-role="buddy"] .hover\:text-primary:hover {
-    color: var(--color-buddy-ink);
-  }
-
-  /* When role is set, the text-on-primary color shifts to keep
-     contrast — buddies get dark text on amber, tourists get white
-     on jade teal. */
-  main[data-role="buddy"] .bg-primary,
-  main[data-role="buddy"] [class*="bg-primary"] {
     color: var(--color-buddy-ink);
   }
 
@@ -557,10 +465,10 @@
   }
 
   /* ============================================================
-     CARD (FLAT, no shadow)
+     CARD (FLAT, solid color, no shadow, no alpha tints)
      ============================================================ */
   .card {
-    background: var(--color-surface);
+    background: var(--color-paper);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     padding: 24px;
@@ -573,6 +481,7 @@
 
   /* ============================================================
      BADGE (status pills — Section 6.4)
+     Single solid color, no alpha tints.
      ============================================================ */
   .badge {
     display: inline-flex;
@@ -605,20 +514,19 @@
   }
 
   .badge-neutral {
-    background-color: var(--color-paper);
+    background-color: var(--color-surface);
     color: var(--color-muted);
   }
 
   .badge-primary {
     background-color: var(--color-primary);
-    color: var(--color-paper);
+    color: #FFFFFF;
   }
 
   /* ============================================================
-     ROLE TAG — outlined pill for the buddy/tourist distinction on
-     /browse rows + the map popup. Two-tone: buddy uses the primary
-     (warm orange) border + text on a paper fill, traveler uses
-     ink border + text. Uppercase, tracked, no shadow.
+     ROLE TAG — outlined pill for buddy/tourist distinction.
+     Two-tone: buddy uses amber border + ink, traveler uses
+     jade border + ink. Uppercase, tracked, no shadow.
      ============================================================ */
   .role-tag {
     display: inline-flex;
@@ -631,13 +539,12 @@
     line-height: 1.2;
     border-radius: 999px;
     border: 1px solid;
-    background-color: var(--color-surface);
+    background-color: var(--color-paper);
   }
 
   .role-tag-buddy {
-    color: var(--color-primary-900);
-    border-color: var(--color-primary-700);
-    background-color: var(--color-primary-bg);
+    color: var(--color-buddy-ink);
+    border-color: var(--color-buddy);
   }
 
   .role-tag-traveler {
@@ -667,41 +574,12 @@
     object-fit: cover;
   }
 
-  .avatar-xs {
-    width: 24px;
-    height: 24px;
-    font-size: 0.625rem;
-  }
-
-  .avatar-sm {
-    width: 32px;
-    height: 32px;
-    font-size: 0.75rem;
-  }
-
-  .avatar-md {
-    width: 40px;
-    height: 40px;
-    font-size: 0.875rem;
-  }
-
-  .avatar-lg {
-    width: 56px;
-    height: 56px;
-    font-size: 1.125rem;
-  }
-
-  .avatar-xl {
-    width: 80px;
-    height: 80px;
-    font-size: 1.5rem;
-  }
-
-  .avatar-2xl {
-    width: 120px;
-    height: 120px;
-    font-size: 2.25rem;
-  }
+  .avatar-xs { width: 24px; height: 24px; font-size: 0.625rem; }
+  .avatar-sm { width: 32px; height: 32px; font-size: 0.75rem; }
+  .avatar-md { width: 40px; height: 40px; font-size: 0.875rem; }
+  .avatar-lg { width: 56px; height: 56px; font-size: 1.125rem; }
+  .avatar-xl { width: 80px; height: 80px; font-size: 1.5rem; }
+  .avatar-2xl { width: 120px; height: 120px; font-size: 2.25rem; }
 
   /* ============================================================
      LANGUAGE CHIP
@@ -711,7 +589,7 @@
     align-items: center;
     padding: 2px 8px;
     font-size: 0.75rem;
-    background-color: var(--color-paper);
+    background-color: var(--color-surface);
     color: var(--color-muted);
     border-radius: var(--radius-pill);
   }
@@ -729,25 +607,18 @@
   }
 
   @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
+    to { transform: rotate(360deg); }
   }
 
   .skeleton {
-    background: var(--color-paper);
+    background: var(--color-surface);
     border-radius: var(--radius-sm);
     animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
 
   @keyframes skeleton-pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 
   /* ============================================================
@@ -811,9 +682,7 @@
   /* ============================================================
      FORM ELEMENTS (FLAT, 4px radius)
      ============================================================ */
-  .form-group {
-    margin-bottom: 24px;
-  }
+  .form-group { margin-bottom: 24px; }
 
   .form-label {
     display: block;
@@ -830,7 +699,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     font-size: 1rem;
-    background-color: var(--color-surface);
+    background-color: var(--color-paper);
     color: var(--color-ink);
     transition: border-color var(--duration-fast) var(--ease-out);
   }
@@ -921,19 +790,19 @@
     font-weight: 600;
     border: 1px solid var(--color-border-strong);
     color: var(--color-muted);
-    background: var(--color-surface);
+    background: var(--color-paper);
   }
 
   .step-circle.active {
     border-color: var(--color-primary);
     background: var(--color-primary);
-    color: var(--color-paper);
+    color: #FFFFFF;
   }
 
   .step-circle.completed {
     border-color: var(--color-success);
     background: var(--color-success);
-    color: var(--color-paper);
+    color: #FFFFFF;
   }
 
   .progress-line {
@@ -948,7 +817,6 @@
 
   /* ============================================================
      NAV HINT — inline indicator for useLinkStatus pending state
-     (see components/layout/NavHint.tsx)
      ============================================================ */
   .nav-hint {
     display: inline-block;
@@ -975,19 +843,11 @@
 
   /*
    * Voice-call pulse — used by CallModal's avatar wrapper while the
-   * call is in the calling/ringing/connecting state. Two staggered
-   * rings expand outward and fade, giving a WhatsApp-style "I'm
-   * dialing" cue without any decorative chrome.
+   * call is in the calling/ringing/connecting state.
    */
   @keyframes call-pulse-ring {
-    0% {
-      transform: scale(1);
-      opacity: 0.6;
-    }
-    100% {
-      transform: scale(1.25);
-      opacity: 0;
-    }
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.25); opacity: 0; }
   }
 
   .animate-call-pulse-ring {
@@ -997,12 +857,6 @@
 
 /* ============================================================
    LEAFLET MARKER LAYER ORDER
-   Force every pane to its canonical z-index so the user's own
-   location marker (z=1000) and live markers (z=2000) always sit
-   on top of buddy pins, which sit on top of tourist pins and
-   tiles. Without this, Leaflet assigns a negative z-index to any
-   marker that lands above the map's vertical center, which makes
-   the marker disappear under the tile pane.
    ============================================================ */
 .leaflet-pane.leaflet-tile-pane       { z-index: 100; }
 .leaflet-pane.leaflet-overlay-pane    { z-index: 200; }
@@ -1014,27 +868,12 @@
 
 /* ============================================================
    LAYER: MAP OVERLAYS
-   The map tile pane sits at z=100 (lowest). Leaflet markers
-   (z=600), popups (z=700) and the zoom control (z=800) sit on
-   top of the tiles. App-level overlays (legend, selected-buddy
-   popup, error alerts, loading toast) MUST sit on top of every
-   Leaflet pane so they are never occluded by a marker or by the
-   zoom control.
    ============================================================ */
 @layer components {
-  .z-legend   { z-index: 1000; } /* legend card, below detail popup */
-  .z-aside    { z-index: 1100; } /* selected-buddy detail card */
-  .z-toast    { z-index: 1200; } /* loading / error toasts above all */
+  .z-legend   { z-index: 1000; }
+  .z-aside    { z-index: 1100; }
+  .z-toast    { z-index: 1200; }
 
-  /* Map frame — every MapView must be wrapped in a parent that
-     establishes a new stacking context, so the tile pane (z=100)
-     and marker pane (z=600) inside the Leaflet container cannot
-     visually escape upward and overlap siblings (page header,
-     section header, filter chips). Without `isolation: isolate`
-     on the parent, a Leaflet pane that momentarily extends past
-     its bounds during tile loading can paint over neighbouring
-     text. With this, the map is GUARANTEED to be the lowest
-     layer within its own stacking context. */
   .map-frame  {
     position: relative;
     isolation: isolate;
@@ -1042,9 +881,6 @@
   }
 }
 
-/* Marker root: strip Leaflet's default left/top so the icon
-   anchor (24x24 centered) is honored, and force a non-negative
-   baseline z-index on the wrapper. */
 .localit-marker {
   background: transparent !important;
   border: 0 !important;
@@ -1059,35 +895,23 @@
 
 /* ============================================================
    LAYER: UTILITIES
-   Atomic overrides — used sparingly, only when no Tailwind class
-   expresses the intent (mono font, tabular numerals, Vietnamese
-   italic tracking, asymmetric section rhythm).
    ============================================================ */
 @layer utilities {
-  /* Mono font (JetBrains Mono) for data callouts. Set as a utility
-     so any text node can opt-in without redefining a class. */
   .font-mono-localit {
     font-family: var(--font-jetbrains, ui-monospace, SFMono-Regular, Menlo, monospace);
     font-variant-numeric: tabular-nums;
   }
 
-  /* Tabular numerals only (sans body). Use for any number that re-renders
-     in-place (countdown, score, prices). Prevents 4px layout shift. */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
 
-  /* Vietnamese italic — small, slightly tracked, muted. Visual motif,
-     not a translation. Always pair with an English label above. */
   .vi-motif {
     font-style: italic;
     letter-spacing: 0.01em;
     color: var(--color-muted);
   }
 
-  /* Asymmetric section rhythm (Section 4.3 of design.md).
-     Use on dense sections (browse, dashboard tables) instead of
-     py-20 to compress vertical breathing. */
   .section-dense {
     padding-top: 2.5rem;
     padding-bottom: 2.5rem;
@@ -1099,7 +923,6 @@
     }
   }
 
-  /* Breathing section (hero, FAQ, prose). Wider rhythm. */
   .section-breathing {
     padding-top: 4rem;
     padding-bottom: 4rem;
@@ -1113,7 +936,6 @@
 
   /* ============================================================
      FOCUS MODE UTILITIES
-     Flat teal palette — single solid color per element, no gradient.
      ============================================================ */
   .bg-focus-primary { background-color: var(--focus-primary); }
   .bg-focus-primary-dark { background-color: var(--focus-primary-dark); }
@@ -1147,41 +969,11 @@
   .hover\:border-focus-primary-dark:hover { border-color: var(--focus-primary-dark); }
 
   /* ============================================================
-     BRAND GRADIENT UTILITIES (2026-10-09 recolor)
-     Apply sparingly — hero brand mark, footer accent stripe, and
-     any surface that needs to display the 6-stop teal/blue identity.
-     Per docs/design.md Section 2.1, this is the only place the
-     full gradient is allowed.
+     3-ROLE BUTTON UTILITIES (v5 recolor)
+     No blue, no coral. Two solid colors: jade teal and amber.
+     Every variant is a single solid color — never a gradient.
      ============================================================ */
-  .bg-gradient { background-image: var(--color-gradient); }
-  .text-gradient {
-    background-image: var(--color-gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
-
-  /* ============================================================
-     4-ROLE BRAND GRADIENT (2026-10-09 v3 recolor)
-     Tourist → Buddy → Info → Hot. Apply to brand marks,
-     hero accents, footer stripe. Use sparingly.
-     ============================================================ */
-  .bg-gradient-4 { background-image: var(--color-gradient-4); }
-  .text-gradient-4 {
-    background-image: var(--color-gradient-4);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
-
-  /* ============================================================
-     4-ROLE BUTTON UTILITIES (v3 recolor)
-     Each role has a solid + outline + soft variant. Buttons must
-     have a clear color identity — never just `bg-primary`.
-     ============================================================ */
-  /* Tourist: jade teal */
+  /* Tourist: jade teal — solid, no alpha */
   .btn-tourist {
     display: inline-flex; align-items: center; justify-content: center;
     gap: 0.5rem; font-weight: 500; border-radius: 4px;
@@ -1195,22 +987,22 @@
     display: inline-flex; align-items: center; justify-content: center;
     gap: 0.5rem; font-weight: 500; border-radius: 4px;
     padding: 0.5rem 1rem; height: 40px;
-    background-color: transparent;
+    background-color: var(--color-paper);
     color: var(--color-tourist); border: 1px solid var(--color-tourist);
     transition: background-color 150ms ease-out;
   }
-  .btn-tourist-outline:hover { background-color: var(--color-tourist-bg); }
+  .btn-tourist-outline:hover { background-color: var(--color-tourist); color: #FFFFFF; }
   .btn-tourist-soft {
     display: inline-flex; align-items: center; justify-content: center;
     gap: 0.5rem; font-weight: 500; border-radius: 4px;
     padding: 0.5rem 1rem; height: 40px;
     background-color: var(--color-tourist-bg);
-    color: var(--color-tourist); border: 1px solid var(--color-tourist-bg);
+    color: var(--color-tourist-ink); border: 1px solid var(--color-tourist-border);
     transition: background-color 150ms ease-out;
   }
-  .btn-tourist-soft:hover { background-color: var(--color-tourist); color: #FFFFFF; }
+  .btn-tourist-soft:hover { background-color: var(--color-tourist); color: #FFFFFF; border-color: var(--color-tourist); }
 
-  /* Buddy: amber yellow */
+  /* Buddy: amber yellow — solid, no alpha */
   .btn-buddy {
     display: inline-flex; align-items: center; justify-content: center;
     gap: 0.5rem; font-weight: 500; border-radius: 4px;
@@ -1224,65 +1016,23 @@
     display: inline-flex; align-items: center; justify-content: center;
     gap: 0.5rem; font-weight: 500; border-radius: 4px;
     padding: 0.5rem 1rem; height: 40px;
-    background-color: transparent;
+    background-color: var(--color-paper);
     color: var(--color-buddy-ink); border: 1px solid var(--color-buddy);
     transition: background-color 150ms ease-out;
   }
-  .btn-buddy-outline:hover { background-color: var(--color-buddy-bg); }
+  .btn-buddy-outline:hover { background-color: var(--color-buddy); color: #FFFFFF; }
   .btn-buddy-soft {
     display: inline-flex; align-items: center; justify-content: center;
     gap: 0.5rem; font-weight: 500; border-radius: 4px;
     padding: 0.5rem 1rem; height: 40px;
     background-color: var(--color-buddy-bg);
-    color: var(--color-buddy-ink); border: 1px solid var(--color-buddy-bg);
+    color: var(--color-buddy-ink); border: 1px solid var(--color-buddy-border);
     transition: background-color 150ms ease-out;
   }
   .btn-buddy-soft:hover { background-color: var(--color-buddy); color: #FFFFFF; border-color: var(--color-buddy); }
 
-  /* Info: royal blue */
-  .btn-info2 {
-    display: inline-flex; align-items: center; justify-content: center;
-    gap: 0.5rem; font-weight: 500; border-radius: 4px;
-    padding: 0.5rem 1rem; height: 40px;
-    background-color: var(--color-info2);
-    color: #FFFFFF; border: 1px solid var(--color-info2);
-    transition: background-color 150ms ease-out;
-  }
-  .btn-info2:hover { background-color: var(--color-info2-hover); border-color: var(--color-info2-hover); }
-  .btn-info2-outline {
-    display: inline-flex; align-items: center; justify-content: center;
-    gap: 0.5rem; font-weight: 500; border-radius: 4px;
-    padding: 0.5rem 1rem; height: 40px;
-    background-color: transparent;
-    color: var(--color-info2); border: 1px solid var(--color-info2);
-    transition: background-color 150ms ease-out;
-  }
-  .btn-info2-outline:hover { background-color: var(--color-info2-bg); }
-
-  /* Hot: coral pink (urgent / pending) */
-  .btn-hot {
-    display: inline-flex; align-items: center; justify-content: center;
-    gap: 0.5rem; font-weight: 500; border-radius: 4px;
-    padding: 0.5rem 1rem; height: 40px;
-    background-color: var(--color-hot);
-    color: #FFFFFF; border: 1px solid var(--color-hot);
-    transition: background-color 150ms ease-out;
-  }
-  .btn-hot:hover { background-color: var(--color-hot-hover); border-color: var(--color-hot-hover); }
-  .btn-hot-outline {
-    display: inline-flex; align-items: center; justify-content: center;
-    gap: 0.5rem; font-weight: 500; border-radius: 4px;
-    padding: 0.5rem 1rem; height: 40px;
-    background-color: transparent;
-    color: var(--color-hot); border: 1px solid var(--color-hot);
-    transition: background-color 150ms ease-out;
-  }
-  .btn-hot-outline:hover { background-color: var(--color-hot-bg); }
-
   /* ============================================================
-     4-ROLE BADGE / CHIP UTILITIES
-     Filled pill variants. Always pair with text (color is never
-     the only signal — see design.md Section 6.4).
+     3-ROLE BADGE / CHIP UTILITIES
      ============================================================ */
   .role-badge-tourist {
     display: inline-flex; align-items: center;
@@ -1296,24 +1046,10 @@
     padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
     border-radius: 9999px; line-height: 1.2;
     background-color: var(--color-buddy);
-    color: var(--color-buddy-ink); border: 1px solid var(--color-buddy);
-  }
-  .role-badge-info2 {
-    display: inline-flex; align-items: center;
-    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
-    border-radius: 9999px; line-height: 1.2;
-    background-color: var(--color-info2);
-    color: #FFFFFF; border: 1px solid var(--color-info2);
-  }
-  .role-badge-hot {
-    display: inline-flex; align-items: center;
-    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
-    border-radius: 9999px; line-height: 1.2;
-    background-color: var(--color-hot);
-    color: #FFFFFF; border: 1px solid var(--color-hot);
+    color: #FFFFFF; border: 1px solid var(--color-buddy);
   }
 
-  /* Soft badge variants — for the same role but as a low-emphasis marker */
+  /* Soft badge variants */
   .role-badge-tourist-soft {
     display: inline-flex; align-items: center;
     padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
@@ -1328,59 +1064,14 @@
     background-color: var(--color-buddy-bg);
     color: var(--color-buddy-ink); border: 1px solid var(--color-buddy-border);
   }
-  .role-badge-info2-soft {
-    display: inline-flex; align-items: center;
-    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
-    border-radius: 9999px; line-height: 1.2;
-    background-color: var(--color-info2-bg);
-    color: var(--color-info2-ink); border: 1px solid var(--color-info2-border);
-  }
-  .role-badge-hot-soft {
-    display: inline-flex; align-items: center;
-    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
-    border-radius: 9999px; line-height: 1.2;
-    background-color: var(--color-hot-bg);
-    color: var(--color-hot-ink); border: 1px solid var(--color-hot-border);
-  }
 
-  /* Text color utilities for inline role accents */
+  /* Text color utilities */
   .text-tourist { color: var(--color-tourist); }
   .text-buddy { color: var(--color-buddy-ink); }
-  .text-info2 { color: var(--color-info2); }
-  .text-hot { color: var(--color-hot-ink); }
 
   .bg-tourist { background-color: var(--color-tourist); }
   .bg-buddy { background-color: var(--color-buddy); }
-  .bg-info2 { background-color: var(--color-info2); }
-  .bg-hot { background-color: var(--color-hot); }
 
   .border-tourist { border-color: var(--color-tourist); }
   .border-buddy { border-color: var(--color-buddy); }
-  .border-info2 { border-color: var(--color-info2); }
-  .border-hot { border-color: var(--color-hot); }
-
-  /* ============================================================
-     TRANSPARENT CONTENT SURFACES (2026-10-09 v3)
-     Used inside <main data-role="..."> so the Da Nang photo
-     backdrop shows through. Card backgrounds become 70-85% opaque
-     paper so text stays readable while the photo bleeds in.
-     ============================================================ */
-  .surface-transparent {
-    /* High-opacity paper so text stays AAA-readable even when the
-       Da Nang photo + 4-color wash sit underneath. Slight green tint
-       keeps the page on-brand (jade-tinted, not pure white). */
-    background-color: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(13, 148, 136, 0.18);
-    backdrop-filter: none;
-  }
-  .surface-transparent-strong {
-    background-color: #FFFFFF;
-    border: 1px solid rgba(13, 148, 136, 0.25);
-    backdrop-filter: none;
-  }
-
-  /* Section that lets the photo show through at its top/bottom */
-  .section-transparent {
-    background-color: transparent;
-  }
 }

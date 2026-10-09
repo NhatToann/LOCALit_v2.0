@@ -213,23 +213,19 @@ export default function DashboardPage() {
 
   // ----- 4-color role mapping for the dashboard CTAs / cards -----
   // Tourist (teal) is the brand-default for /dashboard's primary CTA.
-  // Buddy (amber) / Info (blue) / Hot (pink) fill the secondary actions
-  // and section accents so every page shows all 4 brand colors.
+  // Buddy (amber) fills the secondary CTA. No blue, no coral — those
+  // colors were retired on 2026-10-10.
   const primaryBtnClass =
     profile?.role === 'buddy'
       ? 'btn-buddy'
-      : profile?.role === 'admin'
-        ? 'btn-info2'
-        : 'btn-tourist'
+      : 'btn-tourist'
 
   return (
     <div className="container-page py-8 lg:py-12">
-      {/* Brand-color role markers — every page must show all 4 */}
+      {/* Brand-color role markers — every page shows the brand colors */}
       <div className="flex flex-wrap items-center justify-center gap-2 mb-6" role="list" aria-label="LOCALit brand colors">
         <span role="listitem" className="role-badge-tourist" title="Tourist role accent">Tourist</span>
         <span role="listitem" className="role-badge-buddy" title="Buddy role accent">Buddy</span>
-        <span role="listitem" className="role-badge-info2" title="Info accent">Info</span>
-        <span role="listitem" className="role-badge-hot" title="Urgent accent">Hot</span>
       </div>
       <section
         aria-labelledby="dashboard-hero-title"
@@ -262,14 +258,14 @@ export default function DashboardPage() {
           </Link>
           <Link
             href="/itinerary/new"
-            className="btn-info2-outline inline-flex items-center gap-2 h-10 px-4 text-sm"
+            className="btn-buddy-outline inline-flex items-center gap-2 h-10 px-4 text-sm"
           >
             <Briefcase size={16} aria-hidden="true" />
             Plan a trip
           </Link>
           <Link
             href="/map"
-            className="btn-hot-outline inline-flex items-center gap-2 h-10 px-4 text-sm"
+            className="btn-tourist-outline inline-flex items-center gap-2 h-10 px-4 text-sm"
           >
             <MapPin size={16} aria-hidden="true" />
             Open map
@@ -280,7 +276,7 @@ export default function DashboardPage() {
       {/* Featured map */}
       <section
         aria-labelledby="dashboard-map-title"
-        className="mb-8 border-2 border-info2-border rounded-sm overflow-hidden surface-transparent"
+        className="mb-8 border-2 border-tourist-border rounded-sm overflow-hidden bg-paper"
       >
         <div className="px-6 py-4 border-b border-border flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -383,7 +379,7 @@ export default function DashboardPage() {
               info: 'text-info',
             }
             return (
-              <li key={i} className="border-2 border-tourist-border rounded-sm p-4 surface-transparent">
+              <li key={i} className="border-2 border-tourist-border rounded-sm p-4 bg-paper">
                 <div className={`mb-3 ${toneClasses[s.tone]}`}>
                   <Icon size={20} aria-hidden="true" />
                 </div>
@@ -413,7 +409,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Itineraries */}
-        <section className="lg:col-span-2 border-2 border-tourist-border rounded-sm surface-transparent" aria-labelledby="itineraries-title">
+        <section className="lg:col-span-2 border-2 border-tourist-border rounded-sm bg-paper" aria-labelledby="itineraries-title">
           <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-3">
             <div>
               <h2 id="itineraries-title" className="text-lg font-semibold">
@@ -506,7 +502,7 @@ export default function DashboardPage() {
         </section>
 
         {/* My buddies */}
-        <section className="border-2 border-buddy-border rounded-sm surface-transparent" aria-labelledby="buddies-title">
+        <section className="border-2 border-buddy-border rounded-sm bg-paper" aria-labelledby="buddies-title">
           <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-3">
             <div>
               <h2 id="buddies-title" className="text-lg font-semibold">

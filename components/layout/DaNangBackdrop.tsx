@@ -17,10 +17,10 @@ import { useEffect, useState } from 'react'
  * the area list once before repeating. This ensures a tourist who reloads
  * sees a different landmark rather than re-seeing Han River 4× in a row.
  *
- * 4-color overlay: a low-opacity 4-role gradient (Tourist → Buddy → Info →
- * Hot) is layered on top of the photo so the brand identity shows even when
- * the photo is desaturated, and so the 4 colors are visible somewhere on
- * every page (per the design constraint).
+ * 2-color overlay: a low-opacity wash of the brand's two colors (jade
+ * teal + amber) is layered on top of the photo so the brand identity
+ * shows even when the photo is desaturated. No blue, no coral — those
+ * colors were retired from the palette on 2026-10-10.
  */
 const DANANG_PHOTOS: Array<{ src: string; place: string; alt: string; keyword: string }> = [
   {
@@ -148,40 +148,55 @@ export default function DaNangBackdrop() {
           filter: 'saturate(1.2) contrast(1.08) brightness(0.92)',
         }}
       />
-      {/* 4-color brand wash — the 4-role gradient at HIGH opacity (40-50%)
-          so every page visibly carries all 4 brand colors. Each color stop
-          is mixed at 50% so the photo still shows through underneath. */}
+      {/* 2-color brand wash — jade teal as the dominant tint, amber
+          as a corner accent. No blue, no coral. Two solid color
+          layers (one full-screen, one corner) so the brand identity
+          shows without a linear-gradient on any single element. */}
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage:
-            'linear-gradient(135deg, rgba(13,148,136,0.55) 0%, rgba(245,158,11,0.45) 33%, rgba(37,99,235,0.45) 66%, rgba(251,113,133,0.55) 100%)',
+          backgroundColor: 'rgba(15, 118, 110, 0.35)',
           mixBlendMode: 'multiply',
         }}
       />
-      {/* 4-color gradient overlay #2 — same stops but additive (screen) so
-          the brand colors pop without losing the photo detail. */}
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage:
-            'linear-gradient(135deg, rgba(13,148,136,0.35) 0%, rgba(245,158,11,0.30) 33%, rgba(37,99,235,0.30) 66%, rgba(251,113,133,0.35) 100%)',
+          backgroundColor: 'rgba(15, 118, 110, 0.18)',
+          mixBlendMode: 'screen',
+        }}
+      />
+      {/* Amber corner accent — solid color, positioned in the
+          top-right so the buddy/amber role has a visible presence
+          on every page without a gradient. */}
+      <div
+        className="absolute top-0 right-0 w-1/3 h-1/3"
+        style={{
+          backgroundColor: 'rgba(217, 119, 6, 0.22)',
+          mixBlendMode: 'multiply',
+        }}
+      />
+      <div
+        className="absolute bottom-0 left-0 w-1/4 h-1/4"
+        style={{
+          backgroundColor: 'rgba(217, 119, 6, 0.18)',
           mixBlendMode: 'screen',
         }}
       />
       {/* Light paper wash so white surface cards stay readable. Reduced to
-          15% so the 4-color wash + photo stay vivid. */}
+          15% so the 2-color wash + photo stay vivid. */}
       <div
         className="absolute inset-0"
         style={{
           backgroundColor: 'rgba(240, 253, 244, 0.15)',
         }}
       />
-      {/* Bottom-fade so footer reads on a darker strip without a hard edge */}
+      {/* Bottom-fade so footer reads on a darker strip without a hard
+          edge. Single solid teal, no gradient. */}
       <div
         className="absolute inset-x-0 bottom-0 h-32"
         style={{
-          background: 'linear-gradient(to bottom, transparent 0%, rgba(240,253,244,0.35) 100%)',
+          backgroundColor: 'rgba(15, 118, 110, 0.30)',
         }}
       />
       {/* Tiny attribution mark, bottom-right, never visible to assistive tech */}
