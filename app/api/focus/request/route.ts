@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     // offline because the partner may come online within the 5-min window.
     const { data: recipientProfile, error: rpErr } = await supabase
       .from('profiles')
-      .select('id, full_name, is_online')
+      .select('id, full_name, is_online, role')
       .eq('id', recipient_id)
       .maybeSingle()
     if (rpErr) {
@@ -60,6 +60,35 @@ export async function POST(req: NextRequest) {
     }
     if (!recipientProfile) {
       return NextResponse.json({ error: 'recipient_not_found' }, { status: 404 })
+    }
+
+    // 2026-10-09: chat now allows any two users regardless of role, but
+    // Focus Mode is still a cross-role-only feature (a tourist pairs with
+    // a buddy, or vice versa). Same-role Focus requests are rejected
+    // with the role-specific message the user asked for.
+    const { data: requesterProfileRow } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+    const requesterRole = requesterProfileRow?.role as 'tourist' | 'buddy' | 'admin' | null
+    const recipientRole = recipientProfile.role as 'tourist' | 'buddy' | 'admin' | null
+    if (
+      requesterRole &&
+      requesterRole !== 'admin' &&
+      recipientRole &&
+      requesterRole === recipientRole
+    ) {
+      return NextResponse.json(
+        {
+          error: 'same_role_focus_not_allowed',
+          message:
+            'đối với người có cùng role không thể dùng chức năng focus',
+          requester_role: requesterRole,
+          recipient_role: recipientRole,
+        },
+        { status: 400 },
+      )
     }
 
     // Reject if requester already has a pending request to this recipient

@@ -421,9 +421,8 @@ function ChatInner() {
           last_message_preview, last_message_at,
           last_read_at_by_tourist, last_read_at_by_buddy,
           pinned_message_id, typing_user_id,
-          tourist:tourists(profile:safe_profiles(full_name, avatar_url, is_online, id)),
-          buddy:buddies(location_city, hourly_rate, rating_avg, languages,
-                        profile:safe_profiles(full_name, avatar_url, is_online, id))
+          tourist_profile:safe_profiles!conversations_tourist_id_fkey(full_name, avatar_url, is_online, id, role),
+          buddy_profile:safe_profiles!conversations_buddy_id_fkey(full_name, avatar_url, is_online, id, role)
         `,
         )
         .or(`tourist_id.eq.${uid},buddy_id.eq.${uid}`)
@@ -454,24 +453,25 @@ function ChatInner() {
 
       const mapped: ConvSummary[] = (data as any[]).map((c) => {
       const isTouristSide = c.tourist_id === uid
-      const partner = isTouristSide ? c.buddy : c.tourist
-      const partnerProfile = partner?.profile
-      const partnerName = partnerProfile?.full_name ?? 'Buddy'
+      // 2026-10-09: FKs now point to profiles, so the embed is
+      // `tourist_profile` / `buddy_profile` — both safe_profiles rows.
+      // The partner is whichever side is NOT the current user.
+      const partner = isTouristSide ? c.buddy_profile : c.tourist_profile
+      const partnerName = partner?.full_name ?? 'Buddy'
       return {
         id: c.id,
-        partner_id: partnerProfile?.id ?? '',
+        partner_id: partner?.id ?? '',
         partner_name: partnerName,
-        partner_avatar: partnerProfile?.avatar_url ?? null,
-        // Side-aware role: the partner is always the OPPOSITE role
-        // to the current user (the marketplace enforces tourist ↔
-        // buddy pairing). We expose it so the sidebar can render a
-        // small role tag — see "Role differentiation" in design.md.
-        partner_role: isTouristSide ? 'buddy' : 'tourist',
-        partner_city: partner?.location_city ?? null,
-        partner_languages: partner?.languages ?? [],
-        partner_hourly_rate: partner?.hourly_rate ?? null,
-        partner_rating_avg: partner?.rating_avg ?? null,
-        is_partner_online: !!partnerProfile?.is_online,
+        partner_avatar: partner?.avatar_url ?? null,
+        // Side-aware role: the partner may be the same role as the
+        // current user (chat now allows any pairing). Read the role
+        // directly off the partner's safe_profiles row.
+        partner_role: (partner?.role as 'tourist' | 'buddy' | null) ?? null,
+        partner_city: null,
+        partner_languages: [],
+        partner_hourly_rate: null,
+        partner_rating_avg: null,
+        is_partner_online: !!partner?.is_online,
         last_message_preview: c.last_message_preview ?? '',
         last_message_at: c.last_message_at ?? c.updated_at,
         unread: unreadByConv[c.id] ?? 0,
@@ -494,6 +494,7 @@ function ChatInner() {
 
   async function openConversationWithBuddy(otherBuddyId: string) {
     if (!myId) return
+    if (myId === otherBuddyId) return
     const supabase = createClient()
     // Look up an existing conversation between us and the buddy. Note
     // the `tourist_id` ↔ `buddy_id` swap in the OR — a buddy-side
@@ -509,94 +510,15 @@ function ChatInner() {
 
     let convId = existing?.id
     if (!convId) {
-      // FK fix (2026-10-02): the `conversations` table enforces
-      // `tourist_id REFERENCES public.tourists(id)` AND
-      // `buddy_id REFERENCES public.buddies(id)`. If the current
-      // user is a buddy (role='buddy'), inserting them as
-      // `tourist_id` fails the FK because their id has no row in
-      // the `tourists` table (one profile ↔ one role-type row).
-      //
-      // We now branch on `myRole` so the current user always lands
-      // in the column whose target table actually has their row.
-      // - I'm a tourist → tourist_id = myId, buddy_id = partner
-      // - I'm a buddy   → buddy_id   = myId, tourist_id = partner
-      //
-      // Both `tourists` and `buddies` have a row keyed by profile.id,
-      // so the partner must also be on the OPPOSITE side. If we end
-      // up here because the partner is on the same side as me (e.g.
-      // I'm a buddy and clicked another buddy), the partner still
-      // gets resolved to a row in `tourists` for the tourist column
-      // and in `buddies` for the buddy column — *every* profile has
-      // a matching row in one of the two role tables. So this is
-      // safe across the whole user base.
-      const partnerId = otherBuddyId
-      // Resolve partner's actual role from profiles — the URL param ?buddy=
-      // historically meant "the buddy I'm chatting with" but the marketplace
-      // now lists both tourists + buddies (see safe_buddies + safe_tourists
-      // in /browse). The partner may actually be a tourist OR a buddy.
-      // The `conversations` table has hard FKs:
-      //   tourist_id REFERENCES tourists(id)
-      //   buddy_id   REFERENCES buddies(id)
-      // So each id MUST land in the column whose target table contains it.
-      // Resolve partner's role and pick the column assignment dynamically.
-      const { data: partnerProfile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', partnerId)
-        .maybeSingle()
-      const partnerRole = partnerProfile?.role
-
-      // Determine each side's column by querying the actual role-tables.
-      // If both ends are the same role (e.g. both buddies), the partner
-      // still has a row in their role-table and so does the current user —
-      // we surface a clear error instead of letting the DB throw 23503.
-      const { data: meProfile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', myId)
-        .maybeSingle()
-      const myRoleResolved = (myRole ?? meProfile?.role) as 'tourist' | 'buddy' | null
-
-      if (!myRoleResolved || !partnerRole) {
-        setError('Could not open conversation: unable to resolve roles. Please try again.')
-        return
-      }
-      if (myRoleResolved === partnerRole) {
-        // Pluralize: 'buddy' → 'buddies', 'tourist' → 'tourists'
-        const rolePlural = myRoleResolved === 'buddy' ? 'buddies' : myRoleResolved + 's'
-        setError('Could not open conversation: both users are ' + rolePlural + '. Pairing is only allowed across roles.')
-        return
-      }
-      // FK fix round 2 (2026-10-09): an orphan profile (one that has a
-      // row in `profiles` with role='tourist'/'buddy' but NO matching
-      // row in `tourists`/`buddies`) will pass the same-role check above
-      // but fail the insert with 23503 because the id has no row in the
-      // role-table. Probe both role-tables before insert and surface a
-      // clear error instead.
-      const { data: meRow } = await supabase
-        .from(myRoleResolved === 'buddy' ? 'buddies' : 'tourists')
-        .select('id')
-        .eq('id', myId)
-        .maybeSingle()
-      const { data: partnerRow } = await supabase
-        .from(partnerRole === 'buddy' ? 'buddies' : 'tourists')
-        .select('id')
-        .eq('id', partnerId)
-        .maybeSingle()
-      if (!meRow) {
-        setError('Could not open conversation: your account is missing a ' + myRoleResolved + ' profile row. Please complete your profile and try again.')
-        return
-      }
-      if (!partnerRow) {
-        setError('Could not open conversation: the partner is missing a ' + partnerRole + ' profile row. They need to complete their profile before you can chat.')
-        return
-      }
-      // I'm the tourist → myId in tourist_id, partner in buddy_id
-      // I'm the buddy   → myId in buddy_id,   partner in tourist_id
-      const insertPayload =
-        myRoleResolved === 'buddy'
-          ? { tourist_id: partnerId, buddy_id: myId }
-          : { tourist_id: myId, buddy_id: partnerId }
+      // 2026-10-09: same-role chats are now allowed. The conversations
+      // FKs were relaxed to point to profiles (not the role-tables), so
+      // we no longer have to branch on role when picking the column.
+      // Use a canonical lex order so the UNIQUE (tourist_id, buddy_id)
+      // constraint can't collide on the same pair in different
+      // orientations.
+      const a = myId < otherBuddyId ? myId : otherBuddyId
+      const b = myId < otherBuddyId ? otherBuddyId : myId
+      const insertPayload = { tourist_id: a, buddy_id: b }
       // Race-condition fix (2026-10-09): when the same user opens the
       // same `/chat?buddy=...` URL twice in quick succession (or two
       // browser tabs at once), both invocations can pass the existing
@@ -1009,6 +931,10 @@ function ChatInner() {
         }
         if (json.error === 'requester_in_active_session' && json.session_id) {
           router.push(`/focus/${json.session_id}`)
+          return
+        }
+        if (json.error === 'same_role_focus_not_allowed') {
+          setFocusError(json.message ?? 'Focus Mode is only available across roles.')
           return
         }
         setFocusError(json.message ?? json.error ?? 'Could not send Focus request.')
