@@ -108,16 +108,23 @@ export default function MiniChatWindow() {
   const loadConversations = useCallback(async () => {
     if (!authed || !myUserId) return
     const supabase = createClient()
+    // 2026-10-09: FKs on conversations point to profiles, not the
+    // role-tables. Join safe_profiles via the FK so the embed works
+    // for same-role pairs (tourist↔tourist, buddy↔buddy) too.
+    const selectCols =
+      'id, tourist_id, buddy_id, last_message_preview, last_message_at, updated_at, ' +
+      'tourist_profile:safe_profiles!conversations_tourist_id_fkey(full_name, avatar_url, is_online, id, role), ' +
+      'buddy_profile:safe_profiles!conversations_buddy_id_fkey(full_name, avatar_url, is_online, id, role)'
     const [{ data: touristConvs }, { data: buddyConvs }] = await Promise.all([
       supabase
         .from('conversations')
-        .select('id, tourist_id, buddy_id, last_message_preview, last_message_at, updated_at, tourist:tourists(profile:safe_profiles(full_name, avatar_url, id)), buddy:buddies(profile:safe_profiles(full_name, avatar_url, id))')
+        .select(selectCols)
         .eq('tourist_id', myUserId)
         .order('updated_at', { ascending: false })
         .limit(8),
       supabase
         .from('conversations')
-        .select('id, tourist_id, buddy_id, last_message_preview, last_message_at, updated_at, tourist:tourists(profile:safe_profiles(full_name, avatar_url, id)), buddy:buddies(profile:safe_profiles(full_name, avatar_url, id))')
+        .select(selectCols)
         .eq('buddy_id', myUserId)
         .order('updated_at', { ascending: false })
         .limit(8),
@@ -139,7 +146,11 @@ export default function MiniChatWindow() {
       unreadByConv[m.conversation_id] = (unreadByConv[m.conversation_id] ?? 0) + 1
     }
     for (const row of convRows as any[]) {
-      const other = row.tourist?.profile?.id === myUserId ? row.buddy?.profile : row.tourist?.profile
+      // 2026-10-09: embed is now tourist_profile / buddy_profile
+      // (both safe_profiles rows joined via the conversations FK).
+      // Whichever side is NOT the current user is the partner.
+      const other =
+        row.tourist_profile?.id === myUserId ? row.buddy_profile : row.tourist_profile
       if (!other) continue
       summaries.push({
         id: row.id,

@@ -15,6 +15,7 @@ import path from 'node:path'
 import pg from 'pg'
 const { Client } = pg
 
+// TEST AGAINST THE NEW DEPLOY (change BASE if needed for old prod testing)
 const BASE = 'https://localit-nhattoann.vercel.app'
 const BYPASS = 'w6XAcwiXyFf9Pea8I6zwVONXAhc8Xs9A'
 const SS_DIR = path.join(import.meta.dirname, 'screenshots')
