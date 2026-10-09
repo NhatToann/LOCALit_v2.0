@@ -1,15 +1,20 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Plus, Check, X, Trash2, Loader2, Pencil, Clock, MapPin, MoreHorizontal } from 'lucide-react'
 import type { ItineraryDay, ItineraryStop } from '@/lib/types'
 import { fmtTime, fmtRange, sortStops } from '@/lib/itinerary/times'
+import { toneFor, TONE_TOKENS } from '@/lib/itinerary/list-tone'
 import SortableCard from './SortableCard'
 
 /**
  * One column on the itinerary board. Renders the day title + optional
- * time window as a header, the list of cards, and the inline "add
- * card" composer. The column itself is the drop target.
+ * time window as a header (with a colored left accent), the list of
+ * cards, and the inline "add card" composer. The list body (`<ol>`)
+ * is registered as a dnd-kit droppable so cards can be dropped onto
+ * an empty list or below the last card.
  */
 export default function List({
   day,
@@ -41,6 +46,11 @@ export default function List({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+
+  // The list body itself is a droppable: drop on empty space or
+  // below the last card to append. ID = list-drop:<dayId> so the
+  // board's onDragEnd can resolve it the same way as a card drop.
+  const { setNodeRef, isOver } = useDroppable({ id: `list-drop:${day.id}` })
 
   // Reset local form when remote day changes.
   useEffect(() => {
@@ -98,14 +108,20 @@ export default function List({
 
   const sorted = sortStops(stops)
   const range = fmtRange(day.start_time, day.end_time)
+  const tone = toneFor(day)
+  const tokens = TONE_TOKENS[tone]
 
   return (
     <section
       aria-label={day.title ?? 'List'}
       data-list-id={day.id}
-      className="flex flex-col w-72 max-w-full flex-shrink-0 bg-surface border border-border rounded-sm"
+      data-tone={tone}
+      className={[
+        'flex flex-col w-72 max-w-full flex-shrink-0 bg-surface border border-border border-l-4 rounded-sm',
+        tokens.borderClass,
+      ].join(' ')}
     >
-      <header className="px-3 py-2 border-b border-border bg-paper rounded-t-sm">
+      <header className={`px-3 py-2 border-b border-border rounded-t-sm ${tokens.headerBgClass}`}>
         {editingHeader ? (
           <div className="space-y-2">
             <input
@@ -167,7 +183,12 @@ export default function List({
         ) : (
           <div className="flex items-start gap-2">
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-ink truncate flex items-center gap-1.5">
+              <h3 className={`text-sm font-semibold truncate flex items-center gap-1.5 ${tokens.titleClass}`}>
+                <span
+                  aria-hidden
+                  className="inline-block w-2 h-2 rounded-sm flex-shrink-0"
+                  style={{ background: tokens.border }}
+                />
                 {day.title || 'Untitled list'}
                 {range ? (
                   <span className="text-[10px] text-muted font-normal tabular-nums whitespace-nowrap">
@@ -231,24 +252,35 @@ export default function List({
         )}
       </header>
 
-      <ol className="flex-1 p-2 space-y-2 min-h-[80px]" data-droppable-list={day.id}>
-        {sorted.length === 0 ? (
-          <li className="border border-dashed border-border rounded-sm px-3 py-4 text-[11px] text-subtle text-center italic">
-            {canEdit ? 'Drop cards here or add one below' : 'No cards yet'}
-          </li>
-        ) : (
-          sorted.map((s) => (
-            <li key={s.id}>
-              <SortableCard
-                stop={s}
-                canEdit={canEdit}
-                onClick={() => onClickCard(s.id)}
-                onDelete={canEdit ? () => onDeleteCard(s.id) : undefined}
-              />
+      <SortableContext items={sorted.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+        <ol
+          ref={setNodeRef}
+          data-droppable-list={day.id}
+          data-list-body={day.id}
+          aria-label={`Cards in ${day.title ?? 'list'}`}
+          className={[
+            'flex-1 p-2 space-y-2 min-h-[100px] transition-colors rounded-sm',
+            isOver ? 'bg-paper border border-dashed border-primary' : '',
+          ].join(' ')}
+        >
+          {sorted.length === 0 ? (
+            <li className="border border-dashed border-border rounded-sm px-3 py-4 text-[11px] text-subtle text-center italic pointer-events-none">
+              {canEdit ? 'Drop cards here or add one below' : 'No cards yet'}
             </li>
-          ))
-        )}
-      </ol>
+          ) : (
+            sorted.map((s) => (
+              <li key={s.id}>
+                <SortableCard
+                  stop={s}
+                  canEdit={canEdit}
+                  onClick={() => onClickCard(s.id)}
+                  onDelete={canEdit ? () => onDeleteCard(s.id) : undefined}
+                />
+              </li>
+            ))
+          )}
+        </ol>
+      </SortableContext>
 
       {canEdit ? (
         <div className="px-2 pb-2 border-t border-border pt-2">

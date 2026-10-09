@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -12,7 +12,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { Loader2, Plus, Check, X } from 'lucide-react'
 import type { ItineraryDay, ItineraryStop } from '@/lib/types'
 import { createClient } from '@/utils/supabase/auth'
@@ -31,12 +31,13 @@ import { effectiveStart, sortStops } from '@/lib/itinerary/times'
  *
  * Drag-and-drop
  * ─────────────
- * The board uses @dnd-kit. Each list (day) is a droppable; each card
+ * Each list (day) registers its `<ol>` body as a droppable via
+ * useDroppable in `List.tsx` (id = `list-drop:<dayId>`). Each card
  * (stop) is both a draggable AND a droppable (so you can drop ONTO
- * a card to insert before/after it). Drop targets:
+ * a card to insert before/after it via closestCorners). Drop targets:
  *   • empty list body  →  drop at end of list
  *   • another card     →  drop before that card in the same list
- *   • another list     →  drop at end of that list
+ *   • another list body →  drop at end of that list
  *
  * Persistence
  * ───────────
@@ -101,23 +102,31 @@ export default function Board({
     let targetIndex: number
 
     if (overId.startsWith('list-drop:')) {
+      // Dropped onto an empty list body.
       targetListId = overId.slice('list-drop:'.length)
-      targetIndex = stops.filter((s) => s.day_id === targetListId).length
+      const listStops = sortStops(stops.filter((s) => s.day_id === targetListId))
+      targetIndex = listStops.length
     } else {
       // Dropped on a card.
       const overStop = stops.find((s) => s.id === over.id)
       if (!overStop || !overStop.day_id) {
-        // No target list — bail.
         return
       }
       targetListId = overStop.day_id
       const listStops = sortStops(stops.filter((s) => s.day_id === targetListId))
       const overIdx = listStops.findIndex((s) => s.id === over.id)
+      // If dropping onto the same card, keep it where it is.
+      if (overStop.id === sourceStop.id) {
+        return
+      }
+      // If dropping from another list, place at the overIdx; from the
+      // same list, the local state already arrayMove'd via dnd-kit's
+      // own internal handling, so we just re-pack order here.
       targetIndex = overIdx === -1 ? listStops.length : overIdx
     }
 
     const sourceListId = sourceStop.day_id
-    // No-op: dropped back to the same slot in the same list.
+    // No-op: dropped into the same list at the same index.
     if (sourceListId === targetListId) {
       const listStops = sortStops(stops.filter((s) => s.day_id === targetListId))
       const sourceIdx = listStops.findIndex((s) => s.id === active.id)
@@ -190,15 +199,6 @@ export default function Board({
     }
   }
 
-  // Suppress: if there's an open drawer, render it as a portal sibling.
-  useEffect(() => {
-    if (!openCard && !activeCard) return
-    // no-op — the drawer is rendered inline.
-  }, [openCard, activeCard])
-
-  // Drop targets for the empty list body
-  const listDroppableIds = days.map((d) => `list-drop:${d.id}`)
-
   return (
     <div className="relative">
       {savingDrop ? (
@@ -223,77 +223,23 @@ export default function Board({
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveCardId(null)}
       >
-        <div className="flex gap-3 overflow-x-auto pb-3" role="list" aria-label="Itinerary lists">
+        <div className="flex gap-3 overflow-x-auto pb-3 items-start" role="list" aria-label="Itinerary lists">
           {days.length === 0 ? (
             <div className="border border-dashed border-border rounded-sm bg-paper p-8 text-center w-full">
               <p className="text-sm font-medium text-ink mb-1">No lists yet</p>
               <p className="text-xs text-muted mb-3">Start by adding the first list — a morning, a day, or a custom window.</p>
               {canEdit ? (
                 addingList ? (
-                  <div className="max-w-md mx-auto bg-surface border border-border rounded-sm p-3 text-left space-y-2">
-                    <input
-                      type="text"
-                      autoFocus
-                      maxLength={120}
-                      value={draftList.title}
-                      onChange={(e) => setDraftList({ ...draftList, title: e.target.value })}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          void handleAddList()
-                        } else if (e.key === 'Escape') {
-                          setAddingList(false)
-                          setDraftList({ title: '', date: '', start_time: '', end_time: '' })
-                        }
-                      }}
-                      placeholder="List title — e.g. Saturday morning"
-                      className="form-input text-sm"
-                    />
-                    <div className="grid grid-cols-3 gap-2">
-                      <input
-                        type="date"
-                        value={draftList.date}
-                        onChange={(e) => setDraftList({ ...draftList, date: e.target.value })}
-                        className="form-input text-xs"
-                        aria-label="List date"
-                      />
-                      <input
-                        type="time"
-                        value={draftList.start_time}
-                        onChange={(e) => setDraftList({ ...draftList, start_time: e.target.value })}
-                        className="form-input text-xs"
-                        aria-label="List start time"
-                      />
-                      <input
-                        type="time"
-                        value={draftList.end_time}
-                        onChange={(e) => setDraftList({ ...draftList, end_time: e.target.value })}
-                        className="form-input text-xs"
-                        aria-label="List end time"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={handleAddList}
-                        disabled={!draftList.title.trim()}
-                        className="inline-flex items-center gap-1 h-8 px-2 text-xs font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
-                      >
-                        <Check size={12} aria-hidden /> Add list
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAddingList(false)
-                          setDraftList({ title: '', date: '', start_time: '', end_time: '' })
-                        }}
-                        className="inline-flex items-center justify-center w-8 h-8 text-muted hover:text-ink hover:bg-paper border border-border rounded-sm"
-                        aria-label="Cancel add list"
-                      >
-                        <X size={12} aria-hidden />
-                      </button>
-                    </div>
-                  </div>
+                  <AddListForm
+                    draft={draftList}
+                    setDraft={setDraftList}
+                    onSubmit={handleAddList}
+                    onCancel={() => {
+                      setAddingList(false)
+                      setDraftList({ title: '', date: '', start_time: '', end_time: '' })
+                    }}
+                    size="empty"
+                  />
                 ) : (
                   <button
                     type="button"
@@ -329,70 +275,16 @@ export default function Board({
           {canEdit && days.length > 0 ? (
             <div className="flex-shrink-0 w-72" role="listitem">
               {addingList ? (
-                <div className="bg-surface border border-border rounded-sm p-3 space-y-2">
-                  <input
-                    type="text"
-                    autoFocus
-                    maxLength={120}
-                    value={draftList.title}
-                    onChange={(e) => setDraftList({ ...draftList, title: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        void handleAddList()
-                      } else if (e.key === 'Escape') {
-                        setAddingList(false)
-                        setDraftList({ title: '', date: '', start_time: '', end_time: '' })
-                      }
-                    }}
-                    placeholder="List title — e.g. Saturday morning"
-                    className="form-input text-sm"
-                  />
-                  <div className="grid grid-cols-3 gap-2">
-                    <input
-                      type="date"
-                      value={draftList.date}
-                      onChange={(e) => setDraftList({ ...draftList, date: e.target.value })}
-                      className="form-input text-xs"
-                      aria-label="List date"
-                    />
-                    <input
-                      type="time"
-                      value={draftList.start_time}
-                      onChange={(e) => setDraftList({ ...draftList, start_time: e.target.value })}
-                      className="form-input text-xs"
-                      aria-label="List start time"
-                    />
-                    <input
-                      type="time"
-                      value={draftList.end_time}
-                      onChange={(e) => setDraftList({ ...draftList, end_time: e.target.value })}
-                      className="form-input text-xs"
-                      aria-label="List end time"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={handleAddList}
-                      disabled={!draftList.title.trim()}
-                      className="inline-flex items-center gap-1 h-8 px-2 text-xs font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
-                    >
-                      <Check size={12} aria-hidden /> Add list
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddingList(false)
-                        setDraftList({ title: '', date: '', start_time: '', end_time: '' })
-                      }}
-                      className="inline-flex items-center justify-center w-8 h-8 text-muted hover:text-ink hover:bg-paper border border-border rounded-sm"
-                      aria-label="Cancel add list"
-                    >
-                      <X size={12} aria-hidden />
-                    </button>
-                  </div>
-                </div>
+                <AddListForm
+                  draft={draftList}
+                  setDraft={setDraftList}
+                  onSubmit={handleAddList}
+                  onCancel={() => {
+                    setAddingList(false)
+                    setDraftList({ title: '', date: '', start_time: '', end_time: '' })
+                  }}
+                  size="inline"
+                />
               ) : (
                 <button
                   type="button"
@@ -412,11 +304,6 @@ export default function Board({
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      {/* Hidden markers so dnd-kit can register each empty list as a drop target via closestCorners. */}
-      {days.map((d) => (
-        <DropPad key={`pad-${d.id}`} id={`list-drop:${d.id}`} />
-      ))}
 
       {openCard ? (
         <>
@@ -444,17 +331,91 @@ export default function Board({
   )
 }
 
-/**
- * Invisible <div> registered as a droppable for each list so that
- * dropping on the list body (not on a card) still resolves.
- * Rendered outside the visible flex container.
- */
-function DropPad({ id }: { id: string }) {
+/** Inline composer for adding a new list — used both in the empty state and inline. */
+function AddListForm({
+  draft,
+  setDraft,
+  onSubmit,
+  onCancel,
+  size,
+}: {
+  draft: { title: string; date: string; start_time: string; end_time: string }
+  setDraft: (d: { title: string; date: string; start_time: string; end_time: string }) => void
+  onSubmit: () => Promise<void>
+  onCancel: () => void
+  size: 'empty' | 'inline'
+}) {
+  const [busy, setBusy] = useState(false)
+  async function handle() {
+    if (!draft.title.trim()) return
+    setBusy(true)
+    try {
+      await onSubmit()
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
-    <div
-      aria-hidden
-      data-pad={id}
-      className="hidden"
-    />
+    <div className={size === 'empty' ? 'max-w-md mx-auto bg-surface border border-border rounded-sm p-3 text-left space-y-2' : 'bg-surface border border-border rounded-sm p-3 space-y-2'}>
+      <input
+        type="text"
+        autoFocus
+        maxLength={120}
+        value={draft.title}
+        onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            void handle()
+          } else if (e.key === 'Escape') {
+            onCancel()
+          }
+        }}
+        placeholder="List title — e.g. Saturday morning"
+        className="form-input text-sm"
+      />
+      <div className="grid grid-cols-3 gap-2">
+        <input
+          type="date"
+          value={draft.date}
+          onChange={(e) => setDraft({ ...draft, date: e.target.value })}
+          className="form-input text-xs"
+          aria-label="List date"
+        />
+        <input
+          type="time"
+          value={draft.start_time}
+          onChange={(e) => setDraft({ ...draft, start_time: e.target.value })}
+          className="form-input text-xs"
+          aria-label="List start time"
+        />
+        <input
+          type="time"
+          value={draft.end_time}
+          onChange={(e) => setDraft({ ...draft, end_time: e.target.value })}
+          className="form-input text-xs"
+          aria-label="List end time"
+        />
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={handle}
+          disabled={busy || !draft.title.trim()}
+          className="inline-flex items-center gap-1 h-8 px-2 text-xs font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
+        >
+          {busy ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <Check size={12} aria-hidden />}
+          Add list
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="inline-flex items-center justify-center w-8 h-8 text-muted hover:text-ink hover:bg-paper border border-border rounded-sm"
+          aria-label="Cancel add list"
+        >
+          <X size={12} aria-hidden />
+        </button>
+      </div>
+    </div>
   )
 }
