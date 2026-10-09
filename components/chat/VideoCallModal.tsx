@@ -278,7 +278,7 @@ export default function VideoCallModal({
     >
       <div className="relative w-full max-w-4xl aspect-video bg-surface overflow-hidden border border-border-strong rounded-sm">
         {/* Header */}
-        <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-ink/80 to-transparent">
+        <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 py-3 bg-ink/80">
           <p className="text-eyebrow text-paper">
             {isOutgoing ? 'Outgoing' : 'Incoming'} video call
           </p>
@@ -429,7 +429,7 @@ export default function VideoCallModal({
         ) : null}
 
         {/* Footer controls */}
-        <div className="absolute bottom-0 inset-x-0 z-20 p-4 bg-gradient-to-t from-ink/95 to-transparent">
+        <div className="absolute bottom-0 inset-x-0 z-20 p-4 bg-ink/95">
           <div className="flex items-center justify-center gap-3 flex-wrap">
             {isIncomingRinging ? (
               <>

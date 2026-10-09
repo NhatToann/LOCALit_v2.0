@@ -355,7 +355,7 @@ export default function CallModal({
               visual chrome regardless of viewport. */}
         <div
           aria-hidden="true"
-          className="h-2 bg-gradient-to-r from-primary to-primary-hover"
+          className="h-2 bg-primary"
         />
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface">

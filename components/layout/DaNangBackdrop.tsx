@@ -94,12 +94,12 @@ export default function DaNangBackdrop() {
           filter: 'saturate(0.85) contrast(0.95)',
         }}
       />
-      {/* Soft paper wash — just enough to keep white surfaces legible */}
+      {/* Soft paper wash — just enough to keep white surfaces legible.
+          2026-10-09: solid color, no gradient. */}
       <div
         className="absolute inset-0"
         style={{
-          background:
-            'linear-gradient(180deg, rgba(250,250,247,0.25) 0%, rgba(250,250,247,0.45) 100%)',
+          backgroundColor: 'rgba(250,250,247,0.45)',
         }}
       />
       {/* Tiny attribution mark, bottom-right, never visible to assistive tech */}

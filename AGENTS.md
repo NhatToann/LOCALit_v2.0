@@ -95,7 +95,7 @@ LOCALit's design is triangulated from:
 - `border-radius` ≥ 8px on cards / buttons / inputs (use 4px)
 - `box-shadow` other than `var(--shadow-focus)` (we are FLAT)
 - `backdrop-filter: blur()` anywhere
-- `linear-gradient(...)` other than `var(--primary)`-only subtle hover states
+- `linear-gradient(...)` ANYWHERE (2026-10-09 — every element must use ONE solid color, no exceptions)
 - emoji as icons (use Lucide)
 - Inter font (Poppins + Plus Jakarta Sans + JetBrains Mono)
 - "Get Started" / "Learn More" CTAs (state the result)

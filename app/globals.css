@@ -15,21 +15,19 @@
    by re-declaring every --color-* at :root.dark.
    ============================================================ */
 @theme {
-  /* Primary brand — 2026-10-09 recolor: matching gradient (teal → blue)
-   * Mapping: --color-primary is the TEXT-friendly deep blue (stop 6).
-   * --color-primary-500 is the bright CTA background (stop 1).
-   * Tailwind utilities `text-primary` / `bg-primary` therefore
-   * resolve to the correct contrast pair by default. */
-  --color-primary: #0063AE;            /* gradient stop 6 — text & border */
-  --color-primary-hover: #004F8E;       /* stop 6 darkened — text hover */
-  --color-primary-50: #E6F4FB;          /* tint of stop 6 for selected bg */
+  /* Primary brand — 2026-10-09 recolor: matching teal/blue (no gradient).
+   * Single-color token system. The 6-stop gradient has been retired —
+   * every element now uses ONE solid color. `--color-primary` is the
+   * deep blue stop (text & CTA background), `--color-primary-500`
+   * is the bright CTA accent. */
+  --color-primary: #0063AE;            /* deep blue — text & border */
+  --color-primary-hover: #004F8E;       /* deep blue darkened — text hover */
+  --color-primary-50: #E6F4FB;          /* tint of primary — selected bg */
   --color-primary-100: #BFE0F2;         /* deeper tint */
-  --color-primary-500: #11EDAF;         /* gradient stop 1 — CTA background */
-  --color-primary-700: #00BACF;         /* gradient stop 3 — secondary CTA */
-  --color-primary-900: #11EDAF;         /* gradient stop 1 — vibrant accent */
+  --color-primary-500: #00BACF;         /* bright cyan — accent CTA */
+  --color-primary-700: #00D5C2;         /* secondary accent */
+  --color-primary-900: #11EDAF;         /* vibrant teal — brand pop */
   --color-primary-bg: #E6F4FB;          /* primary-tinted background (default) */
-  --color-primary-bg-vibrant: #E6FCF6;  /* vibrant tint for stop 1 */
-  --color-gradient: linear-gradient(135deg, #11EDAF 0%, #00D5C2 20%, #00BACF 40%, #009ED0 60%, #0081C5 80%, #0063AE 100%);
 
   /* Neutrals (warm, not pure black/white per Section 2a) */
   --color-ink: #0F0F0F;
@@ -67,12 +65,10 @@
   --color-primary-hover: #004F8E;
   --color-primary-50: #E6F4FB;
   --color-primary-100: #BFE0F2;
-  --color-primary-500: #11EDAF;
-  --color-primary-700: #00BACF;
+  --color-primary-500: #00BACF;
+  --color-primary-700: #00D5C2;
   --color-primary-900: #11EDAF;
   --color-primary-bg: #E6F4FB;
-  --color-primary-bg-vibrant: #E6FCF6;
-  --color-gradient: linear-gradient(135deg, #11EDAF 0%, #00D5C2 20%, #00BACF 40%, #009ED0 60%, #0081C5 80%, #0063AE 100%);
   --color-ink: #0F0F0F;
   --color-paper: #FAFAF7;
   --color-surface: #FFFFFF;
@@ -98,18 +94,10 @@
   /* Card hover shadow — single subtle elevation */
   --shadow-card: 0 1px 1px rgba(9, 30, 66, 0.25);
   --shadow-card-hover: 0 4px 8px rgba(9, 30, 66, 0.18);
-  /* Card label bar (the small horizontal color accent inside a card) */
-  --label-list: linear-gradient(
-    to right,
-    #F59E0B 0 16px,
-    #10B981 16px 32px,
-    #3B82F6 32px 48px,
-    #8B5CF6 48px 64px,
-    #EC4899 64px 80px,
-    #EF4444 80px 96px,
-    #F97316 96px 112px,
-    #14B8A6 112px 128px
-  );
+  /* Card label bar (the small horizontal color accent inside a card).
+   * 2026-10-09: single solid color (no gradient). Was a 6-color
+   * Trello-style rainbow gradient. */
+  --color-label: #0063AE;
 
   /* ============================================================
      FOCUS MODE TOKENS — flat teal palette (no gradients)
@@ -967,20 +955,4 @@
   .hover\:text-focus-deep:hover { color: var(--focus-deep); }
   .hover\:border-focus-primary:hover { border-color: var(--focus-primary); }
   .hover\:border-focus-primary-dark:hover { border-color: var(--focus-primary-dark); }
-
-  /* ============================================================
-     BRAND GRADIENT UTILITIES (2026-10-09 recolor)
-     Apply sparingly — hero brand mark, footer accent stripe, and
-     any surface that needs to display the 6-stop teal/blue identity.
-     Per docs/design.md Section 2.1, this is the only place the
-     full gradient is allowed.
-     ============================================================ */
-  .bg-gradient { background-image: var(--color-gradient); }
-  .text-gradient {
-    background-image: var(--color-gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
 }

@@ -202,7 +202,7 @@ function HomeContent() {
                 'Chat in-app to lock a meeting point. Voice and video calls work inside the chat once both sides are online. 0% LOCALit fee.',
             },
           ].map((item) => (
-            <li key={item.step} className="border border-border rounded-sm p-6 bg-surface">
+            <li key={item.step} className="border border-primary-100 rounded-sm p-6 bg-primary-50">
               <p className="text-eyebrow text-primary mb-2 tabular-nums">Step {item.step}</p>
               <h3 className="text-xl font-semibold text-ink mb-3">{item.title}</h3>
               <p className="text-sm text-muted leading-relaxed">{item.body}</p>
