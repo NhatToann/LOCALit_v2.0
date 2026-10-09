@@ -51,7 +51,15 @@ LOCALit's design is triangulated from:
 
 **Anti-reference:** generic SaaS landing page. We are not Stripe, not Linear, not Vercel. We are a marketplace for human travel experiences in one specific city.
 
-## Current state (as of 2026-10-01)
+## Current state (as of 2026-10-09)
+
+- **Tropical Jade palette (2026-10-09 recolor v2)** — 5 jade/emerald
+ stops + 1 ocean-dark stop (`#34D399` → `#10B981` → `#0D9488` →
+ `#065F46` → `#0E7490` → `#134E4A`). Replaces the prior matching
+ gradient (teal → blue). All neutrals (paper, surface, border,
+ border-strong, ink, muted) are auto-derived alpha offsets of stop
+ 1 so the page reads as one continuous teal/green canvas. No
+ background is pure white or pure gray.
 
 - **Single-web architecture (2026-10-01)** — `/tourist/*` and `/buddy/*`
   URL prefixes have been retired. The whole site is one flat URL

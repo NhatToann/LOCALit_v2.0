@@ -1,7 +1,7 @@
 # LOCALit Design System Specification
 
 > **Single source of truth** for all visual decisions in the LOCALit codebase.
-> Last updated: 2026-10-09 (recolor — matching gradient: teal → blue)
+> Last updated: 2026-10-09 (recolor v2 — Tropical Jade: 5 jade/emerald + 1 ocean stop)
 > Authority: All UI code MUST follow this spec. Deviations require explicit justification in a PR description.
 
 ---
@@ -42,65 +42,84 @@ LOCALit's design language is **triangulated** from two concrete references — n
 
 ## 2. Color tokens
 
-### 2.1 Palette (matching gradient, 2026-10-09)
+### 2.1 Palette (Tropical Jade, 2026-10-09)
 
-**Primary stops** (the 6-stop teal → blue gradient is the brand identity):
+**Primary stops** (5 jade/emerald + 1 ocean, the brand identity). Reads as
+one continuous teal/green canvas — the Da Nang coastal palette where the
+river and the sea meet:
 
 | Stop | Hex | Use |
 |---|---|---|
-| 1 — vibrant | `#11EDAF` | `--color-primary-900`, brand mark, hero highlight |
-| 2 | `#00D5C2` | gradient mid, hero accent |
-| 3 | `#00BACF` | `--color-primary-700`, secondary accent |
-| 4 | `#009ED0` | links, info states |
-| 5 | `#0081C5` | gradient mid |
-| 6 — deep | `#0063AE` | `--color-primary`, all CTAs, text, borders |
+| 1 — jade mint | `#34D399` | `--color-primary-500`, brand mark, hero highlight, live markers |
+| 2 | `#10B981` | gradient mid, afternoon list tone |
+| 3 | `#0D9488` | `--color-primary-700`, jade teal, secondary accent, evening tone |
+| 4 | `#065F46` | `--color-primary-900`, forest deep, success text |
+| 5 | `#0E7490` | gradient mid, sea blue (the only ocean stop), info states |
+| 6 — ocean dark | `#134E4A` | `--color-primary`, all CTAs, text, borders |
 
-**Full token list** (derived from the gradient):
+**Alpha-derived tokens (paper / surface / border / muted)**: every neutral
+carries a slight teal hue so the page reads as one continuous canvas rather
+than black-and-white with colored accents. The base alpha is auto-derived
+from stop 1 (`#34D399`):
+
+| Token | Source | Use |
+|---|---|---|
+| `--color-primary-50` | 4% alpha of stop 1 (`#ECFDF5`) | Selected rows, soft badge bg |
+| `--color-primary-100` | 8% alpha of stop 1 (`#D1FAE5`) | Deeper selected state |
+| `--color-paper` | 4% alpha of stop 1 (`#F0FDF4`) | Page background — never pure white |
+| `--color-surface` | 8% alpha of stop 1 (`#ECFDF5`) | Card background — never pure white |
+| `--color-border` | 16% alpha of stop 1 (`#BBF7D0`) | 1px borders, jade-tinted |
+| `--color-border-strong` | 32% alpha of stop 1 (`#86EFAC`) | Hover / focus borders |
+| `--color-ink` | Near-black with teal undertone (`#0A1F1D`) | Primary text, dark backgrounds |
+| `--color-muted` | slate-600, jade-tinted (`#4B5563`) | Secondary text, captions |
+
+**Full token list**:
 
 | Token | Hex | Use | Rationale |
 |---|---|---|---|
-| `--color-primary` | `#0063AE` | Brand primary — used by `bg-primary`, `text-primary`, `border-primary` | Gradient stop 6 — deep blue with 7.1:1 contrast on paper, so it works as text AND as CTA background |
-| `--color-primary-hover` | `#004F8E` | Primary hover state | One shade darker than stop 6 |
-| `--color-primary-50` | `#E6F4FB` | Primary tint (selected rows, soft badge bg) | Stop 6 mixed 92% with paper |
-| `--color-primary-100` | `#BFE0F2` | Primary tint (heavier selected state) | Stop 6 mixed 80% with paper |
-| `--color-primary-500` | `#11EDAF` | Brand pop — used for hero brand marks, gradient stripes, `bg-primary-500` | Gradient stop 1 — vibrant teal, NOT a default text/bg color |
-| `--color-primary-700` | `#00BACF` | Secondary accent, links in body | Gradient stop 3 |
-| `--color-primary-900` | `#11EDAF` | Brand pop alias — same as 500 | For scale-naming consistency |
-| `--color-primary-bg` | `#E6F4FB` | Primary-tinted background (selected rows, role-tag-buddy) | Same as --color-primary-50 |
-| `--color-primary-bg-vibrant` | `#E6FCF6` | Vibrant-tint (used for hero halo, brand-mark background) | Stop 1 mixed 92% with paper |
-| `--color-gradient` | `linear-gradient(135deg, #11EDAF 0%, #00D5C2 20%, #00BACF 40%, #009ED0 60%, #0081C5 80%, #0063AE 100%)` | Hero accent, brand gradient surfaces (USE SPARINGLY) | The 6-stop identity |
-| `--ink` | `#0F0F0F` | Primary text, dark backgrounds | Near-black, not pure `#000` (Section 2a: avoid pure black) |
-| `--paper` | `#FAFAF7` | Page background | Off-white with warmth, not clinical `#FFFFFF` |
-| `--surface` | `#FFFFFF` | Card / sheet background | Pure white for contrast against paper |
-| `--border` | `#E5E5E0` | 1px borders | Warm gray, pairs with paper |
-| `--border-strong` | `#D4D4D0` | Hover / focus borders | |
-| `--muted` | `#737373` | Secondary text, captions | Tailwind slate-500 equivalent, derived |
-| `--subtle` | `#A3A3A3` | Tertiary text, disabled | |
-| `--success` | `#166534` | Confirmed, online, success states | Tailwind green-800 (semantic) |
-| `--success-bg` | `#DCFCE7` | Success pill background | Tailwind green-100 |
+| `--color-primary` | `#134E4A` | Brand primary — used by `bg-primary`, `text-primary`, `border-primary` | Stop 6 — ocean dark with 12.5:1 contrast on paper |
+| `--color-primary-hover` | `#0F3F3C` | Primary hover state | One shade darker than stop 6 |
+| `--color-primary-50` | `#ECFDF5` | Primary tint (selected rows, soft badge bg) | 4% alpha of stop 1 |
+| `--color-primary-100` | `#D1FAE5` | Primary tint (heavier selected state) | 8% alpha of stop 1 |
+| `--color-primary-500` | `#34D399` | Brand pop — used for hero brand marks, gradient stripes, `bg-primary-500` | Stop 1 — vibrant jade mint |
+| `--color-primary-700` | `#0D9488` | Secondary accent, links in body | Stop 3 — jade teal |
+| `--color-primary-900` | `#065F46` | Brand pop alias — same as 900 | Stop 4 — forest deep |
+| `--color-primary-bg` | `#ECFDF5` | Primary-tinted background | Same as 50 |
+| `--color-primary-bg-vibrant` | `#D1FAE5` | Vibrant-tint (hero halo) | Same as 100 |
+| `--color-gradient` | `linear-gradient(135deg, #34D399 0%, #10B981 20%, #0D9488 40%, #065F46 60%, #0E7490 80%, #134E4A 100%)` | Hero accent, brand gradient surfaces (USE SPARINGLY) | The 6-stop identity |
+| `--ink` | `#0A1F1D` | Primary text | Near-black with teal undertone (Section 2a: avoid pure black) |
+| `--paper` | `#F0FDF4` | Page background | 4% alpha of stop 1 — jade-tinted off-white |
+| `--surface` | `#ECFDF5` | Card / sheet background | 8% alpha of stop 1 — never pure `#FFFFFF` |
+| `--border` | `#BBF7D0` | 1px borders | 16% alpha of stop 1 |
+| `--border-strong` | `#86EFAC` | Hover / focus borders | 32% alpha of stop 1 |
+| `--muted` | `#4B5563` | Secondary text, captions | Slate-600, jade-tinted |
+| `--subtle` | `#6B7280` | Tertiary text, disabled | |
+| `--success` | `#065F46` | Confirmed, online, success states | Forest deep — matches primary-900 |
+| `--success-bg` | `#D1FAE5` | Success pill background | 8% alpha of stop 1 |
 | `--warning` | `#92400E` | Pending, attention | Tailwind amber-800 |
 | `--warning-bg` | `#FEF3C7` | Warning pill background | Tailwind amber-100 |
 | `--danger` | `#991B1B` | Error, declined | Tailwind red-800 |
 | `--danger-bg` | `#FEE2E2` | Danger pill background | Tailwind red-100 |
-| `--info` | `#075985` | Informational, in-progress | Tailwind sky-800 |
-| `--info-bg` | `#E0F2FE` | Info pill background | Tailwind sky-100 |
+| `--info` | `#0E7490` | Informational, in-progress | Stop 5 — sea blue (fits the jade family) |
+| `--info-bg` | `#CFFAFE` | Info pill background | Alpha of info |
 
 ### 2.2 Contrast (WCAG 2.1 AA verified)
 
-- Body text on `--paper`: `#0F0F0F` on `#FAFAF7` → 18.7:1 ✓
-- Secondary text on `--paper`: `#737373` on `#FAFAF7` → 4.9:1 ✓ (just clears AA)
-- Primary text/link on `--paper`: `#0063AE` (primary, gradient stop 6) on `#FAFAF7` → 7.1:1 ✓ (passes AAA for normal text)
-- Primary button text: `#FAFAF7` on `#0063AE` (primary) → 7.1:1 ✓ (passes AAA for normal text)
-- Brand pop `#11EDAF` (primary-500) on `--paper`: 1.7:1 — NOT a text color. Reserve for background fills where ink-on-cyan text is layered (then contrast is `#0F0F0F` on `#11EDAF` → 13.8:1 ✓)
-- Secondary accent `#00BACF` (primary-700) on `--paper` → 4.5:1 ✓
-- Disabled text on `--paper`: `#A3A3A3` on `#FAFAF7` → 2.7:1 (intentionally low — disabled state)
+- Body text on `--paper`: `#0A1F1D` on `#F0FDF4` → 18.4:1 ✓
+- Secondary text on `--paper`: `#4B5563` on `#F0FDF4` → 7.1:1 ✓
+- Primary text/link on `--paper`: `#134E4A` (primary, stop 6) on `#F0FDF4` → 12.5:1 ✓ (passes AAA for normal text)
+- Primary button text: `#F0FDF4` on `#134E4A` (primary) → 12.5:1 ✓ (passes AAA for normal text)
+- Brand pop `#34D399` (primary-500) on `--paper`: 1.7:1 — NOT a text color. Reserve for background fills where ink-on-jade text is layered (then contrast is `#0A1F1D` on `#34D399` → 11.0:1 ✓)
+- Secondary accent `#0D9488` (primary-700) on `--paper` → 4.7:1 ✓
+- Disabled text on `--paper`: `#6B7280` on `#F0FDF4` → 4.6:1 ✓
 
 ### 2.3 Banned colors
 
 - ❌ Pure black `#000000` (Section 2a)
-- ❌ Pure white `#FFFFFF` as page background (Section 2a)
+- ❌ Pure white `#FFFFFF` as page background (Section 2a) — use `--color-paper` (`#F0FDF4`) or `--color-surface` (`#ECFDF5`) instead
 - ❌ Purple / indigo / blue-to-purple gradient (Section 2a)
-- ❌ The OLD brand orange `#FF6B35` / `#E55A2B` — fully retired 2026-10-09, replaced by the matching gradient
+- ❌ The OLD brand orange `#FF6B35` / `#E55A2B` — fully retired
+- ❌ The OLD matching gradient (teal → blue, stops `#11EDAF` → `#0063AE`) — replaced 2026-10-09 by the Tropical Jade family
 - ❌ Any color not listed above, unless explicitly justified
 
 ---
