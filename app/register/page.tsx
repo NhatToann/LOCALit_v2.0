@@ -199,11 +199,52 @@ function Chip({
   active,
   onClick,
   children,
+  tone = 'primary',
 }: {
   active: boolean
   onClick: () => void
   children: React.ReactNode
+  tone?: 'tourist' | 'buddy' | 'info2' | 'hot' | 'primary'
 }) {
+  // 4-role active states — chips carry the brand palette.
+  const palette: Record<string, { activeBg: string; activeBorder: string; activeText: string; idleBorder: string; idleHoverBorder: string }> = {
+    tourist: {
+      activeBg: 'bg-tourist',
+      activeBorder: 'border-tourist',
+      activeText: 'text-white',
+      idleBorder: 'border-tourist-border',
+      idleHoverBorder: 'hover:border-tourist',
+    },
+    buddy: {
+      activeBg: 'bg-buddy',
+      activeBorder: 'border-buddy',
+      activeText: 'text-buddy-ink',
+      idleBorder: 'border-buddy-border',
+      idleHoverBorder: 'hover:border-buddy',
+    },
+    info2: {
+      activeBg: 'bg-info2',
+      activeBorder: 'border-info2',
+      activeText: 'text-white',
+      idleBorder: 'border-info2-border',
+      idleHoverBorder: 'hover:border-info2',
+    },
+    hot: {
+      activeBg: 'bg-hot',
+      activeBorder: 'border-hot',
+      activeText: 'text-white',
+      idleBorder: 'border-hot-border',
+      idleHoverBorder: 'hover:border-hot',
+    },
+    primary: {
+      activeBg: 'bg-primary',
+      activeBorder: 'border-primary',
+      activeText: 'text-paper',
+      idleBorder: 'border-border',
+      idleHoverBorder: 'hover:border-border-strong',
+    },
+  }
+  const t = palette[tone] ?? palette.primary
   return (
     <button
       type="button"
@@ -211,8 +252,8 @@ function Chip({
       aria-pressed={active}
       className={`h-8 px-3 text-sm rounded-pill border transition-colors duration-150 ${
         active
-          ? 'bg-primary text-paper border-primary'
-          : 'bg-transparent text-ink border-border hover:border-border-strong'
+          ? `${t.activeBg} ${t.activeBorder} ${t.activeText}`
+          : `bg-transparent text-ink ${t.idleBorder} ${t.idleHoverBorder}`
       }`}
     >
       {children}
@@ -225,12 +266,43 @@ function ChoiceCard({
   onClick,
   title,
   desc,
+  tone = 'primary',
 }: {
   active: boolean
   onClick: () => void
   title: string
   desc: string
+  tone?: 'tourist' | 'buddy' | 'primary'
 }) {
+  // Each tone maps to its own active+hover colors so the role pickers
+  // visibly carry the 4-role palette.
+  const palette: Record<string, { activeBg: string; activeBorder: string; activeText: string; idleBorder: string; idleHoverBorder: string; idleHoverBg: string }> = {
+    tourist: {
+      activeBg: 'bg-tourist',
+      activeBorder: 'border-tourist',
+      activeText: 'text-white',
+      idleBorder: 'border-tourist-border',
+      idleHoverBorder: 'hover:border-tourist',
+      idleHoverBg: 'hover:bg-tourist-50/40',
+    },
+    buddy: {
+      activeBg: 'bg-buddy',
+      activeBorder: 'border-buddy',
+      activeText: 'text-buddy-ink',
+      idleBorder: 'border-buddy-border',
+      idleHoverBorder: 'hover:border-buddy',
+      idleHoverBg: 'hover:bg-buddy-50/40',
+    },
+    primary: {
+      activeBg: 'bg-primary',
+      activeBorder: 'border-primary',
+      activeText: 'text-paper',
+      idleBorder: 'border-border',
+      idleHoverBorder: 'hover:border-border-strong',
+      idleHoverBg: '',
+    },
+  }
+  const t = palette[tone] ?? palette.primary
   return (
     <button
       type="button"
@@ -238,8 +310,8 @@ function ChoiceCard({
       aria-pressed={active}
       className={`text-left p-4 rounded-sm border transition-colors duration-150 ${
         active
-          ? 'bg-primary text-paper border-primary'
-          : 'bg-transparent text-ink border-border hover:border-border-strong'
+          ? `${t.activeBg} ${t.activeBorder} ${t.activeText}`
+          : `bg-transparent text-ink ${t.idleBorder} ${t.idleHoverBorder} ${t.idleHoverBg}`
       }`}
     >
       <span className="block text-sm font-semibold">{title}</span>
@@ -530,7 +602,7 @@ function RegisterForm() {
           className="inline-flex items-center gap-2 text-sm font-semibold text-ink hover:text-primary"
         >
           <span
-            className="w-7 h-7 rounded-sm bg-primary text-paper flex items-center justify-center font-bold"
+            className="w-7 h-7 rounded-sm bg-gradient-4 text-paper flex items-center justify-center font-bold"
             aria-hidden="true"
           >
             L
@@ -541,14 +613,22 @@ function RegisterForm() {
           href="/login"
           className="text-xs text-muted hover:text-ink"
         >
-          Already a member? <strong>Sign in</strong>
+          Already a member? <strong className="text-tourist">Sign in</strong>
         </Link>
       </header>
+
+      {/* 4-color role markers — every page exposes all 4 brand colors */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mb-4" role="list" aria-label="LOCALit brand colors">
+        <span role="listitem" className="role-badge-tourist" title="Tourist role accent">Tourist</span>
+        <span role="listitem" className="role-badge-buddy" title="Buddy role accent">Buddy</span>
+        <span role="listitem" className="role-badge-info2" title="Info accent">Info</span>
+        <span role="listitem" className="role-badge-hot" title="Urgent accent">Hot</span>
+      </div>
 
       <Stepper step={step} />
 
       {step === 'account' ? (
-        <section className="border border-border rounded-sm bg-surface p-6">
+        <section className="surface-transparent-strong border-2 border-tourist-border rounded-sm p-6">
           <header className="mb-5">
             <h1 className="text-section-title">Create your account</h1>
             <p className="text-sm text-muted mt-1">
@@ -573,11 +653,14 @@ function RegisterForm() {
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="form-group">
-                <label htmlFor="fullName" className="form-label">Full name</label>
+                <label htmlFor="fullName" className="form-label">
+                  <span className="inline-block w-2 h-2 rounded-sm bg-tourist mr-2 align-middle" aria-hidden="true" />
+                  Full name
+                </label>
                 <input
                   id="fullName"
                   type="text"
-                  className="form-input"
+                  className="form-input border-tourist-border focus:border-tourist"
                   placeholder="Alex Johnson"
                   value={form.fullName}
                   onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
@@ -590,12 +673,13 @@ function RegisterForm() {
               </div>
               <div className="form-group">
                 <label htmlFor="phone" className="form-label">
+                  <span className="inline-block w-2 h-2 rounded-sm bg-info2 mr-2 align-middle" aria-hidden="true" />
                   Phone <span className="text-muted text-xs">(optional)</span>
                 </label>
                 <input
                   id="phone"
                   type="tel"
-                  className="form-input"
+                  className="form-input border-info2-border focus:border-info2"
                   placeholder="+84 123 456 789"
                   value={form.phone}
                   onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
@@ -607,11 +691,14 @@ function RegisterForm() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="email" className="form-label">Email</label>
+              <label htmlFor="email" className="form-label">
+                <span className="inline-block w-2 h-2 rounded-sm bg-tourist mr-2 align-middle" aria-hidden="true" />
+                Email
+              </label>
               <input
                 id="email"
                 type="email"
-                className="form-input"
+                className="form-input border-tourist-border focus:border-tourist"
                 placeholder="you@example.com"
                 value={form.email}
                 onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
@@ -626,11 +713,14 @@ function RegisterForm() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="form-group">
-                <label htmlFor="password" className="form-label">Password</label>
+                <label htmlFor="password" className="form-label">
+                  <span className="inline-block w-2 h-2 rounded-sm bg-buddy mr-2 align-middle" aria-hidden="true" />
+                  Password
+                </label>
                 <input
                   id="password"
                   type="password"
-                  className="form-input"
+                  className="form-input border-buddy-border focus:border-buddy"
                   placeholder="At least 10 characters"
                   value={form.password}
                   onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
@@ -642,18 +732,21 @@ function RegisterForm() {
                 />
                 {form.password ? (
                   validatePassword(form.password) ? (
-                    <p className="form-hint text-danger">{validatePassword(form.password)}</p>
+                    <p className="form-hint text-hot">{validatePassword(form.password)}</p>
                   ) : (
-                    <p className="form-hint">At least 10 chars, with a letter and a number or symbol.</p>
+                    <p className="form-hint text-buddy-ink">At least 10 chars, with a letter and a number or symbol.</p>
                   )
                 ) : null}
               </div>
               <div className="form-group">
-                <label htmlFor="confirmPassword" className="form-label">Confirm password</label>
+                <label htmlFor="confirmPassword" className="form-label">
+                  <span className="inline-block w-2 h-2 rounded-sm bg-buddy mr-2 align-middle" aria-hidden="true" />
+                  Confirm password
+                </label>
                 <input
                   id="confirmPassword"
                   type="password"
-                  className="form-input"
+                  className="form-input border-buddy-border focus:border-buddy"
                   placeholder="Re-enter your password"
                   value={form.confirmPassword}
                   onChange={(e) =>
@@ -667,7 +760,7 @@ function RegisterForm() {
                   maxLength={128}
                 />
                 {form.confirmPassword && form.password !== form.confirmPassword ? (
-                  <p className="form-hint text-danger">Passwords do not match.</p>
+                  <p className="form-hint text-hot">Passwords do not match.</p>
                 ) : null}
               </div>
             </div>
@@ -680,12 +773,14 @@ function RegisterForm() {
                   onClick={() => pickRole('tourist')}
                   title="Tourist"
                   desc="Find a local buddy to show you around Da Nang."
+                  tone="tourist"
                 />
                 <ChoiceCard
                   active={form.role === 'buddy'}
                   onClick={() => pickRole('buddy')}
                   title="Local buddy"
                   desc="Show travelers around your city. Set your own hourly rate."
+                  tone="buddy"
                 />
               </div>
             </fieldset>
@@ -693,17 +788,17 @@ function RegisterForm() {
             <label className="flex items-start gap-2 mt-4 text-sm text-ink cursor-pointer">
               <input
                 type="checkbox"
-                className="mt-0.5"
+                className="mt-0.5 accent-tourist"
                 checked={form.terms}
                 onChange={(e) => setForm((p) => ({ ...p, terms: e.target.checked }))}
               />
               <span>
                 I agree to LOCALit&apos;s{' '}
-                <a href="#" onClick={(e) => e.preventDefault()} className="text-primary hover:underline">
+                <a href="#" onClick={(e) => e.preventDefault()} className="text-info2 hover:underline font-semibold">
                   Terms of Service
                 </a>{' '}
                 and{' '}
-                <a href="#" onClick={(e) => e.preventDefault()} className="text-primary hover:underline">
+                <a href="#" onClick={(e) => e.preventDefault()} className="text-info2 hover:underline font-semibold">
                   Privacy Policy
                 </a>
                 .
@@ -713,7 +808,7 @@ function RegisterForm() {
             <button
               type="submit"
               disabled={!stepReady || loading}
-              className="w-full h-11 mt-5 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1"
+              className="btn-tourist w-full h-11 mt-5 inline-flex items-center justify-center gap-1"
             >
               {loading ? 'Sending code…' : null}
               {!loading ? (
@@ -728,11 +823,11 @@ function RegisterForm() {
       ) : null}
 
       {step === 'verify-profile' ? (
-        <section className="border border-border rounded-sm bg-surface p-6">
-          <header className="mb-5 pb-4 border-b border-border">
-            <div className="flex items-center gap-2 text-primary mb-2">
+        <section className="surface-transparent-strong border-2 border-buddy-border rounded-sm p-6">
+          <header className="mb-5 pb-4 border-b border-buddy-border">
+            <div className="flex items-center gap-2 text-buddy-ink mb-2">
               <Mail size={18} aria-hidden="true" />
-              <span className="text-eyebrow">Step 2 of 2</span>
+              <span className="text-eyebrow font-bold">Step 2 of 2</span>
             </div>
             <h1 className="text-section-title">Verify and finish your profile</h1>
             <p className="text-sm text-muted mt-1">
@@ -764,7 +859,10 @@ function RegisterForm() {
                 noValidate
               >
                 <div className="form-group">
-                  <label className="form-label">Verification code</label>
+                  <label className="form-label">
+                    <span className="inline-block w-2 h-2 rounded-sm bg-info2 mr-2 align-middle" aria-hidden="true" />
+                    Verification code
+                  </label>
                   <div className="flex gap-2" role="group" aria-label="6-digit code">
                     {otp.map((digit, i) => (
                       <input
@@ -776,7 +874,7 @@ function RegisterForm() {
                         inputMode="numeric"
                         pattern="[0-9]*"
                         maxLength={1}
-                        className="form-input text-center text-lg"
+                        className="form-input text-center text-lg border-info2-border focus:border-info2"
                         style={{ width: 44, height: 48, padding: 0 }}
                         value={digit}
                         aria-label={`Digit ${i + 1}`}
@@ -829,7 +927,7 @@ function RegisterForm() {
                   <button
                     type="submit"
                     disabled={otpSending || otp.some((d) => d === '')}
-                    className="inline-flex items-center justify-center h-9 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper disabled:opacity-50"
+                    className="btn-info2-outline inline-flex items-center justify-center h-9 px-4 text-sm"
                   >
                     {otpSending ? 'Verifying…' : 'Verify code'}
                   </button>
@@ -837,7 +935,7 @@ function RegisterForm() {
                     type="button"
                     onClick={resendOtp}
                     disabled={otpSending || resendCooldown > 0}
-                    className="inline-flex items-center gap-1 h-9 px-3 text-sm text-muted hover:text-ink disabled:opacity-50"
+                    className="inline-flex items-center gap-1 h-9 px-3 text-sm text-info2 hover:text-info2-hover font-semibold disabled:opacity-50"
                   >
                     <RefreshCw size={12} aria-hidden="true" />
                     {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
@@ -849,7 +947,7 @@ function RegisterForm() {
                 type="button"
                 onClick={finalizeSignup}
                 disabled={!stepReady || loading}
-                className="w-full h-11 mt-6 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1"
+                className="btn-tourist w-full h-11 mt-6 inline-flex items-center justify-center gap-1"
               >
                 {loading ? 'Creating account…' : null}
                 {!loading ? (
@@ -909,7 +1007,7 @@ function TouristTags({
         <label className="form-label" htmlFor="nationality">Where are you from?</label>
         <select
           id="nationality"
-          className="form-input"
+          className="form-input border-tourist-border focus:border-tourist"
           value={form.nationality}
           onChange={(e) => setForm((p) => ({ ...p, nationality: e.target.value }))}
         >
@@ -924,7 +1022,7 @@ function TouristTags({
         <label className="form-label" htmlFor="travelStyle">Travel style</label>
         <select
           id="travelStyle"
-          className="form-input"
+          className="form-input border-info2-border focus:border-info2"
           value={form.travelStyle}
           onChange={(e) => setForm((p) => ({ ...p, travelStyle: e.target.value }))}
         >
@@ -938,30 +1036,41 @@ function TouristTags({
       <div>
         <label className="form-label">Interests (pick 1 or more)</label>
         <div className="flex flex-wrap gap-1.5 mt-1">
-          {INTERESTS.map((i) => (
-            <Chip
-              key={i.id}
-              active={form.interests.includes(i.id)}
-              onClick={() => toggleInterest(i.id)}
-            >
-              {i.label}
-            </Chip>
-          ))}
+          {INTERESTS.map((i, idx) => {
+            // Rotate through 4 tones so the chip strip visibly cycles all 4 colors.
+            const tones: Array<'tourist' | 'buddy' | 'info2' | 'hot'> = ['tourist', 'buddy', 'info2', 'hot']
+            const tone = tones[idx % tones.length]
+            return (
+              <Chip
+                key={i.id}
+                active={form.interests.includes(i.id)}
+                onClick={() => toggleInterest(i.id)}
+                tone={tone}
+              >
+                {i.label}
+              </Chip>
+            )
+          })}
         </div>
       </div>
 
       <div>
         <label className="form-label">Languages (pick 1 or more)</label>
         <div className="flex flex-wrap gap-1.5 mt-1">
-          {LANGUAGES.map((l) => (
-            <Chip
-              key={l}
-              active={form.languages.includes(l)}
-              onClick={() => toggleLanguage(l)}
-            >
-              {l}
-            </Chip>
-          ))}
+          {LANGUAGES.map((l, idx) => {
+            const tones: Array<'tourist' | 'buddy' | 'info2' | 'hot'> = ['info2', 'hot', 'tourist', 'buddy']
+            const tone = tones[idx % tones.length]
+            return (
+              <Chip
+                key={l}
+                active={form.languages.includes(l)}
+                onClick={() => toggleLanguage(l)}
+                tone={tone}
+              >
+                {l}
+              </Chip>
+            )
+          })}
         </div>
       </div>
 
@@ -970,7 +1079,7 @@ function TouristTags({
         <input
           id="arrivalDate"
           type="date"
-          className="form-input"
+          className="form-input border-hot-border focus:border-hot"
           value={form.arrivalDate}
           onChange={(e) => setForm((p) => ({ ...p, arrivalDate: e.target.value }))}
         />
@@ -1002,7 +1111,7 @@ function BuddyTags({
         <input
           id="locationCity"
           type="text"
-          className="form-input"
+          className="form-input border-buddy-border focus:border-buddy"
           placeholder="Da Nang"
           value={form.locationCity}
           onChange={(e) => setForm((p) => ({ ...p, locationCity: e.target.value }))}
@@ -1012,30 +1121,40 @@ function BuddyTags({
       <div>
         <label className="form-label">Languages (pick 1 or more)</label>
         <div className="flex flex-wrap gap-1.5 mt-1">
-          {LANGUAGES.map((l) => (
-            <Chip
-              key={l}
-              active={form.languages.includes(l)}
-              onClick={() => toggleLanguage(l)}
-            >
-              {l}
-            </Chip>
-          ))}
+          {LANGUAGES.map((l, idx) => {
+            const tones: Array<'buddy' | 'info2' | 'hot' | 'tourist'> = ['buddy', 'info2', 'hot', 'tourist']
+            const tone = tones[idx % tones.length]
+            return (
+              <Chip
+                key={l}
+                active={form.languages.includes(l)}
+                onClick={() => toggleLanguage(l)}
+                tone={tone}
+              >
+                {l}
+              </Chip>
+            )
+          })}
         </div>
       </div>
 
       <div>
         <label className="form-label">Specialties (pick 1 or more)</label>
         <div className="flex flex-wrap gap-1.5 mt-1">
-          {INTERESTS.map((i) => (
-            <Chip
-              key={i.id}
-              active={form.specialties.includes(i.id)}
-              onClick={() => toggleSpecialty(i.id)}
-            >
-              {i.label}
-            </Chip>
-          ))}
+          {INTERESTS.map((i, idx) => {
+            const tones: Array<'buddy' | 'info2' | 'hot' | 'tourist'> = ['buddy', 'info2', 'hot', 'tourist']
+            const tone = tones[idx % tones.length]
+            return (
+              <Chip
+                key={i.id}
+                active={form.specialties.includes(i.id)}
+                onClick={() => toggleSpecialty(i.id)}
+                tone={tone}
+              >
+                {i.label}
+              </Chip>
+            )
+          })}
         </div>
       </div>
 
@@ -1043,7 +1162,7 @@ function BuddyTags({
         <label className="form-label" htmlFor="hourlyRate">Hourly rate (USD)</label>
         <select
           id="hourlyRate"
-          className="form-input"
+          className="form-input border-info2-border focus:border-info2"
           value={String(form.hourlyRate)}
           onChange={(e) => setForm((p) => ({ ...p, hourlyRate: Number(e.target.value) }))}
         >

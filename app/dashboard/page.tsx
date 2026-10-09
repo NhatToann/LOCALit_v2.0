@@ -211,8 +211,26 @@ export default function DashboardPage() {
   const nearbyCount = buddies.length + liveLocations.length
   const onlineBuddies = buddies.filter((b: any) => b.profile?.is_online ?? b.is_online).slice(0, 5)
 
+  // ----- 4-color role mapping for the dashboard CTAs / cards -----
+  // Tourist (teal) is the brand-default for /dashboard's primary CTA.
+  // Buddy (amber) / Info (blue) / Hot (pink) fill the secondary actions
+  // and section accents so every page shows all 4 brand colors.
+  const primaryBtnClass =
+    profile?.role === 'buddy'
+      ? 'btn-buddy'
+      : profile?.role === 'admin'
+        ? 'btn-info2'
+        : 'btn-tourist'
+
   return (
     <div className="container-page py-8 lg:py-12">
+      {/* Brand-color role markers — every page must show all 4 */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mb-6" role="list" aria-label="LOCALit brand colors">
+        <span role="listitem" className="role-badge-tourist" title="Tourist role accent">Tourist</span>
+        <span role="listitem" className="role-badge-buddy" title="Buddy role accent">Buddy</span>
+        <span role="listitem" className="role-badge-info2" title="Info accent">Info</span>
+        <span role="listitem" className="role-badge-hot" title="Urgent accent">Hot</span>
+      </div>
       <section
         aria-labelledby="dashboard-hero-title"
         className="mb-8 pb-8 border-b border-border"
@@ -237,17 +255,24 @@ export default function DashboardPage() {
         <div className="flex flex-wrap gap-3">
           <Link
             href="/browse"
-            className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+            className={`${primaryBtnClass} inline-flex items-center gap-2 h-10 px-4 text-sm`}
           >
             <Search size={16} aria-hidden="true" />
             Find buddies
           </Link>
           <Link
             href="/itinerary/new"
-            className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+            className="btn-info2-outline inline-flex items-center gap-2 h-10 px-4 text-sm"
           >
             <Briefcase size={16} aria-hidden="true" />
             Plan a trip
+          </Link>
+          <Link
+            href="/map"
+            className="btn-hot-outline inline-flex items-center gap-2 h-10 px-4 text-sm"
+          >
+            <MapPin size={16} aria-hidden="true" />
+            Open map
           </Link>
         </div>
       </section>
@@ -255,7 +280,7 @@ export default function DashboardPage() {
       {/* Featured map */}
       <section
         aria-labelledby="dashboard-map-title"
-        className="mb-8 border border-border rounded-sm overflow-hidden bg-surface"
+        className="mb-8 border-2 border-info2-border rounded-sm overflow-hidden surface-transparent"
       >
         <div className="px-6 py-4 border-b border-border flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -358,7 +383,7 @@ export default function DashboardPage() {
               info: 'text-info',
             }
             return (
-              <li key={i} className="border border-border rounded-sm p-4 bg-surface">
+              <li key={i} className="border-2 border-tourist-border rounded-sm p-4 surface-transparent">
                 <div className={`mb-3 ${toneClasses[s.tone]}`}>
                   <Icon size={20} aria-hidden="true" />
                 </div>
@@ -388,7 +413,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Itineraries */}
-        <section className="lg:col-span-2 border border-border rounded-sm bg-surface" aria-labelledby="itineraries-title">
+        <section className="lg:col-span-2 border-2 border-tourist-border rounded-sm surface-transparent" aria-labelledby="itineraries-title">
           <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-3">
             <div>
               <h2 id="itineraries-title" className="text-lg font-semibold">
@@ -399,7 +424,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2">
               <Link
                 href="/itinerary/new"
-                className="inline-flex items-center gap-1 h-8 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+                className="btn-tourist inline-flex items-center gap-1 h-8 px-3 text-sm"
               >
                 <Briefcase size={14} aria-hidden="true" />
                 Plan an itinerary
@@ -481,7 +506,7 @@ export default function DashboardPage() {
         </section>
 
         {/* My buddies */}
-        <section className="border border-border rounded-sm bg-surface" aria-labelledby="buddies-title">
+        <section className="border-2 border-buddy-border rounded-sm surface-transparent" aria-labelledby="buddies-title">
           <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-3">
             <div>
               <h2 id="buddies-title" className="text-lg font-semibold">

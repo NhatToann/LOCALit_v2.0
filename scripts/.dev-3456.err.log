@@ -1,0 +1,217 @@
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead.
+
+  To migrate automatically, run:
+  npx @next/codemod@canary middleware-to-proxy .
+
+  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+⨯ ./app/globals.css:2448:8
+Error: Parsing CSS source code failed
+  [90m2446 |[0m   }
+  [90m2447 |[0m }
+[31m[1m>[0m [90m2448 |[0m @[36mimport[0m url([32m'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&di...[0m
+  [90m     |[0m        [31m[1m^[0m
+  [90m2449 |[0m :root {
+  [90m2450 |[0m   --color-tourist: #[35m0[0m[33mD9488[0m;
+  [90m2451 |[0m   --color-tourist-hover: #[35m0[0m[33mF766E[0m;
+
+@import rules must precede all rules aside from @charset and @layer statements
+
+Generated code of PostCSS transform of file content of app/globals.css:
+./app/globals.css:2448:8
+  [90m2446 |[0m   }
+  [90m2447 |[0m }
+[31m[1m>[0m [90m2448 |[0m @[36mimport[0m url([32m'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&di...[0m
+  [90m     |[0m        [31m[1m^[0m
+  [90m2449 |[0m :root {
+  [90m2450 |[0m   --color-tourist: #[35m0[0m[33mD9488[0m;
+  [90m2451 |[0m   --color-tourist-hover: #[35m0[0m[33mF766E[0m;
+
+Import trace:
+  Client Component Browser:
+    ./app/globals.css [Client Component Browser]
+    ./app/layout.tsx [Server Component]
+
+
+⨯ ./app/globals.css:2448:8
+Error: Parsing CSS source code failed
+  [90m2446 |[0m   }
+  [90m2447 |[0m }
+[31m[1m>[0m [90m2448 |[0m @[36mimport[0m url([32m'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&di...[0m
+  [90m     |[0m        [31m[1m^[0m
+  [90m2449 |[0m :root {
+  [90m2450 |[0m   --color-tourist: #[35m0[0m[33mD9488[0m;
+  [90m2451 |[0m   --color-tourist-hover: #[35m0[0m[33mF766E[0m;
+
+@import rules must precede all rules aside from @charset and @layer statements
+
+Generated code of PostCSS transform of file content of app/globals.css:
+./app/globals.css:2448:8
+  [90m2446 |[0m   }
+  [90m2447 |[0m }
+[31m[1m>[0m [90m2448 |[0m @[36mimport[0m url([32m'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&di...[0m
+  [90m     |[0m        [31m[1m^[0m
+  [90m2449 |[0m :root {
+  [90m2450 |[0m   --color-tourist: #[35m0[0m[33mD9488[0m;
+  [90m2451 |[0m   --color-tourist-hover: #[35m0[0m[33mF766E[0m;
+
+Import trace:
+  Client Component Browser:
+    ./app/globals.css [Client Component Browser]
+    ./app/layout.tsx [Server Component]
+
+
+⨯ ./app/globals.css:2448:8
+Error: Parsing CSS source code failed
+  [90m2446 |[0m   }
+  [90m2447 |[0m }
+[31m[1m>[0m [90m2448 |[0m @[36mimport[0m url([32m'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&di...[0m
+  [90m     |[0m        [31m[1m^[0m
+  [90m2449 |[0m :root {
+  [90m2450 |[0m   --color-tourist: #[35m0[0m[33mD9488[0m;
+  [90m2451 |[0m   --color-tourist-hover: #[35m0[0m[33mF766E[0m;
+
+@import rules must precede all rules aside from @charset and @layer statements
+
+Generated code of PostCSS transform of file content of app/globals.css:
+./app/globals.css:2448:8
+  [90m2446 |[0m   }
+  [90m2447 |[0m }
+[31m[1m>[0m [90m2448 |[0m @[36mimport[0m url([32m'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&di...[0m
+  [90m     |[0m        [31m[1m^[0m
+  [90m2449 |[0m :root {
+  [90m2450 |[0m   --color-tourist: #[35m0[0m[33mD9488[0m;
+  [90m2451 |[0m   --color-tourist-hover: #[35m0[0m[33mF766E[0m;
+
+Import trace:
+  Client Component Browser:
+    ./app/globals.css [Client Component Browser]
+    ./app/layout.tsx [Server Component]
+
+
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="login/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+        <RedirectBoundary>
+          <RedirectErrorBoundary router={{...}}>
+            <InnerLayoutRouter url="/login" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+              <SegmentViewNode type="page" pagePath="login/page...">
+                <SegmentTrieNode>
+                <ClientPageRoot Component={function LoginPage} serverProvidedParams={{...}}>
+                  <LoginPage params={Promise} searchParams={Promise}>
+                    <Suspense fallback={<main>}>
+                      <LoginForm>
+                        <main className="container-...">
+                          <header className="mb-6 text-...">
+                            <h1
+                              className="text-page-title"
+-                             data-cursor-ref="e6"
+                            >
++                             Sign in
+                            <p
+                              className="text-sm text-muted mt-2"
+-                             data-cursor-ref="e7"
+                            >
++                             Welcome back. Continue your Da Nang trip with a verified local buddy.
+                          <form onSubmit={function handleSubmit} className="border bor..." noValidate={true}>
+                            <div className="form-group">
+                              <label
+                                htmlFor="email"
+                                className="form-label"
+-                               data-cursor-ref="e8"
+                              >
++                               Email
+                              <input
+                                id="email"
+                                type="email"
+                                className="form-input"
+                                placeholder="you@example.com"
+                                value=""
+                                onChange={function onChange}
+                                onInput={function onInput}
+                                autoComplete="email"
+                                required={true}
+-                               data-cursor-ref="e0"
+                              >
+                            <div className="form-group">
+                              <div className="flex items...">
+                                <label
+                                  htmlFor="password"
+                                  className="form-label mb-0"
+-                                 data-cursor-ref="e9"
+                                >
++                                 Password
+                                <LinkComponent href="/forgot-pa..." className="text-xs te...">
+                                  <a
+                                    className="text-xs text-primary hover:underline"
+                                    ref={function}
+                                    onClick={function onClick}
+                                    onMouseEnter={function onMouseEnter}
+                                    onTouchStart={function onTouchStart}
+                                    href="/forgot-password"
+-                                   data-cursor-ref="e1"
+                                  >
++                                   Forgot password?
+                              <div className="relative">
+                                <input
+                                  id="password"
+                                  type="password"
+                                  className="form-input pr-10"
+                                  placeholder="Your password"
+                                  value=""
+                                  onChange={function onChange}
+                                  onInput={function onInput}
+                                  autoComplete="current-password"
+                                  required={true}
+                                  style={{paddingRight:40}}
+-                                 data-cursor-ref="e2"
+                                >
+                                <button
+                                  type="button"
+                                  onClick={function onClick}
+                                  aria-label="Show password"
+                                  aria-pressed={false}
+                                  className="absolute inset-y-0 right-0 inline-flex items-center justify-center w-10 t..."
+                                  tabIndex={-1}
+-                                 data-cursor-ref="e3"
+                                >
+                            <button
+                              type="submit"
+                              disabled={true}
+                              className="w-full h-11 mt-2 px-4 text-sm font-medium rounded-sm bg-primary text-paper bo..."
+-                             data-cursor-ref="e4"
+                            >
++                             Sign in
+                            <p
+                              className="text-xs text-muted text-center mt-4"
+-                             data-cursor-ref="e10"
+                            >
+                              <LinkComponent href="/register" className="text-prima...">
+                                <a
+                                  className="text-primary hover:underline"
+                                  ref={function}
+                                  onClick={function onClick}
+                                  onMouseEnter={function onMouseEnter}
+                                  onTouchStart={function onTouchStart}
+                                  href="/register"
+-                                 data-cursor-ref="e5"
+                                >
++                                 Create an account
+              ...
+            ...
+ 
+[middleware] redirect to /login { pathname: '/dashboard', hasUser: false, cookies: [] }
+[middleware] redirect to /login { pathname: '/chat', hasUser: false, cookies: [] }
+[middleware] redirect to /login { pathname: '/profile', hasUser: false, cookies: [] }
+[middleware] redirect to /login { pathname: '/dashboard', hasUser: false, cookies: [] }

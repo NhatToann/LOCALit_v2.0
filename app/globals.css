@@ -1,26 +1,62 @@
 /* ============================================================
-   LOCALit Global Styles — v3.0 (flat, anti-slop, AEO)
-   Aligned with docs/design.md and docs/skill.md
+   LOCALit Global Styles — v4.0 (4-color + Da Nang backdrop)
+   Last updated: 2026-10-09 (recolor v3 — 4-role palette)
    ============================================================ */
 
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
 
 /* ============================================================
-   DESIGN TOKENS (per design.md Section 2)
-   Tailwind v4 uses @theme to expose tokens as both CSS vars
-   and Tailwind utility values.
+   ROLE PALETTE (v3 — 4 colors, 1 page must show all 4)
 
-   Light theme is the default. .dark on <html> swaps the palette
-   by re-declaring every --color-* at :root.dark.
+   Every page exposes all 4 colors:
+   - Tourist (jade teal #0D9488)   — CTA on /dashboard for tourist role
+   - Buddy   (amber yellow #F59E0B) — CTA on /dashboard for buddy role
+   - Info    (royal blue #2563EB)  — info / system messages
+   - Hot     (coral pink #FB7185)   — hot / urgent / pending state
+
+   These map to role-specific button utilities, badge tones, and
+   the brand gradient. The existing --color-primary family still
+   resolves to the deep ocean stop (#134E4A) so headings and
+   dark surfaces stay consistent.
    ============================================================ */
 @theme {
-  /* Primary brand — 2026-10-09 recolor v2: Tropical Jade
-   * Anchor: Da Nang coastal palette where the river and the sea meet.
-   * 5 jade/emerald stops + 1 ocean stop at the end. Most backgrounds
-   * use a tinted (alpha-offset) variant of the base so the page
-   * reads as one continuous teal/green canvas rather than white-paper
-   * with colored accents. */
+  /* Tourist: jade teal */
+  --color-tourist: #0D9488;
+  --color-tourist-hover: #0F766E;
+  --color-tourist-50: #F0FDFA;
+  --color-tourist-bg: #CCFBF1;
+  --color-tourist-border: #5EEAD4;
+  --color-tourist-ink: #134E4A;
+
+  /* Buddy: amber yellow */
+  --color-buddy: #F59E0B;
+  --color-buddy-hover: #D97706;
+  --color-buddy-50: #FFFBEB;
+  --color-buddy-bg: #FEF3C7;
+  --color-buddy-border: #FCD34D;
+  --color-buddy-ink: #78350F;
+
+  /* Info: royal blue */
+  --color-info2: #2563EB;
+  --color-info2-hover: #1D4ED8;
+  --color-info2-50: #EFF6FF;
+  --color-info2-bg: #DBEAFE;
+  --color-info2-border: #93C5FD;
+  --color-info2-ink: #1E3A8A;
+
+  /* Hot: coral pink (urgent / pending) */
+  --color-hot: #FB7185;
+  --color-hot-hover: #F43F5E;
+  --color-hot-50: #FFF1F2;
+  --color-hot-bg: #FFE4E6;
+  --color-hot-border: #FDA4AF;
+  --color-hot-ink: #9F1239;
+
+  /* 4-color gradient — used for brand mark, hero, footer stripe */
+  --color-gradient-4: linear-gradient(135deg, #0D9488 0%, #F59E0B 35%, #2563EB 70%, #FB7185 100%);
+
+  /* DESIGN TOKENS (per design.md Section 2) */
   --color-primary: #134E4A;            /* stop 6 — ocean-dark teal (text & border) */
   --color-primary-hover: #0F3F3C;       /* stop 6 darkened */
   --color-primary-50: #ECFDF5;          /* 4% alpha of stop 1 — selected bg */
@@ -106,6 +142,44 @@
  * alpha-jade variants in Board.tsx.
  */
 :root {
+  /* ============================================================
+     4-ROLE PALETTE (2026-10-09 v3 recolor)
+     Every page must show all 4 colors:
+       Tourist  = jade teal  #0D9488
+       Buddy    = amber      #F59E0B
+       Info     = royal blue #2563EB
+       Hot      = coral pink #FB7185
+     ============================================================ */
+  --color-tourist: #0D9488;
+  --color-tourist-hover: #0F766E;
+  --color-tourist-50: #F0FDFA;
+  --color-tourist-bg: #CCFBF1;
+  --color-tourist-border: #5EEAD4;
+  --color-tourist-ink: #134E4A;
+
+  --color-buddy: #F59E0B;
+  --color-buddy-hover: #D97706;
+  --color-buddy-50: #FFFBEB;
+  --color-buddy-bg: #FEF3C7;
+  --color-buddy-border: #FCD34D;
+  --color-buddy-ink: #78350F;
+
+  --color-info2: #2563EB;
+  --color-info2-hover: #1D4ED8;
+  --color-info2-50: #EFF6FF;
+  --color-info2-bg: #DBEAFE;
+  --color-info2-border: #93C5FD;
+  --color-info2-ink: #1E3A8A;
+
+  --color-hot: #FB7185;
+  --color-hot-hover: #F43F5E;
+  --color-hot-50: #FFF1F2;
+  --color-hot-bg: #FFE4E6;
+  --color-hot-border: #FDA4AF;
+  --color-hot-ink: #9F1239;
+
+  --color-gradient-4: linear-gradient(135deg, #0D9488 0%, #F59E0B 35%, #2563EB 70%, #FB7185 100%);
+
   --color-primary: #134E4A;
   --color-primary-hover: #0F3F3C;
   --color-primary-50: #ECFDF5;
@@ -199,7 +273,7 @@
     font-size: 1rem;
     line-height: 1.6;
     color: var(--color-ink);
-    background-color: var(--color-paper);
+    background-color: transparent;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
@@ -288,6 +362,70 @@
 
   .skip-link:focus {
     top: 8px;
+  }
+
+  /* ============================================================
+     ROLE-AWARE CTA (2026-10-09 v3 recolor)
+     The `bg-primary` Tailwind class resolves to the deep ocean
+     stop (#134E4A) which is the default when no role is set.
+     When <main data-role="tourist"> or <main data-role="buddy">
+     is present, the role-specific solid CTA rewrites it so
+     tourists see jade teal and buddies see amber.
+     ============================================================ */
+  main[data-role="tourist"] .bg-primary,
+  main[data-role="tourist"] [class*="bg-primary"] {
+    background-color: var(--color-tourist);
+    border-color: var(--color-tourist);
+  }
+  main[data-role="tourist"] .bg-primary:hover,
+  main[data-role="tourist"] [class*="bg-primary"]:hover {
+    background-color: var(--color-tourist-hover);
+    border-color: var(--color-tourist-hover);
+  }
+  main[data-role="tourist"] .hover\:bg-primary-hover:hover {
+    background-color: var(--color-tourist-hover);
+    border-color: var(--color-tourist-hover);
+  }
+  main[data-role="tourist"] .text-primary {
+    color: var(--color-tourist);
+  }
+  main[data-role="tourist"] .border-primary {
+    border-color: var(--color-tourist);
+  }
+  main[data-role="tourist"] .hover\:text-primary:hover {
+    color: var(--color-tourist);
+  }
+
+  main[data-role="buddy"] .bg-primary,
+  main[data-role="buddy"] [class*="bg-primary"] {
+    background-color: var(--color-buddy);
+    border-color: var(--color-buddy);
+  }
+  main[data-role="buddy"] .bg-primary:hover,
+  main[data-role="buddy"] [class*="bg-primary"]:hover {
+    background-color: var(--color-buddy-hover);
+    border-color: var(--color-buddy-hover);
+  }
+  main[data-role="buddy"] .hover\:bg-primary-hover:hover {
+    background-color: var(--color-buddy-hover);
+    border-color: var(--color-buddy-hover);
+  }
+  main[data-role="buddy"] .text-primary {
+    color: var(--color-buddy-ink);
+  }
+  main[data-role="buddy"] .border-primary {
+    border-color: var(--color-buddy);
+  }
+  main[data-role="buddy"] .hover\:text-primary:hover {
+    color: var(--color-buddy-ink);
+  }
+
+  /* When role is set, the text-on-primary color shifts to keep
+     contrast — buddies get dark text on amber, tourists get white
+     on jade teal. */
+  main[data-role="buddy"] .bg-primary,
+  main[data-role="buddy"] [class*="bg-primary"] {
+    color: var(--color-buddy-ink);
   }
 
   /* ============================================================
@@ -1022,5 +1160,222 @@
     background-clip: text;
     -webkit-text-fill-color: transparent;
     color: transparent;
+  }
+
+  /* ============================================================
+     4-ROLE BRAND GRADIENT (2026-10-09 v3 recolor)
+     Tourist → Buddy → Info → Hot. Apply to brand marks,
+     hero accents, footer stripe. Use sparingly.
+     ============================================================ */
+  .bg-gradient-4 { background-image: var(--color-gradient-4); }
+  .text-gradient-4 {
+    background-image: var(--color-gradient-4);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  /* ============================================================
+     4-ROLE BUTTON UTILITIES (v3 recolor)
+     Each role has a solid + outline + soft variant. Buttons must
+     have a clear color identity — never just `bg-primary`.
+     ============================================================ */
+  /* Tourist: jade teal */
+  .btn-tourist {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.5rem; font-weight: 500; border-radius: 4px;
+    padding: 0.5rem 1rem; height: 40px;
+    background-color: var(--color-tourist);
+    color: #FFFFFF; border: 1px solid var(--color-tourist);
+    transition: background-color 150ms ease-out;
+  }
+  .btn-tourist:hover { background-color: var(--color-tourist-hover); border-color: var(--color-tourist-hover); }
+  .btn-tourist-outline {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.5rem; font-weight: 500; border-radius: 4px;
+    padding: 0.5rem 1rem; height: 40px;
+    background-color: transparent;
+    color: var(--color-tourist); border: 1px solid var(--color-tourist);
+    transition: background-color 150ms ease-out;
+  }
+  .btn-tourist-outline:hover { background-color: var(--color-tourist-bg); }
+  .btn-tourist-soft {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.5rem; font-weight: 500; border-radius: 4px;
+    padding: 0.5rem 1rem; height: 40px;
+    background-color: var(--color-tourist-bg);
+    color: var(--color-tourist); border: 1px solid var(--color-tourist-bg);
+    transition: background-color 150ms ease-out;
+  }
+  .btn-tourist-soft:hover { background-color: var(--color-tourist); color: #FFFFFF; }
+
+  /* Buddy: amber yellow */
+  .btn-buddy {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.5rem; font-weight: 500; border-radius: 4px;
+    padding: 0.5rem 1rem; height: 40px;
+    background-color: var(--color-buddy);
+    color: #FFFFFF; border: 1px solid var(--color-buddy);
+    transition: background-color 150ms ease-out;
+  }
+  .btn-buddy:hover { background-color: var(--color-buddy-hover); border-color: var(--color-buddy-hover); }
+  .btn-buddy-outline {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.5rem; font-weight: 500; border-radius: 4px;
+    padding: 0.5rem 1rem; height: 40px;
+    background-color: transparent;
+    color: var(--color-buddy-ink); border: 1px solid var(--color-buddy);
+    transition: background-color 150ms ease-out;
+  }
+  .btn-buddy-outline:hover { background-color: var(--color-buddy-bg); }
+  .btn-buddy-soft {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.5rem; font-weight: 500; border-radius: 4px;
+    padding: 0.5rem 1rem; height: 40px;
+    background-color: var(--color-buddy-bg);
+    color: var(--color-buddy-ink); border: 1px solid var(--color-buddy-bg);
+    transition: background-color 150ms ease-out;
+  }
+  .btn-buddy-soft:hover { background-color: var(--color-buddy); color: #FFFFFF; border-color: var(--color-buddy); }
+
+  /* Info: royal blue */
+  .btn-info2 {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.5rem; font-weight: 500; border-radius: 4px;
+    padding: 0.5rem 1rem; height: 40px;
+    background-color: var(--color-info2);
+    color: #FFFFFF; border: 1px solid var(--color-info2);
+    transition: background-color 150ms ease-out;
+  }
+  .btn-info2:hover { background-color: var(--color-info2-hover); border-color: var(--color-info2-hover); }
+  .btn-info2-outline {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.5rem; font-weight: 500; border-radius: 4px;
+    padding: 0.5rem 1rem; height: 40px;
+    background-color: transparent;
+    color: var(--color-info2); border: 1px solid var(--color-info2);
+    transition: background-color 150ms ease-out;
+  }
+  .btn-info2-outline:hover { background-color: var(--color-info2-bg); }
+
+  /* Hot: coral pink (urgent / pending) */
+  .btn-hot {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.5rem; font-weight: 500; border-radius: 4px;
+    padding: 0.5rem 1rem; height: 40px;
+    background-color: var(--color-hot);
+    color: #FFFFFF; border: 1px solid var(--color-hot);
+    transition: background-color 150ms ease-out;
+  }
+  .btn-hot:hover { background-color: var(--color-hot-hover); border-color: var(--color-hot-hover); }
+  .btn-hot-outline {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.5rem; font-weight: 500; border-radius: 4px;
+    padding: 0.5rem 1rem; height: 40px;
+    background-color: transparent;
+    color: var(--color-hot); border: 1px solid var(--color-hot);
+    transition: background-color 150ms ease-out;
+  }
+  .btn-hot-outline:hover { background-color: var(--color-hot-bg); }
+
+  /* ============================================================
+     4-ROLE BADGE / CHIP UTILITIES
+     Filled pill variants. Always pair with text (color is never
+     the only signal — see design.md Section 6.4).
+     ============================================================ */
+  .role-badge-tourist {
+    display: inline-flex; align-items: center;
+    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 9999px; line-height: 1.2;
+    background-color: var(--color-tourist);
+    color: #FFFFFF; border: 1px solid var(--color-tourist);
+  }
+  .role-badge-buddy {
+    display: inline-flex; align-items: center;
+    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 9999px; line-height: 1.2;
+    background-color: var(--color-buddy);
+    color: var(--color-buddy-ink); border: 1px solid var(--color-buddy);
+  }
+  .role-badge-info2 {
+    display: inline-flex; align-items: center;
+    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 9999px; line-height: 1.2;
+    background-color: var(--color-info2);
+    color: #FFFFFF; border: 1px solid var(--color-info2);
+  }
+  .role-badge-hot {
+    display: inline-flex; align-items: center;
+    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 9999px; line-height: 1.2;
+    background-color: var(--color-hot);
+    color: #FFFFFF; border: 1px solid var(--color-hot);
+  }
+
+  /* Soft badge variants — for the same role but as a low-emphasis marker */
+  .role-badge-tourist-soft {
+    display: inline-flex; align-items: center;
+    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 9999px; line-height: 1.2;
+    background-color: var(--color-tourist-bg);
+    color: var(--color-tourist-ink); border: 1px solid var(--color-tourist-border);
+  }
+  .role-badge-buddy-soft {
+    display: inline-flex; align-items: center;
+    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 9999px; line-height: 1.2;
+    background-color: var(--color-buddy-bg);
+    color: var(--color-buddy-ink); border: 1px solid var(--color-buddy-border);
+  }
+  .role-badge-info2-soft {
+    display: inline-flex; align-items: center;
+    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 9999px; line-height: 1.2;
+    background-color: var(--color-info2-bg);
+    color: var(--color-info2-ink); border: 1px solid var(--color-info2-border);
+  }
+  .role-badge-hot-soft {
+    display: inline-flex; align-items: center;
+    padding: 2px 10px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 9999px; line-height: 1.2;
+    background-color: var(--color-hot-bg);
+    color: var(--color-hot-ink); border: 1px solid var(--color-hot-border);
+  }
+
+  /* Text color utilities for inline role accents */
+  .text-tourist { color: var(--color-tourist); }
+  .text-buddy { color: var(--color-buddy-ink); }
+  .text-info2 { color: var(--color-info2); }
+  .text-hot { color: var(--color-hot-ink); }
+
+  .bg-tourist { background-color: var(--color-tourist); }
+  .bg-buddy { background-color: var(--color-buddy); }
+  .bg-info2 { background-color: var(--color-info2); }
+  .bg-hot { background-color: var(--color-hot); }
+
+  .border-tourist { border-color: var(--color-tourist); }
+  .border-buddy { border-color: var(--color-buddy); }
+  .border-info2 { border-color: var(--color-info2); }
+  .border-hot { border-color: var(--color-hot); }
+
+  /* ============================================================
+     TRANSPARENT CONTENT SURFACES (2026-10-09 v3)
+     Used inside <main data-role="..."> so the Da Nang photo
+     backdrop shows through. Card backgrounds become 70-85% opaque
+     paper so text stays readable while the photo bleeds in.
+     ============================================================ */
+  .surface-transparent {
+    background-color: rgba(240, 253, 244, 0.82);
+    backdrop-filter: none;
+  }
+  .surface-transparent-strong {
+    background-color: rgba(236, 253, 245, 0.92);
+    backdrop-filter: none;
+  }
+
+  /* Section that lets the photo show through at its top/bottom */
+  .section-transparent {
+    background-color: transparent;
   }
 }

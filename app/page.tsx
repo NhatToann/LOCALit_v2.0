@@ -103,41 +103,53 @@ function HomeContent() {
 
       {/* ============= HERO ============= */}
       <section
-        className="relative bg-ink text-paper"
+        className="relative overflow-hidden"
         aria-labelledby="hero-title"
       >
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-50"
+          className="absolute inset-0 bg-cover bg-center"
           style={{
             backgroundImage:
               "url('https://images.unsplash.com/photo-1572551562325-b5d5057c9b54?w=1920&q=80&auto=format&fit=crop')",
           }}
           aria-hidden="true"
         />
-        <div className="absolute inset-0 bg-ink/55" aria-hidden="true" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(135deg, rgba(13,148,136,0.55) 0%, rgba(10,31,29,0.45) 50%, rgba(37,99,235,0.45) 100%)',
+          }}
+          aria-hidden="true"
+        />
         <div className="relative max-w-7xl mx-auto px-6 py-24 lg:py-32 text-center">
-          <p className="text-eyebrow text-paper/70 mb-4">
+          <p className="text-eyebrow text-paper/85 mb-4">
             Han River, Da Nang — verified local guides
           </p>
           <h1 id="hero-title" className="text-display text-paper mb-4 max-w-3xl mx-auto">
             Find a local buddy in Da Nang
           </h1>
-          <p className="text-lg text-paper/80 max-w-2xl mx-auto mb-8 leading-relaxed">
+          <p className="text-lg text-paper/90 max-w-2xl mx-auto mb-8 leading-relaxed">
             6 English-speaking Da Nang buddies on the platform right now. Hourly
             rates from $15 to $45 USD. Zero commission through the 2026 launch.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-3">
             <a
               href="/browse"
-              className="inline-flex items-center justify-center h-12 px-6 text-base font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+              className="btn-tourist text-base h-12 px-6"
             >
               Browse Da Nang buddies
             </a>
+            <a
+              href="/register?role=buddy"
+              className="btn-buddy-outline h-12 px-6 text-base"
+            >
+              Earn $15–$45/hour as a buddy
+            </a>
           </div>
-          <p className="text-sm text-paper/70">
+          <p className="text-sm text-paper/80">
             Or{' '}
             <a href="/register?role=buddy" className="underline underline-offset-4 hover:text-paper">
-              earn $15–$45/hour as a Da Nang buddy
+              list your services
             </a>
             .
           </p>
@@ -159,16 +171,19 @@ function HomeContent() {
             value="6+"
             label="Da Nang buddies currently accepting requests"
             labelVi="đang nhận yêu cầu"
+            tone="tourist"
           />
           <MetricCard
             value="$15–$45"
             label="Hourly rate range across all buddies, set by each guide"
             labelVi="giá theo giờ"
+            tone="buddy"
           />
           <MetricCard
             value="0%"
             label="LOCALit commission through 2026 launch period"
             labelVi="hoa hồng"
+            tone="info2"
           />
         </dl>
       </Section>
@@ -188,34 +203,85 @@ function HomeContent() {
               title: 'Sign up and verify',
               body:
                 'Create an account with email + phone. Verification is one OTP code; no KYC paperwork at launch.',
+              cls: 'border-tourist',
+              badgeCls: 'role-badge-tourist-soft',
             },
             {
               step: '02',
               title: 'Pick a buddy or post a trip',
               body:
                 'Browse six verified Da Nang locals with hourly rates, languages, and specialties. Or sketch a trip and let buddies respond.',
+              cls: 'border-buddy',
+              badgeCls: 'role-badge-buddy-soft',
             },
             {
               step: '03',
               title: 'Meet up in Da Nang',
               body:
                 'Chat in-app to lock a meeting point. Voice and video calls work inside the chat once both sides are online. 0% LOCALit fee.',
+              cls: 'border-info2',
+              badgeCls: 'role-badge-info2-soft',
             },
           ].map((item) => (
-            <li key={item.step} className="border border-primary-100 rounded-sm p-6 bg-primary-50">
-              <p className="text-eyebrow text-primary mb-2 tabular-nums">Step {item.step}</p>
-              <h3 className="text-xl font-semibold text-ink mb-3">{item.title}</h3>
-              <p className="text-sm text-muted leading-relaxed">{item.body}</p>
+            <li
+              key={item.step}
+              className={`border-l-4 ${item.cls} rounded-sm p-6 surface-transparent-strong`}
+            >
+              <span className={item.badgeCls}>Step {item.step}</span>
+              <h3 className="text-xl font-semibold text-ink mt-3 mb-3">{item.title}</h3>
+              <p className="text-sm text-ink/80 leading-relaxed">{item.body}</p>
             </li>
           ))}
         </ol>
-        <p className="text-base text-muted max-w-2xl mt-8 leading-relaxed">
+        <p className="text-base text-ink max-w-2xl mt-8 leading-relaxed">
           Da Nang residents can{' '}
-          <a href="/register?role=buddy" className="text-primary hover:underline underline-offset-4">
+          <a href="/register?role=buddy" className="text-buddy font-semibold hover:underline underline-offset-4">
             sign up as a buddy
           </a>{' '}
           and set their own hourly rate, languages, and neighborhoods.
         </p>
+      </Section>
+
+      {/* ============= 4-ROLE STRIP — every page must show all 4 colors ============= */}
+      <Section variant="dense" bordered ariaLabelledby="roles-title">
+        <h2 id="roles-title" className="text-page-title mb-3 max-w-3xl">
+          Four colors, one Da Nang marketplace
+        </h2>
+        <p className="text-base text-muted max-w-2xl mb-8 leading-relaxed">
+          LOCALit uses four colors to mark the role of every person and every
+          button. Jade teal is for tourists, amber is for buddies, royal blue is
+          for information, and coral pink is for anything urgent or pending.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl">
+          <article className="border-2 border-tourist rounded-sm p-5 surface-transparent">
+            <span className="role-badge-tourist">Tourist</span>
+            <p className="text-eyebrow text-tourist mt-3 mb-1">xanh lục · jade teal</p>
+            <p className="text-sm text-ink leading-relaxed">
+              Travelers browsing Da Nang. Jade teal — calm, exploratory.
+            </p>
+          </article>
+          <article className="border-2 border-buddy rounded-sm p-5 surface-transparent">
+            <span className="role-badge-buddy">Buddy</span>
+            <p className="text-eyebrow text-buddy mt-3 mb-1">vàng · amber</p>
+            <p className="text-sm text-ink leading-relaxed">
+              Local guides offering their time. Amber — warm, hospitable.
+            </p>
+          </article>
+          <article className="border-2 border-info2 rounded-sm p-5 surface-transparent">
+            <span className="role-badge-info2-soft">Info</span>
+            <p className="text-eyebrow text-info2 mt-3 mb-1">xanh dương · royal blue</p>
+            <p className="text-sm text-ink leading-relaxed">
+              System messages, prices, language tags. Royal blue — informative.
+            </p>
+          </article>
+          <article className="border-2 border-hot rounded-sm p-5 surface-transparent">
+            <span className="role-badge-hot-soft">Hot</span>
+            <p className="text-eyebrow text-hot mt-3 mb-1">hồng · coral pink</p>
+            <p className="text-sm text-ink leading-relaxed">
+              Urgent and pending states. Coral pink — warm, action-required.
+            </p>
+          </article>
+        </div>
       </Section>
 
       {/* ============= FAQ ============= */}
@@ -227,9 +293,12 @@ function HomeContent() {
           Pricing, languages, safety, and how day trips work. Four answers, no
           filler.
         </p>
-        <dl className="faq-list max-w-3xl">
-          {HOME_FAQ_VISIBLE.map((item) => (
-            <div key={item.q} className="faq-item">
+        <dl className="faq-list max-w-3xl surface-transparent-strong p-6 rounded-sm">
+          {HOME_FAQ_VISIBLE.map((item, i) => (
+            <div
+              key={item.q}
+              className={`faq-item ${i === 0 ? 'border-t border-border pt-6 mt-0' : ''}`}
+            >
               <dt className="faq-question">{item.q}</dt>
               <dd className="faq-answer">{item.a}</dd>
             </div>

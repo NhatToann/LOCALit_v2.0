@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-type Status = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+type Status = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'tourist' | 'buddy' | 'info2' | 'hot';
 
 type StatusBadgeProps = {
   status: Status;
@@ -14,6 +14,13 @@ const statusClasses: Record<Status, string> = {
   danger: 'bg-danger-bg text-danger',
   info: 'bg-info-bg text-info',
   neutral: 'bg-stone-100 text-muted',
+  // 4-role variants (2026-10-09 v3 recolor) — solid pill variants for
+  // role tags. Soft variants (.role-badge-*-soft in globals.css) are
+  // used when the badge should be lower-emphasis.
+  tourist: 'bg-tourist text-white border border-tourist',
+  buddy: 'bg-buddy text-[color:var(--color-buddy-ink)] border border-buddy',
+  info2: 'bg-info2 text-white border border-info2',
+  hot: 'bg-hot text-white border border-hot',
 };
 
 /**

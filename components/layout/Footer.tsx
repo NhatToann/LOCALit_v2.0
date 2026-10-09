@@ -1,17 +1,16 @@
 // components/layout/Footer.tsx — slim 4-column footer with AEO answer capsule.
-// 2026-10-09: brand gradient stripe added at the very top of the footer
-// so the 6-stop teal/blue gradient is visible on every page (the main
-// nav uses the deep blue stop; only the footer brand-stripe shows the
-// full gradient).
+// 2026-10-09: 4-color brand gradient (Tourist → Buddy → Info → Hot) on the
+// top stripe. Per design.md Section 2.1, this is one of the two places
+// the full brand gradient is allowed (the other is the Header brand mark).
 import Link from 'next/link'
 
 export default function Footer() {
   return (
     <footer className="mt-16">
-      {/* Brand gradient stripe — the 6-stop teal/blue identity,
-          applied as a 3px-tall bar at the very top of the footer. */}
-      <div className="h-[3px] bg-gradient" aria-hidden="true" />
-      <div className="border-t border-border bg-paper">
+      {/* 4-color brand gradient stripe — Tourist → Buddy → Info → Hot.
+          Shows all 4 role colors at the top of every page. */}
+      <div className="h-[3px] bg-gradient-4" aria-hidden="true" />
+      <div className="border-t border-border bg-surface/85 backdrop-blur-0">
         <div className="max-w-7xl mx-auto px-6 py-12">
           <div className="mb-12 pb-8 border-b border-border">
             <h2 className="text-2xl font-semibold text-ink mb-3 tracking-tight">

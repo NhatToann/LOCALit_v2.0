@@ -95,6 +95,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const inRoleLayout = ROLE_LAYOUTS.some((p) => pathname.startsWith(p));
   const isAuthPage = AUTH_PAGES.includes(pathname);
 
+  // 4-role palette needs the current user's role on the <main> element so
+  // CSS can recolor every `bg-primary` button via the
+  // `main[data-role="tourist"]` selector in app/globals.css.
+  const auth = useAuthUser()
+  const role = (auth as { role?: 'tourist' | 'buddy' | 'admin' | null } | null)?.role
+  const mainDataRole =
+    role === 'tourist' || role === 'buddy' || role === 'admin' ? role : undefined
+
   if (isAuthPage) {
     return <>{children}</>;
   }
@@ -122,6 +130,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main
         id="main-content"
         className="min-h-[calc(100vh-4rem)] pt-16"
+        data-role={mainDataRole}
       >
         {children}
       </main>

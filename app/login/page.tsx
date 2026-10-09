@@ -75,7 +75,18 @@ function LoginForm() {
   }
 
   return (
-    <main className="container-page py-12 max-w-md">
+    <main className="container-page py-12 max-w-md relative">
+      {/* 4-color role markers — small chips above the form so every page
+          shows all 4 brand colors even on the smallest surface (per
+          design constraint). Tourist + Buddy also hint at the role-aware
+          theme the dashboard uses. */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mb-6" role="list" aria-label="LOCALit brand colors">
+        <span role="listitem" className="role-badge-tourist" title="Tourist role accent">Tourist</span>
+        <span role="listitem" className="role-badge-buddy" title="Buddy role accent">Buddy</span>
+        <span role="listitem" className="role-badge-info2" title="Info accent">Info</span>
+        <span role="listitem" className="role-badge-hot" title="Urgent accent">Hot</span>
+      </div>
+
       <header className="mb-6 text-center">
         <h1 className="text-page-title">Sign in</h1>
         <p className="text-sm text-muted mt-2">
@@ -95,15 +106,18 @@ function LoginForm() {
 
       <form
         onSubmit={handleSubmit}
-        className="border border-border rounded-sm bg-surface p-6"
+        className="surface-transparent-strong border-2 border-tourist-border rounded-sm p-6"
         noValidate
       >
         <div className="form-group">
-          <label htmlFor="email" className="form-label">Email</label>
+          <label htmlFor="email" className="form-label">
+            <span className="inline-block w-2 h-2 rounded-sm bg-tourist mr-2 align-middle" aria-hidden="true" />
+            Email
+          </label>
           <input
             id="email"
             type="email"
-            className="form-input"
+            className="form-input bg-tourist-50/60 border-tourist-border focus:border-tourist"
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -112,14 +126,17 @@ function LoginForm() {
             required
           />
           {email && !emailLooksValid ? (
-            <p className="form-hint text-danger">Please enter a valid email address.</p>
+            <p className="form-hint text-hot">Please enter a valid email address.</p>
           ) : null}
         </div>
 
         <div className="form-group">
           <div className="flex items-center justify-between mb-1">
-            <label htmlFor="password" className="form-label mb-0">Password</label>
-            <Link href="/forgot-password" className="text-xs text-primary hover:underline">
+            <label htmlFor="password" className="form-label mb-0">
+              <span className="inline-block w-2 h-2 rounded-sm bg-info2 mr-2 align-middle" aria-hidden="true" />
+              Password
+            </label>
+            <Link href="/forgot-password" className="text-xs text-info2 hover:underline font-semibold">
               Forgot password?
             </Link>
           </div>
@@ -127,7 +144,7 @@ function LoginForm() {
             <input
               id="password"
               type={showPassword ? 'text' : 'password'}
-              className="form-input pr-10"
+              className="form-input pr-10 bg-info2-50/60 border-info2-border focus:border-info2"
               placeholder="Your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -141,14 +158,14 @@ function LoginForm() {
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
               aria-pressed={showPassword}
-              className="absolute inset-y-0 right-0 inline-flex items-center justify-center w-10 text-muted hover:text-ink"
+              className="absolute inset-y-0 right-0 inline-flex items-center justify-center w-10 text-info2 hover:text-info2-hover"
               tabIndex={-1}
             >
               {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
             </button>
           </div>
           {password && !passwordLooksValid && password.length >= 6 ? (
-            <p className="form-hint">
+            <p className="form-hint text-buddy-ink">
               Hint: passwords on LOCALit require 10+ characters, with a letter and a number or symbol.
             </p>
           ) : null}
@@ -161,17 +178,19 @@ function LoginForm() {
           </div>
         ) : null}
 
+        {/* Sign-in button: uses the buddy amber as the default primary CTA
+            (neutral on /login — role-specific tinting lives on /dashboard). */}
         <button
           type="submit"
           disabled={!canSignIn || loading}
-          className="w-full h-11 mt-2 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn-buddy w-full h-11 mt-2"
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
 
         <p className="text-xs text-muted text-center mt-4">
           New to LOCALit?{' '}
-          <Link href="/register" className="text-primary hover:underline">
+          <Link href="/register" className="text-tourist hover:text-tourist-hover font-semibold hover:underline">
             Create an account
           </Link>
         </p>

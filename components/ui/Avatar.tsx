@@ -40,15 +40,16 @@ function colorFromName(name: string): string {
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash)
   }
-  // Brand-aligned flat palette. Avoids neutral greys that would
-  // disappear against the dark-mode paper/surface backgrounds.
-  // Brand palette (2026-10-09 — matching teal/blue gradient).
-  // Derived from docs/design.md Section 2.1. Keep this in sync with
-  // --color-primary* in app/globals.css.
-  // 2026-10-09 Tropical Jade: 5 jade/emerald + 1 ocean stop. Keeps the
-  // teal/green family while adding enough variation that 8-row buddy
-  // lists don't repeat the same hue 3x in a row.
-  const palette = ['#0D9488', '#34D399', '#10B981', '#065F46', '#0E7490', '#134E4A']
+  // 4-role palette (2026-10-09 v3 recolor) — jade teal, amber, royal
+  // blue, coral pink. Same hash-mod-4 logic, but every avatar is now
+  // one of the 4 role colors so a buddy-list row reads as a colorful
+  // rainbow of roles rather than 6 different shades of teal.
+  const palette = [
+    '#0D9488', // tourist
+    '#F59E0B', // buddy
+    '#2563EB', // info
+    '#FB7185', // hot
+  ]
   const idx = Math.abs(hash) % palette.length
   return palette[idx]
 }
