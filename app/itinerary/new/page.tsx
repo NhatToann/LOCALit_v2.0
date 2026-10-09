@@ -1,78 +1,102 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, MapPin, Calendar, FileText, Compass, Loader2, AlertTriangle, Check } from 'lucide-react'
+import {
+  ArrowLeft,
+  Mountain,
+  UtensilsCrossed,
+  Waves,
+  Landmark,
+  Moon,
+  FilePlus,
+  Loader2,
+  Calendar,
+  Check,
+  Sparkles,
+  Clock,
+  Banknote,
+  AlertTriangle,
+  Users,
+} from 'lucide-react'
+import { TEMPLATES, type ItineraryTemplate } from '@/lib/itinerary/templates'
 import { createClient } from '@/utils/supabase/auth'
 
-const FORM_LIMITS = {
-  title: 120,
-  notes: 1000,
+/**
+ * Template picker — the only way to create a new trip.
+ *
+ * Why templates, not a blank form
+ * ──────────────────────────────
+ * The Trello model only feels welcoming when the board already has
+ * something on it. A blank form makes new users freeze; a template
+ * they can edit/delete gives them a starting point.
+ *
+ * UX
+ * ──
+ * 1. The user picks a template from a flat grid of 6 cards.
+ * 2. We expand a small panel: optional title + start date, then a
+ *    "Use this template" CTA.
+ * 3. On submit, we POST to /api/itinerary/from-template which copies
+ *    the static template into the caller's schema and returns the
+ *    new itinerary id. The client redirects to /itinerary/[id].
+ *
+ * "Blank" template is the only one that creates an empty board.
+ */
+const ICONS = {
+  mountain: Mountain,
+  beach: Waves,
+  food: UtensilsCrossed,
+  temple: Landmark,
+  night: Moon,
+  blank: FilePlus,
 } as const
 
-/**
- * New-trip form. Just title + dates + notes — collaborators and the
- * first list/card can be added on the board page after creation.
- */
-export default function NewItineraryPage() {
+const COST_FMT = new Intl.NumberFormat('en-US')
+
+export default function NewTripPage() {
   const router = useRouter()
-  const [form, setForm] = useState({ title: '', startDate: '', endDate: '', notes: '' })
-  const [submitting, setSubmitting] = useState(false)
+  const [selected, setSelected] = useState<ItineraryTemplate>(TEMPLATES[0])
+  const [title, setTitle] = useState('')
+  const [startDate, setStartDate] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [submitting, startSubmitting] = useTransition()
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  function selectTemplate(tpl: ItineraryTemplate) {
+    setSelected(tpl)
+    if (!title) setTitle(tpl.name)
     setError(null)
-    if (!form.title.trim()) {
-      setError('Please enter a trip name.')
-      return
-    }
-    if (form.endDate && form.startDate && form.endDate < form.startDate) {
-      setError('End date must be on or after start date.')
-      return
-    }
-    setSubmitting(true)
-    const sb = createClient()
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) {
-      setError('You must be signed in.')
-      setSubmitting(false)
-      return
-    }
-
-    const { data: itin, error: itinErr } = await sb
-      .from('itineraries')
-      .insert({
-        owner_id: user.id,
-        title: form.title.trim(),
-        destination: 'Da Nang',
-        start_date: form.startDate || null,
-        end_date: form.endDate || null,
-        notes: form.notes.trim() || null,
-        status: 'planning',
-        last_editor_id: user.id,
-      })
-      .select()
-      .single()
-    if (itinErr || !itin) {
-      setError('Could not create trip: ' + (itinErr?.message ?? ''))
-      setSubmitting(false)
-      return
-    }
-    router.push(`/itinerary/${itin.id}`)
   }
 
-  const dayCount =
-    form.startDate && form.endDate
-      ? Math.max(
-          1,
-          Math.round(
-            (new Date(form.endDate).getTime() - new Date(form.startDate).getTime()) /
-              (1000 * 60 * 60 * 24),
-          ) + 1,
-        )
-      : null
+  function submit() {
+    setError(null)
+    startSubmitting(async () => {
+      const sb = createClient()
+      const { data: { user } } = await sb.auth.getUser()
+      if (!user) {
+        setError('You must be signed in to create a trip.')
+        return
+      }
+      const r = await fetch('/api/itinerary/from-template', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          templateId: selected.id,
+          title: title.trim() || selected.name,
+          startDate: startDate || undefined,
+        }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        setError(j.error ?? 'Could not create trip.')
+        return
+      }
+      const j = await r.json()
+      router.push(`/itinerary/${j.itinerary.id}`)
+    })
+  }
+
+  const Icon = ICONS[selected.icon]
 
   return (
     <main className="container-page py-6 lg:py-8">
@@ -95,131 +119,206 @@ export default function NewItineraryPage() {
             chuyến mới
           </span>
         </p>
-        <h1 className="text-page-title mb-1">Plan a Da Nang trip</h1>
+        <h1 className="text-page-title mb-1">Pick a starting point</h1>
         <p className="text-sm text-muted max-w-xl">
-          Pick dates and a name. You can add lists and cards on the board after creating.
+          Choose a Da Nang itinerary curated by a local buddy, then edit the lists and cards on the board.
         </p>
       </header>
 
-      <form onSubmit={handleSubmit} className="max-w-2xl space-y-4" noValidate>
-        <fieldset className="border border-border rounded-sm bg-surface p-5">
-          <legend className="px-2 text-[11px] uppercase tracking-wide text-muted inline-flex items-center gap-1">
-            <Compass size={11} aria-hidden /> Trip details
-          </legend>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Template grid */}
+        <section aria-label="Templates" className="lg:col-span-2">
+          <h2 className="text-[11px] uppercase tracking-wide text-muted mb-3 inline-flex items-center gap-1">
+            <Sparkles size={11} aria-hidden /> Templates
+          </h2>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {TEMPLATES.map((tpl) => {
+              const I = ICONS[tpl.icon]
+              const active = tpl.id === selected.id
+              const cardCount = tpl.days.reduce((m, d) => m + d.cards.length, 0)
+              return (
+                <li key={tpl.id}>
+                  <button
+                    type="button"
+                    onClick={() => selectTemplate(tpl)}
+                    aria-pressed={active}
+                    className={[
+                      'w-full text-left p-4 border rounded-sm bg-surface transition-colors',
+                      active
+                        ? 'border-primary ring-1 ring-primary'
+                        : 'border-border hover:border-border-strong',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={[
+                          'inline-flex items-center justify-center w-9 h-9 rounded-sm flex-shrink-0',
+                          active ? 'bg-primary text-paper' : 'bg-paper text-primary border border-border',
+                        ].join(' ')}
+                      >
+                        <I size={18} aria-hidden />
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-ink truncate">{tpl.name}</h3>
+                        <p className="text-[10px] italic text-subtle" style={{ letterSpacing: '0.02em' }} aria-hidden>
+                          {tpl.name_vi}
+                        </p>
+                        <p className="text-xs text-muted mt-1 line-clamp-2">{tpl.summary}</p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-2 text-[10px] text-muted">
+                          <span className="inline-flex items-center gap-0.5">
+                            <Clock size={9} aria-hidden /> {tpl.duration_label}
+                          </span>
+                          {cardCount > 0 ? (
+                            <span className="inline-flex items-center gap-0.5">
+                              <Check size={9} aria-hidden /> {cardCount} card{cardCount === 1 ? '' : 's'} in {tpl.days.length} list{tpl.days.length === 1 ? '' : 's'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5">No preset cards</span>
+                          )}
+                          <span className="inline-flex items-center gap-0.5">
+                            <Users size={9} aria-hidden /> {tpl.best_for}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
 
-          <div className="form-group">
-            <label htmlFor="title" className="form-label">
-              Trip name <span className="text-danger" aria-hidden>*</span>
-            </label>
-            <input
-              id="title"
-              type="text"
-              required
-              maxLength={FORM_LIMITS.title}
-              placeholder="e.g. Da Nang Beach Adventure"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="form-input"
-              aria-describedby="title-hint"
-              autoFocus
-            />
-            <p id="title-hint" className="form-hint" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {FORM_LIMITS.title - form.title.length} characters left
-            </p>
-          </div>
-
-          <div className="form-group">
-            <span className="form-label">Destination</span>
-            <div className="flex items-center gap-2 h-10 px-3 bg-paper border border-border rounded-sm text-sm text-ink">
-              <MapPin size={13} className="text-primary flex-shrink-0" aria-hidden />
-              <span>Da Nang, Vietnam</span>
+        {/* Selected detail + form */}
+        <aside aria-label="Selected template" className="lg:sticky lg:top-6 self-start">
+          <div className="border border-border rounded-sm bg-surface p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="inline-flex items-center justify-center w-10 h-10 rounded-sm bg-primary text-paper">
+                <Icon size={20} aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-ink truncate">{selected.name}</h2>
+                <p className="text-[10px] italic text-subtle" style={{ letterSpacing: '0.02em' }} aria-hidden>
+                  {selected.name_vi}
+                </p>
+              </div>
             </div>
-          </div>
+            <p className="text-sm text-ink leading-relaxed">{selected.summary}</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="form-group">
-              <label htmlFor="startDate" className="form-label inline-flex items-center gap-1">
-                <Calendar size={11} aria-hidden /> Start
-              </label>
-              <input
-                id="startDate"
-                type="date"
-                value={form.startDate}
-                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-                className="form-input"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="endDate" className="form-label inline-flex items-center gap-1">
-                <Calendar size={11} aria-hidden /> End
-              </label>
-              <input
-                id="endDate"
-                type="date"
-                min={form.startDate}
-                value={form.endDate}
-                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-                className="form-input"
-              />
-            </div>
-          </div>
-          {dayCount !== null ? (
-            <p className="text-xs text-muted inline-flex items-center gap-1 -mt-1 mb-3" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              <Calendar size={11} aria-hidden /> {dayCount} day{dayCount === 1 ? '' : 's'} total
-            </p>
-          ) : null}
+            <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <div className="border border-border rounded-sm p-2">
+                <dt className="text-[10px] uppercase text-muted flex items-center justify-center gap-1">
+                  <Clock size={9} aria-hidden /> Time
+                </dt>
+                <dd className="text-sm font-semibold tabular-nums mt-0.5">{selected.duration_label}</dd>
+              </div>
+              <div className="border border-border rounded-sm p-2">
+                <dt className="text-[10px] uppercase text-muted flex items-center justify-center gap-1">
+                  <Banknote size={9} aria-hidden /> Per person
+                </dt>
+                <dd className="text-sm font-semibold tabular-nums mt-0.5">
+                  {selected.estimated_cost_vnd > 0
+                    ? `${COST_FMT.format(selected.estimated_cost_vnd)}₫`
+                    : '—'}
+                </dd>
+              </div>
+              <div className="border border-border rounded-sm p-2">
+                <dt className="text-[10px] uppercase text-muted flex items-center justify-center gap-1">
+                  <Users size={9} aria-hidden /> Best for
+                </dt>
+                <dd className="text-xs font-semibold mt-0.5">{selected.best_for}</dd>
+              </div>
+            </dl>
 
-          <div className="form-group">
-            <label htmlFor="notes" className="form-label inline-flex items-center gap-1">
-              <FileText size={11} aria-hidden /> Notes
-            </label>
-            <textarea
-              id="notes"
-              rows={3}
-              maxLength={FORM_LIMITS.notes}
-              placeholder="Special requests, things you want to do, dietary needs…"
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="form-input form-textarea"
-              aria-describedby="notes-hint"
-            />
-            <p id="notes-hint" className="form-hint" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {FORM_LIMITS.notes - form.notes.length} characters left
-            </p>
-          </div>
-        </fieldset>
+            {selected.days.length > 0 ? (
+              <div className="mt-4 pt-3 border-t border-border space-y-3">
+                <h3 className="text-[11px] uppercase tracking-wide text-muted">
+                  What's inside
+                </h3>
+                <ol className="space-y-2">
+                  {selected.days.map((d, idx) => (
+                    <li key={d.title} className="text-xs text-ink">
+                      <p className="font-semibold">
+                        <span className="text-muted mr-1 tabular-nums">{idx + 1}.</span>
+                        {d.title}
+                      </p>
+                      <p className="text-[10px] text-muted tabular-nums">
+                        {d.start_time} – {d.end_time} · {d.cards.length} card{d.cards.length === 1 ? '' : 's'}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
 
-        {error ? (
-          <div className="border border-danger bg-danger-bg text-danger rounded-sm px-4 py-3 flex items-center gap-2" role="alert">
-            <AlertTriangle size={14} aria-hidden />
-            <span>{error}</span>
-          </div>
-        ) : null}
+            <form
+              className="mt-4 pt-3 border-t border-border space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault()
+                submit()
+              }}
+            >
+              <div>
+                <label htmlFor="trip-title" className="form-label">Trip name</label>
+                <input
+                  id="trip-title"
+                  type="text"
+                  maxLength={200}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={selected.name}
+                  className="form-input"
+                />
+              </div>
+              <div>
+                <label htmlFor="trip-start" className="form-label inline-flex items-center gap-1">
+                  <Calendar size={11} aria-hidden /> Start date (optional)
+                </label>
+                <input
+                  id="trip-start"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="form-input"
+                />
+                <p className="text-[10px] text-subtle mt-1">
+                  Picks which day each list lands on. Leave blank to keep the template as a plan you can date later.
+                </p>
+              </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="inline-flex items-center gap-2 h-11 px-5 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? (
-              <>
-                <Loader2 size={16} className="animate-spin" aria-hidden /> Creating…
-              </>
-            ) : (
-              <>
-                <Check size={16} aria-hidden /> Create trip
-              </>
-            )}
-          </button>
-          <Link
-            href="/itinerary"
-            className="inline-flex items-center h-11 px-5 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-          >
-            Cancel
-          </Link>
-        </div>
-      </form>
+              {error ? (
+                <div className="border border-danger bg-danger-bg text-danger rounded-sm px-3 py-2 text-xs flex items-center gap-1" role="alert">
+                  <AlertTriangle size={12} aria-hidden />
+                  <span>{error}</span>
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" aria-hidden /> Creating…
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} aria-hidden /> Use this template
+                    </>
+                  )}
+                </button>
+                <Link
+                  href="/itinerary"
+                  className="inline-flex items-center h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+                >
+                  Cancel
+                </Link>
+              </div>
+            </form>
+          </div>
+        </aside>
+      </div>
     </main>
   )
 }
