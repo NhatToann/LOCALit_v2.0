@@ -1,5 +1,5 @@
 // Database types for LOCALit v2
-// Schema lives in supabase/migrations/2026-10-07-unified-itinerary-*.sql
+// Schema lives in supabase/migrations/
 
 export type UserRole = 'tourist' | 'buddy' | 'admin'
 export type ConnectionStatus = 'pending' | 'accepted' | 'declined'
@@ -85,7 +85,6 @@ export interface Connection {
   id: string
   tourist_id: string
   buddy_id: string
-  /** @deprecated kept for backfill — see requester_id / recipient_id */
   requester_id?: string | null
   recipient_id?: string | null
   requester_role?: 'tourist' | 'buddy' | null
@@ -100,7 +99,6 @@ export interface Connection {
   renewed_by_buddy_at: string | null
   created_at: string
   updated_at: string
-  // Joined
   tourist?: Tourist
   buddy?: Buddy
 }
@@ -130,14 +128,11 @@ export interface Itinerary {
   last_editor_id: string | null
   created_at: string
   updated_at: string
-  // Joined
   owner?: Profile
   last_editor?: Profile
   collaborators?: ItineraryCollaborator[]
   days?: ItineraryDay[]
   stops?: ItineraryStop[]
-  packing?: ItineraryPackingItem[]
-  activity?: ItineraryActivity[]
   share?: ItineraryShare
 }
 
@@ -148,9 +143,11 @@ export interface ItineraryDay {
   date: string | null
   title: string | null
   notes: string | null
+  /** Per-list custom time window. Optional. */
+  start_time: string | null
+  end_time: string | null
   created_at: string
   updated_at: string
-  // Joined
   stops?: ItineraryStop[]
 }
 
@@ -173,16 +170,14 @@ export interface ItineraryStop {
   notes: string | null
   photo_url: string | null
   added_by: string | null
+  /** Per-card custom start time (HH:MM). When set, overrides planned_time for ordering. */
+  start_time: string | null
+  /** Per-card custom end time (HH:MM). */
+  end_time: string | null
   created_at: string
   updated_at: string
-  /** Per-stop drag-drop override (see lib/itinerary/buckets.ts). */
-  day_bucket_override: ItineraryBucket | null
-  // Joined
   added_by_profile?: Profile
 }
-
-/** Bucket window for an itinerary stop. */
-export type ItineraryBucket = 'morning' | 'afternoon' | 'evening' | 'unscheduled'
 
 export interface ItineraryCollaborator {
   id: string
@@ -193,35 +188,8 @@ export interface ItineraryCollaborator {
   invited_by: string | null
   invited_at: string
   responded_at: string | null
-  // Joined
   user?: Profile
   inviter?: Profile
-}
-
-export interface ItineraryPackingItem {
-  id: string
-  itinerary_id: string
-  name: string
-  category: string | null
-  packed: boolean
-  assigned_to: string | null
-  updated_by: string | null
-  created_at: string
-  updated_at: string
-  // Joined
-  assigned_to_profile?: Profile
-  updated_by_profile?: Profile
-}
-
-export interface ItineraryActivity {
-  id: string
-  itinerary_id: string
-  actor_id: string | null
-  verb: string
-  payload: Record<string, unknown>
-  created_at: string
-  // Joined
-  actor?: Profile
 }
 
 export interface ItineraryShare {
@@ -244,7 +212,6 @@ export interface Conversation {
   typing_started_at: string | null
   typing_user_id: string | null
   pinned_message_id: string | null
-  // Joined
   tourist?: Tourist
   buddy?: Buddy
   messages?: Message[]
@@ -263,7 +230,6 @@ export interface Message {
   deleted_at: string | null
   metadata: Record<string, unknown> | null
   created_at: string
-  // Joined
   reactions?: MessageReaction[]
   reply_to?: Message
 }
@@ -283,7 +249,6 @@ export interface LocationUpdate {
   longitude: number
   accuracy: number | null
   updated_at: string
-  // Joined
   profile?: Profile
 }
 
@@ -295,12 +260,10 @@ export interface Review {
   rating: number
   comment: string | null
   created_at: string
-  // Joined
   reviewer?: Profile
   reviewee?: Profile
 }
 
-// API Response types
 export interface BuddyWithProfile extends Buddy {
   profile: Profile
 }
@@ -315,7 +278,6 @@ export interface ConversationWithDetails extends Conversation {
   messages: Message[]
 }
 
-// Form types
 export interface RegisterFormData {
   email: string
   password: string
@@ -323,7 +285,6 @@ export interface RegisterFormData {
   fullName: string
   phone: string
   role: 'tourist' | 'buddy'
-  // Tourist-specific
   nationality?: string
   dateOfBirth?: string
   travelStyle?: string
@@ -332,7 +293,6 @@ export interface RegisterFormData {
   budgetRange?: string
   arrivalDate?: string
   destination?: string
-  // Buddy-specific
   locationCity?: string
   buddyLanguages?: string[]
   specialties?: string[]
@@ -354,7 +314,6 @@ export interface ItineraryFormData {
   collaboratorEmails: string[]
 }
 
-// Search/Filter types
 export interface BuddySearchFilters {
   city?: string
   language?: string
