@@ -58,12 +58,12 @@ try {
   }
   assert(listTitleVisible, 'Itinerary list page renders')
 
-  // 2) Click "New trip"
+  // 2) Click "New trip" link in the header
   await page.locator('a[href="/itinerary/new"]').first().click()
   await page.waitForURL(/\/itinerary\/new/, { timeout: 10000 })
   const newTitle = `Smoke Trip ${Date.now()}`
-  await page.locator('input#title').fill(newTitle)
-  await page.locator('button[type="submit"]').click()
+  await page.locator('input#trip-title').fill(newTitle)
+  await page.locator('button[type="submit"]', { hasText: /Use this template/ }).click()
 
   // 3) Should land on /itinerary/<id> with board visible
   await page.waitForURL(/\/itinerary\/[a-f0-9-]+$/, { timeout: 15000 })
