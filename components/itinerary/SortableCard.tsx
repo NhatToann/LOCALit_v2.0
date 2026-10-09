@@ -66,11 +66,12 @@ export default function SortableCard({
         onClick()
       }}
       className={[
-        // Trello card: white, 4px radius, subtle border, single-line
-        // shadow on hover. No left-border accent (that's for labels).
-        'group relative bg-white border border-[#DFE1E6] rounded-sm p-2.5 select-none',
-        'hover:shadow-[0_2px_4px_rgba(9,30,66,0.15)] hover:border-[#C1C7D0]',
-        'transition-[box-shadow,border-color] duration-150',
+        // Dark card: slate-700 surface, slate-600 border, bright
+        // hover state, no left-border accent (that's for labels).
+        'group relative bg-[#334155] border border-slate-600 rounded-sm p-2.5 select-none',
+        'hover:border-slate-500 hover:bg-[#3F4F66]',
+        'hover:shadow-[0_4px_8px_rgba(0,0,0,0.4)]',
+        'transition-[box-shadow,background-color,border-color] duration-150',
         canEdit ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
         isDragging && !asOverlay ? 'opacity-30' : '',
         asOverlay ? 'shadow-2xl ring-2 ring-primary rotate-2' : '',
@@ -87,8 +88,8 @@ export default function SortableCard({
 
       <div className="flex items-start gap-1.5 pl-2">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-[#172B4D] leading-snug">{stop.name}</p>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[10px] text-[#5E6C84]">
+          <p className="text-sm font-medium text-slate-50 leading-snug">{stop.name}</p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[10px] text-slate-300">
             {timeLabel ? (
               <span className="inline-flex items-center gap-0.5 tabular-nums">
                 <Clock size={9} aria-hidden /> {timeLabel}
@@ -106,7 +107,7 @@ export default function SortableCard({
             ) : null}
           </div>
           {stop.address ? (
-            <p className="text-[10px] text-[#5E6C84] truncate inline-flex items-center gap-0.5 mt-0.5">
+            <p className="text-[10px] text-slate-400 truncate inline-flex items-center gap-0.5 mt-0.5">
               <MapPin size={9} aria-hidden /> {stop.address}
             </p>
           ) : null}
@@ -120,7 +121,7 @@ export default function SortableCard({
             }}
             onPointerDown={(e) => e.stopPropagation()}
             aria-label={`Remove ${stop.name}`}
-            className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-5 h-5 text-[#5E6C84] hover:text-[#172B4D] hover:bg-[#F4F5F7] rounded-sm flex-shrink-0"
+            className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-5 h-5 text-slate-300 hover:text-white hover:bg-black/30 rounded-sm flex-shrink-0"
           >
             <X size={11} aria-hidden />
           </button>

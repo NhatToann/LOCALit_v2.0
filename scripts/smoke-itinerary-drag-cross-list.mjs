@@ -140,26 +140,30 @@ try {
   assert(morningTone === 'morning', `Saturday morning gets "morning" tone (got: ${morningTone})`)
   assert(afternoonTone === 'afternoon', `Sunday afternoon gets "afternoon" tone (got: ${afternoonTone})`)
 
-  // Verify the per-list header is tinted by the list's tone.
-  // (We dropped the left-border accent in favour of the Trello-
-  // style header background tint, so check backgroundColor
-  // instead.)
+  // Verify the saturated dark-theme header is colored (must NOT be
+  // a near-white / near-black muted bg — these are SOLID accent
+  // colors like amber/orange/pink/teal/red).
   const morningBg = await page.locator('section[data-list-id]').nth(0).locator('header').first().evaluate((el) => getComputedStyle(el).backgroundColor)
   const afternoonBg = await page.locator('section[data-list-id]').nth(1).locator('header').first().evaluate((el) => getComputedStyle(el).backgroundColor)
   console.log(`[info] morning header-bg: ${morningBg}, afternoon header-bg: ${afternoonBg}`)
-  assert(morningBg !== 'rgba(0, 0, 0, 0)' && morningBg !== 'rgb(255, 255, 255)', 'morning list has a tinted header background')
-  assert(afternoonBg !== 'rgba(0, 0, 0, 0)' && afternoonBg !== 'rgb(255, 255, 255)', 'afternoon list has a tinted header background')
-  assert(morningBg !== afternoonBg, 'two lists have different header tints')
+  assert(morningBg === 'rgb(245, 158, 11)', `morning list has solid amber header (got ${morningBg})`)
+  assert(afternoonBg === 'rgb(249, 115, 22)', `afternoon list has solid orange header (got ${afternoonBg})`)
+  assert(morningBg !== afternoonBg, 'two lists have different header colors')
 
-  // Verify the Trello-style board backdrop (#F1F2F4 warm grey)
+  // Verify the dark board backdrop (slate-900 #0F172A)
   const boardBg = await page.locator('[aria-label="Itinerary lists"]').first().evaluate((el) => getComputedStyle(el).backgroundColor)
   console.log(`[info] board backdrop: ${boardBg}`)
-  assert(boardBg === 'rgb(241, 242, 244)', 'board backdrop is the Trello warm grey (#F1F2F4)')
+  assert(boardBg === 'rgb(15, 23, 42)', 'board backdrop is dark slate (#0F172A)')
 
   // Verify the card has a colored label bar (Trello labels feature)
   const cardLabelHex = await page.locator('article', { hasText: 'Marble Mountains' }).first().locator('div[title]').first().evaluate((el) => getComputedStyle(el).backgroundColor)
   console.log(`[info] card label bar: ${cardLabelHex}`)
   assert(cardLabelHex !== 'rgba(0, 0, 0, 0)' && cardLabelHex !== 'rgb(229, 231, 235)', 'card has a visible colored label bar')
+
+  // Verify the card surface is dark slate
+  const cardBg = await page.locator('article', { hasText: 'Marble Mountains' }).first().evaluate((el) => getComputedStyle(el).backgroundColor)
+  console.log(`[info] card bg: ${cardBg}`)
+  assert(cardBg === 'rgb(51, 65, 85)', `card has dark slate surface (#334155, got ${cardBg})`)
 
   const card = page.locator('article', { hasText: 'Marble Mountains' }).first()
   const list1Body = page.locator('section[data-list-id]').nth(0).locator('ol[data-list-body]')

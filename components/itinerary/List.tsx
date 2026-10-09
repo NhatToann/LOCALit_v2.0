@@ -125,11 +125,10 @@ export default function List({
       data-tone={tone}
       className={[
         'flex flex-col w-72 max-w-full flex-shrink-0 rounded-md transition-shadow',
-        // Trello convention: column body is the same warm grey as the
-        // board backdrop, no left-border accent, subtle elevation
-        // (only on hover / when a card is being dragged over it).
-        'bg-[#EBECF0]',
-        isSectionOver ? 'ring-2 ring-primary ring-offset-1' : 'shadow-none',
+        // Dark board: each column is a slightly lighter slate so it
+        // pops off the page background.
+        'bg-[#1E293B]',
+        isSectionOver ? 'ring-2 ring-primary ring-offset-1 ring-offset-[#0F172A]' : 'shadow-none',
       ].join(' ')}
       style={{ boxShadow: isSectionOver ? '0 0 0 1px rgba(255,107,53,0.5)' : 'none' }}
     >
@@ -145,25 +144,25 @@ export default function List({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="List title"
-              className="form-input text-sm h-8"
+              className="w-full text-sm h-8 bg-[#0F172A] border border-slate-600 text-slate-100 placeholder-slate-500 rounded-sm px-2 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-[10px] text-muted inline-flex items-center gap-1">
+              <label className="text-[10px] text-slate-300 inline-flex items-center gap-1">
                 <Clock size={10} aria-hidden /> Start
                 <input
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="form-input text-xs h-7 ml-auto"
+                  className="text-xs h-7 ml-auto bg-[#0F172A] border border-slate-600 text-slate-100 rounded-sm px-1.5 focus:border-primary focus:outline-none"
                 />
               </label>
-              <label className="text-[10px] text-muted inline-flex items-center gap-1">
+              <label className="text-[10px] text-slate-300 inline-flex items-center gap-1">
                 <Clock size={10} aria-hidden /> End
                 <input
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="form-input text-xs h-7 ml-auto"
+                  className="text-xs h-7 ml-auto bg-[#0F172A] border border-slate-600 text-slate-100 rounded-sm px-1.5 focus:border-primary focus:outline-none"
                 />
               </label>
             </div>
@@ -172,7 +171,7 @@ export default function List({
                 type="button"
                 onClick={saveHeader}
                 disabled={saving || !title.trim()}
-                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
+                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-sm bg-primary text-white border border-primary hover:bg-primary-hover disabled:opacity-50"
               >
                 {saving ? <Loader2 size={11} className="animate-spin" aria-hidden /> : <Check size={11} aria-hidden />}
                 Save
@@ -187,7 +186,7 @@ export default function List({
                   setError(null)
                 }}
                 disabled={saving}
-                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+                className="inline-flex items-center gap-1 h-7 px-2 text-xs font-medium rounded-sm bg-transparent text-slate-200 border border-slate-600 hover:bg-[#0F172A]"
               >
                 <X size={11} aria-hidden /> Cancel
               </button>
@@ -200,7 +199,7 @@ export default function List({
               <h3 className={`text-[13px] font-semibold truncate ${tokens.titleClass}`}>
                 {day.title || 'Untitled list'}
               </h3>
-              <div className="flex items-center gap-1.5 text-[11px] text-[#5E6C84] tabular-nums mt-0.5">
+              <div className="flex items-center gap-1.5 text-[11px] opacity-90 tabular-nums mt-0.5">
                 {day.date ? (
                   <span>{new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                 ) : null}
@@ -218,14 +217,14 @@ export default function List({
                   onClick={() => setMenuOpen((v) => !v)}
                   aria-label="List actions"
                   aria-expanded={menuOpen}
-                  className="inline-flex items-center justify-center w-6 h-6 text-muted hover:text-ink hover:bg-paper/50 rounded-sm"
+                  className="inline-flex items-center justify-center w-6 h-6 text-white/80 hover:text-white hover:bg-black/20 rounded-sm"
                 >
                   <MoreHorizontal size={14} aria-hidden />
                 </button>
                 {menuOpen ? (
                   <div
                     role="menu"
-                    className="absolute right-0 top-7 z-10 w-44 bg-surface border border-border rounded-sm shadow-lg"
+                    className="absolute right-0 top-7 z-10 w-44 bg-[#0F172A] border border-slate-700 rounded-sm shadow-lg"
                     onMouseLeave={() => setMenuOpen(false)}
                   >
                     <button
@@ -235,7 +234,7 @@ export default function List({
                         setMenuOpen(false)
                         setEditingHeader(true)
                       }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-ink hover:bg-paper"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-100 hover:bg-[#1E293B]"
                     >
                       <Pencil size={11} aria-hidden /> Edit list
                     </button>
@@ -247,7 +246,7 @@ export default function List({
                           setMenuOpen(false)
                           void handleDeleteDay()
                         }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-danger hover:bg-danger-bg border-t border-border"
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-300 hover:bg-red-900/30 border-t border-slate-700"
                       >
                         <Trash2 size={11} aria-hidden /> Delete list
                       </button>
@@ -268,11 +267,11 @@ export default function List({
           aria-label={`Cards in ${day.title ?? 'list'}`}
           className={[
             'flex-1 p-2 space-y-2 min-h-[100px] transition-colors rounded-b-md',
-            isBodyOver ? 'bg-paper/60 ring-1 ring-primary' : '',
+            isBodyOver ? 'bg-black/30 ring-1 ring-primary' : '',
           ].join(' ')}
         >
           {sorted.length === 0 ? (
-            <li className="rounded-sm px-3 py-4 text-[11px] text-subtle text-center italic pointer-events-none">
+            <li className="rounded-sm px-3 py-4 text-[11px] text-slate-400 text-center italic pointer-events-none">
               {canEdit ? 'Drop cards here or add one below' : 'No cards yet'}
             </li>
           ) : (
@@ -310,7 +309,7 @@ export default function List({
                   }
                 }}
                 placeholder="Enter a title for this card…"
-                className="w-full text-sm bg-white border border-[#DFE1E6] rounded-sm p-2 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                className="w-full text-sm bg-[#0F172A] border border-slate-600 text-slate-100 placeholder-slate-500 rounded-sm p-2 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
               />
               <div className="flex items-center gap-1">
                 <button
@@ -328,7 +327,7 @@ export default function List({
                     setDraftName('')
                   }}
                   disabled={saving}
-                  className="inline-flex items-center justify-center w-7 h-7 text-[#5E6C84] hover:text-[#172B4D] rounded-sm"
+                  className="inline-flex items-center justify-center w-7 h-7 text-slate-400 hover:text-white rounded-sm"
                   aria-label="Cancel add card"
                 >
                   <X size={14} aria-hidden />
@@ -339,7 +338,7 @@ export default function List({
             <button
               type="button"
               onClick={() => setComposing(true)}
-              className="inline-flex items-center gap-1.5 h-8 px-2 text-xs text-[#5E6C84] hover:text-[#172B4D] hover:bg-white/80 rounded-sm w-full justify-start transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-2 text-xs text-slate-300 hover:text-white hover:bg-[#334155] rounded-sm w-full justify-start transition-colors"
             >
               <Plus size={14} aria-hidden /> Add a card
             </button>

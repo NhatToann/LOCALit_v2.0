@@ -3,12 +3,11 @@
  *
  * Why a per-list color?
  * ─────────────────────
- * A row of 6 identical columns on a Trello board is hard to scan.
- * The Trello convention is to give each list header a tinted
- * background that matches its semantic role (morning / afternoon
- * / evening / other). The user mental model: "morning" reads as
- * warm, "evening" reads as cool, so the keyword match wins over
- * a hash fallback for those.
+ * A row of 6 identical columns is hard to scan. The Trello Pro / dark
+ * theme convention is to give each list header a SOLID saturated
+ * color so it pops against the dark board. The user mental model:
+ * "morning" reads as warm, "evening" reads as cool, so the keyword
+ * match wins over a hash fallback for those.
  *
  * Card label bar
  * ──────────────
@@ -16,8 +15,8 @@
  * a small palette (LABEL_COLORS) for SortableCard to pick from
  * based on the card's category or transport, so the board has
  * visual variety beyond just list headers. The same hex values
- * are used for both the list header tint and the card label,
- * so the two systems feel like one palette.
+ * are used for both the list header and the card label, so the
+ * two systems feel like one palette.
  *
  * Per docs/design.md Section 2.3 we ban pure-purple / pure-indigo
  * from the palette; tones here are warm neutrals and dusty blues.
@@ -26,15 +25,15 @@
 export type ListTone = 'morning' | 'afternoon' | 'evening' | 'sand' | 'sage' | 'slate' | 'rose'
 
 export interface ToneTokens {
-  /** Header background tint (the dominant color in Trello columns). */
+  /** Header background — SOLID saturated color for dark theme. */
   headerBg: string
   /** Tailwind class for the header background. */
   headerBgClass: string
-  /** Title text color, also used for the small dot. */
+  /** Title text color (white works on all these solids). */
   titleColor: string
   /** Tailwind class for the title. */
   titleClass: string
-  /** Accent color (used by the small dot + the column hover border). */
+  /** Accent color (used by the card label bar + small dot in list composer). */
   accent: string
   /** Accessible label for screen readers describing the tone. */
   aria: string
@@ -42,58 +41,58 @@ export interface ToneTokens {
 
 export const TONE_TOKENS: Record<ListTone, ToneTokens> = {
   morning: {
-    headerBg: '#FEF3C7',
-    headerBgClass: 'bg-[#FEF3C7]',
-    titleColor: '#92400E',
-    titleClass: 'text-[#92400E]',
+    headerBg: '#F59E0B',
+    headerBgClass: 'bg-[#F59E0B]',
+    titleColor: '#FFFFFF',
+    titleClass: 'text-white',
     accent: '#F59E0B',
     aria: 'Morning (amber)',
   },
   afternoon: {
-    headerBg: '#FFEDD5',
-    headerBgClass: 'bg-[#FFEDD5]',
-    titleColor: '#9A3412',
-    titleClass: 'text-[#9A3412]',
+    headerBg: '#F97316',
+    headerBgClass: 'bg-[#F97316]',
+    titleColor: '#FFFFFF',
+    titleClass: 'text-white',
     accent: '#F97316',
     aria: 'Afternoon (orange)',
   },
   evening: {
-    headerBg: '#FCE7F3',
-    headerBgClass: 'bg-[#FCE7F3]',
-    titleColor: '#9F1239',
-    titleClass: 'text-[#9F1239]',
+    headerBg: '#EC4899',
+    headerBgClass: 'bg-[#EC4899]',
+    titleColor: '#FFFFFF',
+    titleClass: 'text-white',
     accent: '#EC4899',
     aria: 'Evening (pink)',
   },
   sand: {
-    headerBg: '#FEF3C7',
-    headerBgClass: 'bg-[#FAF6EC]',
-    titleColor: '#854D0E',
-    titleClass: 'text-[#854D0E]',
-    accent: '#B58A3F',
+    headerBg: '#EAB308',
+    headerBgClass: 'bg-[#EAB308]',
+    titleColor: '#0F172A',
+    titleClass: 'text-[#0F172A]',
+    accent: '#EAB308',
     aria: 'Sand',
   },
   sage: {
-    headerBg: '#DCFCE7',
-    headerBgClass: 'bg-[#DCFCE7]',
-    titleColor: '#166534',
-    titleClass: 'text-[#166534]',
+    headerBg: '#10B981',
+    headerBgClass: 'bg-[#10B981]',
+    titleColor: '#FFFFFF',
+    titleClass: 'text-white',
     accent: '#10B981',
     aria: 'Sage',
   },
   slate: {
-    headerBg: '#DBEAFE',
-    headerBgClass: 'bg-[#DBEAFE]',
-    titleColor: '#1E3A8A',
-    titleClass: 'text-[#1E3A8A]',
+    headerBg: '#3B82F6',
+    headerBgClass: 'bg-[#3B82F6]',
+    titleColor: '#FFFFFF',
+    titleClass: 'text-white',
     accent: '#3B82F6',
     aria: 'Slate',
   },
   rose: {
-    headerBg: '#FECACA',
-    headerBgClass: 'bg-[#FECACA]',
-    titleColor: '#7F1D1D',
-    titleClass: 'text-[#7F1D1D]',
+    headerBg: '#EF4444',
+    headerBgClass: 'bg-[#EF4444]',
+    titleColor: '#FFFFFF',
+    titleClass: 'text-white',
     accent: '#EF4444',
     aria: 'Rose',
   },
@@ -122,6 +121,7 @@ function hashStr(s: string): number {
 /* ----------------------------------------------------------------
  * Card label palette
  * ───────────────────
+ * Saturated colors that pop against a dark board backdrop.
  * Trello pins a small horizontal color bar to a card to give
  * at-a-glance category cues. We don't have a per-card labels
  * column in the schema yet, so we pick deterministically from
