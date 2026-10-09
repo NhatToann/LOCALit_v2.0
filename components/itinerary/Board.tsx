@@ -229,13 +229,80 @@ export default function Board({
               <p className="text-sm font-medium text-ink mb-1">No lists yet</p>
               <p className="text-xs text-muted mb-3">Start by adding the first list — a morning, a day, or a custom window.</p>
               {canEdit ? (
-                <button
-                  type="button"
-                  onClick={() => setAddingList(true)}
-                  className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
-                >
-                  <Plus size={14} aria-hidden /> Add first list
-                </button>
+                addingList ? (
+                  <div className="max-w-md mx-auto bg-surface border border-border rounded-sm p-3 text-left space-y-2">
+                    <input
+                      type="text"
+                      autoFocus
+                      maxLength={120}
+                      value={draftList.title}
+                      onChange={(e) => setDraftList({ ...draftList, title: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void handleAddList()
+                        } else if (e.key === 'Escape') {
+                          setAddingList(false)
+                          setDraftList({ title: '', date: '', start_time: '', end_time: '' })
+                        }
+                      }}
+                      placeholder="List title — e.g. Saturday morning"
+                      className="form-input text-sm"
+                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <input
+                        type="date"
+                        value={draftList.date}
+                        onChange={(e) => setDraftList({ ...draftList, date: e.target.value })}
+                        className="form-input text-xs"
+                        aria-label="List date"
+                      />
+                      <input
+                        type="time"
+                        value={draftList.start_time}
+                        onChange={(e) => setDraftList({ ...draftList, start_time: e.target.value })}
+                        className="form-input text-xs"
+                        aria-label="List start time"
+                      />
+                      <input
+                        type="time"
+                        value={draftList.end_time}
+                        onChange={(e) => setDraftList({ ...draftList, end_time: e.target.value })}
+                        className="form-input text-xs"
+                        aria-label="List end time"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={handleAddList}
+                        disabled={!draftList.title.trim()}
+                        className="inline-flex items-center gap-1 h-8 px-2 text-xs font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50"
+                      >
+                        <Check size={12} aria-hidden /> Add list
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddingList(false)
+                          setDraftList({ title: '', date: '', start_time: '', end_time: '' })
+                        }}
+                        className="inline-flex items-center justify-center w-8 h-8 text-muted hover:text-ink hover:bg-paper border border-border rounded-sm"
+                        aria-label="Cancel add list"
+                      >
+                        <X size={12} aria-hidden />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAddingList(true)}
+                    className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+                  >
+                    <Plus size={14} aria-hidden /> Add first list
+                  </button>
+                )
               ) : null}
             </div>
           ) : (
