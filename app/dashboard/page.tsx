@@ -125,13 +125,13 @@ export default function DashboardPage() {
           .eq('tourist_id', user.id)
           .order('created_at', { ascending: false })),
         racedAbort(supabase
-          .from('buddies')
-          .select('id, location_city, latitude, longitude, is_available, is_online, profile:safe_profiles(full_name, is_online)')
+          .from('safe_buddies')
+          .select('id, location_city, latitude, longitude, is_available, profile:safe_profiles(full_name, avatar_url, is_online)')
           .eq('location_city', 'Da Nang')
           .eq('is_available', true)
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
-          .order('is_online', { ascending: false })
+          .order('is_available', { ascending: false })
           .limit(20)),
         racedAbort(supabase
           .from('reviews')
