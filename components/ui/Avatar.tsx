@@ -42,7 +42,10 @@ function colorFromName(name: string): string {
   }
   // Brand-aligned flat palette. Avoids neutral greys that would
   // disappear against the dark-mode paper/surface backgrounds.
-  const palette = ['#FF6B35', '#92400E', '#166534', '#075985', '#7C2D12', '#5B21B6']
+  // Brand palette (2026-10-09 — matching teal/blue gradient).
+  // Derived from docs/design.md Section 2.1. Keep this in sync with
+  // --color-primary* in app/globals.css.
+  const palette = ['#0063AE', '#00BACF', '#11EDAF', '#009ED0', '#004F8E', '#0081C5']
   const idx = Math.abs(hash) % palette.length
   return palette[idx]
 }

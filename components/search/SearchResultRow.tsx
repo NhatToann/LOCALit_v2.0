@@ -63,7 +63,7 @@ export default function SearchResultRow({ result, saved, onToggleSave }: Props) 
       >
         <span
           className="flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold text-paper shrink-0"
-          style={{ backgroundColor: '#FF6B35' }}
+          style={{ backgroundColor: '#0063AE' }}
           aria-hidden="true"
         >
           {r.full_name.charAt(0)}

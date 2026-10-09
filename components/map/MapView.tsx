@@ -45,8 +45,9 @@ interface Props {
 const DEFAULT_LOCATION = { lat: 16.0544, lng: 108.2023 } // Da Nang
 
 // Map markers: brand palette only, no drop-shadow. Token-derived hex.
-// primary #FF6B35 (buddy), ink #0F0F0F (self), info #075985 (live)
-const PRIMARY = '#FF6B35'
+// 2026-10-09 recolor: matching teal/blue gradient. PRIMARY is the
+// deep blue stop (#0063AE) so buddy pins match the brand CTA color.
+const PRIMARY = '#0063AE'
 const INK = '#0F0F0F'
 const INFO = '#075985'
 
@@ -428,7 +429,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
                   style={{
                     display: 'inline-block',
                     marginTop: 8,
-                    color: '#FF6B35',
+                    color: '#0063AE',
                     fontWeight: 500,
                     fontSize: 12,
                     textDecoration: 'none',

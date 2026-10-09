@@ -1003,7 +1003,9 @@ function avatarColor(seed: string): string {
   }
   // Brand-aligned flat palette. Avoids neutral greys so avatars stay
   // visible in dark mode (the dark paper colour is ~#0A0A0C).
-  const palette = ['#FF6B35', '#92400E', '#166534', '#075985', '#7C2D12', '#5B21B6']
+  // Brand palette (2026-10-09 — matching teal/blue gradient). Mirrors
+  // --color-primary* in app/globals.css.
+  const palette = ['#0063AE', '#00BACF', '#11EDAF', '#009ED0', '#004F8E', '#0081C5']
   const idx = Math.abs(hash) % palette.length
   return palette[idx]
 }

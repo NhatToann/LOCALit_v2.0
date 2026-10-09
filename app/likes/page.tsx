@@ -348,7 +348,9 @@ function avatarColor(seed: string): string {
   for (let i = 0; i < seed.length; i++) {
     hash = seed.charCodeAt(i) + ((hash << 5) - hash)
   }
-  const palette = ['#FF6B35', '#92400E', '#166534', '#075985', '#7C2D12', '#5B21B6']
+  // Brand palette (2026-10-09 — matching teal/blue gradient). Mirrors
+  // --color-primary* in app/globals.css.
+  const palette = ['#0063AE', '#00BACF', '#11EDAF', '#009ED0', '#004F8E', '#0081C5']
   return palette[Math.abs(hash) % palette.length]
 }
 

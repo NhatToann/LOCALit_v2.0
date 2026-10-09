@@ -36,7 +36,7 @@ export default function GlobalError({
           <LifeBuoy
             size={64}
             strokeWidth={1.5}
-            color="#FF6B35"
+            color="#0063AE"
             style={{ marginBottom: 12 }}
             aria-hidden="true"
           />
@@ -52,9 +52,9 @@ export default function GlobalError({
               onClick={() => reset()}
               style={{
                 padding: '12px 22px',
-                background: '#FF6B35',
+                background: '#0063AE',
                 color: '#FAFAF7',
-                border: '1px solid #FF6B35',
+                border: '1px solid #0063AE',
                 borderRadius: 4,
                 fontWeight: 500,
                 cursor: 'pointer',

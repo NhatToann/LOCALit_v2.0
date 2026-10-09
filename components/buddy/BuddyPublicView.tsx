@@ -48,7 +48,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
       <header className="mb-6 flex flex-wrap items-start gap-4">
         <span
           className="flex items-center justify-center w-16 h-16 rounded-full text-2xl font-semibold text-paper shrink-0"
-          style={{ backgroundColor: '#FF6B35' }}
+          style={{ backgroundColor: '#0063AE' }}
           aria-hidden="true"
         >
           {p.full_name.charAt(0)}
