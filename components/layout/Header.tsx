@@ -78,7 +78,7 @@ export default function Header({ userName, userId }: HeaderProps) {
       <div className="max-w-7xl mx-auto h-full px-6 flex items-center justify-between gap-6">
         <Link href={homePath} className="flex items-center gap-2 flex-shrink-0">
           <span
-            className="w-7 h-7 rounded-sm bg-primary text-paper flex items-center justify-center"
+            className="w-7 h-7 rounded-sm bg-gradient text-paper flex items-center justify-center"
             aria-hidden="true"
           >
             <MapPin size={16} strokeWidth={2.25} />
