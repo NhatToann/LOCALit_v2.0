@@ -35,6 +35,7 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register')
   const isPublicRoute =
     pathname === '/' ||
+    pathname === '/llms.txt' ||
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/reset-password') ||
     pathname === '/search' ||

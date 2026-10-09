@@ -120,9 +120,9 @@ export default function Footer() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="/llms.txt" className="text-muted hover:text-ink transition-colors duration-150">
+                  <a href="/llms.txt" className="text-muted hover:text-ink transition-colors duration-150" target="_blank" rel="noopener">
                     llms.txt
-                  </Link>
+                  </a>
                 </li>
               </ul>
             </div>
