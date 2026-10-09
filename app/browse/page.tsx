@@ -230,6 +230,12 @@ function BrowseContent() {
       setLoading(true)
       try {
         const supabase = createClient()
+        // Pull the current user first so we can exclude them from the
+        // recommend list — users should never see their own row in the
+        // "Find people in Da Nang" feed (e.g. Phan Nhật Toàn's tourist
+        // row used to show up under his own session).
+        const { data: authData } = await supabase.auth.getUser()
+        const me = authData.user?.id ?? null
         // Pull buddies + tourists in parallel. safe_buddies already
         // filters to non-null lat/lng; safe_tourists_with_location
         // (created 2026-10-09) does the same for tourists so the
@@ -240,13 +246,15 @@ function BrowseContent() {
             .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, profile:safe_profiles(full_name, avatar_url, is_online, role)')
             .eq('location_city', 'Da Nang')
             .not('latitude', 'is', null)
-            .not('longitude', 'is', null),
+            .not('longitude', 'is', null)
+            .neq('id', me ?? '00000000-0000-0000-0000-000000000000'),
           supabase
             .from('safe_tourists_with_location')
             .select('id, location_city, latitude, longitude, languages, interests, nationality, travel_style, profile:safe_profiles(full_name, avatar_url, is_online, role)')
             .eq('location_city', 'Da Nang')
             .not('latitude', 'is', null)
-            .not('longitude', 'is', null),
+            .not('longitude', 'is', null)
+            .neq('id', me ?? '00000000-0000-0000-0000-000000000000'),
         ])
 
         const buddyData = (buddiesRes.data ?? []) as any[]
@@ -276,7 +284,7 @@ function BrowseContent() {
 
         const mapped: BuddyItem[] = [
           ...buddyData
-            .filter((b) => b.latitude !== null && b.longitude !== null)
+            .filter((b) => b.id !== me && b.latitude !== null && b.longitude !== null)
             .map((b) => {
               const r = ratingMap.get(b.id)
               return {
@@ -299,7 +307,7 @@ function BrowseContent() {
               }
             }),
           ...touristData
-            .filter((t) => t.latitude !== null && t.longitude !== null)
+            .filter((t) => t.id !== me && t.latitude !== null && t.longitude !== null)
             .map((t) => ({
               id: t.id,
               role: 'tourist' as const,

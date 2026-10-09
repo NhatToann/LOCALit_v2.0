@@ -131,6 +131,7 @@ export default function DashboardPage() {
           .eq('is_available', true)
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
+          .neq('id', user.id)
           .order('is_available', { ascending: false })
           .limit(20)),
         racedAbort(supabase

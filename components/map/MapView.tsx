@@ -109,14 +109,21 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
     let cancelled = false
     async function load() {
       const supabase = createClient()
+      // Exclude the current user from static pins — they shouldn't see
+      // their own row in either the buddy or tourist pin layer.
+      const { data: authData } = await supabase.auth.getUser()
+      const me = authData.user?.id ?? null
+      const excludeSelf = (q: any) =>
+        me ? q.neq('id', me) : q
       // can't read buddies.latitude directly since the 2026-09-26 PII tighten.
       // safe_buddies exposes the same shape the map pins need.
-      const { data: buddyData } = await supabase
-        .from('safe_buddies')
-        .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, profile:safe_profiles(full_name, is_online)')
-        .not('latitude', 'is', null)
-        .not('longitude', 'is', null)
-        .abortSignal(abortCtrl.signal)
+      const { data: buddyData } = await excludeSelf(
+        supabase
+          .from('safe_buddies')
+          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, profile:safe_profiles(full_name, is_online)')
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null),
+      ).abortSignal(abortCtrl.signal)
 
       if (!cancelled && buddyData) {
         const pins: BuddyPin[] = buddyData
@@ -141,12 +148,13 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         // Pairs with the location_updates live pins below so a tourist
         // who set their home city but isn't currently broadcasting still
         // shows up on the map.
-        const { data: tStatic } = await supabase
-          .from('safe_tourists_with_location')
-          .select('id, location_city, latitude, longitude, profile:safe_profiles(full_name, is_online)')
-          .not('latitude', 'is', null)
-          .not('longitude', 'is', null)
-          .abortSignal(abortCtrl.signal)
+        const { data: tStatic } = await excludeSelf(
+          supabase
+            .from('safe_tourists_with_location')
+            .select('id, location_city, latitude, longitude, profile:safe_profiles(full_name, is_online)')
+            .not('latitude', 'is', null)
+            .not('longitude', 'is', null),
+        ).abortSignal(abortCtrl.signal)
 
         // location_updates: tourists' live positions, anon can only read buddy-owned rows.
         // safe_profiles gives anon access to full_name/role/is_online (no PII).
