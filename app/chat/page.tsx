@@ -530,20 +530,107 @@ function ChatInner() {
       // a matching row in one of the two role tables. So this is
       // safe across the whole user base.
       const partnerId = otherBuddyId
+      // Resolve partner's actual role from profiles — the URL param ?buddy=
+      // historically meant "the buddy I'm chatting with" but the marketplace
+      // now lists both tourists + buddies (see safe_buddies + safe_tourists
+      // in /browse). The partner may actually be a tourist OR a buddy.
+      // The `conversations` table has hard FKs:
+      //   tourist_id REFERENCES tourists(id)
+      //   buddy_id   REFERENCES buddies(id)
+      // So each id MUST land in the column whose target table contains it.
+      // Resolve partner's role and pick the column assignment dynamically.
+      const { data: partnerProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', partnerId)
+        .maybeSingle()
+      const partnerRole = partnerProfile?.role
+
+      // Determine each side's column by querying the actual role-tables.
+      // If both ends are the same role (e.g. both buddies), the partner
+      // still has a row in their role-table and so does the current user —
+      // we surface a clear error instead of letting the DB throw 23503.
+      const { data: meProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', myId)
+        .maybeSingle()
+      const myRoleResolved = (myRole ?? meProfile?.role) as 'tourist' | 'buddy' | null
+
+      if (!myRoleResolved || !partnerRole) {
+        setError('Could not open conversation: unable to resolve roles. Please try again.')
+        return
+      }
+      if (myRoleResolved === partnerRole) {
+        // Pluralize: 'buddy' → 'buddies', 'tourist' → 'tourists'
+        const rolePlural = myRoleResolved === 'buddy' ? 'buddies' : myRoleResolved + 's'
+        setError('Could not open conversation: both users are ' + rolePlural + '. Pairing is only allowed across roles.')
+        return
+      }
+      // FK fix round 2 (2026-10-09): an orphan profile (one that has a
+      // row in `profiles` with role='tourist'/'buddy' but NO matching
+      // row in `tourists`/`buddies`) will pass the same-role check above
+      // but fail the insert with 23503 because the id has no row in the
+      // role-table. Probe both role-tables before insert and surface a
+      // clear error instead.
+      const { data: meRow } = await supabase
+        .from(myRoleResolved === 'buddy' ? 'buddies' : 'tourists')
+        .select('id')
+        .eq('id', myId)
+        .maybeSingle()
+      const { data: partnerRow } = await supabase
+        .from(partnerRole === 'buddy' ? 'buddies' : 'tourists')
+        .select('id')
+        .eq('id', partnerId)
+        .maybeSingle()
+      if (!meRow) {
+        setError('Could not open conversation: your account is missing a ' + myRoleResolved + ' profile row. Please complete your profile and try again.')
+        return
+      }
+      if (!partnerRow) {
+        setError('Could not open conversation: the partner is missing a ' + partnerRole + ' profile row. They need to complete their profile before you can chat.')
+        return
+      }
+      // I'm the tourist → myId in tourist_id, partner in buddy_id
+      // I'm the buddy   → myId in buddy_id,   partner in tourist_id
       const insertPayload =
-        myRole === 'buddy'
+        myRoleResolved === 'buddy'
           ? { tourist_id: partnerId, buddy_id: myId }
           : { tourist_id: myId, buddy_id: partnerId }
-      const { data: created, error } = await supabase
+      // Race-condition fix (2026-10-09): when the same user opens the
+      // same `/chat?buddy=...` URL twice in quick succession (or two
+      // browser tabs at once), both invocations can pass the existing
+      // check on the same render frame and fall through to insert.
+      // The UNIQUE constraint on (tourist_id, buddy_id) then fires 409
+      // for the second insert. Upsert with ignoreDuplicates collapses
+      // the race to a no-op and lets us read the existing row back.
+      const { data: upserted, error } = await supabase
         .from('conversations')
-        .insert(insertPayload)
+        .upsert(insertPayload, { onConflict: 'tourist_id,buddy_id', ignoreDuplicates: true })
         .select('id')
-        .single()
+        .maybeSingle()
       if (error) {
         setError('Could not open conversation: ' + error.message)
         return
       }
-      convId = created.id
+      convId = upserted?.id
+      if (!convId) {
+        // ignoreDuplicates returned an empty array because the row
+        // already existed from a concurrent openConversationWithBuddy.
+        // Re-query to get the existing id.
+        const { data: existingAfterRace } = await supabase
+          .from('conversations')
+          .select('id')
+          .or(
+            `and(tourist_id.eq.${myId},buddy_id.eq.${otherBuddyId}),and(tourist_id.eq.${otherBuddyId},buddy_id.eq.${myId})`,
+          )
+          .maybeSingle()
+        if (!existingAfterRace?.id) {
+          setError('Could not open conversation: race condition; please try again.')
+          return
+        }
+        convId = existingAfterRace.id
+      }
     }
     await loadConversations(myId)
     setActiveId(convId)
