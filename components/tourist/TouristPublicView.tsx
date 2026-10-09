@@ -49,11 +49,20 @@ export default function TouristPublicView({ tourist: t, profile: p }: Props) {
     <div className="container-page py-8">
       <header className="mb-6 flex flex-wrap items-start gap-4">
         <span
-          className="flex items-center justify-center w-16 h-16 rounded-full text-2xl font-semibold text-paper shrink-0"
+          className="flex items-center justify-center w-16 h-16 rounded-full text-2xl font-semibold text-paper shrink-0 overflow-hidden"
           style={{ backgroundColor: '#134E4A' }}
           aria-hidden="true"
         >
-          {p.full_name.charAt(0)}
+          {p.avatar_url ? (
+            <img
+              src={p.avatar_url}
+              alt=""
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            p.full_name.charAt(0)
+          )}
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

@@ -802,13 +802,22 @@ function BrowseContent() {
                     aria-expanded={expanded}
                     className="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-paper transition-colors duration-150"
                   >
-                    <span
-                      className="flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold text-paper shrink-0"
-                      style={{ backgroundColor: isBuddy ? avatarColor(b.id) : '#0F0F0F' }}
-                      aria-hidden="true"
-                    >
-                      {b.full_name.charAt(0)}
-                    </span>
+                  <span
+                    className="flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold text-paper shrink-0 overflow-hidden"
+                    style={{ backgroundColor: isBuddy ? avatarColor(b.id) : '#0F0F0F' }}
+                    aria-hidden="true"
+                  >
+                    {b.avatar_url ? (
+                      <img
+                        src={b.avatar_url}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      b.full_name.charAt(0)
+                    )}
+                  </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
                         <span>{b.full_name}</span>

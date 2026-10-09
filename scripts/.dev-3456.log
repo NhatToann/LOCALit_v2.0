@@ -62,3 +62,4 @@
  GET /login 200 in 60ms (next.js: 10ms, proxy.ts: 4ms, application-code: 46ms)
  GET / 200 in 76ms (next.js: 13ms, proxy.ts: 3ms, application-code: 61ms)
 ✓ Compiled in 162ms
+  Reload env: .env.local

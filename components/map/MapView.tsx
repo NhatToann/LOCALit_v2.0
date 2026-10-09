@@ -19,6 +19,16 @@ interface BuddyPin {
   specialties: string[]
   rating_avg: number | null
   hourly_rate: number | null
+  avatar_url: string | null
+}
+
+interface TouristPin {
+  id: string
+  name: string
+  lat: number
+  lng: number
+  is_online: boolean
+  avatar_url: string | null
 }
 
 interface Props {
@@ -94,6 +104,32 @@ function livePulseIcon(): L.DivIcon {
   return icon
 }
 
+/**
+ * Avatar map pin — circular image with a colored ring matching the
+ * role. Falls back to the flat letter pin when no avatar is set.
+ * The image is loaded from the same domain so the bucket's CORS
+ * /storage/v1/object/public path is required (handled by Supabase
+ * public bucket config).
+ */
+function avatarIcon(letter: string, bg: string, avatarUrl: string | null): L.DivIcon {
+  const key = `avatar:${letter}:${bg}:${avatarUrl ?? 'none'}`
+  const cached = ICON_CACHE.get(key)
+  if (cached) return cached
+  const ring = bg
+  const inner = avatarUrl
+    ? `<img src="${avatarUrl}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`
+    : `<span style="color:#ECFDF5;font-weight:600;font-size:11px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;letter-spacing:-0.02em;">${letter}</span>`
+  const icon = L.divIcon({
+    html: `<div class="localit-marker-pin" style="width:32px;height:32px;background:${ring};border:2px solid #FFFFFF;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,0.18);overflow:hidden;">${inner}</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+    className: 'localit-marker',
+  })
+  ICON_CACHE.set(key, icon)
+  return icon
+}
+
 export default function MapView({ userLocation, height = '100%', showSelfMarker = true, hasGpsFix = false, onSelectBuddy, liveLocations = [], selfLiveOverride = false, selfUserId = null }: Props) {
   const [buddies, setBuddies] = useState<BuddyPin[]>([])
   const [tourists, setTourists] = useState<BuddyPin[]>([])
@@ -123,7 +159,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
       const { data: buddyData } = await excludeSelf(
         supabase
           .from('safe_buddies')
-          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, profile:safe_profiles(full_name, is_online)')
+          .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, profile:safe_profiles(full_name, is_online, avatar_url)')
           .not('latitude', 'is', null)
           .not('longitude', 'is', null),
       ).abortSignal(abortCtrl.signal)
@@ -142,6 +178,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
             specialties: b.specialties ?? [],
             rating_avg: null,
             hourly_rate: b.hourly_rate ?? null,
+            avatar_url: b.profile?.avatar_url ?? null,
           }))
         setBuddies(pins)
       }
@@ -154,16 +191,16 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         const { data: tStatic } = await excludeSelf(
           supabase
             .from('safe_tourists_with_location')
-            .select('id, location_city, latitude, longitude, profile:safe_profiles(full_name, is_online)')
+            .select('id, location_city, latitude, longitude, profile:safe_profiles(full_name, is_online, avatar_url)')
             .not('latitude', 'is', null)
             .not('longitude', 'is', null),
         ).abortSignal(abortCtrl.signal)
 
         // location_updates: tourists' live positions, anon can only read buddy-owned rows.
-        // safe_profiles gives anon access to full_name/role/is_online (no PII).
+        // safe_profiles gives anon access to full_name/role/is_online/avatar_url (no PII).
         const { data: locs } = await supabase
           .from('location_updates')
-          .select('user_id, latitude, longitude, profile:safe_profiles(role, full_name)')
+          .select('user_id, latitude, longitude, profile:safe_profiles(role, full_name, avatar_url)')
           .order('updated_at', { ascending: false })
           .limit(50)
           .abortSignal(abortCtrl.signal)
@@ -189,6 +226,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
               specialties: [],
               rating_avg: null,
               hourly_rate: null,
+              avatar_url: t.profile?.avatar_url ?? null,
             })
           }
           // Live pins fill the gap for tourists whose static row is
@@ -208,6 +246,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
               specialties: [],
               rating_avg: null,
               hourly_rate: null,
+              avatar_url: l.profile?.avatar_url ?? null,
             })
           }
           setTourists(tPins)
@@ -398,7 +437,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
           <Marker
             key={`buddy-${b.id}`}
             position={[b.lat, b.lng]}
-            icon={flatIcon('B', PRIMARY)}
+            icon={avatarIcon('B', PRIMARY, b.avatar_url)}
             zIndexOffset={500}
             eventHandlers={{ click: () => onSelectBuddy?.(b.id) }}
           >
@@ -445,7 +484,7 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         ))}
 
         {tourists.map((t) => (
-          <Marker key={`tourist-${t.id}`} position={[t.lat, t.lng]} icon={flatIcon('T', MUTED)} zIndexOffset={100}>
+          <Marker key={`tourist-${t.id}`} position={[t.lat, t.lng]} icon={avatarIcon('T', MUTED, t.avatar_url)} zIndexOffset={100}>
             <Popup>
               <strong>{t.name}</strong>
               <div style={{ fontSize: 12, color: '#4B5563' }}>Tourist</div>
