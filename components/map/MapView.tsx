@@ -276,15 +276,34 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
     const map = useMap()
     const lastRef = useRef<{ lat: number; lng: number; t: number } | null>(null)
     useEffect(() => {
-      const now = Date.now()
-      const last = lastRef.current
-      const moved = !last ||
-        Math.abs(last.lat - userLocation.lat) > 0.0005 ||
-        Math.abs(last.lng - userLocation.lng) > 0.0005
-      const cooled = !last || now - last.t > 5000
-      if (moved && cooled) {
-        map.flyTo([userLocation.lat, userLocation.lng], map.getZoom(), { animate: true, duration: 0.6 })
-        lastRef.current = { lat: userLocation.lat, lng: userLocation.lng, t: now }
+      try {
+        // Cast to `any` because Leaflet doesn't expose `_mapPane` /
+        // `_loaded` in the public types. These are internal fields
+        // we read defensively before calling invalidateSize() —
+        // when the map is being torn down they can be undefined and
+        // invalidateSize() throws "_leaflet_pos undefined".
+        const m = map as any
+        if (!m._mapPane || !m._loaded) return
+        const now = Date.now()
+        const last = lastRef.current
+        const moved =
+          !last ||
+          Math.abs(last.lat - userLocation.lat) > 0.0005 ||
+          Math.abs(last.lng - userLocation.lng) > 0.0005
+        const cooled = !last || now - last.t > 5000
+        if (moved && cooled) {
+          map.flyTo([userLocation.lat, userLocation.lng], map.getZoom(), {
+            animate: true,
+            duration: 0.6,
+          })
+          lastRef.current = {
+            lat: userLocation.lat,
+            lng: userLocation.lng,
+            t: now,
+          }
+        }
+      } catch {
+        /* map is being torn down */
       }
     }, [map, userLocation.lat, userLocation.lng])
     return null
@@ -314,12 +333,28 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
   function MapResizer() {
     const map = useMap()
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    // 2026-10-10 — defensive wrapper. Leaflet doesn't expose
+    // `_mapPane` / `_loaded` / `_size` in its public types, so we
+    // cast through `any` to read them. These are the fields that
+    // throw "Cannot read properties of undefined (reading
+    // '_leaflet_pos')" when invalidateSize() runs after the map
+    // has been torn down (e.g. user navigates from /focus/[id]
+    // to /chat while a ResizeObserver tick is still queued).
+    const safeInvalidate = (m: any) => {
+      try {
+        if (!m._mapPane || !m._loaded || !m._size) return
+        m.invalidateSize()
+      } catch {
+        /* swallow — map is being torn down */
+      }
+    }
     useEffect(() => {
-      const raf = requestAnimationFrame(() => map.invalidateSize())
-      const t = setTimeout(() => map.invalidateSize(), 200)
+      const m = map as any
+      const raf = requestAnimationFrame(() => safeInvalidate(m))
+      const t = setTimeout(() => safeInvalidate(m), 200)
       const ro = new ResizeObserver(() => {
         if (debounceRef.current !== null) clearTimeout(debounceRef.current)
-        debounceRef.current = setTimeout(() => map.invalidateSize(), 100)
+        debounceRef.current = setTimeout(() => safeInvalidate(m), 100)
       })
       const el = map.getContainer()
       ro.observe(el)
@@ -336,8 +371,9 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
     // Re-fire when buddies finish hydrating — biggest layout shift.
     useEffect(() => {
       if (!loading) {
-        requestAnimationFrame(() => map.invalidateSize())
-        setTimeout(() => map.invalidateSize(), 50)
+        const m = map as any
+        requestAnimationFrame(() => safeInvalidate(m))
+        setTimeout(() => safeInvalidate(m), 50)
       }
     }, [map, loading])
     return null

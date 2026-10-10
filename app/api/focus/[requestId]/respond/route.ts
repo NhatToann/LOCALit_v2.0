@@ -118,27 +118,26 @@ export async function POST(
       } catch {
         /* notifications are best-effort */
       }
-      return NextResponse.json({ ok: true, status: 'declined' })
-    }
-
-    // 2026-10-10: system message — recipient declined.
-    if (focusReq.conversation_id) {
-      try {
-        const { data: recipientProfile } = await supabase
-          .from('safe_profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .maybeSingle()
-        const recipientName = recipientProfile?.full_name ?? 'Your buddy'
-        await supabase.from('messages').insert({
-          conversation_id: focusReq.conversation_id,
-          sender_id: user.id,
-          content: `${recipientName} declined the Focus request`,
-          message_type: 'system',
-        })
-      } catch {
-        /* system message is best-effort */
+      // 2026-10-10: system message — recipient declined.
+      if (focusReq.conversation_id) {
+        try {
+          const { data: recipientProfile } = await supabase
+            .from('safe_profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .maybeSingle()
+          const recipientName = recipientProfile?.full_name ?? 'Your buddy'
+          await supabase.from('messages').insert({
+            conversation_id: focusReq.conversation_id,
+            sender_id: user.id,
+            content: `${recipientName} declined the Focus request`,
+            message_type: 'system',
+          })
+        } catch {
+          /* system message is best-effort */
+        }
       }
+      return NextResponse.json({ ok: true, status: 'declined' })
     }
 
     // --- action === 'accept' ---

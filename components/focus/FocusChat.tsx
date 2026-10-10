@@ -43,6 +43,12 @@ export default function FocusChat({ conversationId, myId, partnerName }: FocusCh
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Local optimistic queue — declared BEFORE send() so the
+  // function's closure binds the live setter. (Originally this
+  // was declared below send() and only worked because React
+  // guarantees the closure runs after the first render — easy to
+  // break in a refactor.)
+  const [localAppends, setLocalAppends] = useState<Message[]>([])
   const lastSentRef = useRef(0)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -73,11 +79,40 @@ export default function FocusChat({ conversationId, myId, partnerName }: FocusCh
 
   const { messages } = useMessageStream(conversationId, initialMessages)
 
-  // Auto-scroll to bottom on new message.
+  // Computed display list. Declared early so the auto-scroll
+  // effect below can reference it.
+  const displayMessages: Message[] = [...messages, ...localAppends]
+
+  // Auto-scroll to bottom on new message. Both the realtime INSERT
+  // (messages.length changes) and the optimistic-insert path
+  // (localAppends.length changes) need to trigger a scroll, otherwise
+  // the sender can drop a new bubble at the bottom of the list while
+  // looking at the top and miss it entirely. rAF defers the scroll
+  // until after the DOM has actually updated (otherwise the new
+  // message's height isn't in scrollHeight yet and we'd yank to the
+  // wrong position).
+  const lastMessageIdRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!scrollRef.current) return
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [messages.length])
+    if (typeof window === 'undefined') return
+    const last = displayMessages[displayMessages.length - 1]
+    if (!last) return
+    // Avoid yanking the user back down when they're scrolling up
+    // to read old messages — only auto-scroll on a brand-new
+    // tail message id. Re-renders that don't add a new tail are
+    // ignored.
+    if (lastMessageIdRef.current === last.id) return
+    lastMessageIdRef.current = last.id
+    const raf = requestAnimationFrame(() => {
+      if (!scrollRef.current) return
+      // Scroll the chat div to the bottom. We do NOT touch the
+      // window scroll position — that was the old "tận footer"
+      // bug where the whole page scrolled because the parent
+      // flex chain lost its min-height constraint for a frame.
+      const el = scrollRef.current
+      el.scrollTop = el.scrollHeight
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [displayMessages.length, localAppends.length, messages.length])
 
   async function send() {
     const content = draft.trim()
@@ -135,7 +170,9 @@ export default function FocusChat({ conversationId, myId, partnerName }: FocusCh
 
   // Local optimistic queue — see comment above. The realtime stream
   // deduplicates against this on the render path.
-  const [localAppends, setLocalAppends] = useState<Message[]>([])
+  // (The state declaration itself is now at the top of the
+  // component so the send() closure binds the live setter without
+  // any temporal-dead-zone surprises.)
   useEffect(() => {
     if (localAppends.length === 0) return
     // Once the realtime stream has absorbed the matching real row
@@ -144,8 +181,6 @@ export default function FocusChat({ conversationId, myId, partnerName }: FocusCh
     const real = new Set(messages.map(sig))
     setLocalAppends((prev) => prev.filter((m) => !real.has(sig(m))))
   }, [messages, localAppends.length])
-
-  const displayMessages: Message[] = [...messages, ...localAppends]
 
   return (
     <div className="flex flex-col h-full bg-focus-surface border-t border-focus-border">
