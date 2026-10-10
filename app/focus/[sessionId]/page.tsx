@@ -144,6 +144,7 @@ export default function FocusSessionPage() {
     toggleMic,
     locationShared,
     locationDenied,
+    liveLocations,
     errorMessage: mediaError,
   } = useFocusAutoMedia({
     enabled: session !== null && me !== null,
@@ -398,6 +399,7 @@ export default function FocusSessionPage() {
           partner={partner}
           shareLocation={locationEnabled}
           liveLocation={liveLocation}
+          liveLocations={liveLocations}
           height={360}
         />
         {showInfo ? (

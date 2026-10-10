@@ -31,6 +31,10 @@ export interface FocusAutoMediaState {
   locationShared: boolean
   /** True when the geolocation permission was denied. */
   locationDenied: boolean
+  /** Other signed-in users sharing their live position. The same
+   *  shape used by the dashboard's `useLiveUserLocations` hook, so
+   *  the focus map can render identical markers. */
+  liveLocations: import('@/hooks/useLiveUserLocations').LiveLocation[]
   /** Any error from the LiveKit handshake (e.g. token failure). */
   errorMessage: string | null
 }
@@ -58,7 +62,7 @@ export function useFocusAutoMedia(opts: {
   const callClientRef = useRef<LiveKitCallClient | null>(null)
   const mountedRef = useRef(true)
 
-  const { selfGranted, selfDenied } = useLiveUserLocations({
+  const { selfGranted, selfDenied, liveLocations } = useLiveUserLocations({
     enabled: enabled && shareLocation && myId !== null,
     selfUserId: myId ?? selfUserId,
   })
@@ -175,6 +179,11 @@ export function useFocusAutoMedia(opts: {
     toggleMic,
     locationShared: selfGranted,
     locationDenied: selfDenied,
+    /** Other signed-in users sharing their live position (same
+     *  shape as the dashboard's `useLiveUserLocations` return).
+     *  Forwarded to the focus map so it can render the same
+     *  "who's broadcasting right now" overlay the dashboard has. */
+    liveLocations,
     errorMessage,
   }
 }

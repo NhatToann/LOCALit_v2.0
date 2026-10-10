@@ -3,39 +3,30 @@
 /**
  * FocusMapLeaflet — the Focus Mode map.
  *
- * 2026-10-10 update: copy of the dashboard's map experience. Uses the
- * shared `useLiveUserLocations` hook so both focus participants and
- * any other tourists broadcasting on the Da Nang map appear as live
- * markers. The dashboard does the same; this brings focus to parity
- * so the user sees the full "who's in Da Nang right now" overlay
- * (per the user's request 2026-10-10).
+ * 2026-10-10 update: copy of the dashboard's map experience. The
+ * parent (app/focus/[sessionId]/page.tsx) already calls
+ * `useFocusAutoMedia`, which in turn calls `useLiveUserLocations` to
+ * power the always-on mic flow. THIS COMPONENT MUST NOT call
+ * `useLiveUserLocations` again — Supabase Realtime throws "cannot
+ * add `postgres_changes` callbacks for … after `subscribe()`" if
+ * two `useEffect`s try to bind the same channel.
  *
- * The page-level parent (app/focus/[sessionId]/page.tsx) calls
- * `useFocusAutoMedia` for the mic and any pre-focus presence
- * concerns; this component owns the location-sharing subscription
- * (mirroring the dashboard's design). The hook returns
- * `liveLocations` for other sharers' positions and `selfGranted`/
- * `selfDenied` for the local user's GPS state — both are passed
- * straight through to <MapView />.
+ * Instead, the parent passes `liveLocations` (and selfGranted /
+ * selfDenied) down via props. The dashboard splits ownership the
+ * same way: the page-level component owns the hook, the inner map
+ * view just receives the data.
  *
- * Why a separate hook call here (and not in the parent):
- *   - The hook's `enabled` flag is wired to `shareLocation`, which
- *     the parent owns via a stateful toggle in the header. If the
- *     parent owned the hook, the toggle UI would have to be lifted
- *     out of the header into a context.
- *   - The dashboard uses the same split (parent renders the toggle,
- *     page-level `useLiveUserLocations`).
- *   - Supabase's Realtime channel `da-nang-live-locations-pg` is
- *     created exactly once per call to `.subscribe()`. The hook
- *     owns its own subscription lifecycle and tears down on unmount,
- *     so two simultaneous FocusMode tabs each get their own channel
- *     without the double-subscribe problem the old design had.
+ * The map renders the same way as the dashboard: local user marker,
+ * buddy pins (Son Tra, Hai Van, etc.), and every other live tourist
+ * currently broadcasting on the Da Nang map. The "Focus with" header
+ * card and the "Sharing live / Location off / …" pill are added on
+ * top to keep the user oriented to the session context.
  */
 
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/utils/supabase/auth'
-import { useLiveUserLocations } from '@/hooks/useLiveUserLocations'
+import type { LiveLocation } from '@/hooks/useLiveUserLocations'
 import type { Profile } from '@/lib/types'
 
 const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
@@ -53,14 +44,16 @@ interface FocusMapLeafletProps {
   /** When true, broadcast the user's location (mic-style toggle). */
   shareLocation: boolean
   /**
-   * Self location state owned by the parent (e.g. useFocusAutoMedia
-   * already wires geolocation for the mic flow). When the parent
-   * has a real GPS fix the dashboard pattern uses that as the
-   * fallback, otherwise the focus map's own `useLiveUserLocations`
-   * hook is the source of truth. Either way the dashboard parity
-   * is preserved.
+   * Self location state owned by the parent (useFocusAutoMedia
+   * already wires geolocation for the always-on mic flow).
    */
   liveLocation: LiveLocationState
+  /**
+   * Other signed-in users sharing their live position. Sourced
+   * from the parent's `useLiveUserLocations` hook so we never
+   * double-subscribe the `da-nang-live-locations-pg` channel.
+   */
+  liveLocations: LiveLocation[]
   height?: number
 }
 
@@ -69,17 +62,9 @@ export default function FocusMapLeaflet({
   partner,
   shareLocation,
   liveLocation,
+  liveLocations,
   height = 360,
 }: FocusMapLeafletProps) {
-  // Use the same hook the dashboard uses so the focus map shows
-  // every other live tourist + every static buddy pin (the
-  // latter is rendered by MapView itself via safe_buddies / static
-  // tourist tables).
-  const { liveLocations, selfGranted, selfDenied } = useLiveUserLocations({
-    enabled: shareLocation,
-    selfUserId: me?.id ?? null,
-  })
-
   // Own GPS fix for the "you are here" marker. Mirrors the
   // dashboard's pattern: navigator.geolocation.watchPosition sets
   // the visible user position even when `shareLocation` is off (so
@@ -126,6 +111,8 @@ export default function FocusMapLeaflet({
     }
   }, [shareLocation, liveLocation.selfGranted, partner?.id])
 
+  const selfLiveOverride = shareLocation && liveLocation.selfGranted
+
   return (
     <div
       className="relative"
@@ -136,15 +123,8 @@ export default function FocusMapLeaflet({
       <MapView
         userLocation={userLocation}
         height="100%"
-        hasGpsFix={hasGpsFix || selfGranted || liveLocation.selfGranted}
-        selfLiveOverride={
-          // Show the broadcaster's pulsing live marker whenever the
-          // user is actively sharing — either via this hook
-          // (shareLocation on) or the parent (liveLocation.selfGranted
-          // is already true from useFocusAutoMedia). Otherwise show
-          // the static self marker.
-          (shareLocation && selfGranted) || (shareLocation && liveLocation.selfGranted)
-        }
+        hasGpsFix={hasGpsFix || selfLiveOverride}
+        selfLiveOverride={selfLiveOverride}
         selfUserId={me?.id ?? null}
         liveLocations={liveLocations}
       />
@@ -165,30 +145,30 @@ export default function FocusMapLeaflet({
       <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-1">
         <span
           className={`inline-flex items-center gap-1.5 px-2 py-1 text-[11px] rounded-sm border ${
-            shareLocation && (selfGranted || liveLocation.selfGranted)
+            selfLiveOverride
               ? 'bg-success-bg text-success border-success'
-              : shareLocation && (selfDenied || liveLocation.selfDenied)
+              : shareLocation && liveLocation.selfDenied
                 ? 'bg-warning-bg text-warning border-warning'
                 : 'bg-focus-surface text-focus-muted border-focus-border'
           }`}
         >
           <span
             className={`inline-block w-1.5 h-1.5 rounded-full ${
-              shareLocation && (selfGranted || liveLocation.selfGranted)
+              selfLiveOverride
                 ? 'bg-success animate-pulse'
-                : shareLocation && (selfDenied || liveLocation.selfDenied)
+                : shareLocation && liveLocation.selfDenied
                   ? 'bg-warning'
                   : 'bg-focus-muted'
             }`}
             aria-hidden="true"
           />
-          {shareLocation
-            ? selfGranted || liveLocation.selfGranted
-              ? 'Sharing live'
-              : selfDenied || liveLocation.selfDenied
-                ? 'Location off'
-                : 'Locating…'
-            : 'Location paused'}
+          {selfLiveOverride
+            ? 'Sharing live'
+            : shareLocation && liveLocation.selfDenied
+              ? 'Location off'
+              : shareLocation
+                ? 'Locating…'
+                : 'Location paused'}
         </span>
       </div>
     </div>
