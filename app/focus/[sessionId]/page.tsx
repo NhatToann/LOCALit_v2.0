@@ -1,17 +1,45 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+/**
+ * /focus/[sessionId] — Focus Mode session page.
+ *
+ * 2026-10-10 rewrite. See `docs/plans/2026-10-10-focus-mode-rewrite.md`
+ * for the full design.
+ *
+ * Layout (top → bottom):
+ *   - Header with partner avatar, elapsed timer, mic / location / call
+ *     / end controls. No back button — the only exit is End Focus or
+ *     close the browser.
+ *   - Live map (Leaflet, copy of dashboard's MapView) showing both
+ *     users plus the Da Nang context.
+ *   - Embedded chat with bubble UI (uses the same `messages` table as
+ *     /chat so the two surfaces see the same data).
+ *
+ * On mount the hook auto-publishes the mic and starts sharing the
+ * location (per user decision 2026-10-10). The mic icon toggles
+ * mute; the location icon toggles sharing. The Call button starts
+ * the same LiveKit call flow as the chat page (rings the partner).
+ */
+
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, MapPin, MessageCircle, Info, Phone, PhoneOff } from 'lucide-react'
+import {
+  Mic,
+  MicOff,
+  MapPin,
+  MapPinOff,
+  Phone,
+  PhoneOff,
+  X,
+  Info,
+} from 'lucide-react'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { FocusSession, Profile, Conversation } from '@/lib/types'
-import FocusMap from '@/components/focus/FocusMap'
-import FocusItinerary from '@/components/focus/FocusItinerary'
+import { useFocusAutoMedia } from '@/hooks/useFocusAutoMedia'
+import FocusMapLeaflet from '@/components/focus/FocusMapLeaflet'
+import FocusChat from '@/components/focus/FocusChat'
 import { Avatar } from '@/components/ui/Avatar'
-import { useActiveCall } from '@/lib/realtime/useActiveCallStore'
-
-type Tab = 'itinerary' | 'chat' | 'info'
 
 export default function FocusSessionPage() {
   const router = useRouter()
@@ -22,17 +50,17 @@ export default function FocusSessionPage() {
   const [partner, setPartner] = useState<Profile | null>(null)
   const [session, setSession] = useState<FocusSession | null>(null)
   const [conversation, setConversation] = useState<Conversation | null>(null)
-  const [itinerary, setItinerary] = useState<{ id: string; title: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('itinerary')
   const [elapsed, setElapsed] = useState<string>('00:00')
   const [ending, setEnding] = useState(false)
-  const [hasActiveCall, setHasActiveCall] = useState<boolean>(false)
+  const [showInfo, setShowInfo] = useState(false)
+  // Location share is on by default (per 2026-10-10 design). The
+  // header toggle flips this; both the auto-media hook and the map
+  // read the same value so the UI doesn't drift.
+  const [locationEnabled, setLocationEnabled] = useState(true)
 
-  const callClient = useActiveCall()
-
-  // Load session
+  // Load session + partner + me.
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -60,7 +88,7 @@ export default function FocusSessionPage() {
         setSession(s)
         const partnerId = s.user_a_id === user.id ? s.user_b_id : s.user_a_id
 
-        const [{ data: meRow }, { data: pRow }, { data: conv }, { data: it }] =
+        const [{ data: meRow }, { data: pRow }, { data: conv }] =
           await Promise.all([
             supabase
               .from('safe_profiles')
@@ -79,19 +107,11 @@ export default function FocusSessionPage() {
                   .eq('id', s.conversation_id)
                   .maybeSingle()
               : Promise.resolve({ data: null }),
-            s.itinerary_id
-              ? supabase
-                  .from('itineraries')
-                  .select('id, title')
-                  .eq('id', s.itinerary_id)
-                  .maybeSingle()
-              : Promise.resolve({ data: null }),
           ])
         if (cancelled) return
         setMe(meRow as Profile | null)
         setPartner(pRow as Profile | null)
         setConversation(conv as Conversation | null)
-        setItinerary((it as { id: string; title: string } | null) ?? null)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -115,10 +135,28 @@ export default function FocusSessionPage() {
     return () => clearInterval(id)
   }, [session])
 
-  // Has a live voice call?
-  useEffect(() => {
-    setHasActiveCall(!!callClient)
-  }, [callClient])
+  // Auto-media: mic + location on by default. The hook owns the
+  // single Realtime subscription; the map reads the same data via
+  // the liveLocation prop below.
+  const {
+    micState,
+    micMuted,
+    toggleMic,
+    locationShared,
+    locationDenied,
+    errorMessage: mediaError,
+  } = useFocusAutoMedia({
+    enabled: session !== null && me !== null,
+    conversationId: conversation?.id ?? null,
+    myId: me?.id ?? null,
+    myName: me?.full_name ?? 'You',
+    shareLocation: locationEnabled,
+    selfUserId: me?.id ?? null,
+  })
+  const liveLocation = useMemo(
+    () => ({ selfGranted: locationShared, selfDenied: locationDenied }),
+    [locationShared, locationDenied],
+  )
 
   const endFocus = useCallback(async () => {
     if (!session || ending) return
@@ -135,40 +173,71 @@ export default function FocusSessionPage() {
         setError(`Could not end session: ${j.message ?? j.error ?? res.statusText}`)
         return
       }
-      router.replace('/chat')
-    } finally {
+      // Back to chat is the only legal exit. The user has to confirm
+      // the End button, so we route them to /chat where their
+      // session is now in the history list. Use window.location
+      // for a hard navigation — router.push from a [param] route
+      // to a flat route in the App Router can silently fail to
+      // update the URL when a beforeunload guard is also mounted.
+      // The beforeunload handler is set up to short-circuit
+      // (return early) when ending===true, so this navigation
+      // bypasses the guard without an extra confirm.
+      window.location.assign('/chat')
+      // Intentionally do NOT setEnding(false). Keeping `ending=true`
+      // through the unmount means the beforeunload guard sees
+      // `if (ending) return` and lets the navigation through
+      // without prompting the user with a second "leave site?"
+      // confirm.
+    } catch (err) {
+      setError((err as Error)?.message ?? 'Could not end session.')
       setEnding(false)
     }
-  }, [session, ending, router])
+  }, [session, ending])
 
-  async function startCall() {
-    if (!conversation || !partner || !me) {
-      setError('No conversation is linked to this Focus session.')
-      return
+  // Defensive: prevent accidental navigation away. The user
+  // explicitly asked for "you can't exit except by ending the
+  // session or closing the browser" — we add a beforeunload
+  // confirm so a stray tab-close doesn't lose the session, AND we
+  // a PopState listener so the browser back button can't
+  // silently leave. (Esc still works because the user can decide
+  // to close the tab — they own that choice.)
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (ending) return
+      e.preventDefault()
+      // Modern browsers ignore the return value and show their own
+      // generic message; setting returnValue is the standardized
+      // way to opt in.
+      e.returnValue = ''
+      return ''
     }
-    setError(null)
-    try {
-      // Lazy import to avoid SSR
-      const { startLiveKitCall } = await import('@/lib/webrtc/livekit-client')
-      const localStream: MediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const client = await startLiveKitCall({
-        myId: me.id,
-        roomName: `call:${conversation.id}`,
-        participantName: me.full_name,
-        video: false,
-        onState: () => undefined,
-        onRemoteStream: () => undefined,
-        onLocalStream: () => undefined,
-      })
-      // Publish the mic track we just acquired.
-      await client.publishMic()
-      setHasActiveCall(true)
-      // Tidy: stop our temp stream tracks; LiveKit now owns them.
-      localStream.getTracks().forEach((t) => t.stop())
-    } catch (err) {
-      setError(`Call failed: ${(err as Error).message}`)
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [ending])
+
+  // After the user explicitly ends the session, remove the
+  // beforeunload guard so the navigation to /chat can complete
+  // without the browser showing a second "leave site?" prompt.
+  // We do this by re-running the effect with ending=true (the
+  // guard already short-circuits when ending is true, so the
+  // navigation can proceed).
+
+  const partnerName = partner?.full_name ?? 'Buddy'
+  const myName = me?.full_name ?? 'You'
+
+  // Mic status → visual state for the header pill.
+  const micStatus = useMemo(() => {
+    if (micState === 'idle' || micState === 'calling' || micState === 'connecting') {
+      return { text: 'Connecting…', tone: 'warning' as const }
     }
-  }
+    if (micState === 'failed') {
+      return { text: 'Mic off', tone: 'danger' as const }
+    }
+    if (micMuted) {
+      return { text: 'Muted', tone: 'warning' as const }
+    }
+    return { text: 'Mic on', tone: 'success' as const }
+  }, [micState, micMuted])
 
   if (loading) {
     return (
@@ -198,176 +267,176 @@ export default function FocusSessionPage() {
     )
   }
 
-  const partnerName = partner?.full_name ?? 'Buddy'
-
   return (
-    <main className="min-h-screen bg-focus-bg">
-      {/* Header — solid color, no gradient */}
-      <header className="bg-focus-primary text-white">
-        <div className="container-page py-4 flex items-center justify-between gap-3">
+    <main className="min-h-screen bg-focus-bg flex flex-col">
+      {/* Header — solid color, no gradient, no back button */}
+      <header className="bg-focus-primary text-white flex-shrink-0">
+        <div className="container-page py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Link
-              href="/chat"
-              aria-label="Back to chat"
-              className="text-white hover:text-focus-primary-light"
-            >
-              <ArrowLeft size={18} aria-hidden="true" />
-            </Link>
             <Avatar
               name={partnerName}
               src={partner?.avatar_url ?? null}
               size="sm"
             />
             <div className="min-w-0">
-              <h1 className="text-base font-semibold truncate">Focus with {partnerName}</h1>
+              <h1 className="text-base font-semibold truncate">
+                Focus with {partnerName}
+              </h1>
               <p className="text-xs text-focus-primary-light tabular-nums">
-                {elapsed} · Da Nang
+                {elapsed} · {micStatus.text} · Da Nang
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Mic toggle (always-on mic). */}
+            <button
+              type="button"
+              onClick={toggleMic}
+              disabled={micState !== 'connected'}
+              aria-pressed={micMuted}
+              aria-label={
+                micMuted ? 'Unmute microphone' : 'Mute microphone'
+              }
+              title={
+                micState !== 'connected'
+                  ? 'Waiting for LiveKit…'
+                  : micMuted
+                    ? 'Unmute microphone'
+                    : 'Mute microphone'
+              }
+              className={`h-9 w-9 inline-flex items-center justify-center rounded-sm border ${
+                micMuted
+                  ? 'bg-warning text-ink border-warning'
+                  : 'bg-white text-focus-primary border-white hover:bg-focus-primary-light hover:text-white'
+              } disabled:opacity-50`}
+            >
+              {micMuted ? (
+                <MicOff size={16} aria-hidden="true" />
+              ) : (
+                <Mic size={16} aria-hidden="true" />
+              )}
+            </button>
+            {/* Location share toggle. */}
+            <button
+              type="button"
+              onClick={() => setLocationEnabled((v) => !v)}
+              aria-pressed={!locationEnabled}
+              aria-label={
+                locationEnabled ? 'Pause live location sharing' : 'Resume live location sharing'
+              }
+              title={
+                locationEnabled
+                  ? locationDenied
+                    ? 'Location permission was denied'
+                    : 'Pause live location sharing'
+                  : 'Resume live location sharing'
+              }
+              className={`h-9 w-9 inline-flex items-center justify-center rounded-sm border ${
+                locationEnabled && !locationDenied
+                  ? 'bg-white text-focus-primary border-white hover:bg-focus-primary-light hover:text-white'
+                  : 'bg-transparent text-white border-white hover:bg-focus-primary-light'
+              }`}
+            >
+              {locationEnabled && !locationDenied ? (
+                <MapPin size={16} aria-hidden="true" />
+              ) : (
+                <MapPinOff size={16} aria-hidden="true" />
+              )}
+            </button>
+            {/* Voice call — same flow as the chat page. */}
             {conversation ? (
-              <button
-                type="button"
-                onClick={() => void startCall()}
-                disabled={hasActiveCall}
-                title={hasActiveCall ? 'Call in progress' : 'Call buddy'}
-                className="h-9 w-9 inline-flex items-center justify-center rounded-sm bg-white text-focus-primary border border-white hover:bg-focus-primary-light hover:text-white disabled:opacity-50"
-                aria-label={hasActiveCall ? 'Call in progress' : 'Call buddy'}
+              <Link
+                href={`/chat?conv=${conversation.id}&call=1`}
+                aria-label="Open chat to start a voice call"
+                title="Voice call"
+                className="h-9 w-9 inline-flex items-center justify-center rounded-sm bg-white text-focus-primary border border-white hover:bg-focus-primary-light hover:text-white"
               >
-                {hasActiveCall ? <PhoneOff size={16} aria-hidden="true" /> : <Phone size={16} aria-hidden="true" />}
-              </button>
+                <Phone size={16} aria-hidden="true" />
+              </Link>
             ) : null}
+            {/* Info / session details. */}
+            <button
+              type="button"
+              onClick={() => setShowInfo((v) => !v)}
+              aria-pressed={showInfo}
+              aria-label="Show session info"
+              title="Session info"
+              className={`h-9 w-9 inline-flex items-center justify-center rounded-sm border ${
+                showInfo
+                  ? 'bg-focus-primary-light text-white border-focus-primary-light'
+                  : 'bg-transparent text-white border-white hover:bg-focus-primary-light'
+              }`}
+            >
+              <Info size={16} aria-hidden="true" />
+            </button>
+            {/* End session. */}
             <button
               type="button"
               onClick={() => void endFocus()}
               disabled={ending}
-              className="h-9 px-3 text-sm font-medium rounded-sm bg-white text-focus-primary border border-white hover:bg-focus-primary-light hover:text-white disabled:opacity-50"
+              className="h-9 px-3 text-sm font-medium rounded-sm bg-white text-focus-primary border border-white hover:bg-focus-primary-light hover:text-white disabled:opacity-50 inline-flex items-center gap-1"
             >
               {ending ? 'Ending…' : 'End Focus'}
             </button>
           </div>
         </div>
-      </header>
-
-      {error ? (
-        <div className="container-page py-2">
-          <p className="text-sm text-danger" role="alert">
-            {error}
-          </p>
-        </div>
-      ) : null}
-
-      {/* Live Map */}
-      <section className="bg-focus-surface border-y border-focus-border">
-        <FocusMap
-          userAId={me?.id ?? ''}
-          userBId={partner?.id ?? ''}
-          userA={me}
-          userB={partner}
-        />
-      </section>
-
-      {/* Tabs */}
-      <nav className="bg-focus-surface border-b border-focus-border" aria-label="Focus sections">
-        <div className="container-page flex gap-2 overflow-x-auto">
-          {([
-            { id: 'itinerary', label: 'Itinerary', icon: MapPin },
-            { id: 'chat', label: 'Chat', icon: MessageCircle },
-            { id: 'info', label: 'Info', icon: Info },
-          ] as { id: Tab; label: string; icon: typeof MapPin }[]).map(({ id, label, icon: Icon }) => {
-            const active = tab === id
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                aria-selected={active}
-                role="tab"
-                className={`h-12 px-4 text-sm font-medium border-b-2 inline-flex items-center gap-1 ${
-                  active
-                    ? 'border-focus-primary text-focus-primary'
-                    : 'border-transparent text-focus-muted hover:text-focus-text'
-                }`}
-              >
-                <Icon size={14} aria-hidden="true" />
-                {label}
-              </button>
-            )
-          })}
-        </div>
-      </nav>
-
-      {/* Tab content */}
-      <div className="container-page py-6">
-        {tab === 'itinerary' ? (
-          <FocusItinerary
-            sessionId={session.id}
-            userId={me?.id ?? ''}
-            initialItineraryId={session.itinerary_id}
-            onItineraryUpdated={(id) => {
-              setSession((prev) => (prev ? { ...prev, itinerary_id: id } : prev))
-            }}
-          />
-        ) : null}
-
-        {tab === 'chat' ? (
-          <div className="bg-focus-surface border border-focus-border rounded-sm p-5">
-            {conversation ? (
-              <Link
-                href={`/chat?conv=${conversation.id}`}
-                className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-focus-primary text-white border border-focus-primary hover:bg-focus-primary-dark"
-              >
-                <MessageCircle size={14} aria-hidden="true" /> Open chat
-              </Link>
-            ) : (
-              <p className="text-sm text-focus-muted">
-                No conversation is linked to this Focus session.
-              </p>
-            )}
-            {itinerary ? (
-              <p className="text-xs text-focus-muted mt-3">
-                Itinerary: {itinerary.title}
-              </p>
-            ) : null}
+        {(error || mediaError) ? (
+          <div className="container-page py-2">
+            <p className="text-xs text-focus-primary-light" role="alert">
+              {mediaError ?? error}
+            </p>
           </div>
         ) : null}
+      </header>
 
-        {tab === 'info' ? (
-          <div className="bg-focus-surface border border-focus-border rounded-sm p-5">
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+      {/* Body: map (top) + chat (bottom). The flex-col + flex-1 on the
+          chat container means the map takes its declared height and
+          the chat fills the rest of the viewport. */}
+      <div className="flex-1 flex flex-col min-h-0">
+        <FocusMapLeaflet
+          me={me}
+          partner={partner}
+          shareLocation={locationEnabled}
+          liveLocation={liveLocation}
+          height={360}
+        />
+        {showInfo ? (
+          <div className="bg-focus-surface border-t border-focus-border px-4 py-3 text-sm text-focus-text">
+            <p className="text-xs text-focus-muted">Session details</p>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
               <div>
-                <dt className="text-xs text-focus-muted">Started at</dt>
-                <dd className="text-focus-text">
-                  {new Date(session.started_at).toLocaleString('en-US')}
-                </dd>
+                <dt className="text-[10px] uppercase tracking-wide text-focus-muted">You</dt>
+                <dd>{myName}</dd>
               </div>
               <div>
-                <dt className="text-xs text-focus-muted">Duration</dt>
-                <dd className="text-focus-text tabular-nums">{elapsed}</dd>
+                <dt className="text-[10px] uppercase tracking-wide text-focus-muted">Partner</dt>
+                <dd>{partnerName}</dd>
               </div>
               <div>
-                <dt className="text-xs text-focus-muted">Partner</dt>
-                <dd className="text-focus-text">{partnerName}</dd>
+                <dt className="text-[10px] uppercase tracking-wide text-focus-muted">Started</dt>
+                <dd>{new Date(session.started_at).toLocaleString('en-US')}</dd>
               </div>
               <div>
-                <dt className="text-xs text-focus-muted">Itinerary</dt>
-                <dd className="text-focus-text">
-                  {itinerary ? (
-                    <Link
-                      href={`/itinerary/${itinerary.id}`}
-                      className="text-focus-primary hover:text-focus-primary-dark"
-                    >
-                      {itinerary.title}
-                    </Link>
-                  ) : (
-                    <span className="text-focus-muted">None attached</span>
-                  )}
-                </dd>
+                <dt className="text-[10px] uppercase tracking-wide text-focus-muted">Duration</dt>
+                <dd className="tabular-nums">{elapsed}</dd>
               </div>
             </dl>
           </div>
         ) : null}
+        <div className="flex-1 min-h-0">
+          {conversation ? (
+            <FocusChat
+              conversationId={conversation.id}
+              myId={me?.id ?? ''}
+              partnerName={partnerName}
+            />
+          ) : (
+            <div className="bg-focus-surface border-t border-focus-border px-4 py-6 text-sm text-focus-muted text-center">
+              <PhoneOff size={16} className="inline mr-2 align-middle" aria-hidden="true" />
+              No conversation is linked to this Focus session.
+            </div>
+          )}
+        </div>
       </div>
     </main>
   )
