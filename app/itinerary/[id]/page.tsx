@@ -74,7 +74,9 @@ export default function ItineraryDetailPage() {
     const sb = createClient()
     const { data: { user } } = await sb.auth.getUser()
     if (!user) {
-      router.push(`/login?redirect=/itinerary/${id}`)
+      // Hard navigation — a hung router.push leaves the page spinning
+      // with no way out (see notes in app/likes/page.tsx).
+      window.location.assign(`/login?redirect=/itinerary/${id}`)
       return
     }
     setCurrentUser({ id: user.id } as Profile)

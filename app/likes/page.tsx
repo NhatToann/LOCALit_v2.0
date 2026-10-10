@@ -47,7 +47,10 @@ export default function LikesPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (cancelled) return
       if (!user) {
-        router.replace('/login?redirectTo=/likes')
+        // Hard navigation: the router's client-side transitions do not
+        // complete on this deployment, and a hung redirect leaves
+        // authChecked false, so the spinner below never clears.
+        window.location.assign('/login?redirectTo=/likes')
         return
       }
       const { data: profile } = await supabase
@@ -57,12 +60,15 @@ export default function LikesPage() {
         .maybeSingle()
       if (cancelled) return
       if (profile?.role !== 'buddy') {
-        router.replace('/swipe')
+        window.location.assign('/swipe')
         return
       }
       setAuthChecked(true)
     }
-    void bootstrap()
+    // Guarded so a throw can never strand the spinner.
+    void bootstrap().catch(() => {
+      if (!cancelled) setAuthChecked(true)
+    })
     return () => { cancelled = true }
   }, [router])
 

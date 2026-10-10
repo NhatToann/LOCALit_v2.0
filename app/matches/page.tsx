@@ -86,7 +86,9 @@ export default function MatchesPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (cancelled) return
       if (!user) {
-        router.replace('/login?redirectTo=/matches')
+        // Hard navigation — a hung router.replace leaves the page
+        // spinning with no way out (see notes in app/likes/page.tsx).
+        window.location.assign('/login?redirectTo=/matches')
         return
       }
       const { data: profile } = await supabase

@@ -22,7 +22,9 @@ export default function ItineraryListPage() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      router.push('/login?redirect=/itinerary')
+      // Hard navigation — a hung router.push leaves the page spinning
+      // with no way out (see notes in app/likes/page.tsx).
+      window.location.assign('/login?redirect=/itinerary')
       return
     }
     const { data, error } = await supabase
