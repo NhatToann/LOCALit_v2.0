@@ -139,6 +139,15 @@ const main = async () => {
   )
   expect('cancel-after-accept returns already_handled', cancelLate.json.already_handled === true, { status: cancelLate.status, body: cancelLate.json })
 
+  // 3b) End the session so the rest of the test can issue new requests
+  const sessionId = accept.json.session.id
+  const endRes = await postWithCookies(
+    `${BASE}/api/focus/${sessionId}/end`,
+    { reason: 'completed' },
+    lanCookies,
+  )
+  expect('end active session', endRes.status === 200, { status: endRes.status, body: endRes.json })
+
   // 4) Decline path on a fresh request
   const req2 = await postWithCookies(
     `${BASE}/api/focus/request`,

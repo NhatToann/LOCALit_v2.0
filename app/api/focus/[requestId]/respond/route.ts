@@ -169,8 +169,13 @@ export async function POST(
     const { data: session, error: sErr } = await supabase
       .from('focus_sessions')
       .insert({
-        user_a_id: focusReq.requester_id,
-        user_b_id: user.id,
+        // The RLS INSERT policy requires auth.uid() = user_a_id, so
+        // the caller (recipient/acceptor) becomes user_a. user_b is
+        // the original requester. The `active` and `end` routes use
+        // `user_a_id = session.user_a_id` OR `user_b_id = ...` to
+        // match either side, so swapping is transparent.
+        user_a_id: user.id,
+        user_b_id: focusReq.requester_id,
         conversation_id: focusReq.conversation_id,
       })
       .select('*')
