@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/auth'
+import { readUserIdFromToken } from '@/utils/supabase/client-binding'
 
 export interface AuthUser {
   userId: string
@@ -16,63 +17,166 @@ export interface AuthUser {
 }
 
 /**
+ * Module-level cache + subscriber set.
+ *
+ * WHY (2026-10-10)
+ * `useAuthUser` is mounted SEVEN times on a single page: AuthAwareHeader,
+ * GlobalIncomingCallWatcher, GlobalOnlineHeartbeat, GlobalPresenceMount,
+ * GlobalFocusRequestPopover, GlobalMessagePopover, and AppShell itself
+ * (for the `data-role` attribute on <main>). Each mount ran its own
+ * effect and issued its own identical `profiles` query, so one
+ * navigation to /tourists/<id> fired 20 identical requests inside a few
+ * seconds.
+ *
+ * That storm was not just wasteful. The profile page mounts
+ * `ConnectButton`, which has a hard 5-second window before its query has
+ * to resolve; buried under 20 competing requests the `connections`
+ * SELECT kept losing the connection pool, the component stayed on
+ * "Checking connection status" forever, and the notification's
+ * "Tap to review and respond" had nothing to land on.
+ *
+ * A shared cache collapses all seven mounts onto ONE request and one
+ * shared subscription. RAM goes down too — one timer, one listener set,
+ * one result object per page session instead of seven.
+ */
+type Listener = (user: AuthUser | null) => void
+
+let cached: AuthUser | null = null
+/** `undefined` = never loaded; `null` = loaded, signed out. */
+let resolved = false
+let inflight: Promise<AuthUser | null> | null = null
+const listeners = new Set<Listener>()
+
+/**
+ * The `onAuthStateChange` subscription and the `localit-auth-changed`
+ * listener are registered ONCE for the whole page session, not once per
+ * consumer. Both are torn down only after the LAST consumer unmounts.
+ */
+let authBound = false
+let boundSub: { data: { subscription: { unsubscribe: () => void } } } | null = null
+
+function publish(user: AuthUser | null) {
+  cached = user
+  resolved = true
+  for (const fn of listeners) {
+    try {
+      fn(user)
+    } catch {
+      /* a broken subscriber must not stop the others */
+    }
+  }
+}
+
+async function fetchProfile(userId: string): Promise<AuthUser | null> {
+  try {
+    const supabase = createClient()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, role, avatar_url')
+      .eq('id', userId)
+      .single()
+
+    if (!profile || (profile.role !== 'tourist' && profile.role !== 'buddy')) {
+      return null
+    }
+    return {
+      userId,
+      role: profile.role,
+      fullName: profile.full_name ?? undefined,
+      avatarUrl: profile.avatar_url ?? undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
+function ensureLoaded() {
+  // One in-flight request shared by every subscriber. Without this guard
+  // seven mounts racing on first paint produced seven identical queries.
+  if (inflight) return inflight
+
+  inflight = (async () => {
+    const myId = readUserIdFromToken()
+    // CRITICAL: on sign-out (or when the session cookie is cleared) there
+    // is no id. The old code left the previous user's state in place
+    // forever, so AuthAwareHeader kept rendering the signed-in nav on
+    // /login and GlobalOnlineHeartbeat kept firing `set_online_status`
+    // with no session -> 401 on every beat. We must actively CLEAR.
+    if (!myId) {
+      publish(null)
+      return null
+    }
+    const user = await fetchProfile(myId)
+    publish(user)
+    return user
+  })().finally(() => {
+    inflight = null
+  })
+
+  return inflight
+}
+
+/**
+ * Invalidates the cache and re-resolves. Called on any auth event so a
+ * sign-in / sign-out / token refresh updates every consumer at once.
+ */
+function reload() {
+  resolved = false
+  cached = null
+  void ensureLoaded()
+}
+
+/**
  * Hook returning the currently authenticated user's id/role/name.
- * Shared by AuthAwareHeader and IncomingCallWatcher so both see the same
- * source of truth without duplicating the onAuthStateChange wiring.
+ *
+ * Every mount shares one request and one result. Returns synchronously
+ * from the cache when the value is already known, so the header renders
+ * the right nav on first paint instead of flashing the signed-out one.
  */
 export function useAuthUser(): AuthUser | null {
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(cached)
 
   useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        const supabase = createClient()
-        const { data: { user: authUser } } = await supabase.auth.getUser()
-        // CRITICAL: on sign-out (or when the session cookie is cleared)
-        // `authUser` is null. The old code did `if (cancelled || !authUser)
-        // return`, which left the previous user's state in place forever.
-        // AuthAwareHeader therefore kept rendering the signed-in nav on
-        // /login, and GlobalOnlineHeartbeat kept its 30s interval alive,
-        // firing `set_online_status` with no session -> 401 on every beat.
-        // We must actively CLEAR to null here.
-        if (cancelled) return
-        if (!authUser) {
-          setUser(null)
-          return
-        }
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, role, avatar_url')
-          .eq('id', authUser.id)
-          .single()
-        if (cancelled) return
-        if (!profile || (profile.role !== 'tourist' && profile.role !== 'buddy')) {
-          setUser(null)
-          return
-        }
-        setUser({
-          userId: authUser.id,
-          role: profile.role,
-          fullName: profile.full_name ?? undefined,
-          avatarUrl: profile.avatar_url ?? undefined,
-        })
-      } catch {
-        if (!cancelled) setUser(null)
-      }
+    let alive = true
+    const listener: Listener = (next) => {
+      if (alive) setUser(next)
     }
-    void load()
-    const { data: sub } = createClient().auth.onAuthStateChange(() => {
-      void load()
+    listeners.add(listener)
+
+    // Subscribe FIRST so an in-flight resolution still notifies us.
+    void ensureLoaded().then((next) => {
+      if (alive) setUser(next)
     })
-    const onLocalChange = () => void load()
-    window.addEventListener('localit-auth-changed', onLocalChange)
+
+    // The auth subscription is registered ONCE per page session, not once
+    // per consumer. `onAuthStateChange` previously re-ran the whole load
+    // in every one of the seven mounts.
+    if (!authBound) {
+      authBound = true
+      boundSub = createClient().auth.onAuthStateChange(reload)
+      window.addEventListener('localit-auth-changed', reload)
+    }
+
     return () => {
-      cancelled = true
-      sub.subscription.unsubscribe()
-      window.removeEventListener('localit-auth-changed', onLocalChange)
+      alive = false
+      listeners.delete(listener)
+      if (boundSub && listeners.size === 0) {
+        boundSub.data.subscription.unsubscribe()
+        window.removeEventListener('localit-auth-changed', reload)
+        boundSub = null
+        authBound = false
+      }
     }
   }, [])
 
   return user
 }
+
+/** Test/reset helper — clears the shared cache without touching storage. */
+export function __resetAuthUserCache() {
+  cached = null
+  resolved = false
+  inflight = null
+}
+
+void resolved

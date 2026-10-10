@@ -29,9 +29,9 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import { MessageCircle, X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
+import { navigate } from '@/lib/navigation'
 
 interface Toast {
   id: string
@@ -51,7 +51,6 @@ const TOAST_TTL_MS = 6_000
 const PREVIEW_LEN = 80
 
 export default function MessagePopover({ userId }: Props) {
-  const router = useRouter()
   const [toasts, setToasts] = useState<Toast[]>([])
   const timerRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const convIdsRef = useRef<string[]>([])
@@ -224,7 +223,7 @@ export default function MessagePopover({ userId }: Props) {
             type="button"
             onClick={() => {
               dismiss(t.id)
-              router.push(`/chat?conv=${t.conversationId}`)
+              navigate(`/chat?conv=${t.conversationId}`)
             }}
             className="w-full text-left flex items-start gap-3 p-3 hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label={`Open message from ${t.senderName}: ${t.preview}`}

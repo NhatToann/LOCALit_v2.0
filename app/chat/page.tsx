@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, Suspense, useCallback, useMemo } from 'react'
 import { Link } from '@/components/ui/Link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import { navigate, replaceUrl } from '@/lib/navigation'
 import {
   MessageCircle,
   Send,
@@ -30,6 +31,7 @@ import {
   MoreHorizontal,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
+import { getMyUserSync } from '@/utils/supabase/client-binding'
 import type { Message, Conversation, MessageReaction, Profile, FocusRequest } from '@/lib/types'
 import { Avatar, EmptyState } from '@/components/ui/Avatar'
 import FocusRequestBanner from '@/components/focus/FocusRequestBanner'
@@ -92,7 +94,6 @@ interface ConvSummary {
 }
 
 function ChatInner() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const buddyParam = searchParams.get('buddy')
   // "with" is the symmetric param a buddy uses to open a chat with a
@@ -198,7 +199,7 @@ function ChatInner() {
     if (convParam && myId) {
       const exists = conversations.some((c) => c.id === convParam)
       if (exists) setActiveId(convParam)
-      router.replace('/chat')
+      replaceUrl('/chat')
     }
   }, [convParam, myId, conversations.length])
 
@@ -246,7 +247,7 @@ function ChatInner() {
     if (callParam === '1' && buddyParam && myId) {
       // Wait for active conversation to exist before kicking off the call
       const id = setTimeout(() => startCall('voice'), 600)
-      router.replace('/chat')
+      replaceUrl('/chat')
       return () => clearTimeout(id)
     }
     return undefined
@@ -378,23 +379,23 @@ function ChatInner() {
 
   async function init() {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    // Identity from the cookie (synchronous). getUser() was one network
+    // call per mount; several mounts in one page load stacked into dozens
+    // of /auth/v1/user requests whose responses landed after cleanup, so
+    // the state writes were skipped and the page hung on its spinner.
+    const { user } = getMyUserSync()
     if (!user) {
-      router.push('/login')
+      navigate('/login')
       return
     }
     setMyId(user.id)
-    setMyName(
-      (user.user_metadata?.full_name as string) ||
-        (user.email?.split('@')[0] ?? 'Me'),
-    )
     const { data: profile } = await supabase
       .from('profiles')
       .select('role, full_name')
       .eq('id', user.id)
       .single()
     setMyRole((profile?.role as 'tourist' | 'buddy') ?? 'tourist')
-    if (profile?.full_name) setMyName(profile.full_name)
+    setMyName(profile?.full_name ?? 'Me')
     await loadConversations(user.id)
     setLoading(false)
   }
@@ -603,7 +604,7 @@ function ChatInner() {
     }
     await loadConversations(myId)
     setActiveId(convId)
-    router.replace('/chat')
+    replaceUrl('/chat')
   }
 
   async function loadMessages(conversationId: string) {
@@ -1010,7 +1011,7 @@ function ChatInner() {
           return
         }
         if (json.error === 'requester_in_active_session' && json.session_id) {
-          router.push(`/focus/${json.session_id}`)
+          navigate(`/focus/${json.session_id}`)
           return
         }
         if (json.error === 'same_role_focus_not_allowed') {
@@ -1056,7 +1057,7 @@ function ChatInner() {
       }
       if (action === 'accept' && json.session?.id) {
         setFocusIncoming(null)
-        router.push(`/focus/${json.session.id}`)
+        navigate(`/focus/${json.session.id}`)
       } else {
         setFocusIncoming(null)
       }
@@ -1109,7 +1110,7 @@ function ChatInner() {
               .then((r) => r.json())
               .then((j) => {
                 if (j.session?.id) {
-                  router.push(`/focus/${j.session.id}`)
+                  navigate(`/focus/${j.session.id}`)
                 }
               })
               .catch(() => undefined)
@@ -1126,7 +1127,7 @@ function ChatInner() {
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [myId, router])
+  }, [myId])
 
   // Hydrate outgoing/incoming focus state on mount
   useEffect(() => {
@@ -1800,14 +1801,14 @@ function ChatInner() {
       if (row.callee_id !== myId) return
       if (row.status !== 'ringing') {
         // Already handled by another tab or by a decline elsewhere.
-        router.replace('/chat')
+        replaceUrl('/chat')
         return
       }
       // Highlight the matching conversation in the chat list (purely
       // cosmetic — acceptCall doesn't depend on activeId anymore).
       if (activeId !== row.conversation_id) setActiveId(row.conversation_id)
       void acceptCall(callParam)
-      router.replace('/chat')
+      replaceUrl('/chat')
     })()
     return () => {
       cancelled = true

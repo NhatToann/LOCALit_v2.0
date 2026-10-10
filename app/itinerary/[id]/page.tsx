@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState, useCallback, useTransition } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { Link } from '@/components/ui/Link'
+import { navigate } from '@/lib/navigation'
 import {
   ArrowLeft,
   Loader2,
@@ -46,7 +47,6 @@ import { Avatar } from '@/components/ui/Avatar'
  */
 export default function ItineraryDetailPage() {
   const params = useParams<{ id: string }>()
-  const router = useRouter()
   const id = params?.id ?? ''
   const [itin, setItin] = useState<Itinerary | null>(null)
   const [days, setDays] = useState<ItineraryDay[]>([])
@@ -154,7 +154,7 @@ export default function ItineraryDetailPage() {
       setCollaborators(collabs)
       setShare(s.data ?? null)
     })
-  }, [id, router])
+  }, [id])
 
   useEffect(() => {
     void loadCritical()
@@ -323,7 +323,7 @@ export default function ItineraryDetailPage() {
       setActionError(error.message)
       return
     }
-    router.push('/itinerary')
+    navigate('/itinerary')
   }
 
   async function ensureShareToken() {

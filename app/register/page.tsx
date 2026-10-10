@@ -28,11 +28,12 @@
  */
 
 import { useState, useMemo, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Link } from '@/components/ui/Link'
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, Mail, RefreshCw, Info } from 'lucide-react'
 import { validatePassword } from '@/utils/password-validator'
 import { syncValue } from '@/utils/paste-safe-input'
+import { navigate } from '@/lib/navigation'
 
 type Role = 'tourist' | 'buddy'
 type Step = 'account' | 'verify-profile'
@@ -309,7 +310,6 @@ function ChoiceCard({
 }
 
 function RegisterForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const roleParam = searchParams.get('role')
   const initialRole: Role | null =
@@ -571,10 +571,10 @@ function RegisterForm() {
       if (signInError) {
         // Account was created but sign-in failed (rare: cookie race, network).
         // Send the user to /login with a hint that their account is ready.
-        router.push(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
+        navigate(`/login?registered=1&email=${encodeURIComponent(form.email)}`)
         return
       }
-      router.push('/dashboard')
+      navigate('/dashboard')
     } catch (err) {
       console.error('Finalize sign-up error:', err)
       setError('Something went wrong. Please try again.')

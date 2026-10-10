@@ -25,8 +25,8 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/auth'
+import { navigate } from '@/lib/navigation'
 import { useIncomingCall, type IncomingCall } from '@/lib/realtime/useIncomingCall'
 import { useActiveCall } from '@/lib/realtime/useActiveCallStore'
 import { chimeDecline, chimeAccept } from '@/lib/webrtc/call-effects'
@@ -42,7 +42,6 @@ interface Props {
 
 export default function IncomingCallWatcher({ currentUserId }: Props) {
   const incoming = useIncomingCall(currentUserId)
-  const router = useRouter()
   const activeCall = useActiveCall()
   const [declineBusy, setDeclineBusy] = useState(false)
   // Locally mark a call as "being accepted" so the popup dismisses
@@ -111,7 +110,7 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
     // 'ringing' state because the DB update didn't happen).
     setAcceptingId(incoming.pendingCallId)
     setTimeout(() => setAcceptingId(null), 10_000)
-    router.push(`/chat?call=${incoming.pendingCallId}`)
+    navigate(`/chat?call=${incoming.pendingCallId}`)
   }
 
   async function handleDecline() {
@@ -171,14 +170,13 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
         .update({ status: 'declined', ended_at: new Date().toISOString() })
         .eq('id', incoming.pendingCallId)
         .eq('callee_id', currentUserId!)
-      // Insert the canned text message.
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
+      // `currentUserId` is already in scope from the .eq() above — no need to
+      // re-fetch it, and a getUser() round trip here would fire on every
+      // declined call.
+      if (currentUserId) {
         await supabase.from('messages').insert({
           conversation_id: incoming.conversationId,
-          sender_id: user.id,
+          sender_id: currentUserId,
           content: "I'm busy right now — I'll message you in a few minutes.",
         } as never)
       }
@@ -194,7 +192,7 @@ export default function IncomingCallWatcher({ currentUserId }: Props) {
       })
       // Open the chat for the conversation so the user sees the
       // sent message + the call-log row.
-      router.push(`/chat?conversation=${incoming.conversationId}`)
+      navigate(`/chat?conversation=${incoming.conversationId}`)
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('[IncomingCallWatcher] quick-reply failed:', err)

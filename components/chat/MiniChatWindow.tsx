@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link } from '@/components/ui/Link'
-import { useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { X, MessageCircle, Send, Phone, Smile, Reply, ChevronDown, Minus } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
-import { usePathname } from 'next/navigation'
+import { readUserIdFromToken } from '@/utils/supabase/client-binding'
+import { navigate } from '@/lib/navigation'
 import { useMessageStream } from '@/lib/realtime/useMessageStream'
 
 interface MiniMessage {
@@ -40,7 +41,6 @@ const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉']
  *  - Collapse to bubble on scroll-down to reduce visual noise
  */
 export default function MiniChatWindow() {
-  const router = useRouter()
   const pathname = usePathname()
   const [authed, setAuthed] = useState(false)
   const [open, setOpen] = useState(false)
@@ -94,10 +94,12 @@ export default function MiniChatWindow() {
   useEffect(() => {
     if (hidden) return
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
-      setAuthed(!!data.user)
-      if (data.user) setMyUserId(data.user.id)
-    })
+    // Synchronous so `myUserId` is set before loadConversations() runs on
+    // the next render. The getUser() round trip delayed it by a frame, and
+    // the conversation list rendered empty until it resolved.
+    const me = readUserIdFromToken()
+    setAuthed(!!me)
+    setMyUserId(me)
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setAuthed(!!session?.user)
       if (session?.user) setMyUserId(session.user.id)
@@ -293,7 +295,7 @@ export default function MiniChatWindow() {
   function openFullChat() {
     if (!active) return
     setOpen(false)
-    router.push(`/chat?buddy=${active.counterpart_id}`)
+    navigate(`/chat?buddy=${active.counterpart_id}`)
   }
 
   function startCall() {
@@ -303,7 +305,7 @@ export default function MiniChatWindow() {
     // will pick up `?call=1&buddy=<id>` and invoke startOutgoingCall
     // once the conversation is loaded. The receiver-side flow uses
     // `?call=<pendingCallId>` from IncomingCallWatcher.
-    router.push(`/chat?buddy=${active.counterpart_id}&call=1`)
+    navigate(`/chat?buddy=${active.counterpart_id}&call=1`)
   }
 
   if (hidden || !authed) return null

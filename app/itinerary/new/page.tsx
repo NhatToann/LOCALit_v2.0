@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Link } from '@/components/ui/Link'
+import { navigate } from '@/lib/navigation'
 import {
   ArrowLeft,
   Mountain,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { TEMPLATES, type ItineraryTemplate } from '@/lib/itinerary/templates'
 import { createClient } from '@/utils/supabase/auth'
+import { getMyUserSync } from '@/utils/supabase/client-binding'
 
 /**
  * Template picker — the only way to create a new trip.
@@ -55,7 +56,6 @@ const ICONS = {
 const COST_FMT = new Intl.NumberFormat('en-US')
 
 export default function NewTripPage() {
-  const router = useRouter()
   const [selected, setSelected] = useState<ItineraryTemplate>(TEMPLATES[0])
   const [title, setTitle] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -72,7 +72,7 @@ export default function NewTripPage() {
     setError(null)
     startSubmitting(async () => {
       const sb = createClient()
-      const { data: { user } } = await sb.auth.getUser()
+      const { user } = getMyUserSync()
       if (!user) {
         setError('You must be signed in to create a trip.')
         return
@@ -92,7 +92,7 @@ export default function NewTripPage() {
         return
       }
       const j = await r.json()
-      router.push(`/itinerary/${j.itinerary.id}`)
+      navigate(`/itinerary/${j.itinerary.id}`)
     })
   }
 

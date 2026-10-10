@@ -18,15 +18,15 @@
  */
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Link } from '@/components/ui/Link'
 import { AlertTriangle, Check, Clock, Eye, EyeOff } from 'lucide-react'
 import { signIn, getCurrentUser, signOut } from '@/utils/supabase/auth'
 import { validatePassword } from '@/utils/password-validator'
 import { syncValue } from '@/utils/paste-safe-input'
+import { navigate } from '@/lib/navigation'
 
 function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectTo')
   const registered = searchParams.get('registered') === '1'
@@ -108,7 +108,7 @@ function LoginForm() {
       return
     }
 
-    router.push(postSignInPath)
+    navigate(postSignInPath)
   }
 
   return (
@@ -148,8 +148,10 @@ function LoginForm() {
             onClick={async () => {
               await signOut()
               setStaleSession(null)
-              router.replace('/login')
-              router.refresh()
+              // A fresh document so the middleware re-evaluates the now-empty
+              // session cookie. `router.replace` + `refresh()` was a no-op
+              // here (same dead-router issue as router.push).
+              navigate('/login', { replace: true })
             }}
           >
             Sign out

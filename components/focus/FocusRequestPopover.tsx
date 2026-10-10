@@ -22,9 +22,9 @@
  */
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import { MapPinPlus, X, Check } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
+import { navigate } from '@/lib/navigation'
 import type { FocusRequest, Profile } from '@/lib/types'
 
 interface IncomingRequest {
@@ -37,7 +37,6 @@ interface Props {
 }
 
 export default function FocusRequestPopover({ userId }: Props) {
-  const router = useRouter()
   const [pending, setPending] = useState<IncomingRequest | null>(null)
   const [busy, setBusy] = useState(false)
   const [now, setNow] = useState<number>(Date.now())
@@ -177,12 +176,12 @@ export default function FocusRequestPopover({ userId }: Props) {
         // doesn't conflict with whatever route the user was on.
         window.location.assign(`/focus/${sessionId}`)
       } else {
-        router.push('/chat')
+        navigate('/chat')
       }
     } finally {
       setBusy(false)
     }
-  }, [pending, router])
+  }, [pending])
 
   const declineFocus = useCallback(async () => {
     if (!pending) return

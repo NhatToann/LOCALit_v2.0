@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   Bell,
   MessageCircle,
@@ -16,6 +15,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
+import { navigate } from '@/lib/navigation'
 import type { Notification, NotificationType } from '@/lib/types'
 import { relativeTime } from '@/lib/notifications'
 
@@ -66,7 +66,6 @@ interface Props {
 }
 
 export default function NotificationsPageClient({ userId, initialRows }: Props) {
-  const router = useRouter()
   const [items, setItems] = useState<Notification[]>(initialRows)
   const [filter, setFilter] = useState<'all' | NotificationType>('all')
   const [showUnread, setShowUnread] = useState(false)
@@ -112,13 +111,31 @@ export default function NotificationsPageClient({ userId, initialRows }: Props) 
     .filter((n) => filter === 'all' || n.type === filter)
     .filter((n) => !showUnread || !n.read_at)
 
-  async function markRead(id: string, link: string | null) {
+  /**
+   * Navigate FIRST, persist SECOND.
+   *
+   * Awaiting the UPDATE before navigating meant a stalled REST round-trip
+   * left the tap looking completely dead — no navigation, no visual
+   * feedback. The route change is now synchronous and the read receipt
+   * is fire-and-forget.
+   */
+  function markRead(id: string, link: string | null) {
     const supabase = createClient()
     setItems((prev) =>
       prev.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: new Date().toISOString() } : n)),
     )
-    await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)
-    if (link) router.push(link)
+    void (async () => {
+      try {
+        const { error } = await supabase
+          .from('notifications')
+          .update({ read_at: new Date().toISOString() })
+          .eq('id', id)
+        if (error) console.warn('[notifications] mark-read failed:', error.message)
+      } catch {
+        /* a failed read receipt must never block navigation */
+      }
+    })()
+    if (link) navigate(link)
   }
 
   function markAll() {

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   Bell,
   MessageCircle,
@@ -16,6 +15,7 @@ import {
   Inbox,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
+import { navigate } from '@/lib/navigation'
 import type { Notification, NotificationType } from '@/lib/types'
 import { relativeTime } from '@/lib/notifications'
 
@@ -61,7 +61,6 @@ interface Props {
  * out, so the client never subscribes to messages/connections directly.
  */
 export default function NotificationBell({ userId, initialCount = 0 }: Props) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notification[]>([])
   const [unread, setUnread] = useState<number>(initialCount)
@@ -144,21 +143,41 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
     }
   }, [open])
 
-  async function markRead(id: string, link: string | null) {
+  /**
+   * Navigate FIRST, persist SECOND.
+   *
+   * The old version awaited the `notifications` UPDATE before calling
+   * `router.push()`. When that REST call stalled (or the RLS round-trip
+   * hung), the tap looked completely dead — the popover stayed open and
+   * the URL never changed. Now the route change happens synchronously
+   * and the read receipt is fire-and-forget.
+   */
+  function markRead(id: string, link: string | null) {
     if (!userId) return
     const supabase = createClient()
-    // optimistic update
+
+    // Optimistic local update so the row dims before we navigate away.
     setItems((prev) =>
       prev.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: new Date().toISOString() } : n)),
     )
     setUnread((u) => Math.max(0, u - 1))
-    await supabase
-      .from('notifications')
-      .update({ read_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq('user_id', userId)
     setOpen(false)
-    if (link) router.push(link)
+
+    // Best-effort read receipt. Never awaited, never blocks the route.
+    void (async () => {
+      try {
+        const { error } = await supabase
+          .from('notifications')
+          .update({ read_at: new Date().toISOString() })
+          .eq('id', id)
+          .eq('user_id', userId)
+        if (error) console.warn('[notifications] mark-read failed:', error.message)
+      } catch {
+        /* a failed read receipt must never block navigation */
+      }
+    })()
+
+    if (link) navigate(link)
   }
 
   function markAllRead() {
@@ -305,7 +324,7 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
             </span>
             <button
               type="button"
-              onClick={() => { setOpen(false); router.push('/notifications') }}
+              onClick={() => { setOpen(false); navigate('/notifications') }}
               className="text-muted hover:text-ink inline-flex items-center gap-1"
             >
               View all

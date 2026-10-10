@@ -21,14 +21,54 @@
 
 import { useState, Suspense, useEffect } from 'react'
 import { Link } from '@/components/ui/Link'
-import { useRouter } from 'next/navigation'
 import { Lock, AlertTriangle, ArrowLeft, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
-import { updatePassword, getCurrentUser } from '@/utils/supabase/auth'
+import { updatePassword, createClient } from '@/utils/supabase/auth'
 import { validatePassword } from '@/utils/password-validator'
 import { syncValue } from '@/utils/paste-safe-input'
+import { navigate } from '@/lib/navigation'
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * How a Supabase password-reset link signals "this session came from a
+ * recovery email, not a normal sign-in".
+ *
+ * `type=recovery` is the documented URL marker. The `amr` claim on the
+ * access token is the documented JWT marker. We accept EITHER: the
+ * query/hash param survives every redirect, while the amr claim is the
+ * stronger signal because only Supabase's recovery flow sets it.
+ */
+function isRecoverySession(): boolean {
+  if (typeof window === 'undefined') return false
+
+  try {
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const query = new URLSearchParams(window.location.search)
+    if ((hash.get('type') ?? query.get('type')) === 'recovery') return true
+
+    const raw = hash.get('access_token') ?? query.get('access_token')
+    if (raw) {
+      const payload = raw.split('.')[1]
+      if (payload) {
+        const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+        if (
+          Array.isArray(claims.amr) &&
+          claims.amr.some(
+            (a: { method?: string }) => a?.method === 'password_recovery',
+          )
+        ) {
+          return true
+        }
+      }
+    }
+  } catch {
+    /* fall through — treat as not-a-recovery-session */
+  }
+
+  return false
+}
 
 function ResetPasswordForm() {
-  const router = useRouter()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -37,15 +77,115 @@ function ResetPasswordForm() {
   const [checking, setChecking] = useState(true)
   const [hasSession, setHasSession] = useState(false)
   const [success, setSuccess] = useState(false)
+  /** Email the recovery session actually belongs to — shown so the user
+   *  can confirm they are resetting the account they think they are. */
+  const [resetEmail, setResetEmail] = useState<string | null>(null)
+  /**
+   * Populated when the link itself failed before this page ever ran
+   * (expired OTP, rejected redirect). Supabase encodes the reason on the
+   * URL as `?error_description=...`, sometimes in the hash fragment.
+   * Surfacing it turns a silent dead-end into an actionable message.
+   */
+  const [linkError, setLinkError] = useState<string | null>(null)
 
+  /**
+   * SECURITY (2026-10-10): this gate used to be `!!(await
+   * getCurrentUser())`, which returns WHATEVER account the cookie
+   * happens to hold — not the account whose recovery email you clicked.
+   * If you were signed in as Sarah Miller and then requested a reset for
+   * darklunatv@gmail.com, the emailed link kept you signed in as Sarah,
+   * so the page rendered the password form and "Reset password" would
+   * have overwritten the WRONG account's credentials.
+   *
+   * A recovery link proves inbox access and carries its OWN scoped
+   * session, which must take precedence over any ambient cookie. So we:
+   *   1. require a recovery session to exist, and
+   *   2. require proof it came from a recovery link, and
+   *   3. never fall back to the ambient session.
+   *
+   * Resetting your own password while signed in still works: the
+   * recovery session resolves to the same account, so there is nothing
+   * to reconcile and the flow proceeds normally.
+   */
   useEffect(() => {
     let cancelled = false
+
     async function check() {
-      const user = await getCurrentUser()
-      if (cancelled) return
-      setHasSession(!!user)
-      setChecking(false)
+      try {
+        // GoTrue reports link failures on the redirect URL — sometimes in
+        // the query, sometimes in the hash fragment. Read both so the
+        // user gets the real reason instead of a generic "expired".
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+        const queryParams = new URLSearchParams(window.location.search)
+        const urlError =
+          hashParams.get('error_description') ??
+          queryParams.get('error_description') ??
+          hashParams.get('error') ??
+          queryParams.get('error')
+        if (urlError) {
+          setLinkError(
+            urlError === 'access_denied'
+              ? 'This reset link is no longer valid. Reset links work once and expire after 1 hour.'
+              : urlError.replace(/\+/g, ' '),
+          )
+        }
+
+        const supabase = createClient()
+
+        // The recovery hash carries the proof markers (`type=recovery`,
+        // the access_token whose `amr` claim names password_recovery).
+        // Read them BEFORE any cleanup, because the SDK consumes and
+        // strips the hash as soon as it establishes a session.
+        const cameFromRecoveryLink = isRecoverySession()
+
+        // Let the Supabase SDK consume the recovery hash and establish
+        // the recovery session.
+        if (window.location.hash.includes('access_token')) {
+          const { error: hashErr } = await supabase.auth.getSession()
+          if (hashErr) throw hashErr
+
+          // Scrub the token out of the address bar so it does not linger
+          // in history or leak via referrer. Done AFTER the recovery
+          // check above — doing it first erased our own proof marker and
+          // locked every legitimate user out of the form.
+          history.replaceState(
+            null,
+            '',
+            window.location.pathname + window.location.search,
+          )
+        }
+
+        const { data: sessData, error: sessionError } =
+          await supabase.auth.getSession()
+        if (sessionError) throw sessionError
+        const sessionUser = sessData.session?.user ?? null
+
+        if (cancelled) return
+
+        if (!sessionUser) {
+          setHasSession(false)
+          setChecking(false)
+          return
+        }
+
+        // Without this, an ambient session is indistinguishable from a
+        // recovery one and the whole flow is unsafe.
+        if (!cameFromRecoveryLink) {
+          setHasSession(false)
+          setChecking(false)
+          return
+        }
+
+        setHasSession(true)
+        if (sessionUser.email) setResetEmail(sessionUser.email)
+      } catch {
+        if (!cancelled) {
+          setHasSession(false)
+          setChecking(false)
+        }
+      }
     }
+
     check()
     return () => {
       cancelled = true
@@ -85,7 +225,7 @@ function ResetPasswordForm() {
 
     setSuccess(true)
     // Give the user a moment to read the success message, then route.
-    setTimeout(() => router.push('/dashboard'), 1200)
+    setTimeout(() => navigate('/dashboard'), 1200)
   }
 
   if (checking) {
@@ -116,8 +256,13 @@ function ResetPasswordForm() {
           </span>
           <h1 className="text-section-title mb-2">Reset link expired</h1>
           <p className="text-sm text-muted">
-            This password reset link is invalid or has expired. Reset links
-            work once and are valid for 1 hour.
+            {linkError ??
+              'This password reset link is invalid or has expired. Reset links work once and are valid for 1 hour.'}
+          </p>
+          <p className="text-xs text-muted mt-3 border-t border-border pt-3">
+            If you are already signed in as a different account, sign out first
+            — then request a new link. A reset link only works when it is used
+            to recover the account it was sent to.
           </p>
           <Link
             href="/forgot-password"
@@ -149,6 +294,12 @@ function ResetPasswordForm() {
         </span>
         <h1 className="text-page-title">Reset your password</h1>
         <p className="text-sm text-muted mt-2">Choose a new password for your account.</p>
+        {resetEmail ? (
+          <p className="text-xs text-muted mt-3 border border-border rounded-sm bg-paper px-3 py-2 inline-block">
+            Resetting password for{' '}
+            <strong className="text-ink">{resetEmail}</strong>
+          </p>
+        ) : null}
       </header>
 
       {success ? (
