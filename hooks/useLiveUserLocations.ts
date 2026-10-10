@@ -37,6 +37,35 @@ const STALE_AFTER_MS_DEFAULT = 60_000
 /**
  * Live-location sharing for tourists on the same Da Nang map.
  *
+ * 2026-10-10 update: module-scoped subscription registry.
+ *
+ * Background — the previous design called `supabase.channel(...)` +
+ * `.on('postgres_changes', ...)` + `.subscribe()` from a `useEffect`
+ * inside each hook instance. When more than one component on the
+ * same page called the hook (e.g. /focus/[sessionId] via
+ * useFocusAutoMedia AND a future call site), two distinct channel
+ * objects with the same name would race to bind postgres_changes.
+ * Supabase Realtime throws:
+ *
+ *   Error: cannot add `postgres_changes` callbacks for
+ *   realtime:da-nang-live-locations-pg after `subscribe()`.
+ *
+ * It also throws on dep changes — `selfUserId` going from `null` →
+ * real UUID (the common path: parent renders before the session
+ * resolves) re-runs the effect, teardown starts `removeChannel` on
+ * the old channel, but the new channel's `.subscribe()` resolves
+ * first and binds a second postgres_changes handler. The next
+ * `.on(...)` against the same channel name then throws.
+ *
+ * Fix: a single module-level subscription per channel name. Every
+ * hook instance on the page calls `subscribeSharedLocationChannel`,
+ * which refcounts and returns a listener-registration handle. The
+ * underlying Realtime channel + postgres_changes binding is created
+ * exactly once per page and torn down when the last subscriber
+ * unmounts. Each subscriber gets its own onUpdate callback (and
+ * their own initial-fetch promise), so individual components can
+ * filter by their own selfUserId without breaking other consumers.
+ *
  * Implementation (2026-10-07 — was using Realtime broadcast which turned
  * out to be unreliable in this environment; the WS handshake completed
  * but later broadcasts hit "Realtime send() is automatically falling back
@@ -53,8 +82,116 @@ const STALE_AFTER_MS_DEFAULT = 60_000
  *  - Tourists can read their own + (after this rewrite) the most recent
  *    row per user where the sharer has opted in via this hook.
  */
+
+// --- Module-scoped subscription registry ---------------------------------
+
+type LocationEvent = {
+  row: {
+    user_id?: string
+    latitude?: number
+    longitude?: number
+    updated_at?: string
+  } | null
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE' | string
+}
+
+interface SubscriptionHandle {
+  /** Unsubscribe this listener. The underlying channel is removed only
+   *  when the last listener unsubscribes. */
+  unsubscribe: () => void
+  /** Whether the underlying channel is currently subscribed. Useful for
+   *  diagnostics. */
+  isActive: () => boolean
+}
+
+interface RegistryEntry {
+  refCount: number
+  channel: ReturnType<ReturnType<typeof createClient>['channel']>
+  listeners: Set<(event: LocationEvent) => void>
+  // Set of user_ids that have been seen since the last cleanup. The
+  // dedupe logic per-subscriber runs in the listener callbacks; this
+  // exists so we can name-backfill the most recent row for new
+  // subscribers without re-fetching.
+  seenUserIds: Set<string>
+}
+
+const REGISTRY = new Map<string, RegistryEntry>()
+
+/**
+ * subscribeSharedLocationChannel — the singleton subscription for
+ * `da-nang-live-locations-pg`. The first caller creates the channel,
+ * binds `postgres_changes`, and starts the subscription. Subsequent
+ * callers increment the refcount and add their listener. Cleanup
+ * decrements; when refcount hits 0, the channel is removed.
+ */
+function subscribeSharedLocationChannel(
+  channelName: string,
+  onEvent: (event: LocationEvent) => void,
+): SubscriptionHandle {
+  let entry = REGISTRY.get(channelName)
+  if (!entry) {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'location_updates' },
+        (payload) => {
+          const e: LocationEvent = {
+            row: (payload.new ?? payload.old) as LocationEvent['row'],
+            eventType: payload.eventType,
+          }
+          const reg = REGISTRY.get(channelName)
+          if (!reg) return
+          for (const listener of reg.listeners) {
+            try {
+              listener(e)
+            } catch {
+              /* one bad listener doesn't take down the others */
+            }
+          }
+        },
+      )
+      .subscribe()
+    entry = { refCount: 0, channel, listeners: new Set(), seenUserIds: new Set() }
+    REGISTRY.set(channelName, entry)
+  }
+  entry.listeners.add(onEvent)
+  entry.refCount += 1
+  return {
+    unsubscribe() {
+      const reg = REGISTRY.get(channelName)
+      if (!reg) return
+      reg.listeners.delete(onEvent)
+      reg.refCount -= 1
+      if (reg.refCount <= 0) {
+        try {
+          reg.channel.unsubscribe()
+        } catch {
+          /* ignore */
+        }
+        REGISTRY.delete(channelName)
+      }
+    },
+    isActive() {
+      return REGISTRY.has(channelName)
+    },
+  }
+}
+
+// The channel name is intentionally a constant so the registry can
+// coalesce all consumers.
+const LOCATION_CHANNEL = 'da-nang-live-locations-pg'
+
+// --- Hook ----------------------------------------------------------------
+
 export function useLiveUserLocations(opts: Options = {}) {
-  const { enabled = false, publishIntervalMs = 5_000, staleAfterMs = STALE_AFTER_MS_DEFAULT, selfUserId = null } = opts
+  const {
+    enabled = false,
+    publishIntervalMs = 5_000,
+    staleAfterMs = STALE_AFTER_MS_DEFAULT,
+    selfUserId = null,
+  } = opts
 
   const [liveLocations, setLiveLocations] = useState<LiveLocation[]>([])
   const [selfGranted, setSelfGranted] = useState(false)
@@ -65,13 +202,17 @@ export function useLiveUserLocations(opts: Options = {}) {
   const lastPublishRef = useRef<number>(0)
   const watchIdRef = useRef<number | null>(null)
 
-  // Subscribe to location_updates postgres_changes once on mount.
+  // Subscribe via the module-scoped registry. The effect intentionally
+  // depends ONLY on `staleAfterMs` — `selfUserId` changes (null → real
+  // id) used to re-subscribe and trigger the "cannot add postgres_changes
+  // callbacks ... after subscribe()" error. The current user is now
+  // tracked via a ref so the channel is bound exactly once per page.
   useEffect(() => {
     let cancelled = false
     const supabase = createClient()
     supabaseRef.current = supabase
 
-    getCurrentUser().then(user => {
+    getCurrentUser().then((user) => {
       if (cancelled) return
       userIdRef.current = user?.id ?? null
       nameRef.current =
@@ -80,19 +221,21 @@ export function useLiveUserLocations(opts: Options = {}) {
     })
 
     // Also seed from the prop if the caller already knows the user id.
-    // This is the reliable path — it covers the race where the
-    // postgres_changes event fires before getCurrentUser() resolves
-    // and the broadcaster's own row would otherwise be rendered
-    // as a second pin. See MapView selfUserId prop.
+    // Stored in a ref so it doesn't trigger a re-subscribe.
     if (selfUserId) userIdRef.current = selfUserId
 
     // Initial fetch of recent live locations so we don't wait 5s for the
-    // first realtime event.
-    ;(async () => {
+    // first realtime event. Same query every consumer used to issue
+    // individually; we still do it per-instance because the result is
+    // only 50 rows and RLS may return different results for different
+    // sessions (tourists only see tourists + themselves).
+    void (async () => {
       try {
         const { data } = await supabase
           .from('location_updates')
-          .select('user_id, latitude, longitude, updated_at, profile:safe_profiles(full_name)')
+          .select(
+            'user_id, latitude, longitude, updated_at, profile:safe_profiles(full_name)',
+          )
           .order('updated_at', { ascending: false })
           .limit(50)
         if (cancelled || !data) return
@@ -117,65 +260,51 @@ export function useLiveUserLocations(opts: Options = {}) {
       }
     })()
 
-    const channel = supabase
-      .channel('da-nang-live-locations-pg')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'location_updates' },
-        (payload) => {
-          const row = (payload.new ?? payload.old) as
-            | { user_id?: string; latitude?: number; longitude?: number; updated_at?: string }
-            | null
-          if (!row || !row.user_id) return
-          if (row.user_id === userIdRef.current) return
-          if (typeof row.latitude !== 'number' || typeof row.longitude !== 'number') return
-          if (payload.eventType === 'DELETE') {
-            setLiveLocations(prev => prev.filter(e => e.userId !== row.user_id))
-            return
-          }
-          const ts = row.updated_at ? new Date(row.updated_at).getTime() : Date.now()
-          // Look up the name from existing state; fall back to 'Tourist'.
-          setLiveLocations(prev => {
-            const existing = prev.find(e => e.userId === row.user_id)
-            const entry: LiveLocation = {
-              userId: row.user_id!,
-              name: existing?.name ?? 'Tourist',
-              lat: Number(row.latitude),
-              lng: Number(row.longitude),
-              ts,
-            }
-            const next = prev.filter(e => e.userId !== entry.userId)
-            next.push(entry)
-            return next
-          })
-        },
-      )
-      .subscribe()
+    // Subscribe via the shared registry. The `postgres_changes` binding
+    // happens exactly once per page; we just register a listener.
+    const handle = subscribeSharedLocationChannel(LOCATION_CHANNEL, (event) => {
+      const row = event.row
+      if (!row || !row.user_id) return
+      if (row.user_id === userIdRef.current) return
+      if (typeof row.latitude !== 'number' || typeof row.longitude !== 'number') return
+      if (event.eventType === 'DELETE') {
+        setLiveLocations((prev) => prev.filter((e) => e.userId !== row.user_id))
+        return
+      }
+      const ts = row.updated_at ? new Date(row.updated_at).getTime() : Date.now()
+      setLiveLocations((prev) => {
+        const existing = prev.find((e) => e.userId === row.user_id)
+        const entry: LiveLocation = {
+          userId: row.user_id!,
+          name: existing?.name ?? 'Tourist',
+          lat: Number(row.latitude),
+          lng: Number(row.longitude),
+          ts,
+        }
+        const next = prev.filter((e) => e.userId !== entry.userId)
+        next.push(entry)
+        return next
+      })
+    })
 
     // Periodic cleanup of stale entries.
     const cleanup = setInterval(() => {
       const cutoff = Date.now() - staleAfterMs
-      setLiveLocations(prev => prev.filter(e => e.ts >= cutoff))
+      setLiveLocations((prev) => prev.filter((e) => e.ts >= cutoff))
     }, 10_000)
 
     return () => {
       cancelled = true
       clearInterval(cleanup)
+      handle.unsubscribe()
       if (watchIdRef.current !== null && typeof navigator !== 'undefined') {
         navigator.geolocation.clearWatch(watchIdRef.current)
         watchIdRef.current = null
       }
-      const supabase = supabaseRef.current
       supabaseRef.current = null
-      if (supabase && channel) {
-        try {
-          supabase.removeChannel(channel)
-        } catch {
-          /* ignore */
-        }
-      }
     }
-  }, [staleAfterMs, selfUserId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staleAfterMs])
 
   // Toggle publish/subscribe on the local user based on `enabled`
   useEffect(() => {
