@@ -262,12 +262,42 @@ const main = async () => {
 
   await sarah.page.fill('input[aria-label="Message draft"]', 'Xin chào from focus rewrite!')
   await sarah.page.click('button[aria-label="Send message"]')
-  // Wait for postgres_changes to fan out.
-  await lan.page.waitForTimeout(2500)
-  const lanSawMessage = await lan.page
+  // Wait for postgres_changes to fan out. The realtime subscription
+  // needs to be live on both sides before the INSERT event arrives.
+  await lan.page.waitForTimeout(8000)
+  // Verify Sarah's own view shows the message (proves send works).
+  const sarahSawOwn = await sarah.page
     .locator('text=Xin chào from focus rewrite!')
     .count()
-  expect("Lan's side shows Sarah's bubble", lanSawMessage > 0, { count: lanSawMessage })
+  // Verify the message was actually inserted into the DB.
+  let dbHasMessage = false
+  try {
+    const verifyDb = new Client({ connectionString: DB_URL, ssl: { rejectUnauthorized: false } })
+    await verifyDb.connect()
+    const r = await verifyDb.query(
+      `SELECT id FROM public.messages WHERE conversation_id = $1 AND content = $2 LIMIT 1`,
+      [convId, 'Xin chào from focus rewrite!'],
+    )
+    dbHasMessage = r.rows.length > 0
+    await verifyDb.end()
+  } catch (e) {
+    console.log('DB verify error:', e.message)
+  }
+  // Wait specifically for the message to appear (up to 10s).
+  let lanSaw = false
+  try {
+    await lan.page.waitForSelector('text=Xin chào from focus rewrite!', { timeout: 10_000 })
+    lanSaw = true
+  } catch {
+    // Capture the page HTML for diagnosis.
+    const html = await lan.page.content()
+    const fs = await import('node:fs')
+    fs.writeFileSync('scripts/screenshots/lan-no-bubble.html', html)
+  }
+  expect("Lan's side shows Sarah's bubble", lanSaw, {
+    sarahOwnBubble: sarahSawOwn,
+    dbHasMessage,
+  })
 
   // Take an after-send screenshot to capture the chat bubble.
   await sarah.page.screenshot({
