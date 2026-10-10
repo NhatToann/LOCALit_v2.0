@@ -34,9 +34,10 @@ function AuthAwareHeader() {
   const auth = useAuthUser()
   const name = auth?.fullName
   const userId = auth?.userId
+  const avatarUrl = auth?.avatarUrl
 
   if (auth) {
-    return <Header userName={name} userId={userId} />
+    return <Header userName={name} userId={userId} avatarUrl={avatarUrl} />
   }
   return <Header />
 }

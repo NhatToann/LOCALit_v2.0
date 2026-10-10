@@ -7,6 +7,12 @@ export interface AuthUser {
   userId: string
   role: 'tourist' | 'buddy'
   fullName: string | undefined
+  /**
+   * Public avatar URL from `profiles.avatar_url`, or undefined when the
+   * user never uploaded one. The header falls back to the name initial
+   * when this is missing, so consumers must handle the empty case.
+   */
+  avatarUrl: string | undefined
 }
 
 /**
@@ -37,7 +43,7 @@ export function useAuthUser(): AuthUser | null {
         }
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name, role')
+          .select('full_name, role, avatar_url')
           .eq('id', authUser.id)
           .single()
         if (cancelled) return
@@ -49,6 +55,7 @@ export function useAuthUser(): AuthUser | null {
           userId: authUser.id,
           role: profile.role,
           fullName: profile.full_name ?? undefined,
+          avatarUrl: profile.avatar_url ?? undefined,
         })
       } catch {
         if (!cancelled) setUser(null)

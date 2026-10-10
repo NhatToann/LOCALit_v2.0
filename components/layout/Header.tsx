@@ -22,6 +22,14 @@ import NotificationBell from '@/components/notifications/NotificationBell';
 interface HeaderProps {
   userName?: string;
   userId?: string;
+  /**
+   * Public avatar URL (Supabase Storage or external link) from
+   * `profiles.avatar_url`. When absent — or when the image fails to
+   * load, which is the common case for a stale storage key after a
+   * profile re-upload — we fall back to the name initial so the button
+   * never renders as an empty circle.
+   */
+  avatarUrl?: string;
 }
 
 const GUEST_LINKS = [
@@ -37,12 +45,22 @@ const LOGGED_IN_LINKS = [
   { path: '/chat', label: 'Messages', labelVi: 'Tin nhắn' },
 ]
 
-export default function Header({ userName, userId }: HeaderProps) {
+export default function Header({ userName, userId, avatarUrl }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // 2026-10-10: the custom avatar failed to load before, leaving a
+  // broken-image glyph inside the circle. Track the error locally and
+  // permanently fall back to the initial for this session.
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [avatarUrl]);
+
+  const showAvatarImage = !!avatarUrl && !avatarFailed;
 
   const isLoggedIn = !!userName
   const links = isLoggedIn ? LOGGED_IN_LINKS : GUEST_LINKS
@@ -143,7 +161,17 @@ export default function Header({ userName, userId }: HeaderProps) {
                 aria-haspopup="menu"
               >
                 <span className="avatar avatar-md" aria-hidden="true">
-                  {userName?.charAt(0)?.toUpperCase() ?? '?'}
+                  {showAvatarImage ? (
+                    <img
+                      src={avatarUrl}
+                      alt=""
+                      className="w-full h-full rounded-full object-cover"
+                      referrerPolicy="no-referrer"
+                      onError={() => setAvatarFailed(true)}
+                    />
+                  ) : (
+                    userName?.charAt(0)?.toUpperCase() ?? '?'
+                  )}
                 </span>
               </button>
               {menuOpen ? (
