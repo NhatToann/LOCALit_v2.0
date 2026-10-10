@@ -413,11 +413,20 @@ function ChatInner() {
     }
     const supabase = createClient()
     try {
+      // Primary sort: last_message_at desc, nulls LAST. Secondary sort:
+      // updated_at desc, so a conversation that was just touched
+      // (e.g. openConversationWithBuddy bumped it) stays on top. Tertiary
+      // sort: id desc — a stable tie-breaker so PostgREST returns the
+      // same order every time when all three columns tie. Without the
+      // id tiebreaker, a row that has never received a message
+      // (`last_message_at` and `updated_at` both null) jumps around the
+      // list on every refresh, and the "first row becomes active" logic
+      // below picks a different partner each time.
       const { data } = await racedAbort(supabase
         .from('conversations')
         .select(
           `
-          id, tourist_id, buddy_id, updated_at,
+          id, tourist_id, buddy_id, updated_at, created_at,
           last_message_preview, last_message_at,
           last_read_at_by_tourist, last_read_at_by_buddy,
           pinned_message_id, typing_user_id,
@@ -426,7 +435,9 @@ function ChatInner() {
         `,
         )
         .or(`tourist_id.eq.${uid},buddy_id.eq.${uid}`)
-        .order('last_message_at', { ascending: false, nullsFirst: false }))
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .order('id', { ascending: false }))
 
       if (signal.aborted) return
 
@@ -435,13 +446,25 @@ function ChatInner() {
         return
       }
 
-      // Fetch unread counts in a single follow-up query (avoid the FK embed collision)
+      // Fetch the most-recent message timestamp for every conversation
+      // in a single query. Conversations where the user has never sent
+      // or received a message have `last_message_at = null`; for those
+      // we fall back to the latest message's created_at so the sidebar
+      // order still reflects the true "most recent activity" and the
+      // stable id-tiebreaker below never picks a stale row.
       const convIds = (data as any[]).map((c) => c.id)
-      const { data: msgs } = await racedAbort(supabase
-        .from('messages')
-        .select('conversation_id, sender_id, is_read, created_at')
-        .in('conversation_id', convIds)
-        .eq('is_read', false))
+      const [{ data: msgs }, { data: lastByConv }] = await Promise.all([
+        racedAbort(supabase
+          .from('messages')
+          .select('conversation_id, sender_id, is_read, created_at')
+          .in('conversation_id', convIds)
+          .eq('is_read', false)),
+        racedAbort(supabase
+          .from('messages')
+          .select('conversation_id, created_at')
+          .in('conversation_id', convIds)
+          .order('created_at', { ascending: false })),
+      ])
 
       if (signal.aborted) return
 
@@ -451,36 +474,60 @@ function ChatInner() {
         unreadByConv[m.conversation_id] = (unreadByConv[m.conversation_id] ?? 0) + 1
       }
 
-      const mapped: ConvSummary[] = (data as any[]).map((c) => {
-      const isTouristSide = c.tourist_id === uid
-      // 2026-10-09: FKs now point to profiles, so the embed is
-      // `tourist_profile` / `buddy_profile` — both safe_profiles rows.
-      // The partner is whichever side is NOT the current user.
-      const partner = isTouristSide ? c.buddy_profile : c.tourist_profile
-      const partnerName = partner?.full_name ?? 'Buddy'
-      return {
-        id: c.id,
-        partner_id: partner?.id ?? '',
-        partner_name: partnerName,
-        partner_avatar: partner?.avatar_url ?? null,
-        // Side-aware role: the partner may be the same role as the
-        // current user (chat now allows any pairing). Read the role
-        // directly off the partner's safe_profiles row.
-        partner_role: (partner?.role as 'tourist' | 'buddy' | null) ?? null,
-        partner_city: null,
-        partner_languages: [],
-        partner_hourly_rate: null,
-        partner_rating_avg: null,
-        is_partner_online: !!partner?.is_online,
-        last_message_preview: c.last_message_preview ?? '',
-        last_message_at: c.last_message_at ?? c.updated_at,
-        unread: unreadByConv[c.id] ?? 0,
-        pinned_message_id: c.pinned_message_id ?? null,
-        typing_user_id: c.typing_user_id === uid ? null : c.typing_user_id,
+      // Map conversation_id → most-recent message timestamp (for the
+      // sort fallback when the denormalized last_message_at is null).
+      const latestByConv: Record<string, string> = {}
+      for (const m of (lastByConv ?? []) as Array<{ conversation_id: string; created_at: string }>) {
+        if (!latestByConv[m.conversation_id]) latestByConv[m.conversation_id] = m.created_at
       }
-    })
-    setConversations(mapped)
-    if (mapped.length > 0 && !activeId) setActiveId(mapped[0].id)
+
+      const mapped: ConvSummary[] = (data as any[]).map((c) => {
+        const isTouristSide = c.tourist_id === uid
+        // 2026-10-09: FKs now point to profiles, so the embed is
+        // `tourist_profile` / `buddy_profile` — both safe_profiles rows.
+        // The partner is whichever side is NOT the current user.
+        const partner = isTouristSide ? c.buddy_profile : c.tourist_profile
+        const partnerName = partner?.full_name ?? 'Buddy'
+        // Pick the most recent activity timestamp for this conv:
+        // last_message_at (denormalized) → latest message's created_at
+        // (covers conversations that exist but were never updated by
+        // the old code) → updated_at → created_at (covers brand-new
+        // empty conversations).
+        const effectiveLastAt =
+          c.last_message_at ?? latestByConv[c.id] ?? c.updated_at ?? c.created_at ?? null
+        return {
+          id: c.id,
+          partner_id: partner?.id ?? '',
+          partner_name: partnerName,
+          partner_avatar: partner?.avatar_url ?? null,
+          // Side-aware role: the partner may be the same role as the
+          // current user (chat now allows any pairing). Read the role
+          // directly off the partner's safe_profiles row.
+          partner_role: (partner?.role as 'tourist' | 'buddy' | null) ?? null,
+          partner_city: null,
+          partner_languages: [],
+          partner_hourly_rate: null,
+          partner_rating_avg: null,
+          is_partner_online: !!partner?.is_online,
+          last_message_preview: c.last_message_preview ?? '',
+          last_message_at: effectiveLastAt,
+          unread: unreadByConv[c.id] ?? 0,
+          pinned_message_id: c.pinned_message_id ?? null,
+          typing_user_id: c.typing_user_id === uid ? null : c.typing_user_id,
+        }
+      })
+      // Stable client-side resort by the same key we asked the server
+      // for, so even if the server hands rows back in arbitrary order
+      // (e.g. two convs share last_message_at to the millisecond) the
+      // UI list always renders in the same sequence.
+      mapped.sort((a, b) => {
+        const ta = a.last_message_at ? Date.parse(a.last_message_at) : 0
+        const tb = b.last_message_at ? Date.parse(b.last_message_at) : 0
+        if (ta !== tb) return tb - ta
+        return a.id < b.id ? 1 : a.id > b.id ? -1 : 0
+      })
+      setConversations(mapped)
+      if (mapped.length > 0 && !activeId) setActiveId(mapped[0].id)
     } catch (err) {
       if ((err as Error)?.name === 'AbortError' || signal.aborted) return
       // Fall through — leave conversations as-is if the follow-up
