@@ -366,10 +366,10 @@ function ChatInner() {
     }
   }, [callState, isOutgoing, callPartner, callClient])
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [initialMessages.length])
+  // Auto-scroll to bottom is now handled AFTER `messages` is
+  // declared (see the useEffect near useMessageStream). The old
+  // version used `scrollIntoView` which scrolls the whole page
+  // to the footer.
 
   // Mark as read whenever active conversation opens or new messages arrive
   useEffect(() => {
@@ -636,7 +636,40 @@ function ChatInner() {
     )
   }
 
+  // Auto-scroll to bottom is handled by the effect declared
+  // immediately AFTER `useMessageStream` below — placed there
+  // because the effect body needs to reference `messages`,
+  // which is only available after that destructure.
+
   const { messages } = useMessageStream(activeId, initialMessages, initialReactions)
+
+  // Auto-scroll to bottom when new messages arrive. We scroll
+  // the chat container (scrollContainerRef) instead of using
+  // `scrollIntoView` because scrollIntoView scrolls the whole
+  // page — when the messages list is taller than the viewport
+  // the page gets yanked to the footer, which is the
+  // "tự ý chuyển xuống footer" bug the user reported while
+  // switching conversations. The ref-based scroll also lets us
+  // detect the "user has scrolled up to read history" case and
+  // skip the auto-scroll.
+  const lastScrolledMsgIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const last = messages[messages.length - 1]
+    if (!last) return
+    // Only auto-scroll when the tail id actually changes — re-renders
+    // triggered by typing in the draft input, or by an upstream
+    // state update that doesn't add a new tail message, must NOT
+    // yank the user back to the bottom while they're reading.
+    if (lastScrolledMsgIdRef.current === last.id) return
+    lastScrolledMsgIdRef.current = last.id
+    const raf = requestAnimationFrame(() => {
+      const el = scrollContainerRef.current
+      if (!el) return
+      el.scrollTop = el.scrollHeight
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [initialMessages.length, messages.length])
 
   // Realtime updates on conversation list (new messages → refresh sidebar).
   // Debounced so a burst of inserts collapses into one round-trip.

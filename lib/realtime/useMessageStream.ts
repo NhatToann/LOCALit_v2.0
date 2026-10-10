@@ -21,15 +21,40 @@ export function useMessageStream(
   const [reactions, setReactions] = useState<MessageReaction[]>(initialReactions)
   const channelRef = useRef<any>(null)
 
-  // Re-seed when initial changes (e.g. conversation switched)
-  const lastConv = useRef<string | null>(null)
+  // Re-seed whenever the parent's `initial` payload changes.
+  // The previous version only reseeded when `conversationId`
+  // changed, which left a race: when the user switches from
+  // conv1 → conv2 and the parent's `loadMessages(conv2)` is
+  // still in flight when this effect fires, the hook would
+  // adopt conv1's stale `initial` array AND set
+  // `lastConv.current = conv2`. The subsequent re-render with
+  // conv2's real data wouldn't reseed (the
+  // `conversationId !== lastConv.current` guard was now false)
+  // so `messages` was stuck on conv1's data even though the
+  // active conversation was conv2. The user saw "Lan's
+  // messages don't match Phan's" because two browsers were
+  // showing two different conversations' message lists until
+  // a hard reload.
+  //
+  // The new logic: whenever `initial` arrives, reseed. The
+  // dedupe check in the INSERT handler (matched on tmp-* id)
+  // still protects against losing optimistic bubbles, and the
+  // hook's own `messages` never carries optimistic state —
+  // those live in FocusChat's `localAppends` queue.
+  const lastInitialRef = useRef<Message[] | null>(null)
   useEffect(() => {
-    if (conversationId !== lastConv.current) {
+    if (initial !== lastInitialRef.current) {
       setMessages(initial)
-      setReactions(initialReactions)
-      lastConv.current = conversationId
+      lastInitialRef.current = initial
     }
-  }, [conversationId, initial, initialReactions])
+  }, [initial])
+  const lastInitialReactionsRef = useRef<MessageReaction[] | null>(null)
+  useEffect(() => {
+    if (initialReactions !== lastInitialReactionsRef.current) {
+      setReactions(initialReactions)
+      lastInitialReactionsRef.current = initialReactions
+    }
+  }, [initialReactions])
 
   useEffect(() => {
     if (!conversationId) return
