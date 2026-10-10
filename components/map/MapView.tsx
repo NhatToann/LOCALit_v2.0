@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { createClient } from '@/utils/supabase/auth'
 import type { LiveLocation } from '@/hooks/useLiveUserLocations'
 

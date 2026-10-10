@@ -1,7 +1,7 @@
 // components/layout/Footer.tsx — slim 4-column footer with AEO answer capsule.
 // 2026-10-10: 2-color brand stripe (Tourist jade → Buddy amber). No blue, no
 // coral. Single solid color per element, no gradient on any item.
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 
 export default function Footer() {
   return (

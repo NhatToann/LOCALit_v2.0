@@ -1,5 +1,5 @@
 import { MapPin, Calendar, Globe, Compass, MessageCircle, Sparkles } from 'lucide-react'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import type { Tourist, Profile } from '@/lib/types'
 import ConnectButton from '@/components/buddy/ConnectButton'
 

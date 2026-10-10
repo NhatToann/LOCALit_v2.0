@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { Heart, X, MapPin, Star, Sparkles, MessageCircle, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { SPECIALTIES, SPECIALTY_LABELS, type Specialty } from '@/lib/specialties'

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/auth'
 import { MapPin, Calendar, ArrowLeft, AlertTriangle, Compass, Clock, Users, MapPinned } from 'lucide-react'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import type { Itinerary, ItineraryDay, ItineraryStop, Profile } from '@/lib/types'
 import { fmtTime, fmtRange, fmtMinutes, sortStops } from '@/lib/itinerary/times'
 

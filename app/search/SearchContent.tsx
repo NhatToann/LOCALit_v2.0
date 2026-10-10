@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { Sparkles, Search as SearchIcon, MapPin, X, AlertTriangle, ChevronDown } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import {

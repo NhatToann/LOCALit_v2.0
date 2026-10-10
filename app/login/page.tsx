@@ -19,7 +19,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { AlertTriangle, Check, Clock, Eye, EyeOff } from 'lucide-react'
 import { signIn, getCurrentUser, signOut } from '@/utils/supabase/auth'
 import { validatePassword } from '@/utils/password-validator'

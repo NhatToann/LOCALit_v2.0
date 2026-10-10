@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { MapPin } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import type { TravelHistoryItem as TravelHistoryItemType } from '@/lib/types'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, Suspense, useCallback } from 'react'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/utils/supabase/auth'

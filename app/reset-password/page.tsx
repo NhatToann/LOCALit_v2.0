@@ -20,7 +20,7 @@
  */
 
 import { useState, Suspense, useEffect } from 'react'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { useRouter } from 'next/navigation'
 import { Lock, AlertTriangle, ArrowLeft, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { updatePassword, getCurrentUser } from '@/utils/supabase/auth'

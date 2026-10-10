@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { Loader2, MapPin, Plus, X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 

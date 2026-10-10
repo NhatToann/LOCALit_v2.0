@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import Link from 'next/link';
+import { Link } from '@/components/ui/Link';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/utils/supabase/auth';
 import { Briefcase, Users, Clock, Send, MapPin, Calendar, User, Search, MessageCircle, UserCircle, Compass, Phone, Heart } from 'lucide-react';

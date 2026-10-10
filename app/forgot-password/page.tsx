@@ -16,7 +16,7 @@
  */
 
 import { useState, Suspense } from 'react'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { KeyRound, AlertTriangle, CheckCircle2, ArrowLeft, Info, Mail } from 'lucide-react'
 import { resetPassword } from '@/utils/supabase/auth'
 import { syncValue } from '@/utils/paste-safe-input'

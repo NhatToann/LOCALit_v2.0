@@ -29,7 +29,7 @@
 
 import { useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, Mail, RefreshCw, Info } from 'lucide-react'
 import { validatePassword } from '@/utils/password-validator'
 import { syncValue } from '@/utils/paste-safe-input'

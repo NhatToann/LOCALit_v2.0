@@ -1,5 +1,5 @@
 import { MapPin, Star, DollarSign, MessageCircle, Sparkles } from 'lucide-react'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import type { Buddy, Profile } from '@/lib/types'
 import { labelFor } from '@/lib/specialties'
 import ConnectButton from '@/components/buddy/ConnectButton'

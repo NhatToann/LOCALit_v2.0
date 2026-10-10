@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import { useRouter } from 'next/navigation'
 import { X, MessageCircle, Send, Phone, Smile, Reply, ChevronDown, Minus } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'

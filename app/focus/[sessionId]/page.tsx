@@ -32,7 +32,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import Link from 'next/link'
+import { Link } from '@/components/ui/Link'
 import {
   MapPin,
   MapPinOff,
