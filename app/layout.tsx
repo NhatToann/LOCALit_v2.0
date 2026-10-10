@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import AppShell from '@/components/layout/AppShell'
+import ScrollToTopOnNavigate from '@/components/layout/ScrollToTopOnNavigate'
 
 export const metadata: Metadata = {
   title: 'LOCALit — Connect with Local Buddies in Da Nang',
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <ScrollToTopOnNavigate />
         <AppShell>{children}</AppShell>
       </body>
     </html>
