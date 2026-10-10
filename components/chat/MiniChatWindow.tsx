@@ -405,13 +405,15 @@ export default function MiniChatWindow() {
               >
                 <span className="relative">
                   {c.counterpart_avatar ? (
-                    <img
-                      src={c.counterpart_avatar}
-                      alt=""
-                      className="w-9 h-9 rounded-full object-cover border border-border"
-                    />
+                    <span className="avatar avatar-sm ring-1 ring-border">
+                      <img
+                        src={c.counterpart_avatar}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                      />
+                    </span>
                   ) : (
-                    <span className="avatar avatar-sm bg-muted text-paper inline-flex items-center justify-center" aria-hidden="true">
+                    <span className="avatar avatar-sm bg-muted text-paper ring-1 ring-border" aria-hidden="true">
                       {c.counterpart_name.charAt(0)}
                     </span>
                   )}

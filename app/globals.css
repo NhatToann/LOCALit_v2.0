@@ -26,6 +26,23 @@
      Amber deep #D97706
    ============================================================ */
 @theme {
+  /* Radius scale (2026-10-10).
+     These tokens were referenced all over globals.css (--radius-sm,
+     --radius-pill) but never DEFINED, so every `border-radius:
+     var(--radius-*)` declaration was an invalid custom-property
+     reference that the browser silently dropped. Result: avatars,
+     chips, and pills rendered with square corners even though the
+     markup asked for a round shape. Defining them here fixes every
+     one of those at once.
+       --radius-sm    4px   — the project flat radius (cards, buttons, inputs)
+       --radius-pill 9999px — avatars, chips, badges, online dots
+     Do NOT raise --radius-sm above 4px: it is the project no-slop
+     rule from AGENTS.md. Pill radius is for round elements ONLY. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 9999px;
+
   /* Tourist: jade teal (deeper, more saturated) */
   --color-tourist: #0F766E;
   --color-tourist-hover: #115E59;
@@ -559,7 +576,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius-pill);
+    /* `50%` is the one radius value that is always a true circle for a
+       square element, independent of the element's pixel size. The
+       pill token would also work, but 50% survives any future change
+       to --radius-pill (e.g. if someone caps it at a large px value)
+       and keeps every avatar round without touching the token. */
+    border-radius: 50%;
     background-color: var(--color-muted);
     color: var(--color-paper);
     font-weight: 600;
@@ -568,10 +590,17 @@
     overflow: hidden;
   }
 
-  .avatar img {
+  /* Both the wrapper and the image get the round crop. On its own the
+     wrapper's `overflow: hidden` would clip to the border-radius, but
+     an <img> with a broken src renders its own border box in some
+     engines and a rounded wrapper alone leaves square corners on the
+     placeholder glyph. */
+  .avatar img,
+  .avatar > img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 50%;
   }
 
   .avatar-xs { width: 24px; height: 24px; font-size: 0.625rem; }

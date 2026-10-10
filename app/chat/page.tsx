@@ -114,6 +114,7 @@ function ChatInner() {
 
   const [myId, setMyId] = useState<string | null>(null)
   const [myName, setMyName] = useState<string>('')
+  const [myAvatar, setMyAvatar] = useState<string | null>(null)
   const [myRole, setMyRole] = useState<'tourist' | 'buddy' | null>(null)
   const [conversations, setConversations] = useState<ConvSummary[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -390,11 +391,12 @@ function ChatInner() {
     )
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, full_name')
+      .select('role, full_name, avatar_url')
       .eq('id', user.id)
       .single()
     setMyRole((profile?.role as 'tourist' | 'buddy') ?? 'tourist')
     if (profile?.full_name) setMyName(profile.full_name)
+    setMyAvatar(profile?.avatar_url ?? null)
     await loadConversations(user.id)
     setLoading(false)
   }
@@ -2154,6 +2156,8 @@ function ChatInner() {
                             message={m}
                             myId={myId}
                             partnerName={activeConv.partner_name}
+                            partnerAvatar={activeConv.partner_avatar}
+                            partnerAvatarSelf={myAvatar}
                             isMine={m.sender_id === myId}
                             canEdit={
                               m.sender_id === myId &&
@@ -2480,6 +2484,8 @@ function MessageBubble({
   message,
   myId,
   partnerName,
+  partnerAvatar,
+  partnerAvatarSelf,
   isMine,
   canEdit,
   isPinned,
@@ -2499,6 +2505,10 @@ function MessageBubble({
   message: Message
   myId: string | null
   partnerName: string
+  /** Avatar URL for the other participant (from `activeConv.partner_avatar`). */
+  partnerAvatar?: string | null
+  /** Avatar URL for the current user, so our own messages can show it too. */
+  partnerAvatarSelf?: string | null
   isMine: boolean
   canEdit: boolean
   isPinned: boolean
@@ -2573,7 +2583,11 @@ function MessageBubble({
     <li
       className={`group flex items-end gap-2 my-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}
     >
-      {!isMine ? <Avatar name={partnerName} size="sm" /> : null}
+      {!isMine ? (
+        <Avatar name={partnerName} src={partnerAvatar} size="sm" className="ring-2 ring-border" />
+      ) : (
+        <Avatar name={partnerName} src={partnerAvatarSelf} size="sm" className="ring-2 ring-border" />
+      )}
       <div className="relative max-w-[70%]">
         {emojiOpen ? (
           <div
