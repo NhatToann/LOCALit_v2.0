@@ -236,6 +236,18 @@ function BrowseContent() {
         // row used to show up under his own session).
         const { data: authData } = await supabase.auth.getUser()
         const me = authData.user?.id ?? null
+
+        // No user means the session died (expired access token, revoked
+        // refresh token). `me` would be null, and filtering on a
+        // sentinel UUID below would issue a query with a dead bearer
+        // token that 401s. SessionExpiryGuard is already redirecting to
+        // /login; bail out here so we do not pile a pointless 401 on top
+        // and then render an empty recommend list in the meantime.
+        if (!me) {
+          setBuddies([])
+          setLoading(false)
+          return
+        }
         // Pull buddies + tourists in parallel. safe_buddies already
         // filters to non-null lat/lng; safe_tourists_with_location
         // (created 2026-10-09) does the same for tourists so the
@@ -247,14 +259,14 @@ function BrowseContent() {
             .eq('location_city', 'Da Nang')
             .not('latitude', 'is', null)
             .not('longitude', 'is', null)
-            .neq('id', me ?? '00000000-0000-0000-0000-000000000000'),
+            .neq('id', me),
           supabase
             .from('safe_tourists_with_location')
             .select('id, location_city, latitude, longitude, languages, interests, nationality, travel_style, profile:safe_profiles(full_name, avatar_url, is_online, role)')
             .eq('location_city', 'Da Nang')
             .not('latitude', 'is', null)
             .not('longitude', 'is', null)
-            .neq('id', me ?? '00000000-0000-0000-0000-000000000000'),
+            .neq('id', me),
         ])
 
         const buddyData = (buddiesRes.data ?? []) as any[]

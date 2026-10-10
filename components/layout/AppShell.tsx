@@ -8,6 +8,7 @@ import MiniChatWindow from '@/components/chat/MiniChatWindow';
 import IncomingCallWatcher from '@/components/chat/IncomingCallWatcher';
 import OutgoingCallPanel from '@/components/chat/OutgoingCallPanel';
 import ActiveCallSheet from '@/components/layout/ActiveCallSheet';
+import SessionExpiryGuard from '@/components/layout/SessionExpiryGuard';
 import FocusRequestPopover from '@/components/focus/FocusRequestPopover';
 import MessagePopover from '@/components/chat/MessagePopover';
 import { useAuthUser } from '@/lib/auth/useAuthUser';
@@ -151,6 +152,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <DaNangBackdrop />
         {children}
         <Footer />
+      <SessionExpiryGuard />
       {!isFocusPage ? <MiniChatWindow /> : null}
       <GlobalIncomingCallWatcher />
       <GlobalOutgoingCallPanel />
@@ -175,6 +177,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <Footer />
+      <SessionExpiryGuard />
       {!isFocusPage ? <MiniChatWindow /> : null}
       <GlobalIncomingCallWatcher />
       <GlobalOutgoingCallPanel />
