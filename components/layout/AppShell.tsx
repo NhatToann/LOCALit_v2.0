@@ -9,6 +9,7 @@ import IncomingCallWatcher from '@/components/chat/IncomingCallWatcher';
 import OutgoingCallPanel from '@/components/chat/OutgoingCallPanel';
 import ActiveCallSheet from '@/components/layout/ActiveCallSheet';
 import FocusRequestPopover from '@/components/focus/FocusRequestPopover';
+import MessagePopover from '@/components/chat/MessagePopover';
 import { useAuthUser } from '@/lib/auth/useAuthUser';
 import { useOnlineHeartbeat } from '@/lib/realtime/useOnlineHeartbeat';
 import { GlobalPresence } from '@/lib/realtime/useGlobalPresence';
@@ -97,6 +98,21 @@ function GlobalFocusRequestPopover() {
 }
 
 /**
+ * 2026-10-10 — global message toast. Surfaces an incoming chat
+ * message as a small popover in the bottom-right. The popover is
+ * hidden on /chat (the message is already visible in the thread)
+ * and on /focus/<id> (Focus has its own embedded chat; surfacing
+ * the popover on top would be visual noise).
+ */
+function GlobalMessagePopover() {
+  const pathname = usePathname()
+  const auth = useAuthUser()
+  if (pathname.startsWith('/focus/')) return null
+  if (pathname === '/chat') return null
+  return <MessagePopover userId={auth?.userId ?? null} />
+}
+
+/**
  * Note (2026-10-01 — LiveKit migration):
  *   LiveKit handles incoming-call signaling centrally on its server,
  *   so no equivalent background WebRTC mount is needed — incoming
@@ -108,6 +124,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const inRoleLayout = ROLE_LAYOUTS.some((p) => pathname.startsWith(p));
   const isAuthPage = AUTH_PAGES.includes(pathname);
+  // 2026-10-10 — Focus Mode has its own header + chat + map; the
+  // global MiniChatWindow (which has its own Phone button) and the
+  // ActiveCallSheet (voice-call modal) would visually compete with
+  // the focus UI. Hide them on the focus route. Incoming calls
+  // still ring the partner when focus is open via the global
+  // IncomingCallWatcher, but the in-page surfaces are off.
+  const isFocusPage = pathname.startsWith('/focus/')
 
   // 4-role palette needs the current user's role on the <main> element so
   // CSS can recolor every `bg-primary` button via the
@@ -127,13 +150,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <DaNangBackdrop />
         {children}
         <Footer />
-        <MiniChatWindow />
-        <GlobalIncomingCallWatcher />
-        <GlobalOutgoingCallPanel />
-        <GlobalOnlineHeartbeat />
-        <GlobalPresenceMount />
-        <GlobalFocusRequestPopover />
-        <ActiveCallSheet />
+      {!isFocusPage ? <MiniChatWindow /> : null}
+      <GlobalIncomingCallWatcher />
+      <GlobalOutgoingCallPanel />
+      <GlobalOnlineHeartbeat />
+      <GlobalPresenceMount />
+      <GlobalFocusRequestPopover />
+      <GlobalMessagePopover />
+      {!isFocusPage ? <ActiveCallSheet /> : null}
       </>
     );
   }
@@ -150,13 +174,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <Footer />
-      <MiniChatWindow />
+      {!isFocusPage ? <MiniChatWindow /> : null}
       <GlobalIncomingCallWatcher />
       <GlobalOutgoingCallPanel />
       <GlobalOnlineHeartbeat />
       <GlobalPresenceMount />
       <GlobalFocusRequestPopover />
-      <ActiveCallSheet />
+      <GlobalMessagePopover />
+      {!isFocusPage ? <ActiveCallSheet /> : null}
     </>
   );
 }

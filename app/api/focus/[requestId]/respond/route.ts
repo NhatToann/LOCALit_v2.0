@@ -121,6 +121,26 @@ export async function POST(
       return NextResponse.json({ ok: true, status: 'declined' })
     }
 
+    // 2026-10-10: system message — recipient declined.
+    if (focusReq.conversation_id) {
+      try {
+        const { data: recipientProfile } = await supabase
+          .from('safe_profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle()
+        const recipientName = recipientProfile?.full_name ?? 'Your buddy'
+        await supabase.from('messages').insert({
+          conversation_id: focusReq.conversation_id,
+          sender_id: user.id,
+          content: `${recipientName} declined the Focus request`,
+          message_type: 'system',
+        })
+      } catch {
+        /* system message is best-effort */
+      }
+    }
+
     // --- action === 'accept' ---
     // Reject if either side already has an active session.
     const { data: activeA, error: actAErr } = await supabase
@@ -192,6 +212,26 @@ export async function POST(
       .from('buddies')
       .update({ is_in_focus: true })
       .in('id', [focusReq.requester_id, user.id])
+
+    // 2026-10-10: system message — recipient accepted the request.
+    if (focusReq.conversation_id) {
+      try {
+        const { data: recipientProfile } = await supabase
+          .from('safe_profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle()
+        const recipientName = recipientProfile?.full_name ?? 'Your buddy'
+        await supabase.from('messages').insert({
+          conversation_id: focusReq.conversation_id,
+          sender_id: user.id,
+          content: `${recipientName} accepted the Focus request`,
+          message_type: 'system',
+        })
+      } catch {
+        /* system message is best-effort */
+      }
+    }
 
     // Notify the requester (best-effort).
     try {

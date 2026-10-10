@@ -42,6 +42,7 @@ import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { FocusSession, Profile, Conversation } from '@/lib/types'
 import { useFocusLocation } from '@/hooks/useFocusLocation'
 import { useFocusSessionSubscription } from '@/hooks/useFocusSessionSubscription'
+import { useIsOnline } from '@/lib/realtime/useGlobalPresence'
 import FocusMapLeaflet from '@/components/focus/FocusMapLeaflet'
 import FocusChat from '@/components/focus/FocusChat'
 import { Avatar } from '@/components/ui/Avatar'
@@ -222,6 +223,38 @@ export default function FocusSessionPage() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [ending])
 
+  // Partner-offline auto-end (2026-10-10 — user reported "1 bên tắt
+  // thì bên kia vẫn còn focus"). We use the global presence cache
+  // (driven by the heartbeat + Realtime broadcast) to detect the
+  // partner going offline. A 3-second debounce absorbs transient
+  // tab refreshes. When the partner is offline we POST /end and
+  // hard-navigate to /chat.
+  const partnerOnline = useIsOnline(partner?.id ?? null)
+  const [partnerWentOffline, setPartnerWentOffline] = useState(false)
+  useEffect(() => {
+    if (!partner) return
+    if (partnerOnline) {
+      setPartnerWentOffline(false)
+      return
+    }
+    // Give the partner 3s to come back online (tab refresh can
+    // briefly flip is_online false). After that, end the session.
+    const timer = setTimeout(() => setPartnerWentOffline(true), 3_000)
+    return () => clearTimeout(timer)
+  }, [partnerOnline, partner])
+  useEffect(() => {
+    if (!partnerWentOffline) return
+    if (!session) return
+    setEnding(true)
+    void fetch(`/api/focus/${session.id}/end`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: 'cancelled' }),
+    }).finally(() => {
+      window.location.assign('/chat')
+    })
+  }, [partnerWentOffline, session])
+
   const partnerName = partner?.full_name ?? 'Buddy'
   const myName = me?.full_name ?? 'You'
 
@@ -269,7 +302,11 @@ export default function FocusSessionPage() {
                 Focus with {partnerName}
               </h1>
               <p className="text-xs text-focus-primary-light tabular-nums">
-                {elapsed} · {partnerEndedAt ? 'Partner ended' : 'Da Nang'}
+                {partnerWentOffline
+                  ? `${elapsed} · Partner offline — ending…`
+                  : partnerEndedAt
+                    ? `${elapsed} · Partner ended`
+                    : `${elapsed} · Da Nang`}
               </p>
             </div>
           </div>

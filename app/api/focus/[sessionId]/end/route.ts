@@ -87,6 +87,29 @@ export async function POST(
       .update({ is_in_focus: false })
       .in('id', [session.user_a_id, session.user_b_id])
 
+    // 2026-10-10: system message — the user who ended inserted it.
+    // Rendered in /chat and /focus/<id> as a centered muted pill
+    // (same as call_event rows), so the partner sees the end in
+    // their conversation history.
+    if (session.conversation_id) {
+      try {
+        const { data: enderProfile } = await supabase
+          .from('safe_profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle()
+        const enderName = enderProfile?.full_name ?? 'Your buddy'
+        await supabase.from('messages').insert({
+          conversation_id: session.conversation_id,
+          sender_id: user.id,
+          content: `${enderName} ended the Focus session`,
+          message_type: 'system',
+        })
+      } catch {
+        /* system message is best-effort */
+      }
+    }
+
     return NextResponse.json({ ok: true, session: updated })
   } catch (err) {
     return NextResponse.json(

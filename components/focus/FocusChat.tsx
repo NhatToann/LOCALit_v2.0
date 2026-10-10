@@ -14,10 +14,15 @@
  *
  * No reactions, no replies, no typing indicator — keep the
  * embedded UI focused on send/read for the focus session.
+ *
+ * 2026-10-10 — also render `message_type='system'` and `'call_event'`
+ * rows as centered muted pills so the focus lifecycle events
+ * (started / accepted / declined / ended) appear inline in the
+ * conversation thread, not just in the chat sidebar.
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { Send } from 'lucide-react'
+import { Send, MapPinPlus, Phone } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { useMessageStream } from '@/lib/realtime/useMessageStream'
 import type { Message } from '@/lib/types'
@@ -154,13 +159,44 @@ export default function FocusChat({ conversationId, myId, partnerName }: FocusCh
             No messages yet. Say hi to {partnerName.split(' ')[0]}.
           </p>
         ) : (
-          displayMessages.map((m) => (
-            <FocusBubble
-              key={m.id}
-              message={m}
-              mine={m.sender_id === myId}
-            />
-          ))
+          displayMessages.map((m) => {
+            // System / call_event rows render as centered pills, not
+            // bubbles. The chat page handles this the same way.
+            if (m.message_type === 'system' || m.message_type === 'call_event') {
+              return (
+                <div key={m.id} className="flex items-center justify-center my-1">
+                  <span
+                    className="inline-flex items-center gap-2 px-3 py-1 text-[11px] font-medium text-focus-primary bg-focus-bg border border-focus-border rounded-sm"
+                    title={new Date(m.created_at).toLocaleString('en-US')}
+                  >
+                    {m.message_type === 'system' ? (
+                      <MapPinPlus size={11} aria-hidden="true" className="text-focus-primary" />
+                    ) : (
+                      <Phone size={11} aria-hidden="true" className="text-focus-muted" />
+                    )}
+                    <span>{m.content}</span>
+                    <span aria-hidden="true">·</span>
+                    <time
+                      dateTime={m.created_at}
+                      className="font-mono tracking-tight text-focus-muted"
+                    >
+                      {new Date(m.created_at).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </time>
+                  </span>
+                </div>
+              )
+            }
+            return (
+              <FocusBubble
+                key={m.id}
+                message={m}
+                mine={m.sender_id === myId}
+              />
+            )
+          })
         )}
       </div>
       {error ? (

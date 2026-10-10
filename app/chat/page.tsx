@@ -2505,6 +2505,27 @@ function MessageBubble({
     )
   }
 
+  // 2026-10-10 — Focus event system message. Same visual treatment
+  // as call_event so the user immediately reads it as "not a chat
+  // message, just a status update".
+  if (message.message_type === 'system') {
+    return (
+      <li className="flex items-center justify-center my-1">
+        <span
+          className="inline-flex items-center gap-2 px-3 py-1 text-[11px] font-medium text-focus-primary bg-focus-bg border border-focus-border rounded-sm"
+          title={new Date(message.created_at).toLocaleString('en-US')}
+        >
+          <MapPinPlus size={11} aria-hidden="true" className="text-focus-primary" />
+          <span>{message.content}</span>
+          <span aria-hidden="true">·</span>
+          <time dateTime={message.created_at} className="font-mono tracking-tight">
+            {timeLabel}
+          </time>
+        </span>
+      </li>
+    )
+  }
+
   if (message.deleted_at) {
     return (
       <li className="flex items-center gap-2 px-3 my-0.5">

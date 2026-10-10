@@ -188,6 +188,29 @@ export async function POST(req: NextRequest) {
       /* notifications are best-effort */
     }
 
+    // 2026-10-10: insert a system message into the linked conversation
+    // so the focus event is part of the chat history (the user asked
+    // for "focus mode to work like a message" — a system message in
+    // the same thread is the natural way to surface it). Best-effort.
+    if (conversation_id) {
+      try {
+        const { data: requesterProfile } = await supabase
+          .from('safe_profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle()
+        const requesterName = requesterProfile?.full_name ?? 'Your buddy'
+        await supabase.from('messages').insert({
+          conversation_id,
+          sender_id: user.id,
+          content: `${requesterName} started a Focus session`,
+          message_type: 'system',
+        })
+      } catch {
+        /* system message is best-effort */
+      }
+    }
+
     return NextResponse.json({ ok: true, request }, { status: 201 })
   } catch (err) {
     return NextResponse.json(
