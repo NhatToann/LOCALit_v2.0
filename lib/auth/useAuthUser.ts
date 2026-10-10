@@ -23,21 +23,35 @@ export function useAuthUser(): AuthUser | null {
       try {
         const supabase = createClient()
         const { data: { user: authUser } } = await supabase.auth.getUser()
-        if (cancelled || !authUser) return
+        // CRITICAL: on sign-out (or when the session cookie is cleared)
+        // `authUser` is null. The old code did `if (cancelled || !authUser)
+        // return`, which left the previous user's state in place forever.
+        // AuthAwareHeader therefore kept rendering the signed-in nav on
+        // /login, and GlobalOnlineHeartbeat kept its 30s interval alive,
+        // firing `set_online_status` with no session -> 401 on every beat.
+        // We must actively CLEAR to null here.
+        if (cancelled) return
+        if (!authUser) {
+          setUser(null)
+          return
+        }
         const { data: profile } = await supabase
           .from('profiles')
           .select('full_name, role')
           .eq('id', authUser.id)
           .single()
-        if (cancelled || !profile) return
-        if (profile.role !== 'tourist' && profile.role !== 'buddy') return
+        if (cancelled) return
+        if (!profile || (profile.role !== 'tourist' && profile.role !== 'buddy')) {
+          setUser(null)
+          return
+        }
         setUser({
           userId: authUser.id,
           role: profile.role,
           fullName: profile.full_name ?? undefined,
         })
       } catch {
-        /* ignore */
+        if (!cancelled) setUser(null)
       }
     }
     void load()

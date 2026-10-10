@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
-import { Menu, User, LogOut, X, MapPin } from 'lucide-react';
-import { createClient } from '@/utils/supabase/auth';
+import { Menu, User, LogOut, X, MapPin, UserCog } from 'lucide-react';
+import { signOut } from '@/utils/supabase/auth';
 import { useRouter } from 'next/navigation';
 import { NavHint } from './NavHint';
 import NotificationBell from '@/components/notifications/NotificationBell';
@@ -62,9 +62,16 @@ export default function Header({ userName, userId }: HeaderProps) {
   }, [pathname]);
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
+    // Use the hardened wrapper, not `supabase.auth.signOut()` directly.
+    // The raw call does not sweep the orphan `sb-*` auth cookies that
+    // the @supabase/ssr browser client leaves behind, so the next
+    // middleware hit still sees a session and bounces /login straight
+    // back to /dashboard. That is the "kẹt ở màn hình đăng nhập"
+    // loop. signOut() clears the cookie jar synchronously before we
+    // navigate, and fires `localit-auth-changed` so useAuthUser and
+    // the presence heartbeat both reset to guest.
+    await signOut();
+    router.replace('/login?switch=1');
     router.refresh();
   }
 
@@ -157,6 +164,15 @@ export default function Header({ userName, userId }: HeaderProps) {
                     My Profile
                   </Link>
                   <div className="h-px bg-border my-1" role="separator" />
+                  <Link
+                    href="/login?switch=1"
+                    onClick={() => setMenuOpen(false)}
+                    role="menuitem"
+                    className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-ink hover:bg-paper"
+                  >
+                    <UserCog size={16} aria-hidden="true" />
+                    Switch account
+                  </Link>
                   <button
                     onClick={handleSignOut}
                     role="menuitem"
@@ -248,6 +264,13 @@ export default function Header({ userName, userId }: HeaderProps) {
               >
                 <User size={16} aria-hidden="true" />
                 My Profile
+              </Link>
+              <Link
+                href="/login?switch=1"
+                className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper w-full gap-2"
+              >
+                <UserCog size={16} aria-hidden="true" />
+                Switch account
               </Link>
               <button
                 onClick={handleSignOut}

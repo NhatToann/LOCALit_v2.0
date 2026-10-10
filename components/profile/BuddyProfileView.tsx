@@ -49,7 +49,7 @@ import {
   ToggleLeft,
   ToggleRight,
 } from 'lucide-react'
-import { createClient, getCurrentUser } from '@/utils/supabase/auth'
+import { createClient, getCurrentUser, signOut } from '@/utils/supabase/auth'
 import type { Profile, Buddy } from '@/lib/types'
 import { Avatar } from '@/components/ui/Avatar'
 import TravelHistory from '@/components/profile/TravelHistory'
@@ -539,8 +539,12 @@ export default function BuddyProfileView() {
       alert('Could not delete: ' + delErr.message)
       return
     }
-    await supabase.auth.signOut()
-    window.location.href = '/'
+    // Hardened wrapper clears the orphan `sb-*` auth cookies that
+    // `supabase.auth.signOut()` leaves behind; otherwise the next
+    // middleware hit still sees a session and the browser bounces
+    // /login back to /dashboard.
+    await signOut()
+    window.location.href = '/login?switch=1'
   }
 
   // --- Loading + missing-data handling ------------------------------

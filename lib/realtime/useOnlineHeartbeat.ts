@@ -45,15 +45,31 @@ function dlog(...args: unknown[]): void {
 /**
  * Fire-and-forget RPC call. The session cookie is sent automatically by
  * the browser; SECURITY DEFINER on the RPC enforces auth.uid() ownership.
+ *
+ * The guard is not optional. During sign-out the cookie is already gone
+ * but React effects (unmount cleanup, the `localit-auth-changed` handler,
+ * the 30s interval) can all fire afterwards. Each of those issued a
+ * `set_online_status` POST with no session, which Supabase answers with
+ * `401 Unauthorized` — flooding the console every 30s and masking real
+ * errors. We check the session first and bail out silently when there
+ * isn't one.
  */
 async function callSetOnline(isOnline: boolean): Promise<void> {
   try {
     const supabase = createClient()
+
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+    if (!accessToken) return
+
     const { error } = await supabase.rpc(RPC_NAME, { p_is_online: isOnline })
     if (error) {
-      // Session may have expired between mount and now; that's expected
-      // during sign-out. Other failures are logged but not retried — the
-      // cron job will eventually reconcile.
+      // 401 means the session died between getSession() and the RPC —
+      // expected during sign-out, so stay quiet. `PostgrestError` has
+      // no `status` field on the type, but the runtime object carries
+      // one, so probe it defensively.
+      const status = (error as unknown as { status?: number }).status
+      if (status === 401) return
       if (process.env.NODE_ENV !== 'production') {
         // eslint-disable-next-line no-console
         console.warn('[presence] rpc failed:', error.message)
@@ -139,15 +155,19 @@ export function useOnlineHeartbeat(currentUserId: string | null): void {
         // Use fetch+keepalive. The auth cookie is sent automatically.
         // We deliberately don't await — the browser fires this in
         // parallel with the unload.
+        //
+        // `apikey` alone authenticates as anon, which Supabase answers
+        // with 401 for this SECURITY DEFINER RPC. Attach the anon key as
+        // the bearer ONLY as a last resort: the RPC's own guard is
+        // `auth.uid()`, which reads the session cookie, so a stale
+        // bearer is harmless (the call no-ops) but a valid cookie makes
+        // it actually work.
         const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
         void fetch(`${supabaseUrl}/rest/v1/rpc/${RPC_NAME}`, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
             apikey: anonKey,
-            // No Authorization header — the cookie is sent by the
-            // browser automatically because Supabase stores the
-            // session in a cookie via the SSR client.
           },
           body: JSON.stringify({ p_is_online: false }),
           keepalive: true,
