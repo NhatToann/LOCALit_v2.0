@@ -20,7 +20,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, Check, Eye, EyeOff } from 'lucide-react'
+import { AlertTriangle, Check, Clock, Eye, EyeOff } from 'lucide-react'
 import { signIn, getCurrentUser, signOut } from '@/utils/supabase/auth'
 import { validatePassword } from '@/utils/password-validator'
 import { syncValue } from '@/utils/paste-safe-input'
@@ -31,6 +31,13 @@ function LoginForm() {
   const redirectTo = searchParams.get('redirectTo')
   const registered = searchParams.get('registered') === '1'
   const prefillEmail = searchParams.get('email') ?? ''
+
+  // SessionExpiryGuard sends the reader here with `reason=expired` when
+  // the token died. Prefer the path the guard preserved (`next`) so the
+  // user lands back where they were after signing in again; fall back to
+  // `redirectTo`, which middleware sets.
+  const sessionExpired = searchParams.get('reason') === 'expired'
+  const postSignInPath = searchParams.get('next') || redirectTo || '/dashboard'
 
   const [email, setEmail] = useState(prefillEmail)
   const [password, setPassword] = useState('')
@@ -94,11 +101,25 @@ function LoginForm() {
       return
     }
 
-    router.push(redirectTo || '/dashboard')
+    router.push(postSignInPath)
   }
 
   return (
     <main className="container-page py-12 max-w-md relative">
+      {/* Expired-session notice. The guard sends the reader to
+          /login?reason=expired when the token died mid-session. Without
+          this the form looks identical to a cold visit, so a user who
+          was silently signed out has no idea why they were ejected. */}
+      {sessionExpired ? (
+        <div className="alert alert-warning mb-4" role="status">
+          <Clock size={16} aria-hidden="true" />
+          <div className="flex-1">
+            <p className="font-semibold">Your session expired</p>
+            <p className="text-sm">Phiên đăng nhập đã hết hạn. Sign in again to continue.</p>
+          </div>
+        </div>
+      ) : null}
+
       {/* Active-session banner. Shown only on /login?switch=1 when a
           session is still alive. Without an escape hatch the
           middleware force-redirects /login to /dashboard, so a user
