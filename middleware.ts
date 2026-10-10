@@ -45,7 +45,17 @@ export async function middleware(request: NextRequest) {
   const isVerifyEmailRoute = pathname.startsWith('/verify-email')
 
   // If on auth pages while logged in, redirect to dashboard.
-  if (isAuthRoute && user) {
+  //
+  // ESCAPE HATCH: `?switch=1` lets a signed-in user reach the
+  // login form so they can switch accounts. Without this the
+  // middleware bounces every /login visit straight to /dashboard,
+  // which strands the browser on the previous account. That's
+  // how the "Lan Pham can't see Phan Nhật Toàn's messages"
+  // report happened: the tab still held the session cookie of an
+  // earlier test account, so every `messages` query ran as that
+  // account and returned 0 rows for the real conversation.
+  const wantsAccountSwitch = request.nextUrl.searchParams.get('switch') === '1'
+  if (isAuthRoute && user && !wantsAccountSwitch) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

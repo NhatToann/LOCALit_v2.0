@@ -17,11 +17,11 @@
  *     sets still update React state (see utils/paste-safe-input.ts).
  */
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle, Check, Eye, EyeOff } from 'lucide-react'
-import { signIn } from '@/utils/supabase/auth'
+import { signIn, getCurrentUser, signOut } from '@/utils/supabase/auth'
 import { validatePassword } from '@/utils/password-validator'
 import { syncValue } from '@/utils/paste-safe-input'
 
@@ -37,6 +37,29 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  // When the user reaches /login?switch=1 while a session is still
+  // active, show who they're currently signed in as and offer a
+  // one-click sign-out. Without this the middleware bounced every
+  // /login visit straight to /dashboard, stranding the browser on
+  // whichever account was signed in last — which is how the
+  // "Lan Pham can't see Phan Nhật Toàn's messages" report
+  // happened: the tab still held an earlier test account's
+  // session cookie, so every `messages` query ran as that account
+  // and returned 0 rows for the real conversation.
+  const [staleSession, setStaleSession] = useState<{ email: string } | null>(null)
+
+  useEffect(() => {
+    if (searchParams.get('switch') !== '1') return
+    let cancelled = false
+    void (async () => {
+      const user = await getCurrentUser()
+      if (cancelled) return
+      if (user?.email) setStaleSession({ email: user.email })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams])
 
   const emailLooksValid = email.includes('@') && email.includes('.')
   const passwordLooksValid = validatePassword(password) === null
@@ -76,6 +99,36 @@ function LoginForm() {
 
   return (
     <main className="container-page py-12 max-w-md relative">
+      {/* Active-session banner. Shown only on /login?switch=1 when a
+          session is still alive. Without an escape hatch the
+          middleware force-redirects /login to /dashboard, so a user
+          testing two accounts at once could never get back to this
+          form — they stayed on the previous account's session and
+          every RLS-scoped query silently returned nothing. */}
+      {staleSession ? (
+        <div className="alert alert-info mb-4" role="status">
+          <AlertTriangle size={16} aria-hidden="true" />
+          <div className="flex-1">
+            <p className="font-semibold">Still signed in as {staleSession.email}</p>
+            <p className="text-sm">
+              Sign out first if you want to use a different account on this browser.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-ghost text-xs shrink-0"
+            onClick={async () => {
+              await signOut()
+              setStaleSession(null)
+              router.replace('/login')
+              router.refresh()
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+      ) : null}
+
       {/* 4-color role markers — small chips above the form so every page
           shows all 4 brand colors even on the smallest surface (per
           design constraint). Tourist + Buddy also hint at the role-aware

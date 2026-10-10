@@ -94,6 +94,19 @@ export async function signUp(email: string, password: string, fullName: string, 
 
 export async function signIn(email: string, password: string) {
   const supabase = createClient()
+
+  // Clear any pre-existing session BEFORE signing in. Without this,
+  // `signInWithPassword` runs against whatever account was already
+  // in the cookie, and on a stale/expired session it can leave the
+  // browser holding the OLD account's token while the UI renders the
+  // NEW account's dashboard. Symptom: the header shows a signed-in
+  // user but every RLS-scoped query returns 0 rows, so chat shows
+  // "Start chatting" for conversations that clearly have messages.
+  const { data: existing } = await supabase.auth.getSession()
+  if (existing.session) {
+    await supabase.auth.signOut()
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (!error && data.user) {
     notifyAuthChanged()
@@ -101,9 +114,35 @@ export async function signIn(email: string, password: string) {
   return { data, error }
 }
 
+/**
+ * Sign out and clear every trace of the session.
+ *
+ * `supabase.auth.signOut()` alone is not always enough on this stack:
+ * the @supabase/ssr browser client persists the session to a
+ * chunked cookie, and a mid-flight sign-in can leave the code-verifier
+ * cookies from the previous OAuth/OTP attempt behind. Those orphan
+ * cookies keep tripping the middleware's "is this an auth route and
+ * is there a user" check, which is how users got stranded on a
+ * previous account with no way back to the login form.
+ *
+ * Clearing the cookies first and doing a hard reload guarantees the
+ * next page load starts from a genuinely empty session.
+ */
 export async function signOut() {
   const supabase = createClient()
   const { error } = await supabase.auth.signOut()
+
+  // Best-effort sweep of any orphaned Supabase auth cookies.
+  if (typeof document !== 'undefined') {
+    const prefix = 'sb-'
+    for (const c of document.cookie.split(';')) {
+      const name = c.split('=')[0]?.trim()
+      if (!name || !name.startsWith(prefix)) continue
+      document.cookie = `${name}=; Max-Age=0; path=/`
+      document.cookie = `${name}=; Max-Age=0; path=/; domain=${location.hostname}`
+    }
+  }
+
   if (!error) {
     notifyAuthChanged()
   }
