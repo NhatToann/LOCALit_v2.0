@@ -3,40 +3,45 @@
 /**
  * /focus/[sessionId] — Focus Mode session page.
  *
- * 2026-10-10 rewrite. See `docs/plans/2026-10-10-focus-mode-rewrite.md`
- * for the full design.
+ * 2026-10-10 update. Per user request:
+ *   - The always-on mic and the in-page Call button are removed.
+ *     Focus is now a *silent* shared-trip mode: the two participants
+ *     see each other on the map, can chat, and (when one of them
+ *     ends) the other side auto-redirects back to /chat. Voice
+ *     calls live entirely in /chat.
+ *   - When the partner ends the session, the local user is
+ *     auto-redirected to /chat. This is implemented as a
+ *     `postgres_changes` subscription on `focus_sessions` filtered
+ *     to rows where the user is `user_a_id` OR `user_b_id`
+ *     (`useFocusSessionSubscription`).
  *
  * Layout (top → bottom):
- *   - Header with partner avatar, elapsed timer, mic / location / call
- *     / end controls. No back button — the only exit is End Focus or
- *     close the browser.
+ *   - Header with partner avatar, elapsed timer, location toggle /
+ *     info / end controls. No back button — the only exit is End
+ *     Focus or close the browser.
  *   - Live map (Leaflet, copy of dashboard's MapView) showing both
  *     users plus the Da Nang context.
  *   - Embedded chat with bubble UI (uses the same `messages` table as
  *     /chat so the two surfaces see the same data).
  *
- * On mount the hook auto-publishes the mic and starts sharing the
- * location (per user decision 2026-10-10). The mic icon toggles
- * mute; the location icon toggles sharing. The Call button starts
- * the same LiveKit call flow as the chat page (rings the partner).
+ * On mount the location toggle is on by default. The location icon
+ * toggles sharing. The End button is the only way out; the
+ * beforeunload guard is short-circuited when `ending` is true so
+ * the post-redirect navigation can complete.
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Mic,
-  MicOff,
   MapPin,
   MapPinOff,
-  Phone,
-  PhoneOff,
-  X,
   Info,
 } from 'lucide-react'
 import { createClient, getCurrentUser } from '@/utils/supabase/auth'
 import type { FocusSession, Profile, Conversation } from '@/lib/types'
-import { useFocusAutoMedia } from '@/hooks/useFocusAutoMedia'
+import { useFocusLocation } from '@/hooks/useFocusLocation'
+import { useFocusSessionSubscription } from '@/hooks/useFocusSessionSubscription'
 import FocusMapLeaflet from '@/components/focus/FocusMapLeaflet'
 import FocusChat from '@/components/focus/FocusChat'
 import { Avatar } from '@/components/ui/Avatar'
@@ -55,9 +60,9 @@ export default function FocusSessionPage() {
   const [elapsed, setElapsed] = useState<string>('00:00')
   const [ending, setEnding] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
-  // Location share is on by default (per 2026-10-10 design). The
-  // header toggle flips this; both the auto-media hook and the map
-  // read the same value so the UI doesn't drift.
+  // Location share is on by default. The header toggle flips this;
+  // both the location hook and the map read the same value so the
+  // UI doesn't drift.
   const [locationEnabled, setLocationEnabled] = useState(true)
 
   // Load session + partner + me.
@@ -135,29 +140,36 @@ export default function FocusSessionPage() {
     return () => clearInterval(id)
   }, [session])
 
-  // Auto-media: mic + location on by default. The hook owns the
-  // single Realtime subscription; the map reads the same data via
-  // the liveLocation prop below.
-  const {
-    micState,
-    micMuted,
-    toggleMic,
-    locationShared,
-    locationDenied,
-    liveLocations,
-    errorMessage: mediaError,
-  } = useFocusAutoMedia({
+  // Location-only hook (audio was removed per user request 2026-10-10).
+  // The hook owns the single Realtime subscription; the map reads the
+  // same data via the liveLocation / liveLocations props below.
+  const { locationShared, locationDenied, liveLocations } = useFocusLocation({
     enabled: session !== null && me !== null,
-    conversationId: conversation?.id ?? null,
-    myId: me?.id ?? null,
-    myName: me?.full_name ?? 'You',
-    shareLocation: locationEnabled,
     selfUserId: me?.id ?? null,
+    shareLocation: locationEnabled,
   })
   const liveLocation = useMemo(
     () => ({ selfGranted: locationShared, selfDenied: locationDenied }),
     [locationShared, locationDenied],
   )
+
+  // Partner-ended auto-redirect. When the partner's UPDATE sets
+  // `ended_at` on this row, we hard-navigate to /chat. This is
+  // what makes "end on one side, the other side ends too" feel
+  // synchronous without polling.
+  const { partnerEndedAt } = useFocusSessionSubscription(
+    session?.id ?? null,
+    me?.id ?? null,
+  )
+  useEffect(() => {
+    if (!partnerEndedAt) return
+    // Hard navigation. The beforeunload guard would block a soft
+    // router.push; setting `ending=true` first is the documented
+    // way to short-circuit it (see the onBeforeUnload handler
+    // below).
+    setEnding(true)
+    window.location.assign('/chat')
+  }, [partnerEndedAt])
 
   const endFocus = useCallback(async () => {
     if (!session || ending) return
@@ -174,15 +186,10 @@ export default function FocusSessionPage() {
         setError(`Could not end session: ${j.message ?? j.error ?? res.statusText}`)
         return
       }
-      // Back to chat is the only legal exit. The user has to confirm
-      // the End button, so we route them to /chat where their
-      // session is now in the history list. Use window.location
+      // Back to chat is the only legal exit. Use window.location
       // for a hard navigation — router.push from a [param] route
       // to a flat route in the App Router can silently fail to
       // update the URL when a beforeunload guard is also mounted.
-      // The beforeunload handler is set up to short-circuit
-      // (return early) when ending===true, so this navigation
-      // bypasses the guard without an extra confirm.
       window.location.assign('/chat')
       // Intentionally do NOT setEnding(false). Keeping `ending=true`
       // through the unmount means the beforeunload guard sees
@@ -198,10 +205,9 @@ export default function FocusSessionPage() {
   // Defensive: prevent accidental navigation away. The user
   // explicitly asked for "you can't exit except by ending the
   // session or closing the browser" — we add a beforeunload
-  // confirm so a stray tab-close doesn't lose the session, AND we
-  // a PopState listener so the browser back button can't
-  // silently leave. (Esc still works because the user can decide
-  // to close the tab — they own that choice.)
+  // confirm so a stray tab-close doesn't lose the session. Esc
+  // still works because the user can decide to close the tab —
+  // they own that choice.
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
       if (ending) return
@@ -216,29 +222,8 @@ export default function FocusSessionPage() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [ending])
 
-  // After the user explicitly ends the session, remove the
-  // beforeunload guard so the navigation to /chat can complete
-  // without the browser showing a second "leave site?" prompt.
-  // We do this by re-running the effect with ending=true (the
-  // guard already short-circuits when ending is true, so the
-  // navigation can proceed).
-
   const partnerName = partner?.full_name ?? 'Buddy'
   const myName = me?.full_name ?? 'You'
-
-  // Mic status → visual state for the header pill.
-  const micStatus = useMemo(() => {
-    if (micState === 'idle' || micState === 'calling' || micState === 'connecting') {
-      return { text: 'Connecting…', tone: 'warning' as const }
-    }
-    if (micState === 'failed') {
-      return { text: 'Mic off', tone: 'danger' as const }
-    }
-    if (micMuted) {
-      return { text: 'Muted', tone: 'warning' as const }
-    }
-    return { text: 'Mic on', tone: 'success' as const }
-  }, [micState, micMuted])
 
   if (loading) {
     return (
@@ -284,39 +269,11 @@ export default function FocusSessionPage() {
                 Focus with {partnerName}
               </h1>
               <p className="text-xs text-focus-primary-light tabular-nums">
-                {elapsed} · {micStatus.text} · Da Nang
+                {elapsed} · {partnerEndedAt ? 'Partner ended' : 'Da Nang'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Mic toggle (always-on mic). */}
-            <button
-              type="button"
-              onClick={toggleMic}
-              disabled={micState !== 'connected'}
-              aria-pressed={micMuted}
-              aria-label={
-                micMuted ? 'Unmute microphone' : 'Mute microphone'
-              }
-              title={
-                micState !== 'connected'
-                  ? 'Waiting for LiveKit…'
-                  : micMuted
-                    ? 'Unmute microphone'
-                    : 'Mute microphone'
-              }
-              className={`h-9 w-9 inline-flex items-center justify-center rounded-sm border ${
-                micMuted
-                  ? 'bg-warning text-ink border-warning'
-                  : 'bg-white text-focus-primary border-white hover:bg-focus-primary-light hover:text-white'
-              } disabled:opacity-50`}
-            >
-              {micMuted ? (
-                <MicOff size={16} aria-hidden="true" />
-              ) : (
-                <Mic size={16} aria-hidden="true" />
-              )}
-            </button>
             {/* Location share toggle. */}
             <button
               type="button"
@@ -344,17 +301,6 @@ export default function FocusSessionPage() {
                 <MapPinOff size={16} aria-hidden="true" />
               )}
             </button>
-            {/* Voice call — same flow as the chat page. */}
-            {conversation ? (
-              <Link
-                href={`/chat?conv=${conversation.id}&call=1`}
-                aria-label="Open chat to start a voice call"
-                title="Voice call"
-                className="h-9 w-9 inline-flex items-center justify-center rounded-sm bg-white text-focus-primary border border-white hover:bg-focus-primary-light hover:text-white"
-              >
-                <Phone size={16} aria-hidden="true" />
-              </Link>
-            ) : null}
             {/* Info / session details. */}
             <button
               type="button"
@@ -381,10 +327,10 @@ export default function FocusSessionPage() {
             </button>
           </div>
         </div>
-        {(error || mediaError) ? (
+        {error ? (
           <div className="container-page py-2">
             <p className="text-xs text-focus-primary-light" role="alert">
-              {mediaError ?? error}
+              {error}
             </p>
           </div>
         ) : null}
@@ -434,7 +380,7 @@ export default function FocusSessionPage() {
             />
           ) : (
             <div className="bg-focus-surface border-t border-focus-border px-4 py-6 text-sm text-focus-muted text-center">
-              <PhoneOff size={16} className="inline mr-2 align-middle" aria-hidden="true" />
+              <Info size={16} className="inline mr-2 align-middle" aria-hidden="true" />
               No conversation is linked to this Focus session.
             </div>
           )}

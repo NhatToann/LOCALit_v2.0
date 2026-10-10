@@ -2037,24 +2037,9 @@ function ChatInner() {
                 </button>
               </header>
 
-              {/* Focus request banner (incoming or outgoing) */}
-              {focusIncoming && activeConv && focusIncoming.conversation_id === activeConv.id ? (
-                <div className="px-4 pt-3">
-                  <FocusRequestBanner
-                    variant="incoming"
-                    request={focusIncoming}
-                    partner={focusIncoming.requester ?? null}
-                    busy={focusBusy}
-                    onAccept={() => respondToFocus('accept')}
-                    onDecline={() => respondToFocus('decline')}
-                  />
-                  {focusError ? (
-                    <p className="text-xs text-danger mt-1" role="alert">
-                      {focusError}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
+              {/* Focus request outgoing banner. The incoming request is
+                  handled by the global FocusRequestPopover in AppShell,
+                  so we don't render the incoming banner here. */}
               {focusOutgoing && activeConv && focusOutgoing.conversation_id === activeConv.id ? (
                 <div className="px-4 pt-3">
                   <FocusRequestBanner

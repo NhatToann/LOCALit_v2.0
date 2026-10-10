@@ -8,6 +8,7 @@ import MiniChatWindow from '@/components/chat/MiniChatWindow';
 import IncomingCallWatcher from '@/components/chat/IncomingCallWatcher';
 import OutgoingCallPanel from '@/components/chat/OutgoingCallPanel';
 import ActiveCallSheet from '@/components/layout/ActiveCallSheet';
+import FocusRequestPopover from '@/components/focus/FocusRequestPopover';
 import { useAuthUser } from '@/lib/auth/useAuthUser';
 import { useOnlineHeartbeat } from '@/lib/realtime/useOnlineHeartbeat';
 import { GlobalPresence } from '@/lib/realtime/useGlobalPresence';
@@ -83,6 +84,19 @@ function GlobalPresenceMount() {
 }
 
 /**
+ * 2026-10-10 — global Focus request popover. The popover subscribes
+ * to `focus_requests` INSERTs for the current user and surfaces a
+ * centered modal regardless of which page the recipient is on. On
+ * Accept, we hard-navigate to /focus/<sessionId>; on Decline, the
+ * popover closes and the requester sees a focus_declined
+ * notification.
+ */
+function GlobalFocusRequestPopover() {
+  const auth = useAuthUser()
+  return <FocusRequestPopover userId={auth?.userId ?? null} />
+}
+
+/**
  * Note (2026-10-01 — LiveKit migration):
  *   LiveKit handles incoming-call signaling centrally on its server,
  *   so no equivalent background WebRTC mount is needed — incoming
@@ -118,6 +132,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <GlobalOutgoingCallPanel />
         <GlobalOnlineHeartbeat />
         <GlobalPresenceMount />
+        <GlobalFocusRequestPopover />
         <ActiveCallSheet />
       </>
     );
@@ -140,6 +155,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <GlobalOutgoingCallPanel />
       <GlobalOnlineHeartbeat />
       <GlobalPresenceMount />
+      <GlobalFocusRequestPopover />
       <ActiveCallSheet />
     </>
   );
