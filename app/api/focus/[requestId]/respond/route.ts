@@ -8,6 +8,9 @@ import { z } from 'zod'
 // inserts a notification back to the requester, sets the buddy's
 // is_in_focus flag, and returns the new session id so the recipient
 // can router.push('/focus/<id>').
+// Use a lax UUID regex — z.string().uuid() rejects seed-style
+// non-variant-1 UUIDs.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const BodySchema = z.object({
   action: z.enum(['accept', 'decline']),
 })
