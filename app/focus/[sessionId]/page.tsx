@@ -175,8 +175,12 @@ export default function FocusSessionPage() {
       }
       // Back to chat is the only legal exit. The user has to confirm
       // the End button, so we route them to /chat where their
-      // session is now in the history list.
-      router.replace('/chat')
+      // session is now in the history list. We use push() instead
+      // of replace() because replace() is unreliable from a
+      // [param] route in the App Router when the destination is a
+      // different segment — the page may stay mounted and the URL
+      // not update. push() always lands.
+      router.push('/chat')
     } finally {
       setEnding(false)
     }

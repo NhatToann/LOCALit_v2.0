@@ -309,10 +309,15 @@ const main = async () => {
     fullPage: false,
   })
 
-  // End the session from Sarah's side.
-  sarah.page.once('dialog', (d) => d.accept())
+  // End the session from Sarah's side. The click triggers a native
+  // confirm() dialog — register a persistent handler so we catch it
+  // whether it fires synchronously or after the click.
+  const endDialog = (d) => d.accept()
+  sarah.page.on('dialog', endDialog)
   await sarah.page.click('button:has-text("End Focus")')
-  await sarah.page.waitForURL('**/chat', { timeout: 10000 }).catch(() => undefined)
+  // Give the navigation time to fire (the API call + the router.push).
+  await sarah.page.waitForURL((url) => url.toString().includes('/chat'), { timeout: 15000 }).catch(() => undefined)
+  sarah.page.off('dialog', endDialog)
   const sarahRouted = sarah.page.url().includes('/chat')
   expect('End Focus routes back to /chat', sarahRouted, { url: sarah.page.url() })
 
