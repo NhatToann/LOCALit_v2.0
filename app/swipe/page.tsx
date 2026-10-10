@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Heart, X, MapPin, Star, Sparkles, MessageCircle, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { SPECIALTIES, SPECIALTY_LABELS, type Specialty } from '@/lib/specialties'
@@ -36,7 +35,6 @@ interface BuddyCard {
 const STORAGE_KEY = 'localit:swipeInterests'
 
 export default function SwipePage() {
-  const router = useRouter()
   const [authChecked, setAuthChecked] = useState(false)
   const [step, setStep] = useState<'interests' | 'deck'>('interests')
   const [selectedInterests, setSelectedInterests] = useState<string[]>([])
@@ -56,7 +54,14 @@ export default function SwipePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (cancelled) return
       if (!user) {
-        router.replace('/login?redirectTo=/swipe')
+        // Hard navigation, not router.replace. Every client-side router
+        // call in the authenticated chrome hangs on this deployment —
+        // the transition starts, never issues an RSC request, and never
+        // settles (see the note in components/layout/Header.tsx).
+        // Without authChecked being set the spinner below runs forever,
+        // so this path must leave the page rather than wait on the
+        // router.
+        window.location.assign('/login?redirectTo=/swipe')
         return
       }
       const { data: profile } = await supabase
@@ -67,7 +72,7 @@ export default function SwipePage() {
       if (cancelled) return
       if (profile?.role && profile.role !== 'tourist') {
         // Buddies don't have a deck — redirect them to their like-back feed
-        router.replace('/likes')
+        window.location.assign('/likes')
         return
       }
       // Hydrate the interests chip from localStorage if present,
@@ -94,9 +99,13 @@ export default function SwipePage() {
       }
       setAuthChecked(true)
     }
-    void bootstrap()
+    // Any throw between here and setAuthChecked would leave the spinner
+    // running with no way out, so the whole bootstrap is guarded.
+    void bootstrap().catch(() => {
+      if (!cancelled) setAuthChecked(true)
+    })
     return () => { cancelled = true }
-  }, [router])
+  }, [])
 
   // Realtime: refresh queue when a new match is created for this user
   useEffect(() => {

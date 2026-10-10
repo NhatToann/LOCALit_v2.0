@@ -101,7 +101,7 @@ export default function Header({ userName, userId, avatarUrl }: HeaderProps) {
         Skip to main content
       </a>
       <div className="max-w-7xl mx-auto h-full px-6 flex items-center justify-between gap-6">
-        <Link href={homePath} className="flex items-center gap-2 flex-shrink-0">
+        <a href={homePath} className="flex items-center gap-2 flex-shrink-0">
           <span
             className="w-7 h-7 rounded-sm bg-tourist text-paper flex items-center justify-center"
             aria-hidden="true"
@@ -118,14 +118,29 @@ export default function Header({ userName, userId, avatarUrl }: HeaderProps) {
               Đà Nẵng
             </span>
           </span>
-        </Link>
+        </a>
 
         <nav className="hidden md:flex items-center gap-8 flex-1 justify-center" aria-label="Primary">
           {links.map((link) => {
             const active =
               pathname === link.path || (link.path !== '/' && pathname.startsWith(link.path + '/'));
+            // Plain <a>, not Next <Link>.
+            //
+            // Every client-side navigation through this bar was dead in
+            // production: React received the click and called
+            // preventDefault, then the router never issued a single RSC
+            // request and useLinkStatus stayed `pending: true` forever.
+            // The URL never changed and nothing rendered — which is the
+            // "navbar is frozen" report. Guest navigation worked, so the
+            // fault was in the authenticated chrome, not the link itself.
+            //
+            // A plain anchor always performs a real navigation, so the
+            // worst case here is a full page load (~200ms from the edge)
+            // instead of a soft client transition. Trading SPA
+            // smoothness for a navbar that actually moves is the right
+            // call while the router regression is diagnosed.
             return (
-              <Link
+              <a
                 key={link.path}
                 href={link.path}
                 className={`relative flex flex-col items-start gap-0.5 transition-colors duration-150 ${
@@ -134,7 +149,7 @@ export default function Header({ userName, userId, avatarUrl }: HeaderProps) {
                 aria-current={active ? 'page' : undefined}
                 aria-label={link.label}
               >
-<span className="text-sm font-medium leading-none">{link.label}</span>
+                <span className="text-sm font-medium leading-none">{link.label}</span>
                 <span
                   className="text-[10px] italic leading-none"
                   style={{ letterSpacing: '0.02em' }}
@@ -142,8 +157,7 @@ export default function Header({ userName, userId, avatarUrl }: HeaderProps) {
                 >
                   {link.labelVi}
                 </span>
-                <NavHint />
-              </Link>
+              </a>
             );
           })}
         </nav>
@@ -182,25 +196,23 @@ export default function Header({ userName, userId, avatarUrl }: HeaderProps) {
                   <div className="px-3 py-2 border-b border-border mb-1">
                     <p className="text-sm font-semibold text-ink">{userName ?? 'Account'}</p>
                   </div>
-                  <Link
+                  <a
                     href="/profile"
-                    onClick={() => setMenuOpen(false)}
                     role="menuitem"
                     className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-ink hover:bg-paper"
                   >
                     <User size={16} aria-hidden="true" />
                     My Profile
-                  </Link>
+                  </a>
                   <div className="h-px bg-border my-1" role="separator" />
-                  <Link
+                  <a
                     href="/login?switch=1"
-                    onClick={() => setMenuOpen(false)}
                     role="menuitem"
                     className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-ink hover:bg-paper"
                   >
                     <UserCog size={16} aria-hidden="true" />
                     Switch account
-                  </Link>
+                  </a>
                   <button
                     onClick={handleSignOut}
                     role="menuitem"
@@ -254,8 +266,9 @@ export default function Header({ userName, userId, avatarUrl }: HeaderProps) {
           {links.map((link) => {
             const active =
               pathname === link.path || (link.path !== '/' && pathname.startsWith(link.path + '/'));
+            // Plain anchor for the same reason as the desktop bar above.
             return (
-              <Link
+              <a
                 key={link.path}
                 href={link.path}
                 className={`text-lg font-medium flex items-center gap-2 ${
@@ -264,7 +277,7 @@ export default function Header({ userName, userId, avatarUrl }: HeaderProps) {
                 aria-current={active ? 'page' : undefined}
               >
                 {link.label}
-              </Link>
+              </a>
             );
           })}
         </nav>
@@ -286,20 +299,20 @@ export default function Header({ userName, userId, avatarUrl }: HeaderProps) {
             </>
           ) : (
             <>
-              <Link
+              <a
                 href="/profile"
                 className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper w-full gap-2"
               >
                 <User size={16} aria-hidden="true" />
                 My Profile
-              </Link>
-              <Link
+              </a>
+              <a
                 href="/login?switch=1"
                 className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper w-full gap-2"
               >
                 <UserCog size={16} aria-hidden="true" />
                 Switch account
-              </Link>
+              </a>
               <button
                 onClick={handleSignOut}
                 className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-danger-bg text-danger border border-danger-bg hover:bg-danger hover:text-paper w-full gap-2"
