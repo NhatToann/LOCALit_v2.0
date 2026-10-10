@@ -59,14 +59,20 @@ const main = async () => {
   await page.waitForTimeout(3000)
   console.log('Clicking End Focus...')
   await page.click('button:has-text("End Focus")')
-  await page.waitForTimeout(8000)
-  console.log('URL after click:', page.url())
+  // Wait longer for navigation to complete
+  await page.waitForTimeout(20000)
+  console.log('URL after 20s:', page.url())
   // Get any error displayed
   const err = await page.locator('[role="alert"]').textContent().catch(() => null)
   console.log('Error text:', err)
   // Get button text
   const btn = await page.locator('button:has-text("End")').textContent().catch(() => null)
   console.log('Button text:', btn)
+  // Force a navigation
+  console.log('Forcing nav via window.location...')
+  await page.evaluate(() => { window.location.href = '/chat' })
+  await page.waitForTimeout(5000)
+  console.log('URL after force nav:', page.url())
   await browser.close()
 }
 main().catch((e) => { console.error(e); process.exit(2) })

@@ -175,12 +175,14 @@ export default function FocusSessionPage() {
       }
       // Back to chat is the only legal exit. The user has to confirm
       // the End button, so we route them to /chat where their
-      // session is now in the history list. We use push() instead
-      // of replace() because replace() is unreliable from a
-      // [param] route in the App Router when the destination is a
-      // different segment — the page may stay mounted and the URL
-      // not update. push() always lands.
-      router.push('/chat')
+      // session is now in the history list. Use window.location
+      // for a hard navigation — router.push from a [param] route
+      // to a flat route in the App Router can silently fail to
+      // update the URL when a beforeunload guard is also mounted.
+      // The beforeunload handler is set up to short-circuit
+      // (return early) when ending===true, so this navigation
+      // bypasses the guard without an extra confirm.
+      window.location.assign('/chat')
       // Intentionally do NOT setEnding(false). Keeping `ending=true`
       // through the unmount means the beforeunload guard sees
       // `if (ending) return` and lets the navigation through
@@ -190,7 +192,7 @@ export default function FocusSessionPage() {
       setError((err as Error)?.message ?? 'Could not end session.')
       setEnding(false)
     }
-  }, [session, ending, router])
+  }, [session, ending])
 
   // Defensive: prevent accidental navigation away. The user
   // explicitly asked for "you can't exit except by ending the
