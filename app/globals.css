@@ -25,7 +25,17 @@
      Mint light #A7F3D0
      Amber deep #D97706
    ============================================================ */
-@theme {
+/* 2026-10-10 — `static` is REQUIRED here.
+   Tailwind v4 tree-shakes `@theme` variables: a token is only emitted
+   into the `:root` block if some generated utility references it.
+   `--radius-pill` has no utility class anywhere in this project (the
+   markup spells round shapes with `rounded-full`, a literal), so
+   without `static` the variable was dropped from the output CSS
+   entirely and every `border-radius: var(--radius-pill)` inside
+   `@layer components` resolved to nothing. `static` forces the whole
+   theme block to be emitted, which is what these hand-written
+   component rules depend on. */
+@theme static {
   /* Radius scale (2026-10-10).
      These tokens were referenced all over globals.css (--radius-sm,
      --radius-pill) but never DEFINED, so every `border-radius:
