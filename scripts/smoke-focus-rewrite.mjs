@@ -309,13 +309,15 @@ const main = async () => {
     fullPage: false,
   })
 
-  // End the session from Sarah's side. The click triggers a native
-  // confirm() dialog — register a persistent handler so we catch it
-  // whether it fires synchronously or after the click.
-  const endDialog = (d) => d.accept()
+  // End the session from Sarah's side. The page shows a native
+  // confirm("End this Focus session?…") AND the beforeunload
+  // handler fires another confirm when router.push('/chat')
+  // navigates away. Both must be accepted.
+  const endDialog = (d) => d.accept().catch(() => undefined)
   sarah.page.on('dialog', endDialog)
   await sarah.page.click('button:has-text("End Focus")')
-  // Give the navigation time to fire (the API call + the router.push).
+  // Give the navigation time to fire (the API call + the
+  // router.push + the beforeunload confirm).
   await sarah.page.waitForURL((url) => url.toString().includes('/chat'), { timeout: 15000 }).catch(() => undefined)
   sarah.page.off('dialog', endDialog)
   const sarahRouted = sarah.page.url().includes('/chat')

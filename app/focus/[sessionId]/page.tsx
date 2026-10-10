@@ -181,7 +181,13 @@ export default function FocusSessionPage() {
       // different segment — the page may stay mounted and the URL
       // not update. push() always lands.
       router.push('/chat')
-    } finally {
+      // Intentionally do NOT setEnding(false). Keeping `ending=true`
+      // through the unmount means the beforeunload guard sees
+      // `if (ending) return` and lets the navigation through
+      // without prompting the user with a second "leave site?"
+      // confirm.
+    } catch (err) {
+      setError((err as Error)?.message ?? 'Could not end session.')
       setEnding(false)
     }
   }, [session, ending, router])
@@ -206,6 +212,13 @@ export default function FocusSessionPage() {
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [ending])
+
+  // After the user explicitly ends the session, remove the
+  // beforeunload guard so the navigation to /chat can complete
+  // without the browser showing a second "leave site?" prompt.
+  // We do this by re-running the effect with ending=true (the
+  // guard already short-circuits when ending is true, so the
+  // navigation can proceed).
 
   const partnerName = partner?.full_name ?? 'Buddy'
   const myName = me?.full_name ?? 'You'
