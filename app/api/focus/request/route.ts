@@ -4,12 +4,9 @@ import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 import { z } from 'zod'
 
 // Body validation
-// Use a lax UUID regex (not z.string().uuid() which rejects seed-style
-// non-variant-1 UUIDs like 11111111-1111-1111-1111-111111111111).
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const BodySchema = z.object({
-  recipient_id: z.string().regex(UUID_RE, 'Invalid UUID'),
-  conversation_id: z.string().regex(UUID_RE, 'Invalid UUID').optional().nullable(),
+  recipient_id: z.string().uuid(),
+  conversation_id: z.string().uuid().optional().nullable(),
 })
 
 const REQUEST_TTL_MINUTES = 5

@@ -3,10 +3,9 @@ import { createClient } from '@/utils/supabase/server'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 import { z } from 'zod'
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const BodySchema = z.object({
   reason: z.enum(['completed', 'cancelled', 'timeout']).default('cancelled'),
-  itinerary_id: z.string().regex(UUID_RE, 'Invalid UUID').optional().nullable(),
+  itinerary_id: z.string().uuid().optional().nullable(),
 })
 
 export async function POST(

@@ -21,22 +21,15 @@ export function useMessageStream(
   const [reactions, setReactions] = useState<MessageReaction[]>(initialReactions)
   const channelRef = useRef<any>(null)
 
-  // Re-seed when initial changes. Compare by identity so a new
-  // array from the parent's async load always wins. Without this,
-  // the messages state would be stuck at the empty array from
-  // mount even after the load completed.
-  const lastInitialRef = useRef<Message[]>(initial)
-  const lastReactionsRef = useRef<MessageReaction[]>(initialReactions)
+  // Re-seed when initial changes (e.g. conversation switched)
+  const lastConv = useRef<string | null>(null)
   useEffect(() => {
-    if (initial !== lastInitialRef.current) {
-      lastInitialRef.current = initial
+    if (conversationId !== lastConv.current) {
       setMessages(initial)
-    }
-    if (initialReactions !== lastReactionsRef.current) {
-      lastReactionsRef.current = initialReactions
       setReactions(initialReactions)
+      lastConv.current = conversationId
     }
-  }, [initial, initialReactions])
+  }, [conversationId, initial, initialReactions])
 
   useEffect(() => {
     if (!conversationId) return
