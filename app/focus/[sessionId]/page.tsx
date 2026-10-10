@@ -135,7 +135,9 @@ export default function FocusSessionPage() {
     return () => clearInterval(id)
   }, [session])
 
-  // Auto-media: mic + location on by default.
+  // Auto-media: mic + location on by default. The hook owns the
+  // single Realtime subscription; the map reads the same data via
+  // the liveLocation prop below.
   const {
     micState,
     micMuted,
@@ -151,6 +153,10 @@ export default function FocusSessionPage() {
     shareLocation: locationEnabled,
     selfUserId: me?.id ?? null,
   })
+  const liveLocation = useMemo(
+    () => ({ selfGranted: locationShared, selfDenied: locationDenied }),
+    [locationShared, locationDenied],
+  )
 
   const endFocus = useCallback(async () => {
     if (!session || ending) return
@@ -372,6 +378,7 @@ export default function FocusSessionPage() {
           me={me}
           partner={partner}
           shareLocation={locationEnabled}
+          liveLocation={liveLocation}
           height={360}
         />
         {showInfo ? (
