@@ -32,11 +32,18 @@ function LoginForm() {
   const registered = searchParams.get('registered') === '1'
   const prefillEmail = searchParams.get('email') ?? ''
 
-  // SessionExpiryGuard sends the reader here with `reason=expired` when
-  // the token died. Prefer the path the guard preserved (`next`) so the
-  // user lands back where they were after signing in again; fall back to
-  // `redirectTo`, which middleware sets.
-  const sessionExpired = searchParams.get('reason') === 'expired'
+  // SessionExpiryGuard sends the reader here with `reason=expired` when the
+  // client-side token died. But the middleware usually gets there FIRST,
+  // on the very first request, and it uses `redirectTo` instead — so a
+  // user bouncing off /dashboard after an expiry is most often arriving
+  // without `reason`. Treat a non-root `redirectTo` as an expiry too,
+  // otherwise the common case renders a bare form with no explanation of
+  // why the user was ejected.
+  const sessionExpired =
+    searchParams.get('reason') === 'expired' ||
+    (redirectTo !== null && redirectTo !== '/' && redirectTo !== '')
+  // Prefer the path the guard preserved (`next`) so the user lands back
+  // where they were; fall back to middleware's `redirectTo`.
   const postSignInPath = searchParams.get('next') || redirectTo || '/dashboard'
 
   const [email, setEmail] = useState(prefillEmail)
