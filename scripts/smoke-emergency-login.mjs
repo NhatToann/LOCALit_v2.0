@@ -110,16 +110,23 @@ const run = async () => {
   }
 
   // --- navigation responsiveness ---
+  // The header now uses plain anchors, so a click performs a real page
+  // load and tears down the execution context mid-evaluate. Wait for the
+  // resulting document rather than polling a context about to be replaced.
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(5000)
-  const navOk = await page.evaluate(async () => {
-    const link = document.querySelector('a[href="/browse"], a[href="/trips"]')
-    if (!link) return 'NO LINK'
-    link.click()
-    await new Promise((r) => setTimeout(r, 3500))
-    return location.pathname
-  })
-  check('navbar navigation works', navOk !== 'NO LINK' && !navOk.startsWith('/login'), String(navOk))
+  let navOk = 'NO LINK'
+  try {
+    await Promise.all([
+      page.waitForNavigation({ timeout: 12000 }).catch(() => {}),
+      page.click('a[href="/browse"]'),
+    ])
+    await page.waitForTimeout(3000)
+    navOk = new URL(page.url()).pathname
+  } catch (e) {
+    navOk = `threw: ${e.message.slice(0, 50)}`
+  }
+  check('navbar navigation works', navOk === '/browse', String(navOk))
 
   await page.screenshot({ path: 'scripts/screenshots/verify-emergency-fixed.png' })
   console.log(`\n${pass} passed, ${fail} failed`)
