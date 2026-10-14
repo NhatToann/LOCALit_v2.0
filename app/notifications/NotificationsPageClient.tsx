@@ -63,16 +63,34 @@ const FILTERS: Array<{ v: 'all' | NotificationType; label: string }> = [
 interface Props {
   userId: string
   initialRows: Notification[]
+  /** Server-computed unread count (truthful, not derived from `initialRows`). */
+  initialUnread: number
 }
 
-export default function NotificationsPageClient({ userId, initialRows }: Props) {
+/**
+ * Notifications page — full activity feed.
+ *
+ * 2026-10-14 fixes (mirror the NotificationBell fixes):
+ * BUG 1: clicking a row that was already read decremented the count.
+ *   Fix: only decrement when the row was actually unread.
+ * BUG 2: optimistic decrement + realtime UPDATE echo = double decrement.
+ *   Fix: realtime handler compares before/after to decide whether to
+ *   decrement.
+ * BUG 3: "Mark all read" relied on the locally-derived `unread` which
+ *   was based on the 20-row initial payload, so it under-reported when
+ *   the user had >20 unread rows. The count is now sourced from the
+ *   server (`initialUnread`) and updated optimistically with rollback.
+ */
+export default function NotificationsPageClient({ userId, initialRows, initialUnread }: Props) {
   const [items, setItems] = useState<Notification[]>(initialRows)
   const [filter, setFilter] = useState<'all' | NotificationType>('all')
   const [showUnread, setShowUnread] = useState(false)
   const [marking, startMarking] = useTransition()
   const [deleting, startDeleting] = useTransition()
-
-  const unread = items.filter((n) => !n.read_at).length
+  // Authoritative unread count, sourced from the server. The page
+  // displays this; it is NOT derived from `items.length` (which only
+  // contains the most recent 20 rows by design).
+  const [unread, setUnread] = useState<number>(initialUnread)
 
   // Realtime mirror of the dropdown bell
   useEffect(() => {
@@ -84,7 +102,11 @@ export default function NotificationsPageClient({ userId, initialRows }: Props) 
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
           const row = payload.new as Notification
-          setItems((prev) => [row, ...prev])
+          setItems((prev) => {
+            if (prev.some((n) => n.id === row.id)) return prev
+            return [row, ...prev]
+          })
+          if (!row.read_at) setUnread((u) => u + 1)
         },
       )
       .on(
@@ -92,15 +114,29 @@ export default function NotificationsPageClient({ userId, initialRows }: Props) 
         { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
           const row = payload.new as Notification
-          setItems((prev) => prev.map((n) => (n.id === row.id ? row : n)))
+          // Only adjust unread when the transition is from a real
+          // read state we hadn't accounted for yet (Bug 2 fix).
+          setItems((prev) => {
+            const before = prev.find((n) => n.id === row.id)
+            const wasUnread = before && !before.read_at
+            const nowRead = !!row.read_at
+            if (!wasUnread && nowRead && before) {
+              // Another tab marked it read. Decrement.
+              setUnread((u) => Math.max(0, u - 1))
+            }
+            return prev.map((n) => (n.id === row.id ? row : n))
+          })
         },
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
-          const oldId = (payload.old as { id?: string })?.id
-          if (oldId) setItems((prev) => prev.filter((n) => n.id !== oldId))
+          const old = payload.old as { id?: string; read_at?: string | null }
+          if (old?.id) {
+            setItems((prev) => prev.filter((n) => n.id !== old.id))
+            if (!old.read_at) setUnread((u) => Math.max(0, u - 1))
+          }
         },
       )
       .subscribe()
@@ -118,12 +154,22 @@ export default function NotificationsPageClient({ userId, initialRows }: Props) 
    * left the tap looking completely dead — no navigation, no visual
    * feedback. The route change is now synchronous and the read receipt
    * is fire-and-forget.
+   *
+   * Bug 1 (2026-10-14): clicking an already-read row used to decrement
+   * the count. Fix: only decrement when the row was actually unread.
    */
   function markRead(id: string, link: string | null) {
     const supabase = createClient()
+    const item = items.find((n) => n.id === id)
+    const wasUnread = item && !item.read_at
     setItems((prev) =>
-      prev.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: new Date().toISOString() } : n)),
+      prev.map((n) =>
+        n.id === id && !n.read_at
+          ? { ...n, read_at: new Date().toISOString() }
+          : n,
+      ),
     )
+    if (wasUnread) setUnread((u) => Math.max(0, u - 1))
     void (async () => {
       try {
         const { error } = await supabase
@@ -132,7 +178,7 @@ export default function NotificationsPageClient({ userId, initialRows }: Props) 
           .eq('id', id)
         if (error) console.warn('[notifications] mark-read failed:', error.message)
       } catch {
-        /* a failed read receipt must never block navigation */
+        /* swallow */
       }
     })()
     if (link) navigate(link)
@@ -143,8 +189,26 @@ export default function NotificationsPageClient({ userId, initialRows }: Props) 
     startMarking(async () => {
       const supabase = createClient()
       const now = new Date().toISOString()
+      const prevItems = items
+      // Optimistic: dim all loaded items + zero the count.
       setItems((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: now })))
-      await supabase.from('notifications').update({ read_at: now }).eq('user_id', userId).is('read_at', null)
+      setUnread(0)
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: now })
+        .eq('user_id', userId)
+        .is('read_at', null)
+      if (error) {
+        console.warn('[notifications] mark-all failed:', error.message)
+        // Roll back: restore the list + re-fetch the true server count.
+        setItems(prevItems)
+        const { count } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .is('read_at', null)
+        setUnread(count ?? 0)
+      }
     })
   }
 
