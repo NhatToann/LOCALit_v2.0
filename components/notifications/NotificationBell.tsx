@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition, useCallback } from 'react'
 import {
   Bell,
   MessageCircle,
@@ -137,32 +137,23 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
         { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
           const row = payload.new as Notification
-          // Compare the previous local state to figure out if this
-          // UPDATE represents a real unread→read transition that the
-          // user has not already accounted for (Bug 2 fix).
-          //
-          // If the row was already read in local state (i.e. the
-          // optimistic update + the realtime echo both fired), the
-          // count is already correct and we must NOT decrement again.
-          setItems((prev) => {
-            const before = prev.find((n) => n.id === row.id)
-            const wasUnread = before && !before.read_at
-            const nowRead = !!row.read_at
-            if (wasUnread && nowRead) {
-              // This is the realtime echo of an optimistic mark-read.
-              // Count was already decremented optimistically — do
-              // nothing here.
-            } else if (!wasUnread && nowRead && before) {
-              // Another tab/device just marked it read. Decrement.
-              setUnread((u) => Math.max(0, u - 1))
-            } else if (wasUnread && !nowRead && before) {
-              // A row that was unread got reset to unread (rare;
-              // e.g. admin undid a read). No count change needed
-              // because we had already decremented in the previous
-              // state.
-            }
-            return prev.map((n) => (n.id === row.id ? row : n))
-          })
+          // The optimistic markRead / markAllRead calls now refetch
+          // the true count from the DB, so the realtime handler can
+          // simply track the visible-item transitions for animation
+          // purposes. We DO NOT adjust the badge count here — the
+          // post-mutation refetch is the source of truth. Without
+          // this, the optimistic decrement + the realtime echo would
+          // race and double-decrement the badge.
+          setItems((prev) => prev.map((n) => (n.id === row.id ? row : n)))
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const oldRow = payload.old as { id?: string; read_at?: string | null }
+          setItems((prev) => prev.filter((n) => n.id !== oldRow?.id))
+          if (oldRow && !oldRow.read_at) setUnread((u) => Math.max(0, u - 1))
         },
       )
       .subscribe()
@@ -196,6 +187,31 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
   }, [open])
 
   /**
+   * Re-read the true unread count from the DB.
+   *
+   * The optimistic `unread` state can drift out of sync after rapid
+   * mark-reads (optimistic decrement + realtime UPDATE echo can race
+   * each other). Rather than chase every race, we periodically re-read
+   * the authoritative count from the DB and trust that. The query is
+   * cheap (indexed `idx_notifications_user_unread` covers it) and the
+   * payload is tiny (just the count, not rows).
+   */
+  const refreshUnreadCount = useCallback(async () => {
+    if (!userId) return
+    const supabase = createClient()
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .is('read_at', null)
+    if (error) {
+      console.warn('[notifications] count refresh failed:', error.message)
+      return
+    }
+    setUnread(count ?? 0)
+  }, [userId])
+
+  /**
    * Navigate FIRST, persist SECOND.
    *
    * The old version awaited the `notifications` UPDATE before calling
@@ -209,11 +225,9 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
    *   Fix: only decrement if `wasUnread === true`.
    * BUG 2: optimistic decrement + realtime UPDATE handler decrement
    *   on the same click = double-decrement.
-   *   Fix: realtime handler only decrements if the optimistic
-   *   update didn't already fire (i.e., wasUnread was true, so the
-   *   optimistic already decremented). We track this by only firing
-   *   the realtime decrement when the row transitions from !read_at
-   *   to read_at AND the previous local state was also unread.
+   *   Fix: after the DB write resolves, re-fetch the true count from
+   *   the DB so the optimistic + realtime echo can never desync the
+   *   count.
    */
   function markRead(id: string, link: string | null) {
     if (!userId) return
@@ -236,7 +250,9 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
     if (wasUnread) setUnread((u) => Math.max(0, u - 1))
     setOpen(false)
 
-    // Best-effort read receipt. Never awaited, never blocks the route.
+    // Best-effort read receipt. Re-read the true count from the DB
+    // afterwards so the optimistic + realtime echo can never desync
+    // the count (Bug 2 fix).
     void (async () => {
       try {
         const { error } = await supabase
@@ -245,6 +261,9 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
           .eq('id', id)
           .eq('user_id', userId)
         if (error) console.warn('[notifications] mark-read failed:', error.message)
+        // Refetch the true count (Bug 2 fix: prevents the optimistic
+        // decrement + realtime echo from racing to a wrong number).
+        await refreshUnreadCount()
       } catch {
         /* a failed read receipt must never block navigation */
       }
@@ -258,8 +277,6 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
     startMarking(async () => {
       const supabase = createClient()
       const now = new Date().toISOString()
-      // Snapshot items so we can roll back the list (not the count —
-      // the count will be re-fetched from the server on failure).
       const prevItems = items
       // Optimistic: dim all locally-loaded items + zero the count.
       setItems((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: now })))
@@ -271,16 +288,15 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
         .is('read_at', null)
       if (error) {
         console.warn('[notifications] mark-all-read failed:', error.message)
-        // Roll back: restore the list and re-fetch the true unread count
-        // from the server (items may not contain all notifications, so
-        // we can't compute the count locally after the rollback).
+        // Roll back: restore the list and re-fetch the true unread count.
         setItems(prevItems)
-        const { count } = await supabase
-          .from('notifications')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .is('read_at', null)
-        setUnread(count ?? 0)
+        await refreshUnreadCount()
+      } else {
+        // Re-read the true count even on success — handles the case
+        // where the DB has MORE unread rows than the 20 we loaded,
+        // so the optimistic `setUnread(0)` may have been wrong (it
+        // was based on the 20-row slice, not the full DB count).
+        await refreshUnreadCount()
       }
     })
   }

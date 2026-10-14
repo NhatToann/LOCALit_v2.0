@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 import {
   Bell,
   MessageCircle,
@@ -114,18 +114,8 @@ export default function NotificationsPageClient({ userId, initialRows, initialUn
         { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
           const row = payload.new as Notification
-          // Only adjust unread when the transition is from a real
-          // read state we hadn't accounted for yet (Bug 2 fix).
-          setItems((prev) => {
-            const before = prev.find((n) => n.id === row.id)
-            const wasUnread = before && !before.read_at
-            const nowRead = !!row.read_at
-            if (!wasUnread && nowRead && before) {
-              // Another tab marked it read. Decrement.
-              setUnread((u) => Math.max(0, u - 1))
-            }
-            return prev.map((n) => (n.id === row.id ? row : n))
-          })
+          // Visual only — count is refetched in markRead / markAll.
+          setItems((prev) => prev.map((n) => (n.id === row.id ? row : n)))
         },
       )
       .on(
@@ -147,6 +137,27 @@ export default function NotificationsPageClient({ userId, initialRows, initialUn
     .filter((n) => filter === 'all' || n.type === filter)
     .filter((n) => !showUnread || !n.read_at)
 
+  // The realtime handlers below are visual-only — they update the
+  // visible rows for animation, but the badge count comes from the DB
+  // refetch in `refreshUnreadCount` (called by markRead / markAll
+  // after the mutation resolves). The optimistic + refetch pattern is
+  // the only way to keep the count correct in the face of
+  // optimistic-decrement + realtime-echo races.
+
+  const refreshUnreadCount = useCallback(async () => {
+    const supabase = createClient()
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .is('read_at', null)
+    if (error) {
+      console.warn('[notifications] count refresh failed:', error.message)
+      return
+    }
+    setUnread(count ?? 0)
+  }, [userId])
+
   /**
    * Navigate FIRST, persist SECOND.
    *
@@ -157,6 +168,10 @@ export default function NotificationsPageClient({ userId, initialRows, initialUn
    *
    * Bug 1 (2026-10-14): clicking an already-read row used to decrement
    * the count. Fix: only decrement when the row was actually unread.
+   *
+   * Bug 2 (2026-10-14): optimistic decrement + realtime UPDATE echo
+   *   = double decrement. Fix: refetch the true count from the DB after
+   *   the mutation resolves, so the badge reflects ground truth.
    */
   function markRead(id: string, link: string | null) {
     const supabase = createClient()
@@ -177,6 +192,7 @@ export default function NotificationsPageClient({ userId, initialRows, initialUn
           .update({ read_at: new Date().toISOString() })
           .eq('id', id)
         if (error) console.warn('[notifications] mark-read failed:', error.message)
+        await refreshUnreadCount()
       } catch {
         /* swallow */
       }
@@ -200,15 +216,10 @@ export default function NotificationsPageClient({ userId, initialRows, initialUn
         .is('read_at', null)
       if (error) {
         console.warn('[notifications] mark-all failed:', error.message)
-        // Roll back: restore the list + re-fetch the true server count.
         setItems(prevItems)
-        const { count } = await supabase
-          .from('notifications')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .is('read_at', null)
-        setUnread(count ?? 0)
       }
+      // Refetch the true count (handles both success and error paths).
+      await refreshUnreadCount()
     })
   }
 
