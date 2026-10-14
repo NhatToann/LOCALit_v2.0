@@ -90,8 +90,15 @@ function getSmtpTransport(): Transporter | null {
 
 export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
   const from = process.env.EMAIL_FROM || 'LOCALit <onboarding@resend.dev>'
+  const apiKey = process.env.RESEND_API_KEY
 
   // ---- 1. SMTP (preferred) -------------------------------------------------
+  // Tries first when SMTP_HOST is set. On auth / network failure, falls
+  // through to Resend (if configured) before returning an error, so a
+  // single broken transport does not lock the user out of every email
+  // touch-point. Verified 2026-10-14: Gmail SMTP credentials in Vercel
+  // were rejected with 535 5.7.8 — the Resend fallback kept signup and
+  // reset-OTP working.
   const smtp = getSmtpTransport()
   if (smtp) {
     try {
@@ -101,12 +108,15 @@ export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
     } catch (e) {
       const msg = (e as Error).message
       console.error(`[email] SMTP send failed: ${msg}`)
-      return { ok: false, error: `SMTP: ${msg}`, backend: 'smtp' }
+      if (apiKey) {
+        console.warn(`[email] Falling back to Resend after SMTP failure.`)
+      } else {
+        return { ok: false, error: `SMTP: ${msg}`, backend: 'smtp' }
+      }
     }
   }
 
-  // ---- 2. Resend (legacy fallback) -----------------------------------------
-  const apiKey = process.env.RESEND_API_KEY
+  // ---- 2. Resend (legacy, also SMTP fallback) -----------------------------
   if (apiKey) {
     try {
       const res = await fetch('https://api.resend.com/emails', {
@@ -122,6 +132,7 @@ export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
         return { ok: false, error: `Resend ${res.status}: ${body.slice(0, 200)}`, backend: 'resend' }
       }
       const data = (await res.json()) as { id?: string }
+      console.log(`[email] Resend sent: ${data.id} → ${args.to} (subject="${args.subject}")`)
       return { ok: true, id: data.id, backend: 'resend' }
     } catch (e) {
       return { ok: false, error: (e as Error).message, backend: 'resend' }
