@@ -55,14 +55,26 @@ export async function POST(req: NextRequest) {
     userAgent: req.headers.get('user-agent') ?? null,
   })
 
-  // A mail-transport failure is our problem, not the user's email problem,
-  // so it is safe (and useful) to surface it.
+  // No-enumeration (2026-10-14): always return the same shape regardless of
+  // whether the email exists, the row was written, or the mail transport
+  // succeeded. The downstream /verify and /complete endpoints give the same
+  // generic "code is not correct" / "reset request is no longer valid"
+  // responses for unknown emails, so a caller cannot tell whether the
+  // address is registered by probing this endpoint.
+  //
+  // When the row was never written (mail transport failed), fall back to a
+  // sentinel resetId so the response shape is preserved. The /verify route
+  // will return `no_code` (410) for that sentinel, which the page handles
+  // by re-showing the email-entry form — the same flow as an expired
+  // request. This avoids a 500 on a Resend test-mode rejection (which only
+  // allows the Resend account-owner address to receive mail).
   if (!result.ok) {
     console.error(`[reset-otp/start] ${result.error}`)
-    return NextResponse.json(
-      { error: 'Could not send the reset email. Please try again in a moment.' },
-      { status: 500 },
-    )
+    return NextResponse.json({
+      resetId: '00000000-0000-0000-0000-000000000000',
+      email,
+      expiresInSeconds: 15 * 60,
+    })
   }
 
   const payload: Record<string, unknown> = {
