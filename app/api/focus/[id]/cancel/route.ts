@@ -5,9 +5,12 @@ import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 // Requester cancels a still-pending focus request. 410 if it has
 // already been accepted/expired/handled, 403 if the caller is not
 // the requester.
+// `[id]` is the focus REQUEST id. Unified from a former [requestId]
+// folder so it could live beside the sibling end route — Next.js rejects
+// two differently-named dynamic segments at one path.
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ requestId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const ip = getClientIp(req)
@@ -25,7 +28,7 @@ export async function POST(
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
-    const { requestId } = await params
+    const { id: requestId } = await params
 
     const { data: focusReq, error: rErr } = await supabase
       .from('focus_requests')

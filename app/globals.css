@@ -552,7 +552,7 @@
 
   /* ============================================================
      ROLE TAG — outlined pill for buddy/tourist distinction.
-     Two-tone: buddy uses amber border + ink, traveler uses
+     Two-tone: buddy uses amber border + ink, tourist uses
      jade border + ink. Uppercase, tracked, no shadow.
      ============================================================ */
   .role-tag {
@@ -574,7 +574,7 @@
     border-color: var(--color-buddy);
   }
 
-  .role-tag-traveler {
+  .role-tag-tourist {
     color: var(--color-ink);
     border-color: var(--color-border-strong);
   }

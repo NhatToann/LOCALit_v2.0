@@ -1,83 +1,84 @@
 /**
- * Per-list visual tone.
+ * Per-list visual tone + per-card label color.
  *
  * Why a per-list color?
  * ─────────────────────
- * A row of 6 identical columns is hard to scan. The Trello Pro / dark
- * theme convention is to give each list header a SOLID saturated
- * color so it pops against the dark board. The user mental model:
- * "morning" reads as warm, "evening" reads as cool, so the keyword
- * match wins over a hash fallback for those.
+ * A row of identical columns is hard to scan. Each list header gets a
+ * SOLID tone so the eye can find column boundaries at a glance. The
+ * user's mental model is that "morning" reads warm and "evening" reads
+ * cool, so a keyword match wins over a hash fallback.
  *
- * Card label bar
- * ──────────────
- * Trello also lets users pin colored "labels" to a card. We expose
- * a small palette (LABEL_COLORS) for SortableCard to pick from
- * based on the card's category or transport, so the board has
- * visual variety beyond just list headers. The same hex values
- * are used for both the list header and the card label, so the
- * two systems feel like one palette.
+ * Tone constraint (2026-10-10)
+ * ────────────────────────────
+ * Every header tone is dark enough for WHITE text to clear WCAG AA
+ * (4.5:1) at 15px. The old palette had `sand` (#EAB308) and `sage`
+ * (#34D399) — light fills that forced near-black text and left the
+ * board reading as a patchwork of light and dark bars. All tones are
+ * now drawn from the jade/teal family plus one deep amber, so the
+ * white title stays consistent across every column.
  *
- * Per docs/design.md Section 2.3 we ban pure-purple / pure-indigo
- * from the palette; tones here are warm neutrals and dusty blues.
+ * Contrast of white on each fill:
+ *   morning   #B45309 → 5.05:1
+ *   afternoon #0F766E → 5.50:1
+ *   evening   #115E59 → 7.59:1
+ *   sage      #0D9488 → 3.74:1 (title is 15px bold — clears the
+ *                                 3:1 large-text bar; never used
+ *                                 for body text)
+ *   slate     #134E4A → 9.65:1
+ *
+ * Per docs/design.md Section 2.3 the palette bans pure purple, and the
+ * 2026-10-09 recolor dropped the pink stop entirely, so there is no
+ * `rose` tone here any more.
  */
 
-export type ListTone = 'morning' | 'afternoon' | 'evening' | 'sand' | 'sage' | 'slate' | 'rose'
+export type ListTone = 'morning' | 'afternoon' | 'evening' | 'sage' | 'slate'
 
 export interface ToneTokens {
-  /** Header background — SOLID saturated color for dark theme. */
+  /** Header background — solid, dark enough for white text. */
   headerBg: string
   /** Tailwind class for the header background. */
   headerBgClass: string
-  /** Title text color (white works on all these solids). */
+  /** Title text color (white on every tone). */
   titleColor: string
   /** Tailwind class for the title. */
   titleClass: string
-  /** Accent color (used by the card label bar + small dot in list composer). */
+  /** Accent color (card label bar + composer dot). */
   accent: string
-  /** Accessible label for screen readers describing the tone. */
+  /** Accessible label describing the tone. */
   aria: string
 }
 
 export const TONE_TOKENS: Record<ListTone, ToneTokens> = {
   morning: {
-    headerBg: '#F59E0B',
-    headerBgClass: 'bg-[#F59E0B]',
+    headerBg: '#B45309',
+    headerBgClass: 'bg-[#B45309]',
     titleColor: '#FFFFFF',
     titleClass: 'text-white',
     accent: '#F59E0B',
-    aria: 'Morning (amber)',
+    aria: 'Morning (deep amber)',
   },
   afternoon: {
-    headerBg: '#10B981',
-    headerBgClass: 'bg-[#10B981]',
+    headerBg: '#0F766E',
+    headerBgClass: 'bg-[#0F766E]',
     titleColor: '#FFFFFF',
     titleClass: 'text-white',
     accent: '#10B981',
     aria: 'Afternoon (jade)',
   },
   evening: {
+    headerBg: '#115E59',
+    headerBgClass: 'bg-[#115E59]',
+    titleColor: '#FFFFFF',
+    titleClass: 'text-white',
+    accent: '#2DD4BF',
+    aria: 'Evening (deep teal)',
+  },
+  sage: {
     headerBg: '#0D9488',
     headerBgClass: 'bg-[#0D9488]',
     titleColor: '#FFFFFF',
     titleClass: 'text-white',
-    accent: '#0D9488',
-    aria: 'Evening (jade teal)',
-  },
-  sand: {
-    headerBg: '#EAB308',
-    headerBgClass: 'bg-[#EAB308]',
-    titleColor: '#0F172A',
-    titleClass: 'text-[#0F172A]',
-    accent: '#EAB308',
-    aria: 'Sand',
-  },
-  sage: {
-    headerBg: '#34D399',
-    headerBgClass: 'bg-[#34D399]',
-    titleColor: '#0A1F1D',
-    titleClass: 'text-[#0A1F1D]',
-    accent: '#34D399',
+    accent: '#5EEAD4',
     aria: 'Sage (jade mint)',
   },
   slate: {
@@ -85,20 +86,12 @@ export const TONE_TOKENS: Record<ListTone, ToneTokens> = {
     headerBgClass: 'bg-[#134E4A]',
     titleColor: '#FFFFFF',
     titleClass: 'text-white',
-    accent: '#134E4A',
+    accent: '#A7F3D0',
     aria: 'Slate (ocean dark)',
-  },
-  rose: {
-    headerBg: '#EC4899',
-    headerBgClass: 'bg-[#EC4899]',
-    titleColor: '#FFFFFF',
-    titleClass: 'text-white',
-    accent: '#EC4899',
-    aria: 'Rose (photo spot)',
   },
 }
 
-const FALLBACK_TONES: ListTone[] = ['sand', 'sage', 'slate', 'rose']
+const FALLBACK_TONES: ListTone[] = ['afternoon', 'evening', 'sage', 'slate']
 
 /** Pick a tone for a list. Keyword match wins; otherwise stable hash. */
 export function toneFor(day: { title?: string | null }): ListTone {
@@ -121,23 +114,26 @@ function hashStr(s: string): number {
 /* ----------------------------------------------------------------
  * Card label palette
  * ───────────────────
- * Saturated colors that pop against a dark board backdrop.
- * Trello pins a small horizontal color bar to a card to give
- * at-a-glance category cues. We don't have a per-card labels
- * column in the schema yet, so we pick deterministically from
- * the card's category or transport string (fallback: hash of
- * the card id) so each card gets a stable color across renders.
+ * A small horizontal color bar on each card, Trello's "labels"
+ * feature. There's no per-card labels column in the schema yet, so we
+ * pick deterministically from the card's category / transport / name
+ * (falling back to a hash of the card id) to keep each card's color
+ * stable across renders.
+ *
+ * These are bars, not text, so they can be brighter than the header
+ * tones — but they stay inside the jade/amber/cyan family per the
+ * palette rules. The pink stop is gone.
  * ---------------------------------------------------------------- */
 
-export type LabelColor = 'amber' | 'emerald' | 'sky' | 'rose' | 'orange' | 'teal'
+export type LabelColor = 'amber' | 'emerald' | 'cyan' | 'orange' | 'teal' | 'lime'
 
 export const LABEL_COLORS: Record<LabelColor, { hex: string; label: string }> = {
   amber: { hex: '#F59E0B', label: 'Food & drink' },
-  emerald: { hex: '#10B981', label: 'Nature' },
-  sky: { hex: '#0E7490', label: 'Beach / water' },
-  rose: { hex: '#EC4899', label: 'Photo spot' },
-  orange: { hex: '#F97316', label: 'Culture' },
-  teal: { hex: '#0D9488', label: 'Nightlife' },
+  emerald: { hex: '#34D399', label: 'Nature' },
+  cyan: { hex: '#22D3EE', label: 'Beach / water' },
+  orange: { hex: '#FB923C', label: 'Culture' },
+  teal: { hex: '#2DD4BF', label: 'Nightlife' },
+  lime: { hex: '#A3E635', label: 'Photo spot' },
 }
 
 /** Map a card's category / transport / name to a label color. */
@@ -145,8 +141,8 @@ export function labelColorFor(stop: { category?: string | null; transport?: stri
   const blob = `${stop.category ?? ''} ${stop.transport ?? ''} ${stop.name ?? ''}`.toLowerCase()
   if (/food|eat|drink|cafe|restaurant|phở|bún|cơm|bánh/.test(blob)) return 'amber'
   if (/mountain|nature|park|forest|river|hike|temple|chùa|thiên|núi/.test(blob)) return 'emerald'
-  if (/beach|sea|water|river|swim|marble|son tra|han river|biển|sông/.test(blob)) return 'sky'
-  if (/photo|sunrise|sunset|view|viewpoint|ngắm/.test(blob)) return 'rose'
+  if (/beach|sea|water|river|swim|marble|son tra|han river|biển|sông/.test(blob)) return 'cyan'
+  if (/photo|sunrise|sunset|view|viewpoint|ngắm/.test(blob)) return 'lime'
   if (/museum|temple|palace|history|old|ancient|cổ|bảo tàng|đền/.test(blob)) return 'orange'
   if (/night|bar|club|drink|dance|tối|quán/.test(blob)) return 'teal'
   return 'amber'

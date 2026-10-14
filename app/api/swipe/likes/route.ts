@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     ])
     for (const p of profileRows ?? []) {
       profileMap.set(p.id as string, {
-        full_name: (p.full_name as string) ?? 'Traveler',
+        full_name: (p.full_name as string) ?? 'Tourist',
         avatar_url: (p.avatar_url as string | null) ?? null,
         is_online: (p.is_online as boolean) ?? false,
       })
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
     return {
       swipe_id: r.id as string,
       tourist_id: touristId,
-      full_name: p?.full_name ?? 'Traveler',
+      full_name: p?.full_name ?? 'Tourist',
       avatar_url: p?.avatar_url ?? null,
       is_online: p?.is_online ?? false,
       interests,

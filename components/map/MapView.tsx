@@ -6,6 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Link } from '@/components/ui/Link'
 import { createClient } from '@/utils/supabase/auth'
+import { readUserIdFromToken } from '@/utils/supabase/client-binding'
 import type { LiveLocation } from '@/hooks/useLiveUserLocations'
 
 interface BuddyPin {
@@ -150,8 +151,10 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
       const supabase = createClient()
       // Exclude the current user from static pins — they shouldn't see
       // their own row in either the buddy or tourist pin layer.
-      const { data: authData } = await supabase.auth.getUser()
-      const me = authData.user?.id ?? null
+      // Synchronous: the pin layer used to render the signed-in user's own
+      // marker on first paint and only drop it after the getUser() round
+      // trip came back.
+      const me = readUserIdFromToken()
       const excludeSelf = (q: any) =>
         me ? q.neq('id', me) : q
       // can't read buddies.latitude directly since the 2026-09-26 PII tighten.

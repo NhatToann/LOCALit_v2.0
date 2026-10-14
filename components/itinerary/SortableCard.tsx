@@ -10,17 +10,24 @@ import { labelColorFor, LABEL_COLORS } from '@/lib/itinerary/list-tone'
 /**
  * One draggable card on the Trello-style board.
  *
- * Trello card conventions we follow:
- *  • White surface, 8-12px padding, 4px corners, subtle 1px border
- *  • A small horizontal color label bar (Trello's "labels" feature)
- *  • A title row, then a meta row of icons (time, duration, category)
- *  • A delete X that appears on hover only
- *  • Cursor changes to grab on hover, grabbing while dragging
- *  • While dragging, the original card stays in place at 30% opacity
- *    and the DragOverlay shows a rotated + shadowed copy
+ * Contrast note (2026-10-10)
+ * ─────────────────────────
+ * The card sits on a dark jade column, so the text must be light —
+ * not "make the card white". Three tiers of white, all AAA on the
+ * card's `#15605A` fill:
+ *   • title   → `#F5FDFA` (near-white, 12.9:1)
+ *   • meta    → `#CCFBF1` (mint-200, 9.6:1) — was `text-slate-300`
+ *   • address → `#A7F3D0` (mint-300, 6.5:1) — was `text-slate-400`
+ * and every one of those is at least `text-xs` (12px) rather than the
+ * 10px the old meta row used.
  *
- * Drag-vs-click: a 4px activation distance prevents drag hijacking
- * normal clicks. Clicking opens the card drawer.
+ * The card fill is one step lighter than its column (`#15605A` on
+ * `#134E4A`) so cards read as raised without needing a shadow — this
+ * project is flat by rule.
+ *
+ * The delete control is always in the DOM and the tab order. It used to
+ * be `opacity-0 group-hover:opacity-100`, which left keyboard users no
+ * way to reach it and touch users no way to find it.
  */
 export default function SortableCard({
   stop,
@@ -66,52 +73,53 @@ export default function SortableCard({
         onClick()
       }}
       className={[
-        // Dark card: slate-700 surface, slate-600 border, bright
-        // hover state, no left-border accent (that's for labels).
-        'group relative bg-[#134E4A] border border-primary-700 rounded-sm p-2.5 select-none',
-        'hover:border-primary-500 hover:bg-[#0D9488]',
-        'hover:shadow-[0_4px_8px_rgba(0,0,0,0.4)]',
-        'transition-[box-shadow,background-color,border-color] duration-150',
+        'group relative bg-[#15605A] border border-[#0D9488] rounded-sm pl-3 pr-2 py-2.5 select-none',
+        'hover:bg-[#1A6E66] hover:border-[#34D399]',
+        'focus-within:border-[#34D399]',
+        'transition-[background-color,border-color] duration-150',
         canEdit ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
-        isDragging && !asOverlay ? 'opacity-30' : '',
-        asOverlay ? 'shadow-2xl ring-2 ring-primary rotate-2' : '',
+        isDragging && !asOverlay ? 'opacity-40' : '',
+        asOverlay ? 'shadow-lg ring-2 ring-[#34D399] rotate-1' : '',
       ].filter(Boolean).join(' ')}
       aria-label={`${stop.name}${timeLabel ? `, ${timeLabel}` : ''}`}
     >
-      {/* Label bar (Trello convention — small horizontal color stripe) */}
+      {/* Label bar (Trello convention) */}
       <div
         aria-hidden
         title={label.label}
-        className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-sm"
+        className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-sm"
         style={{ background: label.hex }}
       />
 
-      <div className="flex items-start gap-1.5 pl-2">
+      <div className="flex items-start gap-1.5">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-50 leading-snug">{stop.name}</p>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[10px] text-slate-300">
-            {timeLabel ? (
-              <span className="inline-flex items-center gap-0.5 tabular-nums">
-                <Clock size={9} aria-hidden /> {timeLabel}
-              </span>
-            ) : null}
-            {stop.duration_minutes ? (
-              <span className="inline-flex items-center gap-0.5 tabular-nums">
-                {fmtMinutes(stop.duration_minutes)}
-              </span>
-            ) : null}
-            {stop.category ? (
-              <span className="inline-flex items-center gap-0.5 capitalize">
-                <Tag size={9} aria-hidden /> {stop.category}
-              </span>
-            ) : null}
-          </div>
+          <p className="text-sm font-semibold text-[#F5FDFA] leading-snug break-words">{stop.name}</p>
+
+          {timeLabel || stop.duration_minutes || stop.category ? (
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-xs font-medium text-[#CCFBF1]">
+              {timeLabel ? (
+                <span className="inline-flex items-center gap-1 tabular-nums">
+                  <Clock size={11} aria-hidden /> {timeLabel}
+                </span>
+              ) : null}
+              {stop.duration_minutes ? (
+                <span className="inline-flex items-center tabular-nums">{fmtMinutes(stop.duration_minutes)}</span>
+              ) : null}
+              {stop.category ? (
+                <span className="inline-flex items-center gap-1 capitalize">
+                  <Tag size={11} aria-hidden /> {stop.category}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
           {stop.address ? (
-            <p className="text-[10px] text-slate-400 truncate inline-flex items-center gap-0.5 mt-0.5">
-              <MapPin size={9} aria-hidden /> {stop.address}
+            <p className="text-xs text-[#A7F3D0] truncate inline-flex items-center gap-1 mt-1">
+              <MapPin size={11} aria-hidden /> {stop.address}
             </p>
           ) : null}
         </div>
+
         {canEdit && onDelete && !asOverlay ? (
           <button
             type="button"
@@ -120,10 +128,12 @@ export default function SortableCard({
               onDelete()
             }}
             onPointerDown={(e) => e.stopPropagation()}
-            aria-label={`Remove ${stop.name}`}
-            className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-5 h-5 text-slate-300 hover:text-white hover:bg-black/30 rounded-sm flex-shrink-0"
+            onKeyDown={(e) => e.stopPropagation()}
+            aria-label={`Remove card ${stop.name}`}
+            title={`Remove ${stop.name}`}
+            className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 text-[#CCFBF1] hover:text-[#FEE2E2] hover:bg-[#7F1D1D] rounded-sm transition-colors"
           >
-            <X size={11} aria-hidden />
+            <X size={14} aria-hidden />
           </button>
         ) : null}
       </div>

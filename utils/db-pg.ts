@@ -486,3 +486,59 @@ export async function createAuthUser(args: {
     await c.end()
   }
 }
+
+// ---------------------------------------------------------------------------
+//  Password reset (pg-direct)
+//
+// WHY THIS EXISTS (2026-10-11)
+//   GoTrue's own password-reset endpoints need SUPABASE_SERVICE_ROLE_KEY,
+//   which is unavailable in this deployment (all Vercel secrets are
+//   write-only). But `auth.users` is a plain Postgres table and we already
+//   hold the DB password, so we can write the hash ourselves.
+//
+//   `crypt($pw, gen_salt('bf'))` is the exact format GoTrue's sign-in path
+//   verifies against — bcryptjs produces a slightly different variant that
+//   GoTrue rejects. Verified end-to-end by scripts/prove-pg-password-reset.mjs
+//   (old password rejected, new password signs in).
+//
+//   Clearing the recovery/reauth token columns in the same statement is
+//   deliberate: it invalidates any reset LINK that was issued earlier, so
+//   the new password cannot be raced against an older email.
+// ---------------------------------------------------------------------------
+
+export async function setUserPasswordByEmail(
+  email: string,
+  newPassword: string,
+): Promise<{ ok: boolean; userMissing?: boolean; error?: string }> {
+  const c = createPgClient()
+  if (!c) return { ok: false, error: 'Database connection not configured.' }
+
+  try {
+    await c.connect()
+
+    // Case-insensitive match: users type their address with whatever
+    // casing they like, and GoTrue lowercases on sign-in.
+    const { rows } = await c.query<{ id: string }>(
+      `UPDATE auth.users
+       SET encrypted_password      = crypt($2, gen_salt('bf')),
+           recovery_token          = '',
+           email_change_token_new  = '',
+           email_change_token_current = '',
+           reauthentication_token  = '',
+           updated_at              = now()
+       WHERE lower(email) = lower($1)
+       RETURNING id`,
+      [email, newPassword],
+    )
+
+    if (rows.length === 0) {
+      return { ok: false, userMissing: true, error: 'No account matches that email.' }
+    }
+    return { ok: true }
+  } catch (e) {
+    const err = e as { message?: string; code?: string }
+    return { ok: false, error: `Could not update the password: ${err.message ?? 'unknown'}` }
+  } finally {
+    await c.end()
+  }
+}

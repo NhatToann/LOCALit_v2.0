@@ -1,208 +1,172 @@
 'use client'
 
 /**
- * /reset-password — set a new password after clicking the email link.
+ * /reset-password — choose a new password with a 6-digit emailed code.
  *
- * This page is reached from the password-reset email link. The link contains
- * a Supabase auth session token (single-use, expires in 1 hour). If the
- * session is missing or expired, the form MUST be disabled — otherwise the
- * user can type a password, click "Save", and get a cryptic Supabase error.
+ * WHY THIS IS A CODE AND NOT A LINK (2026-10-11)
+ * ----------------------------------------------
+ * The Supabase recovery-link flow cannot work on this project:
+ * `/auth/v1/recover` answers 429 `over_email_send_rate_limit` for every
+ * already-registered address, for hours at a time. The user clicks "send",
+ * sees a success message, and no mail ever arrives. Confirmed end-to-end
+ * against the live project — two unrelated accounts were throttled while a
+ * never-seen address returned 200.
  *
- * Improvements (2026-10-07):
- *   - Gate the form on a valid session. While we wait for the session
- *     check, show a spinner. If the session is missing/expired, render a
- *     "request a new link" message and DO NOT render the password form.
- *   - Use the canonical `validatePassword` (10+ chars + letter + non-letter)
- *     so the new password matches the rest of the app's policy.
- *   - `onInput` handler so paste / autofill update React state.
- *   - Show / hide password toggle for both fields.
- *   - Better success path: after updatePassword, route to /dashboard.
+ * So the code is issued and mailed by OUR OWN server via `sendEmail()`
+ * (SMTP / Resend), which does not go through GoTrue and is unaffected.
+ *
+ * Flow: /forgot-password → start → this page → verify → complete.
+ * Endpoints: /api/auth/reset-otp/{start,verify,complete}
+ *
+ * The old page drove Supabase's PKCE/implicit recovery session. That code
+ * is deliberately gone: it could never be reached on this project, and the
+ * OTP flow does not depend on a browser session at all — which also means
+ * it works even if the user is signed in as somebody else.
+ *
+ * Security notes:
+ *   - A code is weaker than a link: it proves mailbox access at a point in
+ *     time rather than binding to one URL. Accepted deliberately (see
+ *     utils/reset-otp.ts) and mitigated by bcrypt-at-rest, a 15-minute TTL,
+ *     a 5-attempt cap, and per-IP rate limits on every endpoint.
+ *   - The API never confirms whether an address is registered, so this page
+ *     cannot be used to enumerate users.
  */
 
-import { useState, Suspense, useEffect } from 'react'
+import { useState, Suspense, useCallback } from 'react'
 import { Link } from '@/components/ui/Link'
-import { Lock, AlertTriangle, ArrowLeft, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
-import { updatePassword, createClient } from '@/utils/supabase/auth'
+import {
+  Lock,
+  AlertTriangle,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  Mail,
+  KeyRound,
+} from 'lucide-react'
 import { validatePassword } from '@/utils/password-validator'
 import { syncValue } from '@/utils/paste-safe-input'
 import { navigate } from '@/lib/navigation'
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-/**
- * How a Supabase password-reset link signals "this session came from a
- * recovery email, not a normal sign-in".
- *
- * `type=recovery` is the documented URL marker. The `amr` claim on the
- * access token is the documented JWT marker. We accept EITHER: the
- * query/hash param survives every redirect, while the amr claim is the
- * stronger signal because only Supabase's recovery flow sets it.
- */
-function isRecoverySession(): boolean {
-  if (typeof window === 'undefined') return false
-
+/** Read the resetId handed over from /forgot-password. */
+function useResetId(): string | null {
+  if (typeof window === 'undefined') return null
   try {
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-    const query = new URLSearchParams(window.location.search)
-    if ((hash.get('type') ?? query.get('type')) === 'recovery') return true
-
-    const raw = hash.get('access_token') ?? query.get('access_token')
-    if (raw) {
-      const payload = raw.split('.')[1]
-      if (payload) {
-        const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
-        if (
-          Array.isArray(claims.amr) &&
-          claims.amr.some(
-            (a: { method?: string }) => a?.method === 'password_recovery',
-          )
-        ) {
-          return true
-        }
-      }
-    }
+    return new URLSearchParams(window.location.search).get('resetId')
   } catch {
-    /* fall through — treat as not-a-recovery-session */
+    return null
   }
-
-  return false
 }
 
-function ResetPasswordForm() {
+function ResetPasswordFlow() {
+  const initialResetId = useResetId()
+
+  const [resetId, setResetId] = useState<string | null>(initialResetId)
+  const [email, setEmail] = useState('')
+  const [otp, setOtp] = useState(['', '', '', '', '', ''])
+  const [verified, setVerified] = useState(false)
+
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [checking, setChecking] = useState(true)
-  const [hasSession, setHasSession] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [resending, setResending] = useState(false)
   const [success, setSuccess] = useState(false)
-  /** Email the recovery session actually belongs to — shown so the user
-   *  can confirm they are resetting the account they think they are. */
-  const [resetEmail, setResetEmail] = useState<string | null>(null)
-  /**
-   * Populated when the link itself failed before this page ever ran
-   * (expired OTP, rejected redirect). Supabase encodes the reason on the
-   * URL as `?error_description=...`, sometimes in the hash fragment.
-   * Surfacing it turns a silent dead-end into an actionable message.
-   */
-  const [linkError, setLinkError] = useState<string | null>(null)
 
-  /**
-   * SECURITY (2026-10-10): this gate used to be `!!(await
-   * getCurrentUser())`, which returns WHATEVER account the cookie
-   * happens to hold — not the account whose recovery email you clicked.
-   * If you were signed in as Sarah Miller and then requested a reset for
-   * darklunatv@gmail.com, the emailed link kept you signed in as Sarah,
-   * so the page rendered the password form and "Reset password" would
-   * have overwritten the WRONG account's credentials.
-   *
-   * A recovery link proves inbox access and carries its OWN scoped
-   * session, which must take precedence over any ambient cookie. So we:
-   *   1. require a recovery session to exist, and
-   *   2. require proof it came from a recovery link, and
-   *   3. never fall back to the ambient session.
-   *
-   * Resetting your own password while signed in still works: the
-   * recovery session resolves to the same account, so there is nothing
-   * to reconcile and the flow proceeds normally.
-   */
-  useEffect(() => {
-    let cancelled = false
-
-    async function check() {
-      try {
-        // GoTrue reports link failures on the redirect URL — sometimes in
-        // the query, sometimes in the hash fragment. Read both so the
-        // user gets the real reason instead of a generic "expired".
-        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-        const queryParams = new URLSearchParams(window.location.search)
-        const urlError =
-          hashParams.get('error_description') ??
-          queryParams.get('error_description') ??
-          hashParams.get('error') ??
-          queryParams.get('error')
-        if (urlError) {
-          setLinkError(
-            urlError === 'access_denied'
-              ? 'This reset link is no longer valid. Reset links work once and expire after 1 hour.'
-              : urlError.replace(/\+/g, ' '),
-          )
-        }
-
-        const supabase = createClient()
-
-        // The recovery hash carries the proof markers (`type=recovery`,
-        // the access_token whose `amr` claim names password_recovery).
-        // Read them BEFORE any cleanup, because the SDK consumes and
-        // strips the hash as soon as it establishes a session.
-        const cameFromRecoveryLink = isRecoverySession()
-
-        // Let the Supabase SDK consume the recovery hash and establish
-        // the recovery session.
-        if (window.location.hash.includes('access_token')) {
-          const { error: hashErr } = await supabase.auth.getSession()
-          if (hashErr) throw hashErr
-
-          // Scrub the token out of the address bar so it does not linger
-          // in history or leak via referrer. Done AFTER the recovery
-          // check above — doing it first erased our own proof marker and
-          // locked every legitimate user out of the form.
-          history.replaceState(
-            null,
-            '',
-            window.location.pathname + window.location.search,
-          )
-        }
-
-        const { data: sessData, error: sessionError } =
-          await supabase.auth.getSession()
-        if (sessionError) throw sessionError
-        const sessionUser = sessData.session?.user ?? null
-
-        if (cancelled) return
-
-        if (!sessionUser) {
-          setHasSession(false)
-          setChecking(false)
-          return
-        }
-
-        // Without this, an ambient session is indistinguishable from a
-        // recovery one and the whole flow is unsafe.
-        if (!cameFromRecoveryLink) {
-          setHasSession(false)
-          setChecking(false)
-          return
-        }
-
-        setHasSession(true)
-        if (sessionUser.email) setResetEmail(sessionUser.email)
-      } catch {
-        if (!cancelled) {
-          setHasSession(false)
-          setChecking(false)
-        }
-      }
-    }
-
-    check()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const code = otp.join('')
+  const codeComplete = otp.every((d) => d !== '')
 
   const passwordsMatch = password === confirmPassword
   const passwordError = password ? validatePassword(password) : null
-  const passwordValid = passwordError === null
-  const canSubmit = passwordsMatch && passwordValid && !loading && hasSession
+  const canSave =
+    passwordsMatch && passwordError === null && !saving && verified && !!resetId
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  /** 1. Ask the API to mail a fresh code. */
+  const requestCode = useCallback(async (targetEmail: string) => {
     setError('')
+    setVerifying(true)
+    try {
+      const res = await fetch('/api/auth/reset-otp/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail }),
+      })
+      const data = await res.json().catch(() => ({}))
 
-    if (!hasSession) {
-      setError('This reset link is invalid or has expired. Please request a new one.')
+      if (!res.ok) {
+        setError(data.error ?? 'Could not send the reset email. Try again.')
+        return false
+      }
+
+      setResetId(data.resetId ?? null)
+      setEmail(data.email ?? targetEmail)
+      setOtp(['', '', '', '', '', ''])
+      setVerified(false)
+      setPassword('')
+      setConfirmPassword('')
+
+      // Dev convenience: OTP_PREVIEW echoes the code so this is testable
+      // without an inbox. Unset in production.
+      if (data.__devCode) {
+        setOtp(String(data.__devCode).split('').slice(0, 6))
+      }
+      return true
+    } catch {
+      setError('Could not reach the server. Check your connection.')
+      return false
+    } finally {
+      setVerifying(false)
+    }
+  }, [])
+
+  /** 2. Check the code. */
+  const verifyCode = useCallback(async () => {
+    setError('')
+    if (!resetId) {
+      setError('This reset session is missing. Request a new code.')
+      return
+    }
+    if (!/^\d{6}$/.test(code)) {
+      setError('Enter the 6-digit code from your email.')
+      return
+    }
+
+    setVerifying(true)
+    try {
+      const res = await fetch('/api/auth/reset-otp/verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resetId, code }),
+      })
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        setError(data.error ?? 'That code is not correct.')
+        // A burned request cannot be recovered — force a fresh code.
+        if (res.status === 410) {
+          setVerified(false)
+          setResetId(null)
+        }
+        return
+      }
+
+      setEmail(data.email ?? email)
+      setVerified(true)
+    } catch {
+      setError('Could not reach the server. Check your connection.')
+    } finally {
+      setVerifying(false)
+    }
+  }, [code, email, resetId])
+
+  /** 3. Write the new password. */
+  const savePassword = useCallback(async () => {
+    setError('')
+    if (!resetId) {
+      setError('This reset session is missing. Request a new code.')
       return
     }
     if (passwordError) {
@@ -214,67 +178,135 @@ function ResetPasswordForm() {
       return
     }
 
-    setLoading(true)
-    const { error: updateError } = await updatePassword(password)
-    setLoading(false)
+    setSaving(true)
+    try {
+      const res = await fetch('/api/auth/reset-otp/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resetId, password }),
+      })
+      const data = await res.json().catch(() => ({}))
 
-    if (updateError) {
-      setError(updateError.message || 'Could not reset your password. Please try again.')
-      return
+      if (!res.ok) {
+        setError(data.error ?? 'Could not set your new password.')
+        if (res.status === 410) setVerified(false)
+        return
+      }
+
+      setSuccess(true)
+      setTimeout(() => navigate('/login'), 1600)
+    } catch {
+      setError('Could not reach the server. Check your connection.')
+    } finally {
+      setSaving(false)
     }
+  }, [passwordError, passwordsMatch, password, resetId])
 
-    setSuccess(true)
-    // Give the user a moment to read the success message, then route.
-    setTimeout(() => navigate('/dashboard'), 1200)
+  /** Enter is the fastest path through a 6-box code. */
+  const onOtpKeyDown = (e: React.KeyboardEvent, i: number) => {
+    if (e.key === 'Backspace' && !otp[i] && i > 0) {
+      const inputs = document.querySelectorAll<HTMLInputElement>(
+        'input[aria-label^="Digit"]',
+      )
+      inputs[i - 1]?.focus()
+    }
+    if (e.key === 'Enter' && codeComplete && !verifying) {
+      e.preventDefault()
+      verifyCode()
+    }
   }
 
-  if (checking) {
-    return (
-      <main className="container-page py-16 text-center">
-        <div className="loading-spinner mx-auto" aria-label="Checking reset link" />
-        <p className="text-sm text-muted mt-3">Checking your reset link…</p>
-      </main>
-    )
+  const onOtpPaste = (e: React.ClipboardEvent) => {
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (pasted.length === 0) return
+    e.preventDefault()
+    const next = ['', '', '', '', '', '']
+    for (let k = 0; k < 6 && k < pasted.length; k++) next[k] = pasted[k]
+    setOtp(next)
+    document.querySelectorAll<HTMLInputElement>('input[aria-label^="Digit"]')[
+      Math.min(pasted.length, 5)
+    ]?.focus()
   }
 
-  if (!hasSession) {
+  // ---- Screen 1: ask for the email -------------------------------------
+  if (!resetId) {
     return (
       <main className="container-page py-12 max-w-md">
         <Link
-          href="/forgot-password"
+          href="/login"
           className="inline-flex items-center gap-1 text-sm text-primary hover:underline mb-4"
         >
           <ArrowLeft size={14} aria-hidden="true" />
-          Request a new reset link
+          Back to sign in
         </Link>
-        <div className="border border-border rounded-sm bg-surface p-6 text-center">
+
+        <header className="text-center mb-6">
           <span
-            className="inline-flex items-center justify-center w-12 h-12 rounded-sm bg-warning-bg text-warning mb-3"
+            className="inline-flex items-center justify-center w-12 h-12 rounded-sm bg-paper text-primary mb-3"
             aria-hidden="true"
           >
-            <AlertTriangle size={24} />
+            <KeyRound size={24} />
           </span>
-          <h1 className="text-section-title mb-2">Reset link expired</h1>
-          <p className="text-sm text-muted">
-            {linkError ??
-              'This password reset link is invalid or has expired. Reset links work once and are valid for 1 hour.'}
+          <h1 className="text-page-title">Reset your password</h1>
+          <p className="text-sm text-muted mt-2">
+            Enter your email and we&apos;ll send you a 6-digit code to set a new
+            password.
           </p>
-          <p className="text-xs text-muted mt-3 border-t border-border pt-3">
-            If you are already signed in as a different account, sign out first
-            — then request a new link. A reset link only works when it is used
-            to recover the account it was sent to.
-          </p>
-          <Link
-            href="/forgot-password"
-            className="inline-flex items-center justify-center h-11 px-4 mt-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+        </header>
+
+        {error ? (
+          <div className="alert alert-error mb-4" role="alert">
+            <AlertTriangle size={16} aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        ) : null}
+
+        <form
+          className="border border-border rounded-sm bg-surface p-6"
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault()
+            const value = (e.currentTarget.elements.namedItem('email') as HTMLInputElement)
+              ?.value
+              .trim()
+              .toLowerCase()
+            if (!value) {
+              setError('Enter your email address.')
+              return
+            }
+            requestCode(value)
+          }}
+        >
+          <div className="form-group">
+            <label htmlFor="email" className="form-label">
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              className="form-input"
+              placeholder="you@example.com"
+              autoComplete="email"
+              maxLength={254}
+              required
+              disabled={verifying}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={verifying}
+            className="w-full h-11 mt-2 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Request a new link
-          </Link>
-        </div>
+            {verifying ? 'Sending…' : 'Send reset code'}
+          </button>
+        </form>
       </main>
     )
   }
 
+  // ---- Screen 2: enter the code, then the new password -------------------
   return (
     <main className="container-page py-12 max-w-md">
       <Link
@@ -290,41 +322,136 @@ function ResetPasswordForm() {
           className="inline-flex items-center justify-center w-12 h-12 rounded-sm bg-paper text-primary mb-3"
           aria-hidden="true"
         >
-          <Lock size={24} />
+          {verified ? <Lock size={24} /> : <Mail size={24} />}
         </span>
-        <h1 className="text-page-title">Reset your password</h1>
-        <p className="text-sm text-muted mt-2">Choose a new password for your account.</p>
-        {resetEmail ? (
-          <p className="text-xs text-muted mt-3 border border-border rounded-sm bg-paper px-3 py-2 inline-block">
-            Resetting password for{' '}
-            <strong className="text-ink">{resetEmail}</strong>
-          </p>
-        ) : null}
+        <h1 className="text-page-title">
+          {verified ? 'Choose a new password' : 'Enter your reset code'}
+        </h1>
+        <p className="text-sm text-muted mt-2">
+          {verified ? (
+            <>Your new password must be at least 10 characters.</>
+          ) : (
+            <>
+              We sent a 6-digit code to{' '}
+              <strong className="text-ink">{email}</strong>.
+            </>
+          )}
+        </p>
       </header>
+
+      {error ? (
+        <div className="alert alert-error mb-4" role="alert">
+          <AlertTriangle size={16} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      ) : null}
 
       {success ? (
         <div className="alert alert-success" role="status">
           <CheckCircle2 size={16} aria-hidden="true" />
           <div>
             <p className="font-semibold">Password updated.</p>
-            <p className="text-sm mt-1">Redirecting you to the dashboard…</p>
+            <p className="text-sm mt-1">Taking you to sign in…</p>
           </div>
         </div>
+      ) : !verified ? (
+        <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              verifyCode()
+            }}
+            noValidate
+          >
+            <div className="form-group">
+              <label htmlFor="digit-0" className="form-label">
+                Reset code
+              </label>
+              <div className="flex gap-2" role="group" aria-label="6-digit code">
+                {otp.map((digit, i) => (
+                  <input
+                    key={i}
+                    id={`digit-${i}`}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={1}
+                    className="form-input text-center text-lg"
+                    style={{ width: 44, height: 48, padding: 0 }}
+                    value={digit}
+                    aria-label={`Digit ${i + 1}`}
+                    disabled={verifying}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 1)
+                      const next = [...otp]
+                      next[i] = v
+                      setOtp(next)
+                      if (v && i < 5) {
+                        document.querySelectorAll<HTMLInputElement>(
+                          'input[aria-label^="Digit"]',
+                        )[i + 1]?.focus()
+                      }
+                    }}
+                    onInput={syncValue((v: string) => {
+                      const next = [...otp]
+                      next[i] = v.replace(/\D/g, '').slice(0, 1)
+                      setOtp(next)
+                    })}
+                    onPaste={onOtpPaste}
+                    onKeyDown={(e) => onOtpKeyDown(e, i)}
+                  />
+                ))}
+              </div>
+              <p className="form-hint mt-2">
+                The code expires in 15 minutes and works once.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={!codeComplete || verifying}
+              className="w-full h-11 mt-2 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {verifying ? 'Checking…' : 'Verify code'}
+            </button>
+          </form>
+
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            <button
+              type="button"
+              disabled={resending}
+              onClick={() => requestCode(email)}
+              className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper disabled:opacity-50"
+            >
+              <Mail size={14} aria-hidden="true" />
+              {resending ? 'Sending…' : 'Send a new code'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setResetId(null)
+                setError('')
+                setOtp(['', '', '', '', '', ''])
+              }}
+              className="inline-flex items-center h-10 px-3 text-sm text-muted hover:text-ink"
+            >
+              Use a different email
+            </button>
+          </div>
+        </>
       ) : (
         <form
-          onSubmit={handleSubmit}
+          onSubmit={(e) => {
+            e.preventDefault()
+            savePassword()
+          }}
           className="border border-border rounded-sm bg-surface p-6"
           noValidate
         >
-          {error ? (
-            <div className="alert alert-error mb-4" role="alert">
-              <AlertTriangle size={16} aria-hidden="true" />
-              <span>{error}</span>
-            </div>
-          ) : null}
-
           <div className="form-group">
-            <label htmlFor="password" className="form-label">New password</label>
+            <label htmlFor="password" className="form-label">
+              New password
+            </label>
             <div className="relative">
               <input
                 id="password"
@@ -348,18 +475,22 @@ function ResetPasswordForm() {
                 className="absolute inset-y-0 right-0 inline-flex items-center justify-center w-10 text-muted hover:text-ink"
                 tabIndex={-1}
               >
-                {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                {showPassword ? (
+                  <EyeOff size={16} aria-hidden="true" />
+                ) : (
+                  <Eye size={16} aria-hidden="true" />
+                )}
               </button>
             </div>
             {password && passwordError ? (
               <p className="form-hint text-danger">{passwordError}</p>
-            ) : password ? (
-              <p className="form-hint">Looks good.</p>
             ) : null}
           </div>
 
           <div className="form-group">
-            <label htmlFor="confirm" className="form-label">Confirm new password</label>
+            <label htmlFor="confirm" className="form-label">
+              Confirm new password
+            </label>
             <input
               id="confirm"
               type={showPassword ? 'text' : 'password'}
@@ -373,16 +504,18 @@ function ResetPasswordForm() {
               required
             />
             {confirmPassword && !passwordsMatch ? (
-              <p className="form-hint text-danger">The confirmation password does not match.</p>
+              <p className="form-hint text-danger">
+                The confirmation password does not match.
+              </p>
             ) : null}
           </div>
 
           <button
             type="submit"
-            disabled={!canSubmit}
+            disabled={!canSave}
             className="w-full h-11 mt-2 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Saving…' : 'Reset password'}
+            {saving ? 'Saving…' : 'Set new password'}
           </button>
         </form>
       )}
@@ -399,7 +532,7 @@ export default function ResetPasswordPage() {
         </main>
       }
     >
-      <ResetPasswordForm />
+      <ResetPasswordFlow />
     </Suspense>
   )
 }

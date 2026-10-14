@@ -5,6 +5,7 @@ import { Link } from '@/components/ui/Link'
 import { useRouter } from 'next/navigation'
 import { Plus, MapPin, Calendar, Compass, Loader2, AlertTriangle, Inbox, LayoutGrid } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
+import { getMyUserSync } from '@/utils/supabase/client-binding'
 import type { Itinerary } from '@/lib/types'
 
 /**
@@ -20,7 +21,7 @@ export default function ItineraryListPage() {
   const load = useCallback(async () => {
     setLoadError(null)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { user } = getMyUserSync()
     if (!user) {
       // Hard navigation — a hung router.push leaves the page spinning
       // with no way out (see notes in app/likes/page.tsx).

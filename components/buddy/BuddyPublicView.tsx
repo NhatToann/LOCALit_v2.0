@@ -1,8 +1,25 @@
-import { MapPin, Star, DollarSign, MessageCircle, Sparkles } from 'lucide-react'
+'use client'
+
+import {
+  MapPin,
+  Star,
+  DollarSign,
+  MessageCircle,
+  Sparkles,
+  Globe,
+  Clock,
+  Heart,
+  Route,
+  Languages,
+  Award,
+  CalendarDays,
+} from 'lucide-react'
 import { Link } from '@/components/ui/Link'
 import type { Buddy, Profile } from '@/lib/types'
 import { labelFor } from '@/lib/specialties'
 import ConnectButton from '@/components/buddy/ConnectButton'
+import ReviewSection from '@/components/review/ReviewSection'
+import { StarDisplay } from '@/components/review/ReviewSection'
 
 interface Props {
   buddy: Buddy
@@ -38,6 +55,14 @@ function publicScore(b: Buddy, p: Profile): number {
   return Math.min(100, s)
 }
 
+const TRANSPORT_LABEL: Record<string, string> = {
+  walk: 'On foot',
+  bike: 'Bicycle',
+  motorbike: 'Motorbike',
+  car: 'Car',
+  bus: 'Bus',
+}
+
 export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratingCount }: Props) {
   const score = publicScore(b, p)
   const topTag = b.specialties[0]
@@ -45,81 +70,130 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
 
   return (
     <div className="container-page py-8">
-      <header className="mb-6 flex flex-wrap items-start gap-4">
-        <span
-          className="flex items-center justify-center w-16 h-16 rounded-full text-2xl font-semibold text-paper shrink-0 overflow-hidden"
-          style={{ backgroundColor: '#134E4A' }}
-          aria-hidden="true"
-        >
-          {p.avatar_url ? (
-            <img
-              src={p.avatar_url}
-              alt=""
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            p.full_name.charAt(0)
-          )}
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-page-title">{p.full_name}</h1>
-            <span
-              className={`badge text-xs font-mono tabular-nums border ${scoreColor(score)}`}
-              aria-label={`Profile completeness ${score} out of 100`}
+      {/* ── Hero ── */}
+      <header className="border border-border rounded-sm bg-surface p-5 mb-5">
+        <div className="flex flex-wrap items-start gap-5">
+          <span
+            className="flex items-center justify-center w-20 h-20 rounded-full text-3xl font-semibold text-paper shrink-0 overflow-hidden"
+            style={{ backgroundColor: '#134E4A' }}
+            aria-hidden="true"
+          >
+            {p.avatar_url ? (
+              <img
+                src={p.avatar_url}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              p.full_name.charAt(0)
+            )}
+          </span>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-page-title">{p.full_name}</h1>
+              <span className="role-tag role-tag-buddy">Buddy</span>
+              {p.is_online ? (
+                <span className="badge badge-success text-xs">
+                  <span className="inline-block w-1.5 h-1.5 bg-current rounded-full mr-1 align-middle" aria-hidden="true" />
+                  Online now
+                </span>
+              ) : null}
+              {!b.is_available ? (
+                <span className="badge badge-warning text-xs">Not taking requests</span>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2 text-sm text-muted">
+              <span className="inline-flex items-center gap-1">
+                <MapPin size={13} aria-hidden="true" />
+                {b.location_city}
+              </span>
+              {b.hourly_rate ? (
+                <span className="inline-flex items-center gap-1 tabular-nums">
+                  <DollarSign size={13} aria-hidden="true" />
+                  {Number(b.hourly_rate).toFixed(0)} USD / hour
+                </span>
+              ) : null}
+              {ratingCount > 0 ? (
+                <StarDisplay rating={ratingAvg} showValue count={ratingCount} />
+              ) : (
+                <span className="inline-flex items-center gap-1">
+                  <Star size={13} aria-hidden="true" />
+                  No reviews yet
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <Route size={13} aria-hidden="true" />
+                {b.trips_completed} {b.trips_completed === 1 ? 'trip' : 'trips'} completed
+              </span>
+            </div>
+
+            {/* At-a-glance metrics strip */}
+            <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-border">
+              <div>
+                <dt className="text-eyebrow text-muted">Languages</dt>
+                <dd className="text-sm font-semibold text-ink mt-0.5 tabular-nums">
+                  {b.languages.length || '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-eyebrow text-muted">Specialties</dt>
+                <dd className="text-sm font-semibold text-ink mt-0.5 tabular-nums">
+                  {b.specialties.length || '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-eyebrow text-muted">Rating</dt>
+                <dd className="text-sm font-semibold text-ink mt-0.5 tabular-nums">
+                  {ratingCount > 0 ? ratingAvg.toFixed(1) : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-eyebrow text-muted">Profile</dt>
+                <dd className="text-sm font-semibold text-ink mt-0.5">
+                  <span
+                    className={`badge text-xs font-mono tabular-nums border ${scoreColor(score)}`}
+                    aria-label={`Profile completeness ${score} out of 100`}
+                  >
+                    <Sparkles size={11} className="inline mr-1" aria-hidden="true" />
+                    {score}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-2 w-full sm:w-auto">
+            <ConnectButton recipientId={b.id} recipientName={p.full_name} viewerAs="tourist" />
+            <Link
+              href={`/chat?buddy=${b.id}`}
+              className="inline-flex items-center justify-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
             >
-              <Sparkles size={12} className="inline mr-1" aria-hidden="true" />
-              {score}
-            </span>
-            {p.is_online ? (
-              <span className="badge badge-success text-xs">Online</span>
+              <MessageCircle size={14} aria-hidden="true" />
+              Message
+            </Link>
+            {topTag || topLang ? (
+              <Link
+                href={`/search?${topTag ? `tag=${topTag}` : ''}${topTag && topLang ? '&' : ''}${
+                  topLang ? `lang=${encodeURIComponent(topLang)}` : ''
+                }`}
+                className="inline-flex items-center justify-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-muted border border-border hover:bg-paper"
+              >
+                <Heart size={14} aria-hidden="true" />
+                Find similar buddies
+              </Link>
             ) : null}
           </div>
-          <p className="text-sm text-muted mt-1">
-            <MapPin size={12} className="inline mr-1 align-middle" aria-hidden="true" />
-            {b.location_city}
-            {b.hourly_rate ? (
-              <>
-                {' · '}
-                <DollarSign size={12} className="inline mr-0.5 align-middle" aria-hidden="true" />
-                {Number(b.hourly_rate).toFixed(0)} USD / hour
-              </>
-            ) : null}
-            {ratingCount > 0 ? (
-              <>
-                {' · '}
-                <Star size={12} className="inline mr-1 align-middle text-warning" aria-hidden="true" />
-                {ratingAvg.toFixed(1)} ({ratingCount} {ratingCount === 1 ? 'review' : 'reviews'})
-              </>
-            ) : null}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {topTag || topLang ? (
-            <Link
-              href={`/search?${topTag ? `tag=${topTag}` : ''}${topTag && topLang ? '&' : ''}${
-                topLang ? `lang=${encodeURIComponent(topLang)}` : ''
-              }`}
-              className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-            >
-              Find similar buddies
-            </Link>
-          ) : null}
-          <ConnectButton recipientId={b.id} recipientName={p.full_name} viewerAs="tourist" />
-          <Link
-            href={`/chat?buddy=${b.id}`}
-            className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-          >
-            <MessageCircle size={14} aria-hidden="true" />
-            Message
-          </Link>
         </div>
       </header>
 
+      {/* ── About ── */}
       {p.bio || b.bio ? (
-        <section className="mb-6 border border-border rounded-sm bg-surface p-5">
-          <h2 className="text-sm font-semibold text-ink mb-2">About</h2>
+        <section className="mb-5 border border-border rounded-sm bg-surface p-5">
+          <h2 className="text-eyebrow text-muted mb-2">About</h2>
           {p.bio ? (
             <p className="text-sm text-ink leading-relaxed max-w-prose">{p.bio}</p>
           ) : null}
@@ -131,18 +205,16 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
         </section>
       ) : null}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card title="Specialties">
+      {/* ── Details grid ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <Card title="Specialties" icon={Award}>
           {b.specialties.length === 0 ? (
-            <Empty>—</Empty>
+            <Empty>Not listed yet</Empty>
           ) : (
             <ul className="flex flex-wrap gap-1.5">
               {b.specialties.map((s) => (
                 <li key={s}>
-                  <Link
-                    href={`/search?tag=${s}`}
-                    className="badge badge-neutral text-xs hover:bg-paper"
-                  >
+                  <Link href={`/search?tag=${s}`} className="badge badge-neutral text-xs hover:bg-paper">
                     {labelFor(s)}
                   </Link>
                 </li>
@@ -150,17 +222,15 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
             </ul>
           )}
         </Card>
-        <Card title="Languages">
+
+        <Card title="Languages" icon={Languages}>
           {b.languages.length === 0 ? (
-            <Empty>—</Empty>
+            <Empty>Not listed yet</Empty>
           ) : (
             <ul className="flex flex-wrap gap-1.5">
               {b.languages.map((l) => (
                 <li key={l} lang="en">
-                  <Link
-                    href={`/search?lang=${encodeURIComponent(l)}`}
-                    className="lang-chip hover:bg-paper"
-                  >
+                  <Link href={`/search?lang=${encodeURIComponent(l)}`} className="lang-chip hover:bg-paper">
                     {l}
                   </Link>
                 </li>
@@ -168,9 +238,23 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
             </ul>
           )}
         </Card>
-        <Card title="Favorite places">
+
+        <Card title="Getting around" icon={Route}>
+          {b.transport ? (
+            <ul className="space-y-1.5 text-sm">
+              <li className="text-ink font-medium">{TRANSPORT_LABEL[b.transport] ?? b.transport}</li>
+              {b.transport_note ? (
+                <li className="text-xs text-muted leading-relaxed">{b.transport_note}</li>
+              ) : null}
+            </ul>
+          ) : (
+            <Empty>Not specified</Empty>
+          )}
+        </Card>
+
+        <Card title="Favorite places" icon={MapPin}>
           {b.favorite_places.length === 0 ? (
-            <Empty>—</Empty>
+            <Empty>Not listed yet</Empty>
           ) : (
             <ul className="flex flex-wrap gap-1.5">
               {b.favorite_places.map((pl) => (
@@ -182,14 +266,51 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
           )}
         </Card>
       </div>
+
+      {/* ── Availability strip ── */}
+      <section className="mb-5 border border-border rounded-sm bg-surface p-4">
+        <h2 className="text-eyebrow text-muted mb-2">Availability</h2>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          <span className={`inline-flex items-center gap-1.5 font-medium ${b.is_available ? 'text-success' : 'text-muted'}`}>
+            <Clock size={14} aria-hidden="true" />
+            {b.is_available ? 'Accepting connection requests' : 'Not accepting new requests'}
+          </span>
+          {b.languages.includes('English') || b.languages.includes('Vietnamese') ? (
+            <span className="inline-flex items-center gap-1.5 text-ink">
+              <Globe size={14} aria-hidden="true" />
+              Speaks {b.languages.slice(0, 3).join(', ')}
+            </span>
+          ) : null}
+          {b.hourly_rate ? (
+            <span className="inline-flex items-center gap-1.5 text-ink tabular-nums">
+              <CalendarDays size={14} aria-hidden="true" />
+              {Number(b.hourly_rate).toFixed(0)} USD/hour, no booking fee
+            </span>
+          ) : null}
+        </div>
+      </section>
+
+      {/* ── Reviews ── */}
+      <ReviewSection revieweeId={b.id} revieweeName={p.full_name} />
     </div>
   )
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string
+  icon?: typeof MapPin
+  children: React.ReactNode
+}) {
   return (
     <section className="border border-border rounded-sm bg-surface p-4">
-      <h2 className="text-eyebrow text-muted mb-2">{title}</h2>
+      <h2 className="text-eyebrow text-muted mb-2 flex items-center gap-1.5">
+        {Icon ? <Icon size={12} aria-hidden="true" /> : null}
+        {title}
+      </h2>
       {children}
     </section>
   )

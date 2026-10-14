@@ -5,6 +5,7 @@ import { Link } from '@/components/ui/Link'
 import { useRouter } from 'next/navigation'
 import { Heart, Sparkles, MapPin, MessageCircle, Inbox } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
+import { getMyUserSync, readUserIdFromToken } from '@/utils/supabase/client-binding'
 import { SPECIALTY_LABELS, type Specialty } from '@/lib/specialties'
 
 /**
@@ -44,7 +45,7 @@ export default function LikesPage() {
     let cancelled = false
     async function bootstrap() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { user } = getMyUserSync()
       if (cancelled) return
       if (!user) {
         // Hard navigation: the router's client-side transitions do not
@@ -95,10 +96,10 @@ export default function LikesPage() {
   useEffect(() => {
     if (!authChecked) return
     const supabase = createClient()
-    let myId: string | null = null
-    void supabase.auth.getUser().then(({ data }) => {
-      myId = data.user?.id ?? null
-    })
+    // Synchronous — see the note in app/matches/page.tsx. Assigning this
+    // after a getUser() round trip meant every realtime INSERT compared
+    // against null and was dropped.
+    const myId = readUserIdFromToken()
     const channel = supabase
       .channel('likes-incoming')
       .on(

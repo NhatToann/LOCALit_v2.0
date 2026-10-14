@@ -1,72 +1,109 @@
 'use client'
 
 /**
- * /forgot-password — password reset request (2026-10-07 — UI tightening).
+ * /forgot-password — start a password reset (2026-10-11: emailed OTP).
  *
- * Improvements over the previous version:
- *   - Explicit "didn't get it?" recovery path: Resend button + a hint to
- *     check spam / wait 30s. (Resend test mode only sends to the account
- *     owner; production needs a verified domain — see AGENTS.md.)
- *   - Trim email before submitting (leading whitespace from autocomplete
- *     used to slip through and trip the API).
- *   - `onInput` handler so paste / autofill still update React state.
- *   - Better empty / error copy that mirrors the security tone of the
- *     rest of the auth flow ("If an account exists for this email, ...")
- *     without leaking whether the email is registered.
+ * CHANGED FROM THE SUPABASE LINK FLOW
+ * ----------------------------------
+ * This page used to call `resetPasswordForEmail()` and promise a reset
+ * link. That could not work: `/auth/v1/recover` returns 429
+ * `over_email_send_rate_limit` for every already-registered address, for
+ * hours at a time. The page reported success and no email ever arrived —
+ * confirmed against the live project, where two unrelated accounts were
+ * throttled while a never-seen address returned 200.
+ *
+ * It now requests a 6-digit code from our own mailer
+ * (/api/auth/reset-otp/start) and hands the user to /reset-password,
+ * carrying the `resetId` that step needs.
+ *
+ * Security: the response is identical for registered and unknown
+ * addresses, so this page cannot be used to discover which emails exist.
  */
 
 import { useState, Suspense } from 'react'
 import { Link } from '@/components/ui/Link'
-import { KeyRound, AlertTriangle, CheckCircle2, ArrowLeft, Info, Mail } from 'lucide-react'
-import { resetPassword } from '@/utils/supabase/auth'
+import {
+  KeyRound,
+  AlertTriangle,
+  CheckCircle2,
+  ArrowLeft,
+  Info,
+  Mail,
+} from 'lucide-react'
 import { syncValue } from '@/utils/paste-safe-input'
+import { navigate } from '@/lib/navigation'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function ForgotPasswordForm() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
+  /** Set by /api/auth/reset-otp/start; required by the code step. */
+  const [resetId, setResetId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
+  /** Set when this connection is rate-limited. Retrying only keeps the
+   *  limit raised, so we disable the button and tell the user to wait. */
+  const [throttled, setThrottled] = useState(false)
 
   const emailValid = EMAIL_REGEX.test(email.trim())
 
-  async function sendReset() {
+  async function sendReset(): Promise<boolean> {
+    const res = await fetch('/api/auth/reset-otp/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    })
+    const data = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      if (res.status === 429) {
+        setThrottled(true)
+        setError(
+          'Too many reset emails were requested from this connection. ' +
+            'Please wait a few minutes before trying again.',
+        )
+      } else {
+        setError(data.error ?? 'Could not send the reset email. Try again.')
+      }
+      return false
+    }
+
+    setResetId(typeof data.resetId === 'string' ? data.resetId : null)
+    setSent(true)
+    return true
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (sent) return
     setError('')
     if (!emailValid) {
       setError('Please enter a valid email address.')
       return
     }
     setLoading(true)
-    const { error: resetError } = await resetPassword(email.trim().toLowerCase())
-    setLoading(false)
-    if (resetError) {
-      // 429 = rate limit, otherwise generic.
-      setError(
-        'Could not send the reset email. Please wait a minute and try again.',
-      )
-      return
+    try {
+      await sendReset()
+    } catch {
+      setError('Could not reach the server. Check your connection.')
+    } finally {
+      setLoading(false)
     }
-    setSent(true)
   }
 
   async function resend() {
-    if (resending) return
+    if (resending || throttled) return
     setError('')
     setResending(true)
-    const { error: resetError } = await resetPassword(email.trim().toLowerCase())
-    setResending(false)
-    if (resetError) {
-      setError('Could not resend. Please wait a minute and try again.')
-      return
+    try {
+      await sendReset()
+    } catch {
+      setError('Could not reach the server. Check your connection.')
+    } finally {
+      setResending(false)
     }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (sent) return
-    sendReset()
   }
 
   return (
@@ -88,7 +125,8 @@ function ForgotPasswordForm() {
         </span>
         <h1 className="text-page-title">Forgot password?</h1>
         <p className="text-sm text-muted mt-2 max-w-sm mx-auto">
-          Enter your email and we&apos;ll send you a link to set a new password.
+          Enter your email and we&apos;ll send you a 6-digit code to set a new
+          password.
         </p>
       </header>
 
@@ -104,10 +142,10 @@ function ForgotPasswordForm() {
           <div className="alert alert-success" role="status">
             <CheckCircle2 size={16} aria-hidden="true" />
             <div>
-              <p className="font-semibold">Reset link sent.</p>
+              <p className="font-semibold">Reset code sent.</p>
               <p className="text-sm mt-1">
-                Check the inbox for <strong>{email}</strong>. The link works once
-                and expires in 1 hour.
+                Check the inbox for <strong>{email}</strong>. The code works once
+                and expires in 15 minutes.
               </p>
             </div>
           </div>
@@ -131,17 +169,29 @@ function ForgotPasswordForm() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              onClick={() =>
+                resetId
+                  ? navigate(`/reset-password?resetId=${encodeURIComponent(resetId)}`)
+                  : setError('This reset session expired. Send the code again.')
+              }
+              className="inline-flex items-center justify-center h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+            >
+              Enter the code
+            </button>
+            <button
+              type="button"
               onClick={resend}
-              disabled={resending}
+              disabled={resending || throttled}
               className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper disabled:opacity-50"
             >
               <Mail size={14} aria-hidden="true" />
-              {resending ? 'Sending…' : 'Resend email'}
+              {resending ? 'Sending…' : 'Resend code'}
             </button>
             <button
               type="button"
               onClick={() => {
                 setSent(false)
+                setResetId(null)
                 setError('')
               }}
               className="inline-flex items-center h-10 px-3 text-sm text-muted hover:text-ink"
@@ -180,7 +230,7 @@ function ForgotPasswordForm() {
             disabled={!emailValid || loading}
             className="w-full h-11 mt-2 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Sending…' : 'Send reset link'}
+            {loading ? 'Sending…' : 'Send reset code'}
           </button>
 
           <p className="text-xs text-muted text-center mt-4">

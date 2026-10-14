@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Link } from '@/components/ui/Link';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/utils/supabase/auth';
+import { getMyUserSync } from '@/utils/supabase/client-binding';
 import { Briefcase, Users, Clock, Send, MapPin, Calendar, User, Search, MessageCircle, UserCircle, Compass, Phone, Heart } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/Avatar';
@@ -106,7 +107,7 @@ export default function DashboardPage() {
     }
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const { user } = getMyUserSync();
       if (!user) {
         setLoading(false);
         return;

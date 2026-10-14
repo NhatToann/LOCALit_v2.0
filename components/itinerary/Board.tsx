@@ -261,7 +261,7 @@ export default function Board({
     <div className="relative">
       {savingDrop ? (
         <div
-          className="absolute -top-2 right-2 z-10 inline-flex items-center gap-1 px-2 py-0.5 bg-[#134E4A] border border-primary-700 rounded-sm text-[10px] text-muted"
+          className="absolute -top-2 right-2 z-10 inline-flex items-center gap-1 px-2 py-0.5 bg-[#134E4A] border border-[#0D9488] rounded-sm text-[10px] text-[#CCFBF1]"
           aria-live="polite"
           role="status"
         >
@@ -289,9 +289,9 @@ export default function Board({
           style={{ background: '#0A1F1D', padding: '12px' }}
         >
           {days.length === 0 ? (
-            <div className="border border-dashed border-primary-700 rounded-md bg-[#134E4A] p-8 text-center w-full">
-              <p className="text-sm font-medium text-paper mb-1">No lists yet</p>
-              <p className="text-xs text-muted mb-3">Start by adding the first list — a morning, a day, or a custom window.</p>
+            <div className="border border-dashed border-[#0D9488] rounded-sm bg-[#134E4A] p-8 text-center w-full">
+              <p className="text-sm font-semibold text-[#F5FDFA] mb-1">No lists yet</p>
+              <p className="text-xs text-[#A7F3D0] mb-3">Start by adding the first list — a morning, a day, or a custom window.</p>
               {canEdit ? (
                 addingList ? (
                   <AddListForm
@@ -308,7 +308,7 @@ export default function Board({
                   <button
                     type="button"
                     onClick={() => setAddingList(true)}
-                    className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
+                    className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-[#34D399] text-[#0A1F1D] border border-[#34D399] hover:bg-[#6EE7B7]"
                   >
                     <Plus size={14} aria-hidden /> Add first list
                   </button>
@@ -353,7 +353,7 @@ export default function Board({
                 <button
                   type="button"
                   onClick={() => setAddingList(true)}
-                  className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-muted hover:text-ink bg-[#134E4A] hover:bg-[#0D9488] border-none rounded-md w-full justify-start transition-colors"
+                  className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-[#CCFBF1] hover:text-[#F5FDFA] bg-[#134E4A] hover:bg-[#0D9488] border border-[#0D9488] rounded-sm w-full justify-start transition-colors"
                 >
                   <Plus size={14} aria-hidden /> Add another list
                 </button>
@@ -422,8 +422,8 @@ function AddListForm({
   return (
     <div
       className={size === 'empty'
-        ? 'max-w-md mx-auto bg-[#134E4A] border border-primary-700 rounded-md p-3 text-left space-y-2'
-        : 'bg-[#134E4A] border border-primary-700 rounded-md p-2.5 space-y-2 w-72 flex-shrink-0'
+        ? 'max-w-md mx-auto bg-[#134E4A] border border-[#0D9488] rounded-sm p-3 text-left space-y-2'
+        : 'bg-[#134E4A] border border-[#0D9488] rounded-sm p-2.5 space-y-2 w-72 flex-shrink-0'
       }
     >
       <input
@@ -441,28 +441,28 @@ function AddListForm({
           }
         }}
         placeholder="Enter list title…"
-        className="w-full text-sm bg-[#0A1F1D] border border-primary-700 text-paper placeholder-muted rounded-sm px-2 py-1.5 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        className="w-full text-sm bg-[#0A1F1D] border border-[#0D9488] text-[#F5FDFA] placeholder-[#6B8C86] rounded-sm px-2 py-1.5 focus:border-[#34D399] focus:outline-none focus:ring-2 focus:ring-[#34D399]/20"
       />
       <div className="grid grid-cols-3 gap-1.5">
         <input
           type="date"
           value={draft.date}
           onChange={(e) => setDraft({ ...draft, date: e.target.value })}
-          className="text-xs bg-[#0A1F1D] border border-primary-700 text-paper rounded-sm px-1.5 py-1 focus:border-primary focus:outline-none"
+          className="text-xs bg-[#0A1F1D] border border-[#0D9488] text-[#F5FDFA] rounded-sm px-1.5 py-1 focus:border-[#34D399] focus:outline-none"
           aria-label="List date"
         />
         <input
           type="time"
           value={draft.start_time}
           onChange={(e) => setDraft({ ...draft, start_time: e.target.value })}
-          className="text-xs bg-[#0A1F1D] border border-primary-700 text-paper rounded-sm px-1.5 py-1 focus:border-primary focus:outline-none"
+          className="text-xs bg-[#0A1F1D] border border-[#0D9488] text-[#F5FDFA] rounded-sm px-1.5 py-1 focus:border-[#34D399] focus:outline-none"
           aria-label="List start time"
         />
         <input
           type="time"
           value={draft.end_time}
           onChange={(e) => setDraft({ ...draft, end_time: e.target.value })}
-          className="text-xs bg-[#0A1F1D] border border-primary-700 text-paper rounded-sm px-1.5 py-1 focus:border-primary focus:outline-none"
+          className="text-xs bg-[#0A1F1D] border border-[#0D9488] text-[#F5FDFA] rounded-sm px-1.5 py-1 focus:border-[#34D399] focus:outline-none"
           aria-label="List end time"
         />
       </div>
@@ -471,17 +471,18 @@ function AddListForm({
           type="button"
           onClick={handle}
           disabled={busy || !draft.title.trim()}
-          className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-sm bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-1 h-8 px-3 text-xs font-semibold rounded-sm bg-[#34D399] text-[#0A1F1D] hover:bg-[#6EE7B7] disabled:opacity-50"
         >
-          {busy ? <Loader2 size={12} className="animate-spin" aria-hidden /> : 'Add list'}
+          {busy ? <Loader2 size={12} className="animate-spin" aria-hidden /> : null}
+          Add list
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex items-center justify-center w-7 h-7 text-slate-400 hover:text-white rounded-sm"
+          className="inline-flex items-center justify-center h-8 px-3 text-xs font-medium rounded-sm bg-[#0A1F1D] text-[#CCFBF1] border border-[#0D9488] hover:bg-[#0A3B37]"
           aria-label="Cancel add list"
         >
-          <X size={14} aria-hidden />
+          <X size={14} aria-hidden /> Cancel
         </button>
       </div>
     </div>

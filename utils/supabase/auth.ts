@@ -149,12 +149,125 @@ export async function signOut() {
   return { error }
 }
 
+/**
+ * Canonical production origin used for auth redirect URLs.
+ *
+ * WHY THIS EXISTS (2026-10-10)
+ * ----------------------------
+ * The reset flow broke because `redirectPasswordForEmail` was sending
+ * `window.location.origin` as the redirect target. That origin is the
+ * DEPLOYMENT hostname (`localit-16e8n0qic-nhattoann.vercel.app`) when
+ * you arrive via a preview/hash URL, and every new deployment mints a
+ * brand-new hostname. GoTrue only honours a `redirect_to` that matches
+ * the project's allowlist; on a miss it silently discards the path and
+ * bounces the user to the Site URL root with:
+ *
+ *   /?error=access_denied&error_code=otp_expired
+ *
+ * — which is exactly the broken link that was reported. Worse, it
+ * *looked* like a session-leak bug (the page rendered the previous
+ * account's name), so it was easy to misdiagnose.
+ *
+ * Pinning the redirect to the two stable aliases means the URL works
+ * from ANY deployment hostname, present or future, with no per-deploy
+ * dashboard edit.
+ */
+const CANONICAL_ORIGINS = [
+  'https://localit-nhattoann.vercel.app',
+  'https://localit-vn.vercel.app',
+] as const
+
+/**
+ * Pick the best redirect origin for the current page.
+ *
+ * Preference order:
+ *   1. `NEXT_PUBLIC_SITE_URL` if set (explicit operator override).
+ *   2. The current origin, when it is already one of the stable
+ *      aliases or a local dev server.
+ *   3. The primary canonical alias.
+ *
+ * A deployment hash URL deliberately falls through to (3): those rotate
+ * on every deploy and are not on the allowlist.
+ */
+function resolveAuthOrigin(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim()
+  if (configured) return configured.replace(/\/$/, '')
+
+  if (typeof window !== 'undefined') {
+    const current = window.location.origin
+    const isLocal =
+      current.startsWith('http://localhost') || current.startsWith('http://127.0.0.1')
+    if (isLocal) return current
+    // Reuse the alias the user is already on when it is a stable one.
+    if ((CANONICAL_ORIGINS as readonly string[]).includes(current)) return current
+  }
+
+  return CANONICAL_ORIGINS[0]
+}
+
 export async function resetPassword(email: string, redirectTo?: string) {
   const supabase = createClient()
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: redirectTo ?? `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`,
+    redirectTo: redirectTo ?? `${resolveAuthOrigin()}/reset-password`,
   })
   return { data, error }
+}
+
+/**
+ * Classify a Supabase auth error into a user-actionable reason.
+ *
+ * WHY THIS EXISTS (2026-10-10)
+ * The reset flow swallowed every failure behind one generic sentence,
+ * so a hard per-recipient email throttle (`over_email_send_rate_limit`)
+ * looked identical to a typo'd address. Users retried in a tight loop,
+ * which kept the throttle raised.
+ *
+ * `resetPasswordForEmail` returns 200 for unknown addresses on purpose
+ * (no email enumeration), so we must read the error CODE rather than the
+ * status to decide what to tell the user.
+ */
+export type AuthErrorKind =
+  | 'email_throttled'
+  | 'rate_limited'
+  | 'network'
+  | 'unknown'
+
+export function classifyResetError(error: unknown): {
+  kind: AuthErrorKind
+  message: string
+} {
+  const status =
+    typeof error === 'object' && error !== null && 'status' in error
+      ? Number((error as { status?: number }).status)
+      : 0
+
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: string }).code ?? '')
+      : ''
+
+  // `over_email_send_rate_limit` is per-recipient and can stay raised for
+  // a while after repeated requests. It is NOT fixed by waiting 30s.
+  if (code === 'over_email_send_rate_limit' || status === 429) {
+    return {
+      kind: 'email_throttled',
+      message:
+        'We have already sent several reset emails to this address in a short time. ' +
+        'Please wait about an hour before trying again, or sign in with your current password.',
+    }
+  }
+
+  if (status === 0) {
+    return {
+      kind: 'network',
+      message: 'Could not reach the server. Check your connection and try again.',
+    }
+  }
+
+  return {
+    kind: 'unknown',
+    message: 'Could not send the reset email. Please wait a minute and try again.',
+  }
 }
 
 export async function updatePassword(newPassword: string) {

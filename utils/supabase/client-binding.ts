@@ -82,6 +82,75 @@ export function readAccessToken(): string | null {
 }
 
 /**
+ * Read the signed-in user id from the stored access token.
+ *
+ * WHY THIS EXISTS (2026-10-10)
+ * Components that only need "am I signed in, and as whom" were calling
+ * `supabase.auth.getUser()`, which is a network round trip to
+ * `/auth/v1/user`. A dozen of them mounting on the same page produced ~22
+ * identical requests. Swapping in `getSession()` avoided the requests but
+ * introduced a worse failure: when the cached token is expired the SDK
+ * awaits an internal refresh while holding the auth lock, and a concurrent
+ * `getSession()` from another component deadlocks it. The awaiting promise
+ * then never settles, so the caller's `finally` never runs and any
+ * `loading` flag stays true forever — which is what left the connect
+ * button as a permanent spinner.
+ *
+ * The JWT is already in the cookie; decoding it is synchronous, offline
+ * and cannot hang. Callers that genuinely need fresh server-side profile
+ * data should still use `getUser()` — this is only for identity.
+ *
+ * Returns null when signed out or when the token cannot be decoded.
+ */
+export function readUserIdFromToken(): string | null {
+  const token = readAccessToken()
+  if (!token) return null
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return null
+    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
+    const json = JSON.parse(atob(padded))
+    return typeof json?.sub === 'string' ? json.sub : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Drop-in replacement for `supabase.auth.getUser()` when you only need the
+ * user id.
+ *
+ * Same shape as the SDK call — `{ user: { id } | null }` — so call sites
+ * change by one line:
+ *
+ *   - const { data: { user } } = await supabase.auth.getUser()
+ *   + const { user } = getMyUserSync()
+ *
+ * WHY (2026-10-10)
+ * `getUser()` is a network call to `/auth/v1/user`. Client components were
+ * each calling it on mount, and a profile page reached 37 identical requests
+ * on one navigation. The request burst was itself the bug: responses landed
+ * after the calling effects had been cleaned up, so `cancelled` was true,
+ * the state writes were skipped, and `loading` never cleared — the connect
+ * button rendered as a permanent spinner and reviews stayed on
+ * "Loading reviews…" with no error anywhere.
+ *
+ * The JWT is already in the auth cookie. Decoding it is synchronous, costs
+ * nothing, and cannot be interrupted by a re-render.
+ *
+ * SERVER-SIDE CAVEAT: this reads a browser cookie. It only works in client
+ * components. Server components and route handlers must keep using
+ * `supabase.auth.getUser()` against the server client.
+ *
+ * Returns `{ user: null }` when signed out.
+ */
+export function getMyUserSync(): { user: { id: string } | null } {
+  const id = readUserIdFromToken()
+  return { user: id ? { id } : null }
+}
+
+/**
  * Idempotent — safe to call multiple times per session. Logs only when
  * NEXT_PUBLIC_CALL_DEBUG=1 (dev-only).
  */

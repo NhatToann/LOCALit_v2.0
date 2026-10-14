@@ -50,6 +50,7 @@ import {
   ToggleRight,
 } from 'lucide-react'
 import { createClient, getCurrentUser, signOut } from '@/utils/supabase/auth'
+import { readUserIdFromToken } from '@/utils/supabase/client-binding'
 import type { Profile, Buddy } from '@/lib/types'
 import { Avatar } from '@/components/ui/Avatar'
 import TravelHistory from '@/components/profile/TravelHistory'
@@ -80,7 +81,7 @@ const SPECIALTIES = [
   'Coffee culture',
   'Pagodas',
   'Family-friendly',
-  'Solo travelers',
+  'Solo tourists',
   'Luxury',
   'Backpacker',
 ]
@@ -530,11 +531,9 @@ export default function BuddyProfileView() {
     )
       return
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return
-    const { error: delErr } = await supabase.from('profiles').delete().eq('id', user.id)
+    const me = readUserIdFromToken()
+    if (!me) return
+    const { error: delErr } = await supabase.from('profiles').delete().eq('id', me)
     if (delErr) {
       alert('Could not delete: ' + delErr.message)
       return

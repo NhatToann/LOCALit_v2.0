@@ -5,6 +5,7 @@ import { Link } from '@/components/ui/Link'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/utils/supabase/auth'
+import { readUserIdFromToken } from '@/utils/supabase/client-binding'
 import { useIsOnline } from '@/lib/realtime/useGlobalPresence'
 import OnlineIndicator from '@/components/presence/OnlineIndicator'
 import { useLiveUserLocations } from '@/hooks/useLiveUserLocations'
@@ -199,9 +200,10 @@ function BrowseContent() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
-      setCurrentUserId(data.user?.id ?? null)
-    })
+    // Read the id synchronously so the feed can exclude "me" on the first
+    // render. getUser() was a network call whose response could land after
+    // cleanup, leaving the signed-in user's own row in the list.
+    setCurrentUserId(readUserIdFromToken())
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUserId(session?.user?.id ?? null)
     })
@@ -234,8 +236,7 @@ function BrowseContent() {
         // recommend list — users should never see their own row in the
         // "Find people in Da Nang" feed (e.g. Phan Nhật Toàn's tourist
         // row used to show up under his own session).
-        const { data: authData } = await supabase.auth.getUser()
-        const me = authData.user?.id ?? null
+        const me = readUserIdFromToken()
 
         // No user means the session died (expired access token, revoked
         // refresh token). `me` would be null, and filtering on a
@@ -323,7 +324,7 @@ function BrowseContent() {
             .map((t) => ({
               id: t.id,
               role: 'tourist' as const,
-              full_name: t.profile?.full_name ?? 'Traveler',
+              full_name: t.profile?.full_name ?? 'Tourist',
               location_city: t.location_city,
               latitude: t.latitude,
               longitude: t.longitude,
@@ -662,7 +663,7 @@ function BrowseContent() {
             </h2>
             <p className="text-sm text-muted">
               {buddies.length > 0
-                ? `${buddies.length} ${buddies.length === 1 ? 'person' : 'people'} in Da Nang — local buddies and travelers near you.`
+                ? `${buddies.length} ${buddies.length === 1 ? 'person' : 'people'} in Da Nang — local buddies and tourists near you.`
                 : 'Loading Da Nang people…'}
             </p>
           </div>
@@ -727,32 +728,33 @@ function BrowseContent() {
                 {selectedBuddy.location_city}
                 <span
                   className={`role-tag ml-2 ${
-                    selectedBuddy.role === 'buddy' ? 'role-tag-buddy' : 'role-tag-traveler'
+                    selectedBuddy.role === 'buddy' ? 'role-tag-buddy' : 'role-tag-tourist'
                   }`}
                 >
-                  {selectedBuddy.role === 'buddy' ? 'Buddy' : 'Traveler'}
+                  {selectedBuddy.role === 'buddy' ? 'Buddy' : 'Tourist'}
                 </span>
               </p>
               <p className="text-xs text-muted mt-1">
                 <Star size={12} className="inline mr-1" aria-hidden="true" />
                 {selectedBuddy.role === 'buddy' && selectedBuddy.rating_avg
                   ? `${selectedBuddy.rating_avg.toFixed(1)} · ${selectedBuddy.languages.slice(0, 2).join(', ')}`
-                  : (selectedBuddy.languages.slice(0, 2).join(', ') || 'Traveler in Da Nang')}
+                  : (selectedBuddy.languages.slice(0, 2).join(', ') || 'Tourist in Da Nang')}
               </p>
-              <Link
-                href={selectedBuddy.role === 'buddy' ? `/buddies/${selectedBuddy.id}` : `/tourists/${selectedBuddy.id}`}
-                className="inline-flex items-center justify-center mt-2 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover w-full"
-              >
-                View profile
-              </Link>
-              {selectedBuddy.role === 'buddy' && selectedBuddy.specialties.length > 0 ? (
+              <div className="flex gap-2 mt-3">
                 <Link
-                  href={`/search?tag=${encodeURIComponent(selectedBuddy.specialties[0])}`}
-                  className="inline-flex items-center justify-center mt-2 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper w-full"
+                  href={selectedBuddy.role === 'buddy' ? `/buddies/${selectedBuddy.id}` : `/tourists/${selectedBuddy.id}`}
+                  className="inline-flex items-center justify-center flex-1 h-9 px-3 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
                 >
-                  Find similar buddies
+                  View profile
                 </Link>
-              ) : null}
+                <Link
+                  href={`/chat?buddy=${selectedBuddy.id}`}
+                  className="inline-flex items-center justify-center flex-1 gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+                >
+                  <MessageCircle size={14} aria-hidden="true" />
+                  Message
+                </Link>
+              </div>
             </div>
           ) : null}
         </div>
@@ -835,11 +837,11 @@ function BrowseContent() {
                         <span>{b.full_name}</span>
                         <span
                           className={`role-tag shrink-0 ${
-                            isBuddy ? 'role-tag-buddy' : 'role-tag-traveler'
+                            isBuddy ? 'role-tag-buddy' : 'role-tag-tourist'
                           }`}
-                          aria-label={isBuddy ? 'Local buddy' : 'Traveler'}
+                          aria-label={isBuddy ? 'Local buddy' : 'Tourist'}
                         >
-                          {isBuddy ? 'Buddy' : 'Traveler'}
+                          {isBuddy ? 'Buddy' : 'Tourist'}
                         </span>
                         {matchScoreMap.get(b.id) ? (
                           <span
@@ -875,7 +877,7 @@ function BrowseContent() {
                       ) : (
                         <>
                           <p className="text-sm font-medium text-muted">—</p>
-                          <p className="text-xs text-muted">traveler</p>
+                          <p className="text-xs text-muted">tourist</p>
                         </>
                       )}
                     </div>
@@ -958,7 +960,7 @@ function BrowseContent() {
                               </span>
                             </dt>
                             <dd className="text-sm text-ink">
-                              {(b as BuddyItem).nationality || 'Traveler in Da Nang'}
+                              {(b as BuddyItem).nationality || 'Tourist in Da Nang'}
                             </dd>
                           </div>
                         ) : null}
@@ -989,14 +991,6 @@ function BrowseContent() {
                         >
                           View profile
                         </Link>
-                        {isBuddy && b.specialties.length > 0 ? (
-                          <Link
-                            href={`/search?tag=${encodeURIComponent(b.specialties[0])}`}
-                            className="inline-flex items-center justify-center h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-surface"
-                          >
-                            Find similar
-                          </Link>
-                        ) : null}
                         <Link
                           href={`/chat?buddy=${b.id}`}
                           className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-surface"

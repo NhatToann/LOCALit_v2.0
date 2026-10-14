@@ -5,6 +5,7 @@ import { Link } from '@/components/ui/Link'
 import { useRouter } from 'next/navigation'
 import { Heart, MessageCircle, MapPin, Sparkles, Clock } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
+import { getMyUserSync, readUserIdFromToken } from '@/utils/supabase/client-binding'
 
 /**
  * /matches — list of mutual likes for the current user.
@@ -83,7 +84,7 @@ export default function MatchesPage() {
     let cancelled = false
     async function bootstrap() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { user } = getMyUserSync()
       if (cancelled) return
       if (!user) {
         // Hard navigation — a hung router.replace leaves the page
@@ -152,10 +153,11 @@ export default function MatchesPage() {
   useEffect(() => {
     if (!authChecked) return
     const supabase = createClient()
-    let myId: string | null = null
-    void supabase.auth.getUser().then(({ data }) => {
-      myId = data.user?.id ?? null
-    })
+    // Synchronous, so `myId` is populated before any realtime event can
+    // fire. The previous `void getUser().then(...)` assigned this AFTER the
+    // subscription was live, so every matches INSERT compared against null
+    // and was dropped.
+    const myId = readUserIdFromToken()
     const channel = supabase
       .channel('matches-live')
       .on(
@@ -378,7 +380,7 @@ function MatchesList({
                   ) : null}
                 </p>
               ) : (
-                <p className="text-xs text-muted mb-3">Traveler in Da Nang</p>
+                <p className="text-xs text-muted mb-3">Tourist in Da Nang</p>
               )}
               <p className="text-xs text-success font-medium mb-3">
                 <Heart size={12} className="inline mr-1" aria-hidden="true" />

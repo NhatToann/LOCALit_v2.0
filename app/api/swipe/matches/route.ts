@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
   >()
   for (const p of profileRows ?? []) {
     profileMap.set(p.id as string, {
-      full_name: (p.full_name as string) ?? 'Traveler',
+      full_name: (p.full_name as string) ?? 'Tourist',
       avatar_url: (p.avatar_url as string | null) ?? null,
       is_online: (p.is_online as boolean) ?? false,
     })
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
         created_at: m.created_at,
         tourist: {
           id: m.tourist_id,
-          full_name: touristProfile?.full_name ?? 'Traveler',
+          full_name: touristProfile?.full_name ?? 'Tourist',
           avatar_url: touristProfile?.avatar_url ?? null,
           is_online: touristProfile?.is_online ?? false,
         },
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
             }
           : {
               id: m.tourist_id,
-              full_name: touristProfile?.full_name ?? 'Traveler',
+              full_name: touristProfile?.full_name ?? 'Tourist',
               avatar_url: touristProfile?.avatar_url ?? null,
               is_online: touristProfile?.is_online ?? false,
               role: 'tourist' as const,

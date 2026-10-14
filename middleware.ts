@@ -41,7 +41,8 @@ export async function middleware(request: NextRequest) {
     pathname === '/search' ||
     pathname === '/browse' ||
     pathname === '/map' ||
-    pathname.startsWith('/buddies/') // public buddy profile pages
+    pathname.startsWith('/buddies/') || // public buddy profile pages
+    pathname.startsWith('/tourists/') // public tourist profile pages (same as /buddies)
   const isVerifyEmailRoute = pathname.startsWith('/verify-email')
 
   // If on auth pages while logged in, redirect to dashboard.

@@ -13,6 +13,7 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
+import { readUserIdFromToken } from '@/utils/supabase/client-binding'
 import { useLocationWatcher } from '@/hooks/useLocationWatcher'
 import { useLiveUserLocations } from '@/hooks/useLiveUserLocations'
 
@@ -70,10 +71,10 @@ export default function MapPage() {
   // Check auth session once on mount + listen for changes.
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
-      setSignedIn(!!data.user)
-      setCurrentUserId(data.user?.id ?? null)
-    })
+    // Synchronous — the map needs the id on first paint to draw "my" marker.
+    const me = readUserIdFromToken()
+    setSignedIn(!!me)
+    setCurrentUserId(me)
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setSignedIn(!!session?.user)
       setCurrentUserId(session?.user?.id ?? null)

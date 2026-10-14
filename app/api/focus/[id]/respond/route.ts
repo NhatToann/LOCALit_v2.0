@@ -17,7 +17,7 @@ const BodySchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ requestId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const ip = getClientIp(req)
@@ -35,7 +35,11 @@ export async function POST(
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
-    const { requestId } = await params
+    // `[id]` is the focus REQUEST id here (the client calls
+    // /api/focus/{requestId}/respond). Unified from a former [requestId]
+    // folder so it could live beside the sibling end route — Next.js
+    // rejects two differently-named dynamic segments at one path.
+    const { id: requestId } = await params
 
     let body: unknown
     try {

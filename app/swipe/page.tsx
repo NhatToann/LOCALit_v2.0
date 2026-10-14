@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@/components/ui/Link'
 import { Heart, X, MapPin, Star, Sparkles, MessageCircle, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
+import { getMyUserSync } from '@/utils/supabase/client-binding'
 import { SPECIALTIES, SPECIALTY_LABELS, type Specialty } from '@/lib/specialties'
 
 /**
@@ -51,7 +52,7 @@ export default function SwipePage() {
     let cancelled = false
     async function bootstrap() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { user } = getMyUserSync()
       if (cancelled) return
       if (!user) {
         // Hard navigation, not router.replace. Every client-side router
@@ -121,12 +122,11 @@ export default function SwipePage() {
           // page to refetch matches. The queue itself only changes on
           // OUR swipes (handled by local state).
           const row = payload.new as { tourist_id: string; buddy_id: string }
-          supabase.auth.getUser().then(({ data: { user } }) => {
-            if (!user) return
-            if (user.id !== row.tourist_id && user.id !== row.buddy_id) return
-            // Ask the matches endpoint to surface the new match
-            void fetch('/api/swipe/matches', { cache: 'no-store' })
-          })
+          const { user } = getMyUserSync()
+          if (!user) return
+          if (user.id !== row.tourist_id && user.id !== row.buddy_id) return
+          // Ask the matches endpoint to surface the new match
+          void fetch('/api/swipe/matches', { cache: 'no-store' })
         },
       )
       .subscribe()

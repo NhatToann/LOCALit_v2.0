@@ -765,7 +765,7 @@ function RegisterForm() {
                   active={form.role === 'buddy'}
                   onClick={() => pickRole('buddy')}
                   title="Local buddy"
-                  desc="Show travelers around your city. Set your own hourly rate."
+                  desc="Show tourists around your city. Set your own hourly rate."
                   tone="buddy"
                 />
               </div>
@@ -1089,7 +1089,7 @@ function BuddyTags({
     <div className="space-y-5">
       <div>
         <h2 className="text-section-title mb-1">Set up your buddy profile</h2>
-        <p className="text-xs text-muted">Travelers see this on the buddy browse page.</p>
+        <p className="text-xs text-muted">Tourists see this on the buddy browse page.</p>
       </div>
 
       <div>
@@ -1164,7 +1164,7 @@ function BuddyTags({
           id="bio"
           className="form-input"
           rows={4}
-          placeholder="Tell travelers about you, your city, and what makes a great day with you."
+          placeholder="Tell tourists about you, your city, and what makes a great day with you."
           value={form.bio}
           onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))}
         />
