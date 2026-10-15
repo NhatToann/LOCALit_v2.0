@@ -103,7 +103,11 @@ async function main() {
     await lanPage.screenshot({ path: 'scripts/screenshots/connect-picker.png' })
     await dialog.getByRole('button', { name: /send request · 1 day/i }).click()
     try {
-      await lanPage.getByText(/request pending/i).waitFor({ timeout: 10_000 })
+      // The badge is a <span role="status" aria-label="Connection request pending">
+      // containing a Lucide Hourglass SVG + the text "Request pending". Locating
+      // by aria-label (not raw text) is more reliable than getByText because
+      // Playwright's getByText can miss matches when the span has an SVG child.
+      await lanPage.locator('[aria-label="Connection request pending"]').waitFor({ timeout: 10_000 })
       pass('lan sees "Request pending" after send')
     } catch {
       fail('pending badge after send', { html: (await lanPage.content()).slice(0, 500) })
