@@ -74,21 +74,27 @@ export default function DurationPicker({
     setSubmitting(true)
     try {
       if (remember) {
-        // Fire-and-forget: persist the choice for next time.
-        try {
-          const supabase = createClient()
-          const {
-            data: { user },
-          } = await supabase.auth.getUser()
-          if (user) {
-            await supabase
-              .from('profiles')
-              .update({ default_connection_duration: finalDays })
-              .eq('id', user.id)
+        // Fire-and-forget: persist the choice for next time. Do NOT await
+        // here — the profile PATCH goes through Supabase's anon auth and
+        // round-trips through getUser() (which can take 1-3s on first
+        // hydration), and we want onConfirm to fire immediately so the
+        // POST /api/connections call isn't held hostage.
+        void (async () => {
+          try {
+            const supabase = createClient()
+            const {
+              data: { user },
+            } = await supabase.auth.getUser()
+            if (user) {
+              await supabase
+                .from('profiles')
+                .update({ default_connection_duration: finalDays })
+                .eq('id', user.id)
+            }
+          } catch {
+            // non-blocking
           }
-        } catch {
-          // non-blocking
-        }
+        })()
       }
       await onConfirm(finalDays)
     } finally {

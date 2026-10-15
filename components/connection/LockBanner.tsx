@@ -10,7 +10,7 @@
  * memory only — a hard reload brings it back).
  */
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { AlertTriangle, Loader2, RefreshCw, X, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -34,7 +34,12 @@ export default function LockBanner({
   contextLabel = 'Open chat',
 }: Props) {
   const [dismissed, setDismissed] = useState(false)
-  const [isPending, startTransition] = useTransition()
+  // useState (not useTransition) for the action's pending flag.
+  // useTransition.isPending never returns to false after router.refresh()
+  // because the parent server-component re-render keeps the transition
+  // in flight indefinitely on slow networks, leaving the button stuck
+  // disabled. A plain boolean we toggle in try/finally is reliable.
+  const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
@@ -48,26 +53,27 @@ export default function LockBanner({
       })
     : 'recently'
 
-  function renew() {
+  async function renew() {
     setError(null)
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/connections/${connectionId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ action: 'renew' }),
-        })
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string }
-          throw new Error(body.message ?? `HTTP ${res.status}`)
-        }
-        // Hard refresh so server components re-evaluate connection state.
-        router.refresh()
-      } catch (e) {
-        setError((e as Error).message)
+    setIsPending(true)
+    try {
+      const res = await fetch(`/api/connections/${connectionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'renew' }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
       }
-    })
+      // Hard refresh so server components re-evaluate connection state.
+      router.refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setIsPending(false)
+    }
   }
 
   return (

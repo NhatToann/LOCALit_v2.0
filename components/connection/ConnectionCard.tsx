@@ -7,7 +7,7 @@
  * Designed to be a self-contained server-component-friendly client island
  * so the list can be re-rendered without re-fetching all the rows.
  */
-import { useTransition, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -50,34 +50,41 @@ interface Props {
 
 export default function ConnectionCard({ row, viewerId }: Props) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  // useState (not useTransition) for the action's pending flag.
+  // useTransition.isPending never returns to false after router.refresh()
+  // because the parent server-component re-render keeps the transition
+  // in flight indefinitely on slow networks, leaving the button stuck
+  // disabled. A plain boolean we toggle ourselves in the try/finally
+  // below is the simpler, more reliable primitive.
+  const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const toastTimer = useSafeTimeout()
   const [showSuccess, setShowSuccess] = useState(false)
   const partner = row.partner
   const iAmRequester = row.requester_id === viewerId
 
-  function action(req: 'accept' | 'reject' | 'cancel' | 'renew') {
+  async function action(req: 'accept' | 'reject' | 'cancel' | 'renew') {
     setError(null)
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/connections/${row.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ action: req }),
-        })
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string }
-          throw new Error(body.message ?? `HTTP ${res.status}`)
-        }
-        setShowSuccess(true)
-        toastTimer.schedule(() => setShowSuccess(false), 1800)
-        router.refresh()
-      } catch (e) {
-        setError((e as Error).message)
+    setIsPending(true)
+    try {
+      const res = await fetch(`/api/connections/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: req }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
       }
-    })
+      setShowSuccess(true)
+      toastTimer.schedule(() => setShowSuccess(false), 1800)
+      router.refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setIsPending(false)
+    }
   }
 
   if (!partner) {

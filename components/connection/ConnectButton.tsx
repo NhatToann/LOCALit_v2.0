@@ -21,7 +21,7 @@
  *   • active but locked                  → "Renew" (primary)
  *   • declined (any)                     → "Connect again" → DurationPicker
  */
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   UserPlus,
@@ -65,7 +65,12 @@ export default function ConnectButton({
   const router = useRouter()
   const [myId, setMyId] = useState<string | null>(null)
   const [showDurationPicker, setShowDurationPicker] = useState(false)
-  const [isPending, startTransition] = useTransition()
+  // useState (not useTransition) for the action's pending flag.
+  // useTransition.isPending never returns to false after router.refresh()
+  // because the parent server-component re-render keeps the transition
+  // in flight indefinitely on slow networks, leaving the button stuck
+  // disabled. A plain boolean we toggle in try/finally is reliable.
+  const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Use the parent's fetch if it supplied one; otherwise own it.
   const internal = useConnectionState(recipientId)
@@ -108,105 +113,109 @@ export default function ConnectButton({
   }
 
   // --- Action handlers ---
-  function sendRequest(days: number) {
+  async function sendRequest(days: number) {
     setError(null)
-    startTransition(async () => {
-      try {
-        const res = await fetch('/api/connections', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ recipient_id: recipientId, duration_days: days }),
-        })
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string }
-          if (res.status === 409) {
-            // Already exists — refresh the lookup so the UI shows the right state.
-            await refetch()
-            return
-          }
-          throw new Error(body.message ?? `HTTP ${res.status}`)
+    setIsPending(true)
+    try {
+      const res = await fetch('/api/connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ recipient_id: recipientId, duration_days: days }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        if (res.status === 409) {
+          // Already exists — refresh the lookup so the UI shows the right state.
+          await refetch()
+          return
         }
-        setShowDurationPicker(false)
-        await refetch()
-        onConnectionChange?.()
-        router.refresh()
-      } catch (e) {
-        setError((e as Error).message)
+        throw new Error(body.message ?? `HTTP ${res.status}`)
       }
-    })
+      setShowDurationPicker(false)
+      await refetch()
+      onConnectionChange?.()
+      router.refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setIsPending(false)
+    }
   }
 
-  function respond(action: 'accept' | 'reject') {
+  async function respond(action: 'accept' | 'reject') {
     if (!state.connectionId) return
     setError(null)
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/connections/${state.connectionId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ action }),
-        })
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string }
-          throw new Error(body.message ?? `HTTP ${res.status}`)
-        }
-        await refetch()
-        onConnectionChange?.()
-        router.refresh()
-      } catch (e) {
-        setError((e as Error).message)
+    setIsPending(true)
+    try {
+      const res = await fetch(`/api/connections/${state.connectionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
       }
-    })
+      await refetch()
+      onConnectionChange?.()
+      router.refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setIsPending(false)
+    }
   }
 
-  function cancel() {
+  async function cancel() {
     if (!state.connectionId) return
     setError(null)
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/connections/${state.connectionId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ action: 'cancel' }),
-        })
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string }
-          throw new Error(body.message ?? `HTTP ${res.status}`)
-        }
-        await refetch()
-        onConnectionChange?.()
-        router.refresh()
-      } catch (e) {
-        setError((e as Error).message)
+    setIsPending(true)
+    try {
+      const res = await fetch(`/api/connections/${state.connectionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'cancel' }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
       }
-    })
+      await refetch()
+      onConnectionChange?.()
+      router.refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setIsPending(false)
+    }
   }
 
-  function renew() {
+  async function renew() {
     if (!state.connectionId) return
     setError(null)
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/connections/${state.connectionId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ action: 'renew' }),
-        })
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string }
-          throw new Error(body.message ?? `HTTP ${res.status}`)
-        }
-        await refetch()
-        onConnectionChange?.()
-        router.refresh()
-      } catch (e) {
-        setError((e as Error).message)
+    setIsPending(true)
+    try {
+      const res = await fetch(`/api/connections/${state.connectionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'renew' }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        throw new Error(body.message ?? `HTTP ${res.status}`)
       }
-    })
+      await refetch()
+      onConnectionChange?.()
+      router.refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setIsPending(false)
+    }
   }
 
   // No connection — invite
