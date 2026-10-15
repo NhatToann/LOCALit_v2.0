@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { readUserIdFromToken } from '@/utils/supabase/client-binding'
 import { createClient } from '@/utils/supabase/auth'
+import { useConnectionsRealtime } from '@/hooks/useConnectionsRealtime'
 
 export type ConnectionState = {
   hasConnection: boolean
@@ -134,13 +135,23 @@ export function useConnectionState(targetUserId: string | null | undefined) {
         // non-blocking
       }
     }
-    return () => {
-      cancelled = true
-      if (debounceTimer) clearTimeout(debounceTimer)
-      abortRef.current?.abort()
-      unsub?.()
-    }
-  }, [fetch_])
+  return () => {
+    cancelled = true
+    if (debounceTimer) clearTimeout(debounceTimer)
+    abortRef.current?.abort()
+    unsub?.()
+  }
+}, [fetch_])
+
+// Auto-refetch when ANY connection row involving the current user
+// changes. This covers the case where the OTHER party (the recipient
+// of the request) accepts, rejects, renews, or cancels — none of
+// which the local user can detect from their own session, so we
+// watch the table for partner-side writes and re-run the /check
+// fetch (which is scoped to the targetUserId prop).
+useConnectionsRealtime(() => {
+  void fetch_()
+})
 
   return { state, loading, error, refetch: fetch_ }
 }

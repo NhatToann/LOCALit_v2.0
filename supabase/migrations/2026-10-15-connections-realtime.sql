@@ -1,0 +1,22 @@
+-- Add `public.connections` to the `supabase_realtime` publication so
+-- the client can listen for INSERT/UPDATE/DELETE events and refresh
+-- the UI when the OTHER party (recipient for the requester, or
+-- requester for the recipient) changes the row's status.
+--
+-- Why this is needed:
+--   /connections and /buddies/[id] are (largely) server components
+--   that fetch the connection once at render. When partner B accepts
+--   (or rejects / renews / cancels) partner A's request, A's open
+--   page has no signal that the row's status changed — the user has
+--   to F5 to see "Request pending" become "Active" or the connection
+--   card disappear from "Sent requests".
+--
+--   Once connections is in the publication, a client-side
+--   postgres_changes subscription on connections (filtered to rows
+--   where requester_id or recipient_id equals auth.uid()) gets the
+--   event, and a router.refresh() in the listener re-runs the server
+--   component. The user sees the new state within ~1s of the partner
+--   acting.
+--
+-- Idempotent: safe to re-run.
+ALTER PUBLICATION supabase_realtime ADD TABLE public.connections;

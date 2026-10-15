@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { Users, ArrowLeft, Sparkles } from 'lucide-react'
 import ConnectionCard, { type ConnectionRow } from '@/components/connection/ConnectionCard'
+import ConnectionsLive from '@/components/connection/ConnectionsLive'
 
 export const metadata = {
   title: 'Connections · LOCALit',
@@ -92,6 +93,7 @@ export default async function ConnectionsPage() {
 
   return (
     <div className="container-page py-8 max-w-3xl">
+      <ConnectionsLive />
       <header className="mb-6">
         <Link
           href="/dashboard"
