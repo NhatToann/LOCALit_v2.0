@@ -28,7 +28,25 @@ export async function GET(req: NextRequest) {
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    // Unauthenticated visitors get the "no connection" state, not 401.
+    // Every buddy/tourist profile page mounts the connection check hook
+    // on render, and signed-out visitors used to see a 401 in the
+    // console for each mount + auth state churn (~4× on a slow first
+    // paint). Returning 200 with the empty state is semantically
+    // correct (a signed-out viewer has no connection with anyone) and
+    // keeps the browser console quiet.
+    if (!user) {
+      return NextResponse.json({
+        hasConnection: false,
+        status: null,
+        direction: null,
+        connectionId: null,
+        durationDays: null,
+        expiresAt: null,
+        daysRemaining: null,
+        isLocked: false,
+      })
+    }
 
     const url = new URL(req.url)
     const target = url.searchParams.get('target')

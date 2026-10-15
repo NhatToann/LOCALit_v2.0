@@ -134,7 +134,15 @@ export async function GET(_req: NextRequest) {
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    // Unauthenticated visitors get an empty list, not 401. The page-level
+    // /connections server component already gates on auth and renders
+    // "Please sign in to see your connections" — but the bell/header
+    // wiring on every other page used to issue this fetch speculatively,
+    // which flooded the browser console with 401s for signed-out
+    // visitors. Returning 200 with an empty list is semantically correct
+    // (an unauthenticated user has no connections) and keeps the
+    // console quiet.
+    if (!user) return NextResponse.json({ connections: [] })
 
     // Pull every connection the user participates in, both directions.
     const { data, error } = await supabase
