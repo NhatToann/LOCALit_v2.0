@@ -18,6 +18,19 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useConnectionState } from '@/hooks/useConnectionState'
+import { createContext, useContext as useReactContext } from 'react'
+
+/**
+ * Module-level React context. A single ConnectionDataProvider at the
+ * top of BuddyPublicView populates this once; every nested widget
+ * (header badge, explainer, button) reads from the context, so the
+ * /api/connections/check fetch fires exactly once per recipient.
+ */
+const ConnectionStateContext = createContext<ReturnType<typeof useConnectionState> | null>(null)
+
+function useConnectionContext() {
+  return useReactContext(ConnectionStateContext)
+}
 import { Link } from '@/components/ui/Link'
 import type { Buddy, Profile } from '@/lib/types'
 import { labelFor } from '@/lib/specialties'
@@ -73,6 +86,43 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
   const topTag = b.specialties[0]
   const topLang = b.languages[0]
 
+  // Own the connection fetch ONCE for this recipient. The badge,
+  // explainer, and action button below all read from the same context
+  // so we only fire /api/connections/check on mount, not 3 times.
+  return (
+    <ConnectionDataProvider recipientId={b.id}>
+      {() => (
+        <ConnectionPageBody
+          b={b}
+          p={p}
+          ratingAvg={ratingAvg}
+          ratingCount={ratingCount}
+          score={score}
+          topTag={topTag}
+          topLang={topLang}
+        />
+      )}
+    </ConnectionDataProvider>
+  )
+}
+
+function ConnectionPageBody({
+  b,
+  p,
+  ratingAvg,
+  ratingCount,
+  score,
+  topTag,
+  topLang,
+}: {
+  b: Buddy
+  p: Profile
+  ratingAvg: number
+  ratingCount: number
+  score: number
+  topTag: string | undefined
+  topLang: string | undefined
+}) {
   return (
     <div className="container-page py-8">
       {/* ── Hero ── */}
@@ -99,7 +149,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-page-title">{p.full_name}</h1>
               <span className="role-tag role-tag-buddy">Buddy</span>
-              <BuddyConnectionStatusInline recipientId={b.id} />
+              <HeaderConnectionBadge />
               {p.is_online ? (
                 <span className="badge badge-success text-xs">
                   <span className="inline-block w-1.5 h-1.5 bg-current rounded-full mr-1 align-middle" aria-hidden="true" />
@@ -173,7 +223,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
 
           {/* Actions */}
           <div className="flex flex-col gap-2 w-full sm:w-auto">
-            <ConnectButton recipientId={b.id} recipientName={p.full_name} viewerAs="tourist" />
+            <ConnectActionButton recipientId={b.id} recipientName={p.full_name} />
             <Link
               href={`/chat?buddy=${b.id}`}
               className="inline-flex items-center justify-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
@@ -297,7 +347,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
       </section>
 
       {/* ── Reviews ── */}
-      <ConnectionExplainer recipientId={b.id} />
+      <ConnectionExplainerSection />
       <ReviewSection revieweeId={b.id} revieweeName={p.full_name} />
     </div>
   )
@@ -328,20 +378,57 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Inline status pill for the buddy header. Wraps ConnectionStatusBadge
- * with the buddy's id and a handler that navigates to /connections.
- *
- * Kept as an inner component so the rest of the file can stay a server
- * component (it has no useState / useEffect in its own render path).
+ * ConnectionDataProvider — single owner of the connection fetch for a
+ * given recipient. Renders children with the shared state so all
+ * sibling widgets (header badge, explainer, button) read from one
+ * fetch instead of each firing its own /api/connections/check.
  */
-function BuddyConnectionStatusInline({ recipientId }: { recipientId: string }) {
+function ConnectionDataProvider({
+  recipientId,
+  children,
+}: {
+  recipientId: string
+  children: (s: ReturnType<typeof useConnectionState>) => React.ReactNode
+}) {
+  const s = useConnectionState(recipientId)
+  return <ConnectionStateContext.Provider value={s}>{children(s)}</ConnectionStateContext.Provider>
+}
+
+/**
+ * Header badge that reads the parent's connection fetch via context.
+ */
+function HeaderConnectionBadge() {
   const router = useRouter()
-  const { state } = useConnectionState(recipientId)
-  if (!state.hasConnection) return null
+  const s = useConnectionContext()
+  if (!s || !s.state.hasConnection) return null
   return (
     <ConnectionStatusBadge
-      state={state}
+      state={s.state}
       onOpenConnections={() => router.push('/connections')}
+    />
+  )
+}
+
+/**
+ * Connection action button (sends / accepts / renews / cancels). Reads
+ * the same connection fetch as the rest of the page via context to
+ * avoid an extra round-trip per mount.
+ */
+function ConnectActionButton({
+  recipientId,
+  recipientName,
+}: {
+  recipientId: string
+  recipientName: string
+}) {
+  const s = useConnectionContext()
+  if (!s) return null
+  return (
+    <ConnectButton
+      recipientId={recipientId}
+      recipientName={recipientName}
+      viewerAs="tourist"
+      sharedState={s}
     />
   )
 }
@@ -351,9 +438,10 @@ function BuddyConnectionStatusInline({ recipientId }: { recipientId: string }) {
  * Always rendered — anon visitors need it too. Helps reduce the
  * "I don't know what Connect does" feedback.
  */
-function ConnectionExplainer({ recipientId }: { recipientId: string }) {
-  const { state } = useConnectionState(recipientId)
-  if (state.hasConnection) {
+function ConnectionExplainerSection() {
+  const s = useConnectionContext()
+  if (!s) return null
+  if (s.state.hasConnection) {
     return (
       <section className="mb-5 border border-border bg-surface rounded-sm p-4">
         <h2 className="text-section-title flex items-center gap-2 mb-2">
@@ -361,7 +449,7 @@ function ConnectionExplainer({ recipientId }: { recipientId: string }) {
           Your connection
         </h2>
         <p className="text-sm text-ink max-w-prose">
-          You and this buddy are {state.status === 'pending' ? 'in a pending request' : 'connected'}.
+          You and this buddy are {s.state.status === 'pending' ? 'in a pending request' : 'connected'}.
           Chat, edit a shared itinerary, and leave a review any time before the connection expires.
         </p>
         <div className="flex flex-wrap gap-2 mt-3">

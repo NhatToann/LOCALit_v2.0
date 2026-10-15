@@ -15,6 +15,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { readUserIdFromToken } from '@/utils/supabase/client-binding'
+import { createClient } from '@/utils/supabase/auth'
 
 export type ConnectionState = {
   hasConnection: boolean
@@ -43,6 +45,11 @@ export function useConnectionState(targetUserId: string | null | undefined) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // Track whether we've ever run a successful (or 401-gated) fetch for
+  // the current target so we don't fire the same query repeatedly when
+  // auth state churns.
+  const lastFetchedFor = useRef<string | null>(null)
+  const lastFetchedAt = useRef<number>(0)
 
   const fetch_ = useCallback(async () => {
     if (!targetUserId) {
@@ -50,6 +57,26 @@ export function useConnectionState(targetUserId: string | null | undefined) {
       setLoading(false)
       return
     }
+    // De-dupe: if we just fetched this exact target within the last
+    // 500ms, skip. Supabase's onAuthStateChange sometimes fires
+    // multiple times in the same tick during hydration, each of which
+    // would otherwise re-issue the same /api/connections/check.
+    if (lastFetchedFor.current === targetUserId && Date.now() - lastFetchedAt.current < 500) {
+      return
+    }
+    // Check the local auth cookie synchronously before fetching.
+    // The hook can fire before Supabase's JS SDK has finished hydrating
+    // the auth state, especially on the very first render of a fresh
+    // navigation target — calling /api/connections/check in that
+    // window returns 401 and floods the console. We guard with the
+    // same JWT decode the rest of the app uses.
+    if (typeof window !== 'undefined' && !readUserIdFromToken()) {
+      setState(EMPTY)
+      setLoading(false)
+      return
+    }
+    lastFetchedFor.current = targetUserId
+    lastFetchedAt.current = Date.now()
     abortRef.current?.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
@@ -60,6 +87,13 @@ export function useConnectionState(targetUserId: string | null | undefined) {
         signal: ctrl.signal,
         credentials: 'include',
       })
+      // 401 means the user is signed out; clear state silently. The
+      // 401 error in the console comes from fetch's own logging, not
+      // from us, so we suppress the visual error to keep the page clean.
+      if (res.status === 401) {
+        setState(EMPTY)
+        return
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = (await res.json()) as ConnectionState
       setState(json)
@@ -72,8 +106,40 @@ export function useConnectionState(targetUserId: string | null | undefined) {
   }, [targetUserId])
 
   useEffect(() => {
+    let cancelled = false
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        if (!cancelled) void fetch_()
+      }, 50)
+    }
+
     void fetch_()
-    return () => abortRef.current?.abort()
+
+    // Re-fetch when the auth state flips. The Supabase SDK writes the
+    // session cookie on its first getSession() — listening for that
+    // event lets us recover when we skipped the initial fetch because
+    // the cookie was not yet present. Debounced because onAuthStateChange
+    // often fires several times in quick succession on first mount.
+    let unsub: (() => void) | null = null
+    if (typeof window !== 'undefined') {
+      try {
+        const supabase = createClient()
+        const { data } = supabase.auth.onAuthStateChange(() => {
+          debouncedFetch()
+        })
+        unsub = () => data.subscription.unsubscribe()
+      } catch {
+        // non-blocking
+      }
+    }
+    return () => {
+      cancelled = true
+      if (debounceTimer) clearTimeout(debounceTimer)
+      abortRef.current?.abort()
+      unsub?.()
+    }
   }, [fetch_])
 
   return { state, loading, error, refetch: fetch_ }

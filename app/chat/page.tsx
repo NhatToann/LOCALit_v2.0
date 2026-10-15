@@ -34,6 +34,7 @@ import { getMyUserSync } from '@/utils/supabase/client-binding'
 import type { Message, Conversation, MessageReaction, Profile, FocusRequest } from '@/lib/types'
 import { Avatar, EmptyState } from '@/components/ui/Avatar'
 import FocusRequestBanner from '@/components/focus/FocusRequestBanner'
+import ChatLockGuard from '@/components/connection/ChatLockGuard'
 import { useMessageStream } from '@/lib/realtime/useMessageStream'
 import { useTyping } from '@/lib/realtime/useTyping'
 import { usePresence } from '@/lib/realtime/usePresence'
@@ -1839,6 +1840,13 @@ function ChatInner() {
 
   return (
     <div className="container-page py-6">
+      {activeConv?.partner_id ? (
+        <ChatLockGuard
+          partnerId={activeConv.partner_id}
+          partnerName={activeConv.partner_name}
+          contextHref="/chat"
+        />
+      ) : null}
       <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-eyebrow text-primary mb-2">

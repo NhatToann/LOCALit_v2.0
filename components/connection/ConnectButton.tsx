@@ -21,7 +21,7 @@
  *   • active but locked                  → "Renew" (primary)
  *   • declined (any)                     → "Connect again" → DurationPicker
  */
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   UserPlus,
@@ -34,6 +34,7 @@ import {
   Handshake,
 } from 'lucide-react'
 import { useConnectionState } from '@/hooks/useConnectionState'
+import { readUserIdFromToken } from '@/utils/supabase/client-binding'
 import DurationPicker from './DurationPicker'
 
 interface Props {
@@ -44,6 +45,14 @@ interface Props {
   viewerAs?: 'tourist' | 'buddy'
   hideWhenSelf?: boolean
   onConnectionChange?: () => void
+  /**
+   * RAM/RPC optimization: when the parent already owns a
+   * useConnectionState fetch (e.g. a sibling badge or explainer), pass
+   * it down so the button does not fire a second /api/connections/check
+   * round-trip on mount. When omitted the button falls back to its own
+   * internal fetch — safe, but doubled in those cases.
+   */
+  sharedState?: ReturnType<typeof useConnectionState>
 }
 
 export default function ConnectButton({
@@ -51,26 +60,24 @@ export default function ConnectButton({
   recipientName,
   hideWhenSelf = true,
   onConnectionChange,
+  sharedState,
 }: Props) {
   const router = useRouter()
   const [myId, setMyId] = useState<string | null>(null)
   const [showDurationPicker, setShowDurationPicker] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const { state, loading, refetch } = useConnectionState(recipientId)
+  // Use the parent's fetch if it supplied one; otherwise own it.
+  const internal = useConnectionState(recipientId)
+  const { state, loading, refetch } = sharedState ?? internal
 
-  // Read viewer id (read-only token decode — never awaits auth SDK)
-  if (typeof window !== 'undefined' && myId === null) {
-    try {
-      // Lazy import so the SSR pass doesn't break
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { readUserIdFromToken } = require('@/utils/supabase/client-binding')
-      const uid = readUserIdFromToken()
-      if (uid) setMyId(uid)
-    } catch {
-      // ignore — fallback to "not signed in" branch
-    }
-  }
+  // Read viewer id (synchronous token decode — never awaits auth SDK).
+  // useEffect with empty deps runs once on mount, so this never blocks
+  // the SSR pass. We deliberately do NOT call setMyId from the render
+  // body (would re-render every state update).
+  useEffect(() => {
+    setMyId(readUserIdFromToken())
+  }, [])
 
   // Signed-out
   if (!myId) {
