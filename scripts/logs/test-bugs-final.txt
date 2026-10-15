@@ -1,0 +1,41 @@
+[db] cleaned
+[toan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+PASS toan signed in 
+PASS lan signed in 
+[toan.error] Failed to load resource: the server responded with a status of 401 ()
+[lan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[toan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[dump toan/lan-1] URL=https://localit-nhattoann.vercel.app/buddies/11111111-1111-1111-1111-111111111111
+  buttons: [ 'Sign out', 'Connect with Lan', '9+' ]
+  links: [
+  'Skip to main content',  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',    'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn', 'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',      'Dashboard',
+  'Swipe',                 'Buddies',
+  'Trips',                 'Messages',
+  'My Profile',            'Switch account',
+  'Find similar buddies',  'Beach',
+  'Food Tours',            'Photography',
+  'Vietnamese',            'English',
+  'Browse buddies',        'Trips',
+  'Map',                   'Search',
+  'Sign in'
+]
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for getByRole('dialog', { name: /connection duration/i }).getByRole('radio', { name: '3 days' })
+
+    at D:\New folder\LOCALit_v2.0\scripts\smoke-connection-bugs.mjs:98:57 {
+  log: [
+    "  - waiting for getByRole('dialog', { name: /connection duration/i }).getByRole('radio', { name: '3 days' })"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.14.0
+

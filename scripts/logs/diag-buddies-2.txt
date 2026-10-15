@@ -1,0 +1,31 @@
+signed in, url= https://localit-nhattoann.vercel.app/dashboard
+[warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[reqfailed] https://pqvnjgyqbxlylawwogjv.supabase.co/rest/v1/reviews?select=id&reviewer_id=eq.11111111-1111-1111-1111-111111111111 net::ERR_ABORTED
+[reqfailed] https://pqvnjgyqbxlylawwogjv.supabase.co/realtime/v1/api/broadcast?apikey=sb_publishable_3uRUZqdvazd4cENt8WOWJA_SB7HmCEE net::ERR_ABORTED
+[reqfailed] https://pqvnjgyqbxlylawwogjv.supabase.co/rest/v1/notifications?select=id&user_id=eq.11111111-1111-1111-1111-111111111111 net::ERR_ABORTED
+[warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[reqfailed] https://pqvnjgyqbxlylawwogjv.supabase.co/realtime/v1/api/broadcast?apikey=sb_publishable_3uRUZqdvazd4cENt8WOWJA_SB7HmCEE net::ERR_ABORTED
+[reqfailed] https://pqvnjgyqbxlylawwogjv.supabase.co/rest/v1/notifications?select=id&user_id=eq.11111111-1111-1111-1111-111111111111 net::ERR_ABORTED
+
+BUTTONS: [ 'Sign out', '9+' ]
+
+LINKS (first 15): [
+  'Skip to main content',
+  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',
+  'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn',
+  'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',
+  'Dashboard',
+  'Swipe',
+  'Buddies',
+  'Trips',
+  'Messages',
+  'My Profile',
+  'Switch account',
+  'Find similar buddies'
+]
+
+error boundary visible: false
+

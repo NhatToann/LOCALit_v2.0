@@ -1,0 +1,11 @@
+[warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[error] Failed to load resource: the server responded with a status of 401 ()
+[warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+
+[connect-with] matches: [ 'Connect with John' ]
+
+[last-header innerHTML] (truncated): <h2 id="reviews-heading" class="text-section-title">Reviews</h2><div class="flex items-center gap-3"></div>
+
+[main text] John DoeBuddyDa Nang15 USD / hourNo reviews yet0 trips completedLanguages1Specialtiesâ€”Ratingâ€”Profile45Connect with JohnFind similar buddiesSpecialtiesNot listed yetLanguagesEnglishGetting aroundNot specifiedFavorite placesNot listed yetAvailabilityAccepting connection requestsSpeaks English15 USD/hour, no booking feeHow Connect worksStep 1Send a requestTap Connect, pick a duration (1â€“30 days), and wait for the buddy to accept.Step 2Chat & plan togetherOnce accepted, you can message each other an
+

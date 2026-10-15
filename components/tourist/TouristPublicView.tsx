@@ -5,7 +5,6 @@ import {
   Calendar,
   Globe,
   Compass,
-  MessageCircle,
   Sparkles,
   Heart,
   Users,
@@ -176,13 +175,6 @@ export default function TouristPublicView({
 
           <div className="flex flex-col gap-2 w-full sm:w-auto">
             <ConnectButton recipientId={t.id} recipientName={p.full_name} viewerAs="buddy" />
-            <Link
-              href={`/chat?buddy=${t.id}`}
-              className="inline-flex items-center justify-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-            >
-              <MessageCircle size={14} aria-hidden="true" />
-              Message
-            </Link>
             {topInterest ? (
               <Link
                 href={`/search?tag=${encodeURIComponent(topInterest)}`}

@@ -37,6 +37,9 @@ export default function ConnectionStatusBadge({
 
   // Pending request
   if (state.status === 'pending') {
+    const daysHint = state.durationDays
+      ? ` · ${state.durationDays}-day plan`
+      : ''
     if (state.direction === 'i_sent') {
       return (
         <span
@@ -45,7 +48,7 @@ export default function ConnectionStatusBadge({
           aria-label="Connection request pending"
         >
           <Hourglass size={iconSize} className="inline mr-1" aria-hidden="true" />
-          Request pending
+          Request pending{daysHint}
         </span>
       )
     }
@@ -56,7 +59,7 @@ export default function ConnectionStatusBadge({
         aria-label="New connection request"
       >
         <Send size={iconSize} className="inline mr-1" aria-hidden="true" />
-        New request
+        New request{daysHint}
       </span>
     )
   }

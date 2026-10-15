@@ -109,7 +109,12 @@ export default function ConnectionCard({ row, viewerId }: Props) {
 
   const statusLabel = (() => {
     if (row.status === 'pending') {
-      return iAmRequester ? 'Request pending' : 'New request'
+      const daysHint = row.duration_days
+        ? ` · ${row.duration_days}-day plan`
+        : ''
+      return iAmRequester
+        ? `Request pending${daysHint}`
+        : `New request${daysHint}`
     }
     if (row.is_locked) return 'Expired'
     if (row.days_remaining !== null) {

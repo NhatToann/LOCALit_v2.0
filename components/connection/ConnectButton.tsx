@@ -19,7 +19,7 @@
  *   • pending, I am receiver             → "Accept" / "Decline"
  *   • active (not locked)                → "Message" + badge shows days left
  *   • active but locked                  → "Renew" (primary)
- *   • declined (any)                     → "Connect again" → DurationPicker
+ *   • declined / no row left             → same "Connect with …" flow as fresh
  */
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -32,9 +32,11 @@ import {
   Send,
   RefreshCw,
   Handshake,
+  LogOut,
 } from 'lucide-react'
 import { useConnectionState } from '@/hooks/useConnectionState'
 import { readUserIdFromToken } from '@/utils/supabase/client-binding'
+import { useSafeTimeout } from '@/hooks/useSafeTimeout'
 import DurationPicker from './DurationPicker'
 
 interface Props {
@@ -72,6 +74,8 @@ export default function ConnectButton({
   // disabled. A plain boolean we toggle in try/finally is reliable.
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showEnded, setShowEnded] = useState(false)
+  const toastTimer = useSafeTimeout()
   // Use the parent's fetch if it supplied one; otherwise own it.
   const internal = useConnectionState(recipientId)
   const { state, loading, refetch } = sharedState ?? internal
@@ -338,7 +342,7 @@ export default function ConnectButton({
     )
   }
 
-  // Accepted + not locked — message
+  // Accepted + not locked — message + end
   if (state.status === 'accepted') {
     return (
       <div className="flex flex-wrap items-center gap-2">
@@ -353,19 +357,54 @@ export default function ConnectButton({
           <MessageCircle size={13} aria-hidden="true" />
           Message
         </a>
+        <button
+          type="button"
+          onClick={async () => {
+            if (!confirm(`End connection with ${recipientName}? You can connect again later.`)) return
+            await cancel()
+            setShowEnded(true)
+            toastTimer.schedule(() => {
+              setShowEnded(false)
+              router.refresh()
+            }, 2000)
+          }}
+          disabled={isPending}
+          className="inline-flex items-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-muted border border-border-strong hover:bg-paper disabled:opacity-50"
+        >
+          {isPending ? (
+            <Loader2 size={13} className="animate-spin" aria-hidden="true" />
+          ) : (
+            <LogOut size={13} aria-hidden="true" />
+          )}
+          End
+        </button>
+        {showEnded && (
+          <span className="text-xs text-success" role="status">
+            ✓ Connection ended
+          </span>
+        )}
+        {error ? (
+          <span className="text-xs text-danger" role="alert">
+            {error}
+          </span>
+        ) : null}
       </div>
     )
   }
 
-  // Declined — retry
+  // Declined — same UX as a fresh "Connect" (the row was deleted by
+  // cancel/End, but if the user re-declined somehow they get the same
+  // start-over flow). We use the exact same wording as the no-connection
+  // state so the user can predict the next step.
   return (
     <div className="flex flex-col gap-1">
       <button
         type="button"
         onClick={() => setShowDurationPicker(true)}
-        className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+        className="inline-flex items-center gap-1 h-10 px-4 text-sm font-medium rounded-sm bg-primary text-paper border border-primary hover:bg-primary-hover"
       >
-        <UserPlus size={14} aria-hidden="true" /> Connect again
+        <UserPlus size={14} aria-hidden="true" />
+        Connect with {recipientName.split(' ')[0]}
       </button>
       {error ? (
         <span className="text-xs text-danger" role="alert">

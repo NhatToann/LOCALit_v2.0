@@ -1,0 +1,14 @@
+lanId 11111111-1111-1111-1111-111111111111 johnId aaaa1111-1111-1111-1111-111111111111
+PASS lan signed in
+PASS john signed in
+FATAL locator.waitFor: Timeout 15000ms exceeded.
+Call log:
+  - waiting for getByRole('button', { name: /connect with john/i }).first() to be visible
+
+    at main (D:\New folder\LOCALit_v2.0\scripts\smoke-connect-playwright.mjs:96:30) {
+  log: [
+    "  - waiting for getByRole('button', { name: /connect with john/i }).first() to be visible"
+  ],
+  name: 'TimeoutError'
+}
+

@@ -1,0 +1,31 @@
+inserted connection e02c1dd0-fe83-4e82-9a71-8d57f1459374
+[warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[error] Failed to load resource: the server responded with a status of 401 ()
+[warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+
+BUTTONS: [ '1', 'Sign out', 'End', 'Write a review', '9+' ]
+
+LINKS (first 20): [
+  'Skip to main content',  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',    'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn', 'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',      'Dashboard',
+  'Swipe',                 'Buddies',
+  'Trips',                 'Messages',
+  'My Profile',            'Switch account',
+  'Message',               'Find similar buddies',
+  'Beach',                 'Food Tours',
+  'Photography',           'Vietnamese'
+]
+
+[api/connections/check] response: {
+  "hasConnection": true,
+  "status": "accepted",
+  "direction": "i_sent",
+  "connectionId": "e02c1dd0-fe83-4e82-9a71-8d57f1459374",
+  "durationDays": 7,
+  "expiresAt": "2026-10-22T17:07:17.90726+00:00",
+  "daysRemaining": 7,
+  "isLocked": false
+}
+

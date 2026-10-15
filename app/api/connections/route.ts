@@ -70,9 +70,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Default duration = caller's profile setting (1-30, default 7).
+    // Also fetch caller's full_name for the notification.
     const { data: caller } = await supabase
       .from('profiles')
-      .select('default_connection_duration, role')
+      .select('default_connection_duration, role, full_name')
       .eq('id', user.id)
       .maybeSingle()
     const finalDuration = duration_days ?? caller?.default_connection_duration ?? 7
@@ -116,6 +117,28 @@ export async function POST(req: NextRequest) {
       .single()
     if (error) {
       return NextResponse.json({ error: 'insert_failed', message: error.message }, { status: 500 })
+    }
+
+    // Send notification to recipient via RPC (bypasses RLS).
+    // Using insert_notification(p_user_id, p_type, p_title, p_body, p_actor_id, p_link)
+    // which is SECURITY DEFINER (postgres), bypassing RLS reliably regardless
+    // of whether the Supabase client uses anon or service_role key.
+    try {
+      const { data: notifId, error: notifErr } = await supabase.rpc('insert_notification', {
+        p_user_id: recipient_id,
+        p_type: 'connection_request',
+        p_title: 'New connection request',
+        p_body: `${caller?.full_name ?? 'Someone'} wants to connect with you`,
+        p_actor_id: user.id,
+        p_link: '/connections',
+      })
+      if (notifErr) {
+        console.warn('[connections] notification insert failed:', notifErr.message, notifErr.code)
+      } else {
+        console.log('[connections] notification insert ok:', notifId)
+      }
+    } catch (e) {
+      console.warn('[connections] notification insert threw:', (e as Error).message)
     }
 
     return NextResponse.json(

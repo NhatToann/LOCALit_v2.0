@@ -4,7 +4,6 @@ import {
   MapPin,
   Star,
   DollarSign,
-  MessageCircle,
   Sparkles,
   Globe,
   Clock,
@@ -224,13 +223,6 @@ function ConnectionPageBody({
           {/* Actions */}
           <div className="flex flex-col gap-2 w-full sm:w-auto">
             <ConnectActionButton recipientId={b.id} recipientName={p.full_name} />
-            <Link
-              href={`/chat?buddy=${b.id}`}
-              className="inline-flex items-center justify-center gap-1 h-9 px-3 text-sm font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
-            >
-              <MessageCircle size={14} aria-hidden="true" />
-              Message
-            </Link>
             {topTag || topLang ? (
               <Link
                 href={`/search?${topTag ? `tag=${topTag}` : ''}${topTag && topLang ? '&' : ''}${

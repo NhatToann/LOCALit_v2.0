@@ -1,0 +1,182 @@
+[db] cleaned
+PASS toan signed in 
+[toan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+PASS lan signed in 
+[lan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[toan.error] Failed to load resource: the server responded with a status of 401 ()
+[toan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[dump toan/lan-1] URL=https://localit-nhattoann.vercel.app/buddies/11111111-1111-1111-1111-111111111111
+  buttons: [ 'Sign out', 'Connect with Lan', '9+' ]
+  links: [
+  'Skip to main content',  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',    'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn', 'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',      'Dashboard',
+  'Swipe',                 'Buddies',
+  'Trips',                 'Messages',
+  'My Profile',            'Switch account',
+  'Find similar buddies',  'Beach',
+  'Food Tours',            'Photography',
+  'Vietnamese',            'English',
+  'Browse buddies',        'Trips',
+  'Map',                   'Search',
+  'Sign in'
+]
+PASS toan sees "Request pending" badge 
+[dump toan/lan-after-send] URL=https://localit-nhattoann.vercel.app/buddies/11111111-1111-1111-1111-111111111111
+  buttons: [ 'Sign out', ' Cancel', '9+' ]
+  links: [
+  'Skip to main content',  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',    'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn', 'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',      'Dashboard',
+  'Swipe',                 'Buddies',
+  'Trips',                 'Messages',
+  'My Profile',            'Switch account',
+  'Find similar buddies',  'Beach',
+  'Food Tours',            'Photography',
+  'Vietnamese',            'English',
+  'Manage connections',    'Browse buddies',
+  'Trips',                 'Map',
+  'Search'
+]
+[lan.error] Failed to load resource: the server responded with a status of 401 ()
+[lan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[dump lan/toan] URL=https://localit-nhattoann.vercel.app/tourists/f2df98b0-96cf-451d-9d85-5060ddc1ca01
+  buttons: [ '1', 'Sign out', 'Accept', ' Decline', '9+' ]
+  links: [
+  'Skip to main content',  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',    'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn', 'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',      'Dashboard',
+  'Swipe',                 'Buddies',
+  'Trips',                 'Messages',
+  'My Profile',            'Switch account',
+  'Find similar tourists', 'food',
+  'Browse buddies',        'Trips',
+  'Map',                   'Search',
+  'Sign in',               'Create account',
+  'My profile',            'Dashboard',
+  'Become a buddy'
+]
+FAIL lan did not see Active badge after accept 
+[dump lan/toan-after-accept] URL=https://localit-nhattoann.vercel.app/tourists/f2df98b0-96cf-451d-9d85-5060ddc1ca01
+  buttons: [ '1', 'Sign out', 'End', '9+' ]
+  links: [
+  'Skip to main content',  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',    'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn', 'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',      'Dashboard',
+  'Swipe',                 'Buddies',
+  'Trips',                 'Messages',
+  'My Profile',            'Switch account',
+  'Message',               'Find similar tourists',
+  'food',                  'Browse buddies',
+  'Trips',                 'Map',
+  'Search',                'Sign in',
+  'Create account',        'My profile',
+  'Dashboard'
+]
+[toan.error] Failed to load resource: the server responded with a status of 401 ()
+[toan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[dump toan/lan-after-reload] URL=https://localit-nhattoann.vercel.app/buddies/11111111-1111-1111-1111-111111111111
+  buttons: [ '1', 'Sign out', 'End', 'Write a review', '9+' ]
+  links: [
+  'Skip to main content',  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',    'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn', 'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',      'Dashboard',
+  'Swipe',                 'Buddies',
+  'Trips',                 'Messages',
+  'My Profile',            'Switch account',
+  'Message',               'Find similar buddies',
+  'Beach',                 'Food Tours',
+  'Photography',           'Vietnamese',
+  'English',               'Manage connections',
+  'Browse buddies',        'Trips',
+  'Map'
+]
+[bell] aria-label = Notifications, 1 unread
+PASS bell shows unread { aria: 'Notifications, 1 unread' }
+[dump toan/bell-open] URL=https://localit-nhattoann.vercel.app/buddies/11111111-1111-1111-1111-111111111111
+  buttons: [
+  '1',
+  'Mark all read',
+  'Phan Nháº­t ToĂ n accepted your connectionjust nowYou can now chat and plan a trip.from Phan Nháº­t ToĂ n',
+  'View all',
+  'Sign out',
+  'End',
+  'Write a review',
+  '9+'
+]
+  links: [
+  'Skip to main content',  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',    'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn', 'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',      'Dashboard',
+  'Swipe',                 'Buddies',
+  'Trips',                 'Messages',
+  'My Profile',            'Switch account',
+  'Message',               'Find similar buddies',
+  'Beach',                 'Food Tours',
+  'Photography',           'Vietnamese',
+  'English',               'Manage connections',
+  'Browse buddies',        'Trips',
+  'Map'
+]
+PASS bell panel shows accepted notification 
+[toan.error] Failed to load resource: the server responded with a status of 401 ()
+[toan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[dump toan/lan-accepted-view] URL=https://localit-nhattoann.vercel.app/buddies/11111111-1111-1111-1111-111111111111
+  buttons: [ '1', 'Sign out', 'End', 'Write a review', '9+' ]
+  links: [
+  'Skip to main content',  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',    'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn', 'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',      'Dashboard',
+  'Swipe',                 'Buddies',
+  'Trips',                 'Messages',
+  'My Profile',            'Switch account',
+  'Message',               'Find similar buddies',
+  'Beach',                 'Food Tours',
+  'Photography',           'Vietnamese',
+  'English',               'Manage connections',
+  'Browse buddies',        'Trips',
+  'Map'
+]
+[count] Message links=1, buttons=0, total=1
+PASS exactly 1 Message link/button on accepted profile 
+PASS End button present 
+PASS Connected badge visible 
+PASS no "Connect again" button on accepted view 
+[confirm] End connection with Lan Pham? You can connect again later.
+[toan.error] Failed to load resource: the server responded with a status of 401 ()
+[toan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[dump toan/lan-after-end] URL=https://localit-nhattoann.vercel.app/buddies/11111111-1111-1111-1111-111111111111
+  buttons: [ '1', 'Sign out', 'Connect with Lan', '9+' ]
+  links: [
+  'Skip to main content',  'LOCALitÄĂ  Náºµng',
+  'DashboardTá»•ng quan',    'SwipeLÆ°á»›t',
+  'BuddiesHÆ°á»›ng dáº«n viĂªn', 'TripsChuyáº¿n Ä‘i',
+  'MessagesTin nháº¯n',      'Dashboard',
+  'Swipe',                 'Buddies',
+  'Trips',                 'Messages',
+  'My Profile',            'Switch account',
+  'Find similar buddies',  'Beach',
+  'Food Tours',            'Photography',
+  'Vietnamese',            'English',
+  'Browse buddies',        'Trips',
+  'Map',                   'Search',
+  'Sign in'
+]
+PASS no "Connect again" button after End 
+PASS fresh "Connect with Lan" button after End 
+PASS no leftover connections after End 
+[lan.error] Failed to load resource: the server responded with a status of 401 ()
+[lan.warning] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery.
+[lan bell] aria-label = Notifications, 1 unread
+PASS lan bell shows unread (cancel notification) { aria: 'Notifications, 1 unread' }
+FAIL lan bell missing cancel text 
+
+13 passed, 2 failed
+
