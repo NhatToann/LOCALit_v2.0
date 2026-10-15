@@ -1,0 +1,18 @@
+import { Client } from "pg"
+const t = (m) => console.log(`[${new Date().toISOString()}] ${m}`)
+t("connecting")
+const c = new Client({ host: "db.pqvnjgyqbxlylawwogjv.supabase.co", port: 5432, user: "postgres", password: "that1arlecchino", database: "postgres", ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000 })
+await c.connect()
+t("connected")
+await c.query("DELETE FROM public.notifications WHERE user_id = $1 AND type = 'connection_request'", ["11111111-1111-1111-1111-111111111111"])
+t("delete notifications ok")
+const r = await c.query(`INSERT INTO public.connections (tourist_id, buddy_id, status, message, created_at)
+     VALUES ($1,$2,'pending',$3,now())
+     ON CONFLICT (tourist_id, buddy_id) DO UPDATE SET status='pending', message=EXCLUDED.message`,
+    ["f2df98b0-96cf-451d-9d85-5060ddc1ca01","11111111-1111-1111-1111-111111111111","probe"])
+t("insert connection ok")
+const n = await c.query(`SELECT id, link FROM public.notifications WHERE user_id=$1 AND type='connection_request' ORDER BY created_at DESC LIMIT 1`, ["11111111-1111-1111-1111-111111111111"])
+t("notif rows=" + n.rowCount)
+console.log(JSON.stringify(n.rows))
+await c.end()
+t("done")

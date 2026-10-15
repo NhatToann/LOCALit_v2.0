@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link } from '@/components/ui/Link'
 import { usePathname } from 'next/navigation'
-import { X, MessageCircle, Send, Phone, Smile, Reply, ChevronDown, Minus } from 'lucide-react'
+import { X, MessageCircle, Send, Phone, Reply, ChevronDown, Minus } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { readUserIdFromToken } from '@/utils/supabase/client-binding'
 import { navigate } from '@/lib/navigation'
@@ -27,7 +27,7 @@ interface ConversationSummary {
   unread: number
 }
 
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉']
+// REACTION_EMOJIS removed 2026-10-14 — react feature dropped.
 
 /**
  * LOCALit Mini Chat Window — bottom-right floating panel.
@@ -51,7 +51,9 @@ export default function MiniChatWindow() {
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [replyTo, setReplyTo] = useState<MiniMessage | null>(null)
-  const [reactions, setReactions] = useState<Record<string, Record<string, number>>>({})
+  // Reactions removed 2026-10-14. The state + display block were
+  // deleted together so existing react data in `message_reactions`
+  // is silently ignored.
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [myUserId, setMyUserId] = useState<string | null>(null)
 
@@ -193,35 +195,14 @@ export default function MiniChatWindow() {
 
   const loadMessages = useCallback(async (convId: string) => {
     const supabase = createClient()
-    const [{ data }, { data: rx }] = await Promise.all([
-      supabase
-        .from('messages')
-        .select('id, sender_id, content, message_type, created_at')
-        .eq('conversation_id', convId)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true })
-        .limit(100),
-      supabase
-        .from('message_reactions')
-        .select('message_id, emoji')
-        .in(
-          'message_id',
-          // we'll fetch a second time; React Query could optimize but for v1 keep simple
-          (await supabase
-            .from('messages')
-            .select('id')
-            .eq('conversation_id', convId)
-            .limit(100)
-          ).data?.map((r) => r.id) ?? [],
-        ),
-    ])
+    const { data } = await supabase
+      .from('messages')
+      .select('id, sender_id, content, message_type, created_at')
+      .eq('conversation_id', convId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(100)
     setInitialMessages((data || []) as MiniMessage[])
-    const grouped: Record<string, Record<string, number>> = {}
-    for (const r of rx || []) {
-      if (!grouped[r.message_id]) grouped[r.message_id] = {}
-      grouped[r.message_id][r.emoji] = (grouped[r.message_id][r.emoji] ?? 0) + 1
-    }
-    setReactions(grouped)
     setTimeout(() => {
       scrollRef.current?.scrollTo({ top: 99999, behavior: 'smooth' })
     }, 0)
@@ -270,26 +251,6 @@ export default function MiniChatWindow() {
     setTimeout(() => {
       scrollRef.current?.scrollTo({ top: 99999, behavior: 'smooth' })
     }, 50)
-  }
-
-  async function toggleReaction(messageId: string, emoji: string) {
-    if (!myUserId) return
-    const supabase = createClient()
-    const { data: existing } = await supabase
-      .from('message_reactions')
-      .select('id')
-      .eq('message_id', messageId)
-      .eq('user_id', myUserId)
-      .eq('emoji', emoji)
-      .maybeSingle()
-    if (existing) {
-      await supabase.from('message_reactions').delete().eq('id', existing.id)
-    } else {
-      await supabase
-        .from('message_reactions')
-        .insert({ message_id: messageId, user_id: myUserId, emoji })
-    }
-    loadMessages(active!.id)
   }
 
   function openFullChat() {
@@ -450,9 +411,7 @@ export default function MiniChatWindow() {
                   message={m}
                   mine={m.sender_id !== active.counterpart_id}
                   mineUserId={myUserId}
-                  reactions={reactions[m.id] ?? {}}
                   onReply={() => setReplyTo(m)}
-                  onReact={(emoji) => toggleReaction(m.id, emoji)}
                 />
               ))
             )}
@@ -524,16 +483,12 @@ function MiniMessageBubble({
   message,
   mine,
   mineUserId,
-  reactions,
   onReply,
-  onReact,
 }: {
   message: MiniMessage
   mine: boolean
   mineUserId: string | null
-  reactions: Record<string, number>
   onReply: () => void
-  onReact: (emoji: string) => void
 }) {
   const [hover, setHover] = useState(false)
   return (
@@ -556,35 +511,8 @@ function MiniMessageBubble({
             {new Date(message.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
           </time>
         </div>
-        {Object.keys(reactions).length > 0 ? (
-          <div className={`flex gap-1 mt-0.5 ${mine ? 'self-end' : 'self-start'}`}>
-            {Object.entries(reactions).map(([emoji, count]) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => onReact(emoji)}
-                className="text-[11px] px-1.5 py-0.5 rounded-sm bg-surface border border-border hover:bg-paper inline-flex items-center gap-1"
-                aria-label={`${emoji} ${count}`}
-              >
-                <span>{emoji}</span>
-                <span className="text-muted">{count}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
         {hover ? (
           <div className={`flex gap-1 mt-0.5 ${mine ? 'self-end' : 'self-start'}`}>
-            {REACTION_EMOJIS.map((e) => (
-              <button
-                key={e}
-                type="button"
-                onClick={() => onReact(e)}
-                aria-label={`React ${e}`}
-                className="text-sm w-6 h-6 inline-flex items-center justify-center bg-surface border border-border rounded-sm hover:bg-paper"
-              >
-                {e}
-              </button>
-            ))}
             <button
               type="button"
               onClick={onReply}

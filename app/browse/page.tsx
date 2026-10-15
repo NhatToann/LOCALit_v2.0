@@ -709,7 +709,7 @@ function BrowseContent() {
             hasGpsFix={hasGpsFix || selfGranted}
             onSelectBuddy={(id) => { setSelectedMapId(id); setExpandedBuddyId(id) }}
             liveLocations={liveLocations}
-            selfLiveOverride={selfGranted || shareLocation}
+            selfLiveOverride={selfGranted}
             selfUserId={currentUserId}
           />
           {selectedBuddy ? (

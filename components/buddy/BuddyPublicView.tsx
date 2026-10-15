@@ -13,11 +13,16 @@ import {
   Languages,
   Award,
   CalendarDays,
+  Check,
+  Handshake,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useConnectionState } from '@/hooks/useConnectionState'
 import { Link } from '@/components/ui/Link'
 import type { Buddy, Profile } from '@/lib/types'
 import { labelFor } from '@/lib/specialties'
-import ConnectButton from '@/components/buddy/ConnectButton'
+import ConnectButton from '@/components/connection/ConnectButton'
+import ConnectionStatusBadge from '@/components/connection/ConnectionStatusBadge'
 import ReviewSection from '@/components/review/ReviewSection'
 import { StarDisplay } from '@/components/review/ReviewSection'
 
@@ -94,6 +99,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-page-title">{p.full_name}</h1>
               <span className="role-tag role-tag-buddy">Buddy</span>
+              <BuddyConnectionStatusInline recipientId={b.id} />
               {p.is_online ? (
                 <span className="badge badge-success text-xs">
                   <span className="inline-block w-1.5 h-1.5 bg-current rounded-full mr-1 align-middle" aria-hidden="true" />
@@ -291,6 +297,7 @@ export default function BuddyPublicView({ buddy: b, profile: p, ratingAvg, ratin
       </section>
 
       {/* ── Reviews ── */}
+      <ConnectionExplainer recipientId={b.id} />
       <ReviewSection revieweeId={b.id} revieweeName={p.full_name} />
     </div>
   )
@@ -318,4 +325,85 @@ function Card({
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <p className="text-xs text-muted">{children}</p>
+}
+
+/**
+ * Inline status pill for the buddy header. Wraps ConnectionStatusBadge
+ * with the buddy's id and a handler that navigates to /connections.
+ *
+ * Kept as an inner component so the rest of the file can stay a server
+ * component (it has no useState / useEffect in its own render path).
+ */
+function BuddyConnectionStatusInline({ recipientId }: { recipientId: string }) {
+  const router = useRouter()
+  const { state } = useConnectionState(recipientId)
+  if (!state.hasConnection) return null
+  return (
+    <ConnectionStatusBadge
+      state={state}
+      onOpenConnections={() => router.push('/connections')}
+    />
+  )
+}
+
+/**
+ * Section that explains the connection lifecycle in plain language.
+ * Always rendered — anon visitors need it too. Helps reduce the
+ * "I don't know what Connect does" feedback.
+ */
+function ConnectionExplainer({ recipientId }: { recipientId: string }) {
+  const { state } = useConnectionState(recipientId)
+  if (state.hasConnection) {
+    return (
+      <section className="mb-5 border border-border bg-surface rounded-sm p-4">
+        <h2 className="text-section-title flex items-center gap-2 mb-2">
+          <Handshake size={16} aria-hidden="true" />
+          Your connection
+        </h2>
+        <p className="text-sm text-ink max-w-prose">
+          You and this buddy are {state.status === 'pending' ? 'in a pending request' : 'connected'}.
+          Chat, edit a shared itinerary, and leave a review any time before the connection expires.
+        </p>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <Link
+            href="/connections"
+            className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-sm bg-transparent text-ink border border-border-strong hover:bg-paper"
+          >
+            Manage connections
+          </Link>
+        </div>
+      </section>
+    )
+  }
+  return (
+    <section className="mb-5 border border-border bg-surface rounded-sm p-4">
+      <h2 className="text-section-title flex items-center gap-2 mb-2">
+        <Handshake size={16} aria-hidden="true" />
+        How Connect works
+      </h2>
+      <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+        <li className="border border-border rounded-sm p-3">
+          <span className="text-eyebrow text-muted">Step 1</span>
+          <p className="text-ink font-medium mt-1">Send a request</p>
+          <p className="text-xs text-muted mt-1">
+            Tap Connect, pick a duration (1–30 days), and wait for the buddy to accept.
+          </p>
+        </li>
+        <li className="border border-border rounded-sm p-3">
+          <span className="text-eyebrow text-muted">Step 2</span>
+          <p className="text-ink font-medium mt-1">Chat & plan together</p>
+          <p className="text-xs text-muted mt-1">
+            Once accepted, you can message each other and edit a shared itinerary.
+          </p>
+        </li>
+        <li className="border border-border rounded-sm p-3">
+          <span className="text-eyebrow text-muted">Step 3</span>
+          <p className="text-ink font-medium mt-1">Renew any time</p>
+          <p className="text-xs text-muted mt-1">
+            Either of you can renew before the timer runs out. If it expires, just resend.
+          </p>
+        </li>
+      </ol>
+    </section>
+  )
 }

@@ -13,7 +13,6 @@ import {
   PhoneOff,
   Paperclip,
   MapPinPlus,
-  Smile,
   X,
   Edit3,
   Trash2,
@@ -55,9 +54,12 @@ import { postCallLog } from '@/lib/webrtc/call-log'
 import { activeCallStore } from '@/lib/realtime/useActiveCallStore'
 import { useAbortFactory } from '@/hooks/useAbort'
 
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '🔥', '🙏']
+// REACTION_EMOJIS removed 2026-10-14 — react feature has been
+// discontinued per product decision. The `message_reactions` table is
+// kept in the database (and the realtime subscription still receives
+// its events) so existing data can be inspected or migrated later,
+// but no UI surfaces them any more.
 const MAX_MESSAGE_LEN = 1000
-const EDIT_WINDOW_MS = 15 * 60 * 1000
 const DEBUG_CALL = process.env.NEXT_PUBLIC_CALL_DEBUG === '1'
 
 // LiveKit-backed call state machine. Mirrors the prior WebRTC
@@ -132,7 +134,10 @@ function ChatInner() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
-  const [emojiFor, setEmojiFor] = useState<string | null>(null)
+  // 2026-10-14: replaced `emojiFor` (reactions popup) with `menuFor`
+  // (edit/delete context menu). The "⋯" button on every owned message
+  // toggles this state.
+  const [menuFor, setMenuFor] = useState<string | null>(null)
   const [showSearch, setShowSearch] = useState(!!qParam)
   const [searchQ, setSearchQ] = useState(qParam ?? '')
   const [uploading, setUploading] = useState(false)
@@ -811,57 +816,19 @@ function ChatInner() {
   }
 
   async function handleDelete(messageId: string) {
-    if (!confirm('Delete this message for both sides?')) return
+    // Vietnamese copy — the chat audience is Vietnamese tourists/buddies
+    // even though the rest of the UI is English.
+    if (!confirm('Xoá tin nhắn này? Bên kia cũng sẽ thấy nó bị xoá.')) return
     const supabase = createClient()
-    await supabase
+    const { error } = await supabase
       .from('messages')
       .update({ deleted_at: new Date().toISOString(), content: '' })
       .eq('id', messageId)
-  }
-
-  async function handleReact(messageId: string, emoji: string) {
-    if (!myId) return
-    const supabase = createClient()
-    const existing = initialReactions.find(
-      (r) => r.message_id === messageId && r.user_id === myId && r.emoji === emoji,
-    )
-    // Optimistic toggle: update local state immediately so the UI
-    // responds without waiting for a re-fetch. Realtime subscription
-    // will reconcile any other-user actions.
-    if (existing) {
-      setInitialReactions((prev) => prev.filter((r) => r.id !== existing.id))
-      const { error: delErr } = await supabase
-        .from('message_reactions')
-        .delete()
-        .eq('id', existing.id)
-      if (delErr) {
-        // Roll back on failure
-        setInitialReactions((prev) => [...prev, existing])
-      }
-    } else {
-      const optimisticId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      const optimistic: MessageReaction = {
-        id: optimisticId,
-        message_id: messageId,
-        user_id: myId,
-        emoji,
-        created_at: new Date().toISOString(),
-      }
-      setInitialReactions((prev) => [...prev, optimistic])
-      const { data, error: insErr } = await supabase
-        .from('message_reactions')
-        .insert({ message_id: messageId, user_id: myId, emoji })
-        .select('*')
-        .single()
-      if (insErr || !data) {
-        setInitialReactions((prev) => prev.filter((r) => r.id !== optimisticId))
-      } else {
-        setInitialReactions((prev) =>
-          prev.map((r) => (r.id === optimisticId ? (data as MessageReaction) : r)),
-        )
-      }
+    if (error) {
+      setError('Could not delete the message: ' + error.message)
+      return
     }
-    setEmojiFor(null)
+    setMenuFor(null)
   }
 
   async function handlePin(messageId: string) {
@@ -2157,17 +2124,17 @@ function ChatInner() {
                             partnerName={activeConv.partner_name}
                             partnerAvatar={activeConv.partner_avatar}
                             isMine={m.sender_id === myId}
-                            canEdit={
-                              m.sender_id === myId &&
-                              !m.deleted_at &&
-                              Date.now() - new Date(m.created_at).getTime() < EDIT_WINDOW_MS
-                            }
+                            // 2026-10-14: removed the 15-minute edit
+                            // window. A message can now be edited or
+                            // deleted for as long as it exists.
+                            canEdit={m.sender_id === myId && !m.deleted_at}
                             isPinned={activeConv.pinned_message_id === m.id}
                             isEditing={editingId === m.id}
                             editingContent={editingContent}
                             onStartEdit={() => {
                               setEditingId(m.id)
                               setEditingContent(m.content)
+                              setMenuFor(null)
                             }}
                             onChangeEdit={setEditingContent}
                             onSaveEdit={() => handleEditSave(m.id)}
@@ -2177,12 +2144,11 @@ function ChatInner() {
                             }}
                             onDelete={() => handleDelete(m.id)}
                             onReply={() => setReplyingTo(m)}
-                            onReact={(emoji) => handleReact(m.id, emoji)}
                             onPin={() => handlePin(m.id)}
-                            onToggleEmoji={() =>
-                              setEmojiFor((cur) => (cur === m.id ? null : m.id))
+                            onToggleMenu={() =>
+                              setMenuFor((cur) => (cur === m.id ? null : m.id))
                             }
-                            emojiOpen={emojiFor === m.id}
+                            menuOpen={menuFor === m.id}
                           />
                         ))}
                       </div>
@@ -2494,10 +2460,9 @@ function MessageBubble({
   onCancelEdit,
   onDelete,
   onReply,
-  onReact,
   onPin,
-  onToggleEmoji,
-  emojiOpen,
+  onToggleMenu,
+  menuOpen,
 }: {
   message: Message
   myId: string | null
@@ -2515,10 +2480,9 @@ function MessageBubble({
   onCancelEdit: () => void
   onDelete: () => void
   onReply: () => void
-  onReact: (emoji: string) => void
   onPin: () => void
-  onToggleEmoji: () => void
-  emojiOpen: boolean
+  onToggleMenu: () => void
+  menuOpen: boolean
 }) {
   const time = new Date(message.created_at)
   const timeLabel = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
@@ -2594,22 +2558,49 @@ function MessageBubble({
         />
       )}
       <div className="relative max-w-[70%]">
-        {emojiOpen ? (
+        {/* Context menu (edit / delete / pin) — 2026-10-14 replacement
+            for the previous react-emoji popup. The menu is anchored
+            to the bubble and toggled by the "⋯" button below. */}
+        {menuOpen ? (
           <div
-            className={`absolute z-10 ${isMine ? 'right-0' : 'left-0'} bottom-full mb-1 flex gap-1 p-1 bg-surface border border-border rounded-sm shadow-focus`}
+            className={`absolute z-20 ${isMine ? 'right-0' : 'left-0'} bottom-full mb-1 min-w-[160px] bg-surface border border-border rounded-sm py-1`}
+            style={{ boxShadow: 'var(--shadow-focus)' }}
             role="menu"
           >
-            {REACTION_EMOJIS.map((e) => (
+            {canEdit ? (
               <button
-                key={e}
                 type="button"
-                onClick={() => onReact(e)}
-                className="text-lg hover:bg-paper rounded-sm w-8 h-8 inline-flex items-center justify-center"
-                aria-label={`React ${e}`}
+                onClick={onStartEdit}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-ink hover:bg-paper"
+                role="menuitem"
               >
-                {e}
+                <Edit3 size={13} aria-hidden="true" className="text-muted" />
+                <span>Sửa</span>
               </button>
-            ))}
+            ) : null}
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-danger hover:bg-paper"
+                role="menuitem"
+              >
+                <Trash2 size={13} aria-hidden="true" />
+                <span>Thu hồi</span>
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                onPin()
+                onToggleMenu()
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-ink hover:bg-paper"
+              role="menuitem"
+            >
+              <Pin size={13} aria-hidden="true" className="text-muted" />
+              <span>{isPinned ? 'Bỏ ghim' : 'Ghim'}</span>
+            </button>
           </div>
         ) : null}
 
@@ -2713,19 +2704,15 @@ function MessageBubble({
           </div>
         </div>
 
-        {/* Action toolbar (visible on hover) */}
+        {/* Action buttons (Reply + More) — visible on hover for
+            desktop, always visible on touch devices via the
+            `[@media(hover:none)]` override below. Reply works on any
+            message; the More menu (edit/delete/pin) is owner-only. */}
         {!isEditing ? (
           <div
-            className={`absolute top-0 ${isMine ? 'right-full mr-1' : 'left-full ml-1'} hidden group-hover:flex items-center gap-0.5 bg-surface border border-border rounded-sm p-0.5 shadow-focus`}
+            className={`absolute -top-3 ${isMine ? 'right-2' : 'left-2'} flex items-center gap-0.5 bg-surface border border-border rounded-sm p-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity`}
+            style={{ boxShadow: 'var(--shadow-focus)' }}
           >
-            <button
-              type="button"
-              onClick={onToggleEmoji}
-              aria-label="React"
-              className="inline-flex items-center justify-center w-7 h-7 text-muted hover:bg-paper rounded-sm"
-            >
-              <Smile size={13} aria-hidden="true" />
-            </button>
             <button
               type="button"
               onClick={onReply}
@@ -2734,33 +2721,17 @@ function MessageBubble({
             >
               <Reply size={13} aria-hidden="true" />
             </button>
-            <button
-              type="button"
-              onClick={onPin}
-              aria-label={isPinned ? 'Unpin' : 'Pin'}
-              className="inline-flex items-center justify-center w-7 h-7 text-muted hover:bg-paper rounded-sm"
-            >
-              <Pin size={13} aria-hidden="true" />
-            </button>
-            {canEdit ? (
-              <>
-                <button
-                  type="button"
-                  onClick={onStartEdit}
-                  aria-label="Edit"
-                  className="inline-flex items-center justify-center w-7 h-7 text-muted hover:bg-paper rounded-sm"
-                >
-                  <Edit3 size={13} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  aria-label="Delete"
-                  className="inline-flex items-center justify-center w-7 h-7 text-danger hover:bg-paper rounded-sm"
-                >
-                  <Trash2 size={13} aria-hidden="true" />
-                </button>
-              </>
+            {isMine ? (
+              <button
+                type="button"
+                onClick={onToggleMenu}
+                aria-label="More actions"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                className="inline-flex items-center justify-center w-7 h-7 text-muted hover:bg-paper rounded-sm"
+              >
+                <MoreHorizontal size={13} aria-hidden="true" />
+              </button>
             ) : null}
           </div>
         ) : null}

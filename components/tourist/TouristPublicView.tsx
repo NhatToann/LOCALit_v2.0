@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { Link } from '@/components/ui/Link'
 import type { Tourist, Profile } from '@/lib/types'
-import ConnectButton from '@/components/buddy/ConnectButton'
+import ConnectButton from '@/components/connection/ConnectButton'
 import ReviewSection from '@/components/review/ReviewSection'
 import { StarDisplay } from '@/components/review/ReviewSection'
 

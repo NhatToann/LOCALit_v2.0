@@ -1,0 +1,20 @@
+import { chromium } from "playwright"
+const b = await chromium.launch()
+const p = await (await b.newContext()).newPage()
+// Intercept the connections query and log its URL - if ConnectButton runs with a uid we WILL see it
+const urls = []
+p.on("request", r => { if (r.url().includes("/rest/v1/connections")) urls.push(r.url().split("rest/v1")[1]) })
+await p.goto("https://localit-vn.vercel.app/login?switch=1", {waitUntil:"domcontentloaded"})
+await p.fill('input[type="email"]', "lan.pham@localit.dev")
+await p.fill('input[type="password"]', "password123")
+await p.click('button[type="submit"]')
+await p.waitForURL(u => !u.pathname.startsWith("/login"), {timeout:25000})
+urls.length = 0
+
+// Now SPA-navigate (client-side) instead of full page load - different code path for RSC
+await p.evaluate(() => { history.pushState({}, "", "/tourists/f2df98b0-96cf-451d-9d85-5060ddc1ca01") })
+await p.waitForTimeout(3000)
+console.log("=== connections requests via SPA nav ===")
+console.log(urls.join("\n") || "(NONE)")
+console.log("\nspinner:", await p.locator('div.flex.flex-col.gap-2 .animate-spin').count())
+await b.close()

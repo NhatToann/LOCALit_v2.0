@@ -102,8 +102,12 @@ async function getBadgeText(page) {
     await page.waitForURL(/\/dashboard/, { timeout: 15000 })
     console.log('[diag] signed in, on dashboard')
 
-    // 2. Wait for bell to show
+    // 2. Wait for bell to show AND for the unread count to load.
+    // The bell renders immediately with count=0 (default), then the
+    // useEffect fetches the real count from the DB. Wait for the
+    // count fetch to settle before asserting.
     await page.waitForSelector('button[aria-label^="Notifications"]', { timeout: 10000 })
+    await page.waitForTimeout(2500)
 
     // The badge may show 99+ or the actual count. Read aria-label for the truth.
     const bellAria = await page
@@ -171,12 +175,15 @@ async function getBadgeText(page) {
     await page.click('button[aria-label^="Notifications"]')
     await page.waitForSelector('#notification-panel', { timeout: 5000 })
     await page.click('button[aria-label="Mark all notifications as read"]')
-    await page.waitForTimeout(1500)
+    await page.waitForTimeout(2500)
     const ariaFinal = await page
       .locator('button[aria-label^="Notifications"]')
       .first()
       .getAttribute('aria-label')
     console.log(`[diag] bell aria after mark-all: ${ariaFinal}`)
+    // Also check the DB state at this moment
+    const dbUnread = await getUnread(userId)
+    console.log(`[diag] DB unread after mark-all: ${dbUnread}`)
     const mFinal = ariaFinal.match(/(\d+)\s*unread/)
     const finalCount = mFinal ? parseInt(mFinal[1], 10) : 0
     assert('mark-all-read zeros the badge', finalCount === 0, `got=${finalCount}`)

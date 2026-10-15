@@ -457,21 +457,6 @@ export default function MapView({ userLocation, height = '100%', showSelfMarker 
         />
         <RecenterOnUserMove />
 
-        {/* Self marker — only when we have a real GPS fix (not the Da Nang fallback).
-            When selfLiveOverride is true the user is actively broadcasting live,
-            so we use the pulsing live icon. Otherwise the flat dark "Y" dot. */}
-        {showSelfMarker && hasGpsFix && (
-          <Marker
-            position={[userLocation.lat, userLocation.lng]}
-            icon={selfLiveOverride ? livePulseIcon() : flatIcon('Y', INK)}
-            zIndexOffset={1000}
-          >
-            <Popup>
-              <strong>{selfLiveOverride ? 'You (live)' : 'You are here'}</strong>
-            </Popup>
-          </Marker>
-        )}
-
         {buddies.map((b) => (
           <Marker
             key={`buddy-${b.id}`}

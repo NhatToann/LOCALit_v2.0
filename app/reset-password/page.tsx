@@ -382,21 +382,27 @@ function ResetPasswordFlow() {
                     aria-label={`Digit ${i + 1}`}
                     disabled={verifying}
                     onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, '').slice(0, 1)
-                      const next = [...otp]
-                      next[i] = v
-                      setOtp(next)
-                      if (v && i < 5) {
-                        document.querySelectorAll<HTMLInputElement>(
-                          'input[aria-label^="Digit"]',
-                        )[i + 1]?.focus()
+                      // Functional setState so the closure always reads
+                      // the latest `otp`, never a stale snapshot (the
+                      // paste handler may have just committed 6 digits
+                      // before this onChange fires).
+                      setOtp((prev) => {
+                        const next = [...prev]
+                        next[i] = e.target.value.replace(/\D/g, '').slice(0, 1)
+                        return next
+                      })
+                      if (e.target.value && i < 5) {
+                        // Defer focus so it runs after React commits
+                        // the new state, otherwise the focus call can
+                        // race the next render.
+                        queueMicrotask(() => {
+                          document
+                            .querySelectorAll<HTMLInputElement>(
+                              'input[aria-label^="Digit"]',
+                            )[i + 1]?.focus()
+                        })
                       }
                     }}
-                    onInput={syncValue((v: string) => {
-                      const next = [...otp]
-                      next[i] = v.replace(/\D/g, '').slice(0, 1)
-                      setOtp(next)
-                    })}
                     onPaste={onOtpPaste}
                     onKeyDown={(e) => onOtpKeyDown(e, i)}
                   />
