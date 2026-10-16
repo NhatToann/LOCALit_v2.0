@@ -2,43 +2,41 @@
  * Step 1 of the new OTP signup flow.
  *
  * POST /api/auth/signup/start
- * Body: { email, password, fullName, phone? }
+ * Body: { email, fullName, phone? }
  *
  * Creates a pending signup row in public.email_verifications (keyed by email —
- * NO auth.users row yet), generates a 6-digit OTP, and emails it.
- * Returns { signupId } — the client stores this and uses it for verify-otp
+ * NO auth.users row yet, NO password stored here), generates a 6-digit OTP,
+ * and emails it.
+ * Returns { signupId } — the client stores it and uses it for verify-otp
  * and complete.
+ *
+ * The password is NOT in this body. It lives in client state and is sent
+ * in the final /complete request, after the OTP is verified. This way a
+ * drop-off after OTP verify leaves no credential material in the DB.
  *
  * Defenses:
  *   - Per-IP rate limit (5/min) to make OTP-spam impractical.
  *   - Generic 400 response for any failure (does NOT leak whether the email
  *     is already registered — both "fresh" and "already taken" look the same).
- *   - Password is validated server-side (same 10-char / letter / non-letter
- *     rule as /login) and bcrypt-hashed before being stored in pending_payload.
- *     Plain text is never written to disk.
  *   - Email format + length caps.
  *
  * The flow:
- *   /register Step 0 (personal info)
- *   → POST /api/auth/signup/start
- *   → /register Step 0.5 (enter 6-digit code)
+ *   /register Step 0 (personal info — name, email, phone, password, role, terms)
+ *   → POST /api/auth/signup/start  (this endpoint — no password)
+ *   → /register Step 1 (enter 6-digit code)
  *   → POST /api/auth/signup/verify-otp
- *   → /register Step 1 (role picker)
- *   → /register Step 2 (tags & bio)
- *   → POST /api/auth/signup/complete
+ *   → /register Step 2 (role-specific tags/bio)
+ *   → POST /api/auth/signup/complete  (carries the password)
  *   → user is signed in, redirected to dashboard.
  */
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
-import { validatePassword } from '@/utils/password-validator'
 import { issueOtpForSignup, type PendingSignupPayload } from '@/utils/otp'
 import { findProfileIdByEmail } from '@/utils/db-pg'
-import bcrypt from 'bcryptjs'
 
 interface StartBody {
   email?: string
-  password?: string
   fullName?: string
   phone?: string
 }
@@ -65,7 +63,6 @@ export async function POST(req: NextRequest) {
   }
 
   const emailStr = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
-  const passwordStr = typeof body.password === 'string' ? body.password : ''
   const fullNameStr = typeof body.fullName === 'string' ? body.fullName.trim() : ''
   const phoneStr = typeof body.phone === 'string' ? body.phone.trim() : ''
 
@@ -76,17 +73,12 @@ export async function POST(req: NextRequest) {
   if (emailStr.length > 254) {
     return NextResponse.json({ error: 'Email is too long.' }, { status: 400 })
   }
-  if (passwordStr.length > 128) {
-    return NextResponse.json({ error: 'Password is too long (max 128 characters).' }, { status: 400 })
-  }
   if (fullNameStr.length < 2) {
     return NextResponse.json({ error: 'Please provide your full name.' }, { status: 400 })
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr)) {
     return NextResponse.json({ error: 'Invalid email.' }, { status: 400 })
   }
-  const pwErr = validatePassword(passwordStr)
-  if (pwErr) return NextResponse.json({ error: pwErr }, { status: 400 })
 
   // ---- Check email isn't already registered ---------------------------------
   // SECURITY: same generic message regardless of whether email is taken.
@@ -118,18 +110,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ---- Hash password + create pending signup --------------------------------
+  // ---- Create pending signup (no password here) -----------------------------
+  //
+  // 2026-10-16: previously this stored password_plain + password_hash in
+  // pending_payload. A drop-off after OTP verify then left a credential
+  // row in email_verifications for 15 minutes. Now password only flows
+  // through the final /complete step, so even a half-completed signup
+  // leaves only { email, full_name, phone } in the DB.
   const cleanFullName = sanitize(fullNameStr, 100)
   const cleanPhone = phoneStr ? sanitize(phoneStr, 20) : ''
 
-  // Hash the password for audit, but keep plaintext too — admin.createUser
-  // requires it (bcrypt isn't reversible).
-  const passwordHash = await bcrypt.hash(passwordStr, 10)
-
   const payload: PendingSignupPayload = {
     email: emailStr,
-    password_plain: passwordStr,
-    password_hash: passwordHash,
     full_name: cleanFullName,
     phone: cleanPhone || null,
   }

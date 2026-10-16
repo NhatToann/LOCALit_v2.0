@@ -411,12 +411,15 @@ function RegisterForm() {
     setError('')
     setLoading(true)
     try {
+      // 2026-10-16: password is no longer sent to /start. It stays in
+      // client state and is forwarded to /complete after the OTP is
+      // verified. This way email_verifications never contains credential
+      // material even if the user abandons the flow after verifying.
       const res = await fetch('/api/auth/signup/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: form.email,
-          password: form.password,
           fullName: form.fullName,
           phone: form.phone,
         }),
@@ -560,6 +563,7 @@ function RegisterForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           signupId,
+          password: form.password,
           role: form.role,
           profilePayload,
         }),

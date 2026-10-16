@@ -25,6 +25,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
+import { validatePassword } from '@/utils/password-validator'
 import { markSignupConsumed } from '@/utils/otp'
 import {
   selectEmailVerification,
@@ -40,6 +41,7 @@ type Role = 'tourist' | 'buddy'
 
 interface CompleteBody {
   signupId?: string
+  password?: string
   role?: Role
   profilePayload?: Record<string, unknown>
 }
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { signupId, role, profilePayload } = body
+  const { signupId, password, role, profilePayload } = body
 
   if (!signupId || typeof signupId !== 'string') {
     return NextResponse.json({ error: 'Missing signupId.' }, { status: 400 })
@@ -81,6 +83,13 @@ export async function POST(req: NextRequest) {
   if (role !== 'tourist' && role !== 'buddy') {
     return NextResponse.json({ error: 'Invalid role.' }, { status: 400 })
   }
+  // 2026-10-16: password is now in the body (not pending_payload). We
+  // re-validate it server-side because the client-side check is bypassable.
+  if (typeof password !== 'string' || password.length < 10 || password.length > 128) {
+    return NextResponse.json({ error: 'Password is missing or invalid.' }, { status: 400 })
+  }
+  const pwErr = validatePassword(password)
+  if (pwErr) return NextResponse.json({ error: pwErr }, { status: 400 })
 
   // ---- Load pending signup (pg-direct) -------------------------------------
   const sel = await selectEmailVerification(signupId)
@@ -100,13 +109,12 @@ export async function POST(req: NextRequest) {
 
   const pending = signup.pending_payload as {
     email: string
-    password_plain: string
     full_name: string
     phone: string | null
   }
   const emailStr = pending.email
   const cleanFullName = pending.full_name
-  const passwordPlain = pending.password_plain
+  const passwordPlain = password  // comes from the body now (2026-10-16)
 
   // ---- Double-check email is still free -------------------------------------
   //

@@ -26,8 +26,10 @@
  *   - 5 wrong attempts invalidate the code (forced resend).
  *   - signupId is a UUID (unguessable) but treated as a bearer secret: anyone
  *     with it can complete signup for that email. Mitigated by the OTP gate.
- *   - Pending payload contains the bcrypt-hashed password (NOT plaintext), so
- *     a DB leak alone doesn't grant account access.
+ *   - Pending payload contains only the user's name + email + phone. The
+ *     password is sent by the client at the final /complete step instead
+ *     of being stored here — so a drop-off after OTP verify leaves no
+ *     credential material in the DB.
  */
 import { createAdminClient } from './supabase/admin'
 import {
@@ -44,13 +46,6 @@ const MAX_ATTEMPTS = 5
 
 export interface PendingSignupPayload {
   email: string
-  /** Plain password the user typed at /signup/start. Needed because
-   *  admin.auth.admin.createUser expects plaintext, and we can't reverse
-   *  bcrypt. Stored only in pending_payload which is service_role-only. */
-  password_plain: string
-  /** bcrypt hash of the same password, kept for audit / password-strength
-   *  re-validation without exposing plaintext to logs. */
-  password_hash: string
   full_name: string
   phone: string | null
   role_hint?: 'tourist' | 'buddy' // optional — used only for pre-fill
