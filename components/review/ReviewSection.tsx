@@ -5,6 +5,7 @@ import { Star, Loader2, Trash2, MessageSquareQuote } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { readUserIdFromToken } from '@/utils/supabase/client-binding'
 import { Avatar } from '@/components/ui/Avatar'
+import { useAuthUser } from '@/lib/auth/useAuthUser'
 
 /**
  * Star rating input.
@@ -140,6 +141,14 @@ export default function ReviewSection({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mineId, setMineId] = useState<string | null>(null)
+  // Current user's name + avatar so the optimistic insert shows the
+  // real reviewer (with avatar) instead of a hard-coded "You" / null
+  // placeholder. The shared useAuthUser hook caches the profile so
+  // mounting ReviewSection does NOT add a fresh profiles query on
+  // top of the existing dashboard/profile ones.
+  const auth = useAuthUser()
+  const myName = auth?.fullName ?? 'You'
+  const myAvatar = auth?.avatarUrl ?? null
 
   // Load reviews + determine whether the viewer may leave one.
   useEffect(() => {
@@ -214,7 +223,11 @@ export default function ReviewSection({
         return
       }
       // Prepend optimistically rather than refetching — we already
-      // know exactly what we wrote and who we are.
+      // know exactly what we wrote and who we are. The reviewer
+      // name + avatar come from the shared useAuthUser cache, so
+      // the new row renders identically to the existing join data
+      // and the avatar shows up immediately (no "You / no avatar"
+      // placeholder).
       setReviews((prev) => [
         {
           id: json.review?.id ?? 'pending',
@@ -222,7 +235,7 @@ export default function ReviewSection({
           comment: comment.trim() || null,
           created_at: new Date().toISOString(),
           reviewer_id: myId ?? '',
-          reviewer: { full_name: 'You', avatar_url: null },
+          reviewer: { full_name: myName, avatar_url: myAvatar },
         },
         ...prev.filter((r) => r.reviewer_id !== myId),
       ])
