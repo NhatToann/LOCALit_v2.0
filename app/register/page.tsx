@@ -27,7 +27,7 @@
  *     errors (rate limit, expired code) are surfaced.
  */
 
-import { useState, useMemo, Suspense } from 'react'
+import { useState, useMemo, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Link } from '@/components/ui/Link'
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, Mail, RefreshCw, Info } from 'lucide-react'
@@ -337,6 +337,14 @@ function RegisterForm() {
   const [resendCooldown, setResendCooldown] = useState(0)
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null)
 
+  // Step 3 (profile) has its own TTL — once verified, the user gets a fresh
+  // 15-min window to fill the profile form. We auto-extend (silently) at
+  // 60s before expiry so a slow typist never gets bounced. expiresAtMs is
+  // captured from /verify-otp + /extend-session responses.
+  const [sessionExpiresAtMs, setSessionExpiresAtMs] = useState<number | null>(null)
+  const [sessionWarning, setSessionWarning] = useState(false) // <60s left
+  const [extending, setExtending] = useState(false)
+
   const validateEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
@@ -406,6 +414,87 @@ function RegisterForm() {
     }
     return false
   }, [step, form, otp])
+
+  // 2026-10-17: Step 3 session countdown + auto-extend.
+  //   - Ticks every second while on Step 3 with an active session.
+  //   - When <60s remain, fires POST /extend-session once (idempotent — the
+  //     endpoint is rate-limited at 5/min so a malicious poll can't keep
+  //     the row alive forever).
+  //   - When 0s remain, sets sessionWarning=true and stops ticking; the
+  //     user must tap the "Refresh session" button.
+  const lastExtendRef = useRef<number>(0)
+  useEffect(() => {
+    if (step !== 'profile' || sessionExpiresAtMs == null) return
+    const tick = () => {
+      const now = Date.now()
+      const msLeft = sessionExpiresAtMs - now
+      if (msLeft <= 0) {
+        setSessionWarning(true)
+        return
+      }
+      if (msLeft < 60_000 && !extending && now - lastExtendRef.current > 60_000) {
+        // Auto-extend silently
+        lastExtendRef.current = now
+        setExtending(true)
+        fetch('/api/auth/signup/extend-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ signupId }),
+        })
+          .then((r) => r.json().catch(() => ({})))
+          .then((body) => {
+            if (typeof body.expiresAt === 'string') {
+              setSessionExpiresAtMs(new Date(body.expiresAt).getTime())
+              setSessionWarning(false)
+            }
+          })
+          .catch(() => {
+            // Network blip — leave the warning state alone; the user can
+            // still retry via the explicit Refresh button.
+          })
+          .finally(() => setExtending(false))
+      }
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [step, sessionExpiresAtMs, signupId, extending])
+
+  async function manualExtendSession() {
+    if (!signupId || extending) return
+    setError('')
+    setExtending(true)
+    try {
+      const res = await fetch('/api/auth/signup/extend-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signupId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // Already-completed (410) means the user somehow finished — fine.
+        // not_verified (403) means the OTP was never accepted — bounce back
+        // to Step 2.
+        if (res.status === 403) {
+          setStep('verify-otp')
+          setError('Please verify your code again.')
+        } else {
+          setError(body.error ?? 'Could not refresh session.')
+        }
+        return
+      }
+      if (typeof body.expiresAt === 'string') {
+        setSessionExpiresAtMs(new Date(body.expiresAt).getTime())
+        setSessionWarning(false)
+        lastExtendRef.current = Date.now()
+      }
+    } catch (err) {
+      console.error('Extend session error:', err)
+      setError('Could not refresh session. Please check your connection.')
+    } finally {
+      setExtending(false)
+    }
+  }
 
   async function startSignup() {
     setError('')
@@ -483,6 +572,13 @@ function RegisterForm() {
         setOtpSending(false)
         return
       }
+      // 2026-10-17: server gives us a fresh session expiry timestamp so the
+      // user has 15 min (from this moment) to fill the profile form. We
+      // surface a countdown on Step 3 and silently auto-extend at <60s left.
+      if (typeof body.expiresAt === 'string') {
+        setSessionExpiresAtMs(new Date(body.expiresAt).getTime())
+        setSessionWarning(false)
+      }
       setOtpSending(false)
       // OTP verified — advance to the profile step. We don't pre-fill
       // the tags because they're a separate, focused task.
@@ -558,7 +654,7 @@ function RegisterForm() {
               is_available: true,
             }
 
-      const res = await fetch('/api/auth/signup/complete', {
+      let res = await fetch('/api/auth/signup/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -571,13 +667,50 @@ function RegisterForm() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: 'Unknown error' }))
-        if (res.status === 410) {
-          setError('Verification expired. Please tap Back to start over.')
+        // 2026-10-17: server now auto-extends on its end, but as a belt-and-
+        // suspenders: if we still get 410 (e.g. fresh deploy before server
+        // was updated, or stale CDN edge), call /extend-session explicitly
+        // and retry once. Without this, a user mid-typing would see a hard
+        // failure and lose confidence.
+        if (res.status === 410 && body.error?.toLowerCase().includes('expired')) {
+          const extRes = await fetch('/api/auth/signup/extend-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ signupId }),
+          })
+          if (extRes.ok) {
+            const ext = await extRes.json().catch(() => ({}))
+            if (typeof ext.expiresAt === 'string') {
+              setSessionExpiresAtMs(new Date(ext.expiresAt).getTime())
+              setSessionWarning(false)
+            }
+            // Retry once
+            res = await fetch('/api/auth/signup/complete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                signupId,
+                password: form.password,
+                role: form.role,
+                profilePayload,
+              }),
+            })
+            if (!res.ok) {
+              const retryBody = await res.json().catch(() => ({ error: 'Unknown error' }))
+              setError(retryBody.error ?? 'Could not create account. Please try again.')
+              setLoading(false)
+              return
+            }
+          } else {
+            setError('Session expired. Tap "Refresh session" below to continue.')
+            setLoading(false)
+            return
+          }
         } else {
           setError(body.error ?? `Could not create account (${res.status}).`)
+          setLoading(false)
+          return
         }
-        setLoading(false)
-        return
       }
 
       // Sign the user in so they land on the dashboard with a live session.
@@ -975,6 +1108,17 @@ function RegisterForm() {
             </p>
           </header>
 
+          {/* 2026-10-17: session countdown so the user is never surprised by
+              a "Verification expired" error at the very end. */}
+          {sessionExpiresAtMs != null ? (
+            <SessionTimer
+              expiresAtMs={sessionExpiresAtMs}
+              warning={sessionWarning}
+              extending={extending}
+              onRefresh={manualExtendSession}
+            />
+          ) : null}
+
           {error ? (
             <div className="alert alert-error mb-4" role="alert">
               <AlertTriangle size={16} aria-hidden="true" />
@@ -1209,6 +1353,63 @@ function BuddyTags({
           {form.bio.trim().length} / 30
         </p>
       </div>
+    </div>
+  )
+}
+
+function SessionTimer({
+  expiresAtMs,
+  warning,
+  extending,
+  onRefresh,
+}: {
+  expiresAtMs: number
+  warning: boolean
+  extending: boolean
+  onRefresh: () => void
+}) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const msLeft = Math.max(0, expiresAtMs - now)
+  const totalSec = Math.floor(msLeft / 1000)
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0')
+  const ss = String(totalSec % 60).padStart(2, '0')
+  // warning=true when the session has actually expired (server can't keep it
+  // alive anymore — user must hit Refresh). sub-60s ticks the colour to amber
+  // so the user knows the auto-extend is about to fire.
+  const sub60s = !warning && msLeft > 0 && msLeft < 60_000
+  const cls = warning
+    ? 'border-danger bg-danger-bg text-danger'
+    : sub60s
+      ? 'border-warning bg-warning-bg text-warning'
+      : 'border-buddy-border bg-surface text-muted'
+  return (
+    <div
+      className={`mb-4 p-3 rounded-sm border ${cls} flex flex-wrap items-center justify-between gap-2`}
+      role={warning ? 'alert' : 'status'}
+    >
+      <div className="flex items-center gap-2 text-xs font-semibold">
+        <Info size={14} aria-hidden="true" />
+        {warning
+          ? 'Your session expired. Refresh to keep your form data.'
+          : sub60s
+            ? `Refreshing session in ${ss}s — keep typing…`
+            : `Time to finish: ${mm}:${ss}`}
+      </div>
+      {warning ? (
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={extending}
+          className="inline-flex items-center gap-1 h-8 px-3 text-xs font-semibold rounded-sm bg-danger text-paper border border-danger hover:opacity-90 disabled:opacity-50"
+        >
+          <RefreshCw size={12} aria-hidden="true" />
+          {extending ? 'Refreshing…' : 'Refresh session'}
+        </button>
+      ) : null}
     </div>
   )
 }

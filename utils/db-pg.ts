@@ -170,6 +170,7 @@ export async function updateEmailVerification(
     attempts: number
     verified_at: string | null
     consumed_at: string | null
+    expires_at: string | null
   }>,
 ): Promise<DbResult<{ id: string }>> {
   const c = createPgClient()
@@ -182,6 +183,7 @@ export async function updateEmailVerification(
     if ('attempts' in patch) { sets.push(`attempts = $${p++}`); params.push(patch.attempts) }
     if ('verified_at' in patch) { sets.push(`verified_at = $${p++}`); params.push(patch.verified_at) }
     if ('consumed_at' in patch) { sets.push(`consumed_at = $${p++}`); params.push(patch.consumed_at) }
+    if ('expires_at' in patch) { sets.push(`expires_at = $${p++}`); params.push(patch.expires_at) }
     if (sets.length === 0) return { data: { id }, error: null }
     params.push(id)
     const { rows } = await c.query<{ id: string }>(

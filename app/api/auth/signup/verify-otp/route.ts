@@ -53,5 +53,14 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  return NextResponse.json({ ok: true, signupId: result.signupId, email: result.payload.email })
+  // 2026-10-17: extend the session by 15 minutes from this moment so the
+  // user has a generous window to fill the Step 3 profile form. The original
+  // OTP TTL is anchored to /start, which can leave the user with only a few
+  // seconds left if they paused at Step 2 to check their email.
+  const { extendSignupSession } = await import('@/utils/extend-signup-session')
+  const ext = await extendSignupSession(result.signupId)
+  const expiresAt =
+    ext.ok && ext.expiresAt ? ext.expiresAt : new Date(Date.now() + 15 * 60 * 1000).toISOString()
+
+  return NextResponse.json({ ok: true, signupId: result.signupId, email: result.payload.email, expiresAt })
 }

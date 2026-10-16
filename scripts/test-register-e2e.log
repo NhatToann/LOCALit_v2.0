@@ -1,0 +1,22 @@
+TEST: e2e register flow against https://localit-nhattoann.vercel.app
+email: e2e.reg.1792168218894@gmail.com role: tourist
+warming up dev server...
+warmup: register page ok
+warmup done in 1274 ms
+  PASS: GET /register returns 200 {"status":200}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+page.waitForSelector: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('text=Create your account') to be visible
+
+    at D:\New folder\LOCALit_v2.0\scripts\test-register-e2e.mjs:60:12 {
+  log: [
+    "  - waiting for locator('text=Create your account') to be visible"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.14.0

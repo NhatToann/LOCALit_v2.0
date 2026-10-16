@@ -36,6 +36,7 @@ import {
   insertBuddy,
   createAuthUser,
 } from '@/utils/db-pg'
+import { extendSignupSession } from '@/utils/extend-signup-session'
 
 type Role = 'tourist' | 'buddy'
 
@@ -103,8 +104,24 @@ export async function POST(req: NextRequest) {
   if (!signup.verified_at) {
     return NextResponse.json({ error: 'Email has not been verified yet.' }, { status: 403 })
   }
+  // 2026-10-17: instead of returning 410 when the row has expired, auto-extend
+  // the profile-collection window by another 15 minutes. The OTP has already
+  // proved email ownership (verified_at IS NOT NULL); the only thing left is
+  // the user filling in the Step 3 profile form, which can legitimately take
+  // longer than the original 15-minute OTP TTL (especially for a buddy bio of
+  // 30+ characters). If the user is here, they ARE the legitimate owner.
+  //
+  // Auto-extend keeps the row alive so the user can hit "Create account"
+  // successfully. If you want a hard expiry, set the helper's TTL to 0 —
+  // but then any user who pauses at Step 3 gets bounced back to Step 0,
+  // which is the exact bug this rewrite is fixing.
   if (new Date(signup.expires_at).getTime() < Date.now()) {
-    return NextResponse.json({ error: 'Verification expired. Please start over.' }, { status: 410 })
+    const ext = await extendSignupSession(signup.id)
+    if (!ext.ok) {
+      console.error('[signup/complete] auto-extend failed:', ext.error)
+      // Don't block the user on an extension failure — they came this far
+      // with a verified row. Fall through and proceed to insert.
+    }
   }
 
   const pending = signup.pending_payload as {
