@@ -36,7 +36,14 @@ import { syncValue } from '@/utils/paste-safe-input'
 import { navigate } from '@/lib/navigation'
 
 type Role = 'tourist' | 'buddy'
-type Step = 'account' | 'verify-profile'
+// 3 steps now (was 2): each step is one decision the user has to make.
+//   account     — name + email + password + role + terms → POST /start
+//   verify-otp  — 6-digit code from email → POST /verify-otp
+//   profile     — role-specific tags/bio → POST /complete
+// Previously Step 2 mixed OTP + profile, which made the form feel cramped
+// and confused the user about whether they were done. Each step now has
+// one job.
+type Step = 'account' | 'verify-otp' | 'profile'
 
 const INTERESTS = [
   { id: 'food', label: 'Food' },
@@ -148,10 +155,10 @@ const INITIAL_FORM: FormState = {
   terms: false,
 }
 
-const STEP_LABELS = ['Account & role', 'Verify email & profile']
+const STEP_LABELS = ['Account & role', 'Verify email', 'Your profile']
 
 function Stepper({ step }: { step: Step }) {
-  const activeIdx = step === 'account' ? 0 : 1
+  const activeIdx = step === 'account' ? 0 : step === 'verify-otp' ? 1 : 2
   return (
     <ol className="flex items-center gap-2 mb-6 text-xs" aria-label="Sign-up progress">
       {STEP_LABELS.map((label, i) => {
@@ -375,11 +382,15 @@ function RegisterForm() {
         form.terms
       )
     }
-    if (step === 'verify-profile') {
-      const otpReady = otp.every((d) => d !== '') && otp.join('').length === 6
+    if (step === 'verify-otp') {
+      // Step 2 only requires the OTP to be entered; we don't require it to
+      // already be verified (the user clicks "Verify code" explicitly). The
+      // "Next" button is enabled once all 6 digits are typed.
+      return otp.every((d) => d !== '') && otp.join('').length === 6
+    }
+    if (step === 'profile') {
       if (form.role === 'tourist') {
         return (
-          otpReady &&
           form.nationality !== '' &&
           form.travelStyle !== '' &&
           form.interests.length > 0 &&
@@ -387,7 +398,6 @@ function RegisterForm() {
         )
       }
       return (
-        otpReady &&
         form.locationCity.trim().length > 0 &&
         form.languages.length > 0 &&
         form.specialties.length > 0 &&
@@ -429,7 +439,7 @@ function RegisterForm() {
       setVerifiedEmail(body.email)
       setOtp(['', '', '', '', '', ''])
       setLoading(false)
-      setStep('verify-profile')
+      setStep('verify-otp')
       // Start 60-second resend cooldown
       setResendCooldown(60)
       const interval = setInterval(() => {
@@ -471,8 +481,9 @@ function RegisterForm() {
         return
       }
       setOtpSending(false)
-      // OTP verified — stay on the same step so the user can fill in their
-      // tags and then click "Create account" to call /complete.
+      // OTP verified — advance to the profile step. We don't pre-fill
+      // the tags because they're a separate, focused task.
+      setStep('profile')
     } catch (err) {
       console.error('Verify OTP error:', err)
       setError('Could not verify code. Please try again.')
@@ -808,18 +819,18 @@ function RegisterForm() {
         </section>
       ) : null}
 
-      {step === 'verify-profile' ? (
-        <section className="bg-paper border-2 border-buddy-border rounded-sm p-6">
-          <header className="mb-5 pb-4 border-b border-buddy-border">
-            <div className="flex items-center gap-2 text-buddy-ink mb-2">
+      {step === 'verify-otp' ? (
+        <section className="bg-paper border-2 border-tourist-border rounded-sm p-6">
+          <header className="mb-5 pb-4 border-b border-border">
+            <div className="flex items-center gap-2 text-tourist mb-2">
               <Mail size={18} aria-hidden="true" />
-              <span className="text-eyebrow font-bold">Step 2 of 2</span>
+              <span className="text-eyebrow font-bold">Step 2 of 3</span>
             </div>
-            <h1 className="text-section-title">Verify and finish your profile</h1>
+            <h1 className="text-section-title">Check your email</h1>
             <p className="text-sm text-muted mt-1">
               We sent a 6-digit code to{' '}
               <strong className="text-ink">{verifiedEmail ?? form.email}</strong>. Enter it
-              below — and pick a few interests so the right buddies can find you.
+              below to continue.
             </p>
           </header>
 
@@ -832,139 +843,171 @@ function RegisterForm() {
 
           <EmailNotice />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* LEFT: OTP + finish button */}
-            <div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  // OTP submit: just verify, don't finalize
-                  if (otpSending || otp.some((d) => d === '')) return
-                  verifyOtpCode()
-                }}
-                noValidate
-              >
-                <div className="form-group">
-                  <label className="form-label">
-                    <span className="inline-block w-2 h-2 rounded-sm bg-tourist mr-2 align-middle" aria-hidden="true" />
-                    Verification code
-                  </label>
-                  <div className="flex gap-2" role="group" aria-label="6-digit code">
-                    {otp.map((digit, i) => (
-                      <input
-                        key={i}
-                        ref={(el) => {
-                          if (el) (el as unknown as { _idx?: number })._idx = i
-                        }}
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={1}
-                        className="form-input text-center text-lg border-tourist-border focus:border-tourist"
-                        style={{ width: 44, height: 48, padding: 0 }}
-                        value={digit}
-                        aria-label={`Digit ${i + 1}`}
-                        onChange={(e) => {
-                          const v = e.target.value.replace(/\D/g, '').slice(0, 1)
-                          const next = [...otp]
-                          next[i] = v
-                          setOtp(next)
-                          if (v && i < 5) {
-                            const inputs = document.querySelectorAll<HTMLInputElement>(
-                              'input[aria-label^="Digit"]',
-                            )
-                            inputs[i + 1]?.focus()
-                          }
-                        }}
-                        onInput={syncValue((v: string) => {
-                          const clean = v.replace(/\D/g, '').slice(0, 1)
-                          const next = [...otp]
-                          next[i] = clean
-                          setOtp(next)
-                        })}
-                        onPaste={(e) => {
-                          const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-                          if (pasted.length === 0) return
-                          e.preventDefault()
-                          const next = ['', '', '', '', '', '']
-                          for (let k = 0; k < 6 && k < pasted.length; k++) {
-                            next[k] = pasted[k]
-                          }
-                          setOtp(next)
-                          const inputs = document.querySelectorAll<HTMLInputElement>(
-                            'input[aria-label^="Digit"]',
-                          )
-                          inputs[Math.min(pasted.length, 5)]?.focus()
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Backspace' && !otp[i] && i > 0) {
-                            const inputs = document.querySelectorAll<HTMLInputElement>(
-                              'input[aria-label^="Digit"]',
-                            )
-                            inputs[i - 1]?.focus()
-                          }
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (otpSending || otp.some((d) => d === '')) return
+              verifyOtpCode()
+            }}
+            noValidate
+          >
+            <div className="form-group">
+              <label className="form-label">
+                <span className="inline-block w-2 h-2 rounded-sm bg-tourist mr-2 align-middle" aria-hidden="true" />
+                Verification code
+              </label>
+              <div className="flex gap-2" role="group" aria-label="6-digit code">
+                {otp.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => {
+                      if (el) (el as unknown as { _idx?: number })._idx = i
+                    }}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={1}
+                    className="form-input text-center text-lg border-tourist-border focus:border-tourist"
+                    style={{ width: 44, height: 48, padding: 0 }}
+                    value={digit}
+                    aria-label={`Digit ${i + 1}`}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 1)
+                      const next = [...otp]
+                      next[i] = v
+                      setOtp(next)
+                      if (v && i < 5) {
+                        const inputs = document.querySelectorAll<HTMLInputElement>(
+                          'input[aria-label^="Digit"]',
+                        )
+                        inputs[i + 1]?.focus()
+                      }
+                    }}
+                    onInput={syncValue((v: string) => {
+                      const clean = v.replace(/\D/g, '').slice(0, 1)
+                      const next = [...otp]
+                      next[i] = clean
+                      setOtp(next)
+                    })}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+                      if (pasted.length === 0) return
+                      e.preventDefault()
+                      const next = ['', '', '', '', '', '']
+                      for (let k = 0; k < 6 && k < pasted.length; k++) {
+                        next[k] = pasted[k]
+                      }
+                      setOtp(next)
+                      const inputs = document.querySelectorAll<HTMLInputElement>(
+                        'input[aria-label^="Digit"]',
+                      )
+                      inputs[Math.min(pasted.length, 5)]?.focus()
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Backspace' && !otp[i] && i > 0) {
+                        const inputs = document.querySelectorAll<HTMLInputElement>(
+                          'input[aria-label^="Digit"]',
+                        )
+                        inputs[i - 1]?.focus()
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
 
-                <div className="flex flex-wrap items-center gap-2 mt-3">
-                  <button
-                    type="submit"
-                    disabled={otpSending || otp.some((d) => d === '')}
-                    className="btn-tourist-outline inline-flex items-center justify-center h-9 px-4 text-sm"
-                  >
-                    {otpSending ? 'Verifying…' : 'Verify code'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={resendOtp}
-                    disabled={otpSending || resendCooldown > 0}
-                    className="inline-flex items-center gap-1 h-9 px-3 text-sm text-tourist hover:text-tourist-hover font-semibold disabled:opacity-50"
-                  >
-                    <RefreshCw size={12} aria-hidden="true" />
-                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
-                  </button>
-                </div>
-              </form>
-
+            <div className="flex flex-wrap items-center gap-2 mt-3">
               <button
-                type="button"
-                onClick={finalizeSignup}
-                disabled={!stepReady || loading}
-                className="btn-tourist w-full h-11 mt-6 inline-flex items-center justify-center gap-1"
+                type="submit"
+                disabled={otpSending || !stepReady}
+                className="btn-tourist inline-flex items-center justify-center h-11 px-5 text-sm"
               >
-                {loading ? 'Creating account…' : null}
-                {!loading ? (
+                {otpSending ? 'Verifying…' : (
                   <>
-                    Create account
+                    Verify and continue
                     <ArrowRight size={14} aria-hidden="true" />
                   </>
-                ) : null}
+                )}
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setStep('account')
-                  setOtp(['', '', '', '', '', ''])
-                }}
-                className="w-full h-9 mt-2 text-xs text-muted hover:text-ink inline-flex items-center justify-center gap-1"
+                onClick={resendOtp}
+                disabled={otpSending || resendCooldown > 0}
+                className="inline-flex items-center gap-1 h-11 px-3 text-sm text-tourist hover:text-tourist-hover font-semibold disabled:opacity-50"
               >
-                <ArrowLeft size={12} aria-hidden="true" />
-                Back to account details
+                <RefreshCw size={12} aria-hidden="true" />
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
               </button>
             </div>
+          </form>
 
-            {/* RIGHT: role-specific tags */}
-            <div>
-              {form.role === 'tourist' ? (
-                <TouristTags form={form} setForm={setForm} toggleInterest={toggleInterest} toggleLanguage={toggleLanguage} />
-              ) : (
-                <BuddyTags form={form} setForm={setForm} toggleSpecialty={toggleSpecialty} toggleLanguage={toggleLanguage} />
-              )}
+          <button
+            type="button"
+            onClick={() => {
+              setStep('account')
+              setOtp(['', '', '', '', '', ''])
+            }}
+            className="w-full h-9 mt-4 text-xs text-muted hover:text-ink inline-flex items-center justify-center gap-1"
+          >
+            <ArrowLeft size={12} aria-hidden="true" />
+            Back to account details
+          </button>
+        </section>
+      ) : null}
+
+      {step === 'profile' ? (
+        <section className="bg-paper border-2 border-buddy-border rounded-sm p-6">
+          <header className="mb-5 pb-4 border-b border-buddy-border">
+            <div className="flex items-center gap-2 text-buddy-ink mb-2">
+              <span className="text-eyebrow font-bold">Step 3 of 3</span>
             </div>
-          </div>
+            <h1 className="text-section-title">
+              {form.role === 'tourist' ? 'Tell us about your trip' : 'Set up your buddy profile'}
+            </h1>
+            <p className="text-sm text-muted mt-1">
+              {form.role === 'tourist'
+                ? 'So we can match you with the right buddies.'
+                : 'Tourists see this on the buddy browse page.'}
+            </p>
+          </header>
+
+          {error ? (
+            <div className="alert alert-error mb-4" role="alert">
+              <AlertTriangle size={16} aria-hidden="true" />
+              <span>{error}</span>
+            </div>
+          ) : null}
+
+          {form.role === 'tourist' ? (
+            <TouristTags form={form} setForm={setForm} toggleInterest={toggleInterest} toggleLanguage={toggleLanguage} />
+          ) : (
+            <BuddyTags form={form} setForm={setForm} toggleSpecialty={toggleSpecialty} toggleLanguage={toggleLanguage} />
+          )}
+
+          <button
+            type="button"
+            onClick={finalizeSignup}
+            disabled={!stepReady || loading}
+            className="btn-buddy w-full h-11 mt-6 inline-flex items-center justify-center gap-1"
+          >
+            {loading ? 'Creating account…' : null}
+            {!loading ? (
+              <>
+                Create account
+                <ArrowRight size={14} aria-hidden="true" />
+              </>
+            ) : null}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStep('verify-otp')
+            }}
+            className="w-full h-9 mt-2 text-xs text-muted hover:text-ink inline-flex items-center justify-center gap-1"
+          >
+            <ArrowLeft size={12} aria-hidden="true" />
+            Back to email verification
+          </button>
         </section>
       ) : null}
     </main>
