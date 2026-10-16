@@ -5,10 +5,15 @@
 // Uses OTP_PREVIEW mode on production (admin must have set it) to echo the
 // OTP in __devCode. If OTP_PREVIEW is off in production, this test will
 // need to be pointed at a local dev server instead.
+//
+// Vercel SSO: production has Vercel Authentication enabled, so all browser
+// traffic must carry the `x-vercel-protection-bypass` header. Set
+// VERCEL_BYPASS env var to override the canonical token.
 
 import { chromium } from 'playwright'
 
 const BASE = process.env.BASE_URL || 'https://localit-nhattoann.vercel.app'
+const BYPASS = process.env.VERCEL_BYPASS ?? 'w6XAcwiXyFf9Pea8I6zwVONXAhc8Xs9A'
 const email = `e2e.reg.${Date.now()}@gmail.com`
 const password = 'TestPass#Reg2026'
 const fullName = 'E2E Reg Test'
@@ -18,7 +23,9 @@ console.log('TEST: e2e register flow against', BASE)
 console.log('email:', email, 'role:', role)
 
 const browser = await chromium.launch()
-const ctx = await browser.newContext()
+const ctx = await browser.newContext({
+  extraHTTPHeaders: { 'x-vercel-protection-bypass': BYPASS },
+})
 const page = await ctx.newPage()
 
 const consoleErrors = []
@@ -45,8 +52,10 @@ try {
 
 const navStart = await page.goto(`${BASE}/register`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
 check('GET /register returns 200', navStart.status() === 200, { status: navStart.status() })
-await page.waitForSelector('text=Create your account', { timeout: 15_000 })
-check('Step 1 "Create your account" header visible', true)
+// Next.js renders a loading-spinner Suspense fallback while the client component
+// hydrates. Wait for the actual form to mount via its signature input, not by text.
+await page.waitForSelector('#fullName', { state: 'visible', timeout: 30_000 })
+check('Step 1 form mounted (#fullName visible)', true)
 
 // Fill account form
 await page.fill('#fullName', fullName)
