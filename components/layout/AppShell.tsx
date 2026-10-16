@@ -1,20 +1,32 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Header from './Header';
 import Footer from './Footer';
 import DaNangBackdrop from './DaNangBackdrop';
-import MiniChatWindow from '@/components/chat/MiniChatWindow';
 import IncomingCallWatcher from '@/components/chat/IncomingCallWatcher';
 import OutgoingCallPanel from '@/components/chat/OutgoingCallPanel';
 import ActiveCallSheet from '@/components/layout/ActiveCallSheet';
 import SessionExpiryGuard from '@/components/layout/SessionExpiryGuard';
-import FocusRequestPopover from '@/components/focus/FocusRequestPopover';
 import MessagePopover from '@/components/chat/MessagePopover';
 import { useAuthUser } from '@/lib/auth/useAuthUser';
 import { useOnlineHeartbeat } from '@/lib/realtime/useOnlineHeartbeat';
 import { GlobalPresence } from '@/lib/realtime/useGlobalPresence';
 import GlobalConnectionRefresher from '@/components/connection/GlobalConnectionRefresher';
+
+// 2026-10-16 perf — MiniChatWindow pulls in the full chat stack
+// (useMessageStream, conversations query, draft persistence, send flow).
+// It's the heaviest single client module behind the AppShell, but the
+// user only needs it after they tap the chat bubble. Defer its JS
+// to that moment via next/dynamic({ ssr: false }) — the bubble is
+// still SSR-rendered for instant first paint, and the actual chat
+// UI hydrates on demand. Saves ~50-100KB of initial JS and a realtime
+// WebSocket on every page the user lands on.
+const MiniChatWindow = dynamic(
+  () => import('@/components/chat/MiniChatWindow'),
+  { ssr: false },
+)
 
 /**
  * 2026-10-01 — Unified single-web architecture.
@@ -88,29 +100,21 @@ function GlobalPresenceMount() {
 }
 
 /**
- * 2026-10-10 — global Focus request popover. The popover subscribes
- * to `focus_requests` INSERTs for the current user and surfaces a
- * centered modal regardless of which page the recipient is on. On
- * Accept, we hard-navigate to /focus/<sessionId>; on Decline, the
- * popover closes and the requester sees a focus_declined
- * notification.
+ * 2026-10-16 — Focus Mode removed. The previous global popover that
+ * surfaced focus requests across pages is gone (along with the
+ * /focus/[sessionId] page, the focus_requests/focus_sessions tables,
+ * and the entire Focus UI). The chat page is now the single source
+ * of truth for any buddy↔tourist interaction.
  */
-function GlobalFocusRequestPopover() {
-  const auth = useAuthUser()
-  return <FocusRequestPopover userId={auth?.userId ?? null} />
-}
 
 /**
  * 2026-10-10 — global message toast. Surfaces an incoming chat
  * message as a small popover in the bottom-right. The popover is
- * hidden on /chat (the message is already visible in the thread)
- * and on /focus/<id> (Focus has its own embedded chat; surfacing
- * the popover on top would be visual noise).
+ * hidden on /chat (the message is already visible in the thread).
  */
 function GlobalMessagePopover() {
   const pathname = usePathname()
   const auth = useAuthUser()
-  if (pathname.startsWith('/focus/')) return null
   if (pathname === '/chat') return null
   return <MessagePopover userId={auth?.userId ?? null} />
 }
@@ -127,13 +131,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const inRoleLayout = ROLE_LAYOUTS.some((p) => pathname.startsWith(p));
   const isAuthPage = AUTH_PAGES.includes(pathname);
-  // 2026-10-10 — Focus Mode has its own header + chat + map; the
-  // global MiniChatWindow (which has its own Phone button) and the
-  // ActiveCallSheet (voice-call modal) would visually compete with
-  // the focus UI. Hide them on the focus route. Incoming calls
-  // still ring the partner when focus is open via the global
-  // IncomingCallWatcher, but the in-page surfaces are off.
-  const isFocusPage = pathname.startsWith('/focus/')
 
   // 4-role palette needs the current user's role on the <main> element so
   // CSS can recolor every `bg-primary` button via the
@@ -154,14 +151,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {children}
         <Footer />
       <SessionExpiryGuard />
-      {!isFocusPage ? <MiniChatWindow /> : null}
+      <MiniChatWindow />
       <GlobalIncomingCallWatcher />
       <GlobalOutgoingCallPanel />
       <GlobalOnlineHeartbeat />
       <GlobalPresenceMount />
-      <GlobalFocusRequestPopover />
       <GlobalMessagePopover />
-      {!isFocusPage ? <ActiveCallSheet /> : null}
+      <ActiveCallSheet />
       </>
     );
   }
@@ -179,15 +175,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <Footer />
       <SessionExpiryGuard />
-      {!isFocusPage ? <MiniChatWindow /> : null}
+      <MiniChatWindow />
       <GlobalIncomingCallWatcher />
       <GlobalOutgoingCallPanel />
       <GlobalOnlineHeartbeat />
       <GlobalPresenceMount />
-      <GlobalFocusRequestPopover />
       <GlobalMessagePopover />
       <GlobalConnectionRefresher />
-      {!isFocusPage ? <ActiveCallSheet /> : null}
+      <ActiveCallSheet />
     </>
   );
 }

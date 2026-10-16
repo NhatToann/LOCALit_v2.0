@@ -53,7 +53,10 @@ import { createClient, getCurrentUser, signOut } from '@/utils/supabase/auth'
 import { readUserIdFromToken } from '@/utils/supabase/client-binding'
 import type { Profile, Buddy } from '@/lib/types'
 import { Avatar } from '@/components/ui/Avatar'
-import TravelHistory from '@/components/profile/TravelHistory'
+// Focus Mode (2026-10-16) removed. The TravelHistory block that
+// used to live here displayed past focus_sessions rows; that table
+// is now dropped, so the block is gone. Profile surfaces the
+// buddy/tourist's own card and stops there.
 import { useSafeTimeout } from '@/hooks/useSafeTimeout'
 
 const LANGUAGES = [
@@ -1139,11 +1142,6 @@ export default function BuddyProfileView() {
             </section>
           ) : null}
         </main>
-      </div>
-
-      {/* Travel history — past Focus sessions */}
-      <div className="mt-6">
-        <TravelHistory />
       </div>
     </div>
   )
