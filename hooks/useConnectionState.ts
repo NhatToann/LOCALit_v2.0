@@ -52,7 +52,7 @@ export function useConnectionState(targetUserId: string | null | undefined) {
   const lastFetchedFor = useRef<string | null>(null)
   const lastFetchedAt = useRef<number>(0)
 
-  const fetch_ = useCallback(async () => {
+  const fetch_ = useCallback(async (force = false) => {
     if (!targetUserId) {
       setState(EMPTY)
       setLoading(false)
@@ -62,7 +62,10 @@ export function useConnectionState(targetUserId: string | null | undefined) {
     // 500ms, skip. Supabase's onAuthStateChange sometimes fires
     // multiple times in the same tick during hydration, each of which
     // would otherwise re-issue the same /api/connections/check.
-    if (lastFetchedFor.current === targetUserId && Date.now() - lastFetchedAt.current < 500) {
+    // `force=true` bypasses this — used after a write (accept/reject/
+    // cancel/renew) so the local state reflects the server state
+    // immediately, even if a hydration refetch just ran.
+    if (!force && lastFetchedFor.current === targetUserId && Date.now() - lastFetchedAt.current < 500) {
       return
     }
     // Check the local auth cookie synchronously before fetching.
@@ -153,5 +156,5 @@ useConnectionsRealtime(() => {
   void fetch_()
 })
 
-  return { state, loading, error, refetch: fetch_ }
+  return { state, loading, error, refetch: () => fetch_(true) }
 }

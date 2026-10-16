@@ -14,6 +14,7 @@ import MessagePopover from '@/components/chat/MessagePopover';
 import { useAuthUser } from '@/lib/auth/useAuthUser';
 import { useOnlineHeartbeat } from '@/lib/realtime/useOnlineHeartbeat';
 import { GlobalPresence } from '@/lib/realtime/useGlobalPresence';
+import GlobalConnectionRefresher from '@/components/connection/GlobalConnectionRefresher';
 
 /**
  * 2026-10-01 — Unified single-web architecture.
@@ -185,6 +186,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <GlobalPresenceMount />
       <GlobalFocusRequestPopover />
       <GlobalMessagePopover />
+      <GlobalConnectionRefresher />
       {!isFocusPage ? <ActiveCallSheet /> : null}
     </>
   );

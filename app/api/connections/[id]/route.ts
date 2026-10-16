@@ -91,25 +91,13 @@ export async function PATCH(
           { status: 500 },
         )
       }
-      // Notify the other party that this connection was cancelled via RPC (bypasses RLS).
-      const otherId = existing.requester_id === user.id ? existing.recipient_id : existing.requester_id
-      try {
-        const { data: notifId, error: notifErr } = await supabase.rpc('insert_notification', {
-          p_user_id: otherId,
-          p_type: 'connection_declined',
-          p_title: 'Connection cancelled',
-          p_body: `A connection was cancelled`,
-          p_actor_id: user.id,
-          p_link: '/connections',
-        })
-        if (notifErr) {
-          console.warn('[connections] cancel notification failed:', notifErr.message, notifErr.code)
-        } else {
-          console.log('[connections] cancel notification ok:', notifId)
-        }
-      } catch (e) {
-        console.warn('[connections] cancel notification threw:', (e as Error).message)
-      }
+      // NOTE: notification for the other party is NOT inserted here.
+      // The DB trigger only fires on INSERT/UPDATE — not DELETE — so a
+      // cancelled request currently does not notify the recipient. This
+      // matches the user's mental model (the request simply disappears
+      // from the recipient's "Awaiting your reply" list on their next
+      // page load). If a future iteration wants a "Connection cancelled"
+      // notification, add a DELETE trigger on public.connections.
       return NextResponse.json({ ok: true, action: 'cancel', connection_id: id })
     }
 
@@ -145,37 +133,11 @@ export async function PATCH(
       )
     }
 
-    // Notify the other party via RPC (bypasses RLS).
-    const otherId = existing.requester_id === user.id ? existing.recipient_id : existing.requester_id
-    try {
-      const { data: actorProfile } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', user.id)
-        .maybeSingle()
-      const actorName = actorProfile?.full_name ?? 'Someone'
-      const notifType = action === 'accept' ? 'connection_accepted' : 'connection_declined'
-      const notifTitle = action === 'accept' ? 'Connection accepted!' : 'Connection declined'
-      const notifBody =
-        action === 'accept'
-          ? `${actorName} accepted your connection request`
-          : `${actorName} declined your connection request`
-      const { data: notifId, error: notifErr } = await supabase.rpc('insert_notification', {
-        p_user_id: otherId,
-        p_type: notifType,
-        p_title: notifTitle,
-        p_body: notifBody,
-        p_actor_id: user.id,
-        p_link: '/connections',
-      })
-      if (notifErr) {
-        console.warn('[connections] accept/reject notification failed:', notifErr.message, notifErr.code)
-      } else {
-        console.log('[connections] accept/reject notification ok:', notifId)
-      }
-    } catch (e) {
-      console.warn('[connections] accept/reject notification threw:', (e as Error).message)
-    }
+    // NOTE: notification for the requester is inserted by the DB trigger
+    //   public.notify_on_connection()
+    // on the connections UPDATE. We deliberately do NOT call
+    // insert_notification() here — it would create a second row
+    // for the same event. See supabase/migrations/2026-10-16-drop-insert-notification-rpc.sql.
 
     return NextResponse.json({ connection: data, action })
   } catch (e) {

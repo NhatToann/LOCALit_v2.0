@@ -122,14 +122,20 @@ export default function NotificationBell({ userId, initialCount = 0 }: Props) {
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
           const row = payload.new as Notification
+          // Use a closure flag so the unread bump is gated on the
+          // same dedupe check the list uses. Without this, if Supabase
+          // delivers the same event twice (rare but possible with
+          // overlapping filter subscriptions or duplicate publication
+          // rows), the list dedupes but the badge count is bumped twice
+          // — which is what the user was seeing: bell shows "2" for a
+          // single new request.
+          let didInsert = false
           setItems((prev) => {
-            // Dedupe: if a row with the same id is already in the list
-            // (e.g. the initial load was racing this INSERT), don't
-            // add it again.
             if (prev.some((n) => n.id === row.id)) return prev
+            didInsert = true
             return [row, ...prev].slice(0, 20)
           })
-          if (!row.read_at) setUnread((u) => u + 1)
+          if (didInsert && !row.read_at) setUnread((u) => u + 1)
         },
       )
       .on(

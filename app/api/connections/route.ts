@@ -119,27 +119,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'insert_failed', message: error.message }, { status: 500 })
     }
 
-    // Send notification to recipient via RPC (bypasses RLS).
-    // Using insert_notification(p_user_id, p_type, p_title, p_body, p_actor_id, p_link)
-    // which is SECURITY DEFINER (postgres), bypassing RLS reliably regardless
-    // of whether the Supabase client uses anon or service_role key.
-    try {
-      const { data: notifId, error: notifErr } = await supabase.rpc('insert_notification', {
-        p_user_id: recipient_id,
-        p_type: 'connection_request',
-        p_title: 'New connection request',
-        p_body: `${caller?.full_name ?? 'Someone'} wants to connect with you`,
-        p_actor_id: user.id,
-        p_link: '/connections',
-      })
-      if (notifErr) {
-        console.warn('[connections] notification insert failed:', notifErr.message, notifErr.code)
-      } else {
-        console.log('[connections] notification insert ok:', notifId)
-      }
-    } catch (e) {
-      console.warn('[connections] notification insert threw:', (e as Error).message)
-    }
+    // NOTE: notification is inserted by the DB trigger
+    //   public.notify_on_connection()
+    // on the connections INSERT. We deliberately do NOT call
+    // insert_notification() here — it would create a second row
+    // for the same event. See supabase/migrations/2026-10-16-drop-insert-notification-rpc.sql.
 
     return NextResponse.json(
       { connection: data, duration_days: finalDuration },

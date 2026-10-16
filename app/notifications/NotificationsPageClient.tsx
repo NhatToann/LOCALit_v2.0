@@ -102,11 +102,15 @@ export default function NotificationsPageClient({ userId, initialRows, initialUn
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
           const row = payload.new as Notification
+          // Gate the unread bump on the same dedupe that the list uses
+          // — see NotificationBell for the full rationale.
+          let didInsert = false
           setItems((prev) => {
             if (prev.some((n) => n.id === row.id)) return prev
+            didInsert = true
             return [row, ...prev]
           })
-          if (!row.read_at) setUnread((u) => u + 1)
+          if (didInsert && !row.read_at) setUnread((u) => u + 1)
         },
       )
       .on(
