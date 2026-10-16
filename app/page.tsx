@@ -15,6 +15,15 @@ export const metadata: Metadata = {
   },
 };
 
+// 2026-10-16 perf — preload the hero LCP image. The hero uses a
+// CSS background-image (so we can't use next/image's automatic
+// preload), so we emit a <link rel="preload" as="image"> in the
+// page-level <head> via the metadata.other field. The browser
+// starts fetching the 1920w JPEG as soon as it parses the HTML,
+// in parallel with the JS bundle download.
+export const HERO_IMAGE_URL =
+  'https://images.unsplash.com/photo-1572551562325-b5d5057c9b54?w=1920&q=80&auto=format&fit=crop'
+
 const HOME_FAQ_SCHEMA = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
@@ -96,6 +105,17 @@ function HomeSkeleton() {
 function HomeContent() {
   return (
     <>
+      {/* Preload the hero LCP image so the browser starts the
+          1920w JPEG fetch in parallel with the JS bundle. Without
+          this, the hero waits for the CSSOM to discover the
+          background-image URL, which adds 200-400ms to LCP on
+          first load. */}
+      <link
+        rel="preload"
+        as="image"
+        href={HERO_IMAGE_URL}
+        fetchPriority="high"
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(HOME_FAQ_SCHEMA) }}
@@ -109,15 +129,18 @@ function HomeContent() {
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
-            backgroundImage:
-              "url('https://images.unsplash.com/photo-1572551562325-b5d5057c9b54?w=1920&q=80&auto=format&fit=crop')",
+            backgroundImage: `url('${HERO_IMAGE_URL}')`,
           }}
           aria-hidden="true"
         />
         <div
           className="absolute inset-0"
           style={{
-            background: 'linear-gradient(135deg, rgba(13,148,136,0.55) 0%, rgba(10,31,29,0.45) 50%, rgba(37,99,235,0.45) 100%)',
+            // 2026-10-16: per design.md "no gradient" — replaced the
+            // 3-stop linear-gradient with a single solid teal overlay
+            // at 55% alpha so the Han River photo reads through
+            // without falling back to a SaaS-y gradient stack.
+            background: 'rgba(13, 148, 136, 0.62)',
           }}
           aria-hidden="true"
         />

@@ -12,7 +12,6 @@ import {
   Video,
   PhoneOff,
   Paperclip,
-  MapPinPlus,
   X,
   Edit3,
   Trash2,
@@ -28,12 +27,12 @@ import {
   Languages,
   DollarSign,
   MoreHorizontal,
+  Info,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/auth'
 import { getMyUserSync } from '@/utils/supabase/client-binding'
-import type { Message, Conversation, MessageReaction, Profile, FocusRequest } from '@/lib/types'
+import type { Message, Conversation, MessageReaction, Profile } from '@/lib/types'
 import { Avatar, EmptyState } from '@/components/ui/Avatar'
-import FocusRequestBanner from '@/components/focus/FocusRequestBanner'
 import ChatLockGuard from '@/components/connection/ChatLockGuard'
 import { useMessageStream } from '@/lib/realtime/useMessageStream'
 import { useTyping } from '@/lib/realtime/useTyping'
@@ -161,11 +160,12 @@ function ChatInner() {
     avatar: string | null
   } | null>(null)
 
-  // ===== Focus Mode state (2026-10-09) =====
-  const [focusOutgoing, setFocusOutgoing] = useState<FocusRequest | null>(null)
-  const [focusIncoming, setFocusIncoming] = useState<FocusRequest | null>(null)
-  const [focusBusy, setFocusBusy] = useState(false)
-  const [focusError, setFocusError] = useState<string | null>(null)
+  // ===== Focus Mode removed 2026-10-16 =====
+  // Focus Mode was a request-based live-map session that proved brittle
+  // (always-on GPS, separate chat surface, page-lock) and was removed
+  // per product decision. Chat remains the single shared conversation
+  // surface between matched buddies + tourists. The /focus/* routes
+  // and the related tables/policies were dropped in the same commit.
   /** Hidden <audio> element ref. Receives the remote MediaStream from the
    *  WebRTC peer via srcObject so the browser plays the peer's audio.
    *  Without this, the connection reaches 'connected' state but no audio
@@ -952,211 +952,12 @@ function ChatInner() {
   }
 
   // ============================================================
-  // Focus Mode handlers (2026-10-09)
+  // Focus Mode removed 2026-10-16 — the entire request/respond/
+  // subscribe/hydrate block above is gone. Live trip sharing now
+  // lives inside /chat (chat messages + voice/video call). The
+  // /focus/* routes, the focus_requests/focus_sessions tables,
+  // and the buddies.is_in_focus column were all dropped.
   // ============================================================
-  async function sendFocusRequest() {
-    if (!activeConv || !myId) return
-    if (!isPartnerOnline) {
-      setFocusError('Your buddy is offline. Try again when they come back.')
-      return
-    }
-    setFocusBusy(true)
-    setFocusError(null)
-    try {
-      const partnerId = activeConv.partner_id
-      const res = await fetch('/api/focus/request', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          recipient_id: partnerId,
-          conversation_id: activeConv.id,
-        }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        if (json.error === 'pending_request_exists' && json.request) {
-          setFocusOutgoing(json.request as FocusRequest)
-          return
-        }
-        if (json.error === 'requester_in_active_session' && json.session_id) {
-          navigate(`/focus/${json.session_id}`)
-          return
-        }
-        if (json.error === 'same_role_focus_not_allowed') {
-          setFocusError(json.message ?? 'Focus Mode is only available across roles.')
-          return
-        }
-        setFocusError(json.message ?? json.error ?? 'Could not send Focus request.')
-        return
-      }
-      setFocusOutgoing(json.request as FocusRequest)
-    } catch (err) {
-      setFocusError(`Network error: ${(err as Error).message}`)
-    } finally {
-      setFocusBusy(false)
-    }
-  }
-
-  async function cancelFocusRequest() {
-    if (!focusOutgoing) return
-    setFocusBusy(true)
-    try {
-      await fetch(`/api/focus/${focusOutgoing.id}/cancel`, { method: 'POST' })
-      setFocusOutgoing(null)
-    } finally {
-      setFocusBusy(false)
-    }
-  }
-
-  async function respondToFocus(action: 'accept' | 'decline') {
-    if (!focusIncoming) return
-    setFocusBusy(true)
-    setFocusError(null)
-    try {
-      const res = await fetch(`/api/focus/${focusIncoming.id}/respond`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setFocusError(json.message ?? json.error ?? 'Could not respond.')
-        return
-      }
-      if (action === 'accept' && json.session?.id) {
-        setFocusIncoming(null)
-        navigate(`/focus/${json.session.id}`)
-      } else {
-        setFocusIncoming(null)
-      }
-    } finally {
-      setFocusBusy(false)
-    }
-  }
-
-  // Realtime subscription for incoming focus requests
-  useEffect(() => {
-    if (!myId) return
-    const supabase = createClient()
-    const channel = supabase
-      .channel(`focus-incoming-${myId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'focus_requests',
-          filter: `recipient_id=eq.${myId}`,
-        },
-        async (payload) => {
-          const row = payload.new as FocusRequest
-          if (row.status !== 'pending') return
-          // Hydrate requester profile
-          const { data: profile } = await supabase
-            .from('safe_profiles')
-            .select('*')
-            .eq('id', row.requester_id)
-            .maybeSingle()
-          setFocusIncoming({ ...row, requester: profile as Profile | undefined })
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'focus_requests',
-          filter: `requester_id=eq.${myId}`,
-        },
-        (payload) => {
-          const row = payload.new as FocusRequest
-          if (row.status === 'accepted') {
-            // We were the requester; the recipient accepted. The new
-            // session id isn't in this row — we re-fetch /api/focus/active.
-            setFocusOutgoing(null)
-            void fetch('/api/focus/active')
-              .then((r) => r.json())
-              .then((j) => {
-                if (j.session?.id) {
-                  navigate(`/focus/${j.session.id}`)
-                }
-              })
-              .catch(() => undefined)
-          } else if (
-            row.status === 'declined' ||
-            row.status === 'expired' ||
-            row.status === 'cancelled'
-          ) {
-            setFocusOutgoing(null)
-          }
-        },
-      )
-      .subscribe()
-    return () => {
-      void supabase.removeChannel(channel)
-    }
-  }, [myId])
-
-  // Hydrate outgoing/incoming focus state on mount
-  useEffect(() => {
-    if (!myId) return
-    let cancelled = false
-    async function hydrate() {
-      try {
-        const supabase = createClient()
-        const nowIso = new Date().toISOString()
-        const [{ data: outgoing }, { data: incoming }] = await Promise.all([
-          supabase
-            .from('focus_requests')
-            .select('*')
-            .eq('requester_id', myId)
-            .eq('status', 'pending')
-            .gt('expires_at', nowIso)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-          supabase
-            .from('focus_requests')
-            .select('*')
-            .eq('recipient_id', myId)
-            .eq('status', 'pending')
-            .gt('expires_at', nowIso)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-        ])
-        if (cancelled) return
-        if (outgoing) setFocusOutgoing(outgoing as FocusRequest)
-        if (incoming) {
-          const { data: profile } = await supabase
-            .from('safe_profiles')
-            .select('*')
-            .eq('id', incoming.requester_id)
-            .maybeSingle()
-          setFocusIncoming({
-            ...(incoming as FocusRequest),
-            requester: profile as Profile | undefined,
-          })
-        }
-      } catch {
-        /* ignore */
-      }
-    }
-    void hydrate()
-    return () => {
-      cancelled = true
-    }
-  }, [myId])
-
-  // When the conversation changes, reset focus state for the previous
-  // partner and re-hydrate (request might be tied to a different conv).
-  // NOTE: `activeConv` is computed inline at line ~1750; we read activeId
-  // directly so this effect doesn't depend on its declaration order.
-  useEffect(() => {
-    if (!activeId || !myId) return
-    setFocusOutgoing((cur) => (cur && cur.conversation_id === activeId ? cur : null))
-    setFocusIncoming((cur) => (cur && cur.conversation_id === activeId ? cur : null))
-  }, [activeId, myId])
 
   /**
    * Attach the remote MediaStream from the WebRTC peer to the hidden
@@ -2013,56 +1814,12 @@ function ChatInner() {
                     <PhoneOff size={15} aria-hidden="true" />
                   )}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (focusOutgoing) {
-                      void cancelFocusRequest()
-                    } else {
-                      void sendFocusRequest()
-                    }
-                  }}
-                  disabled={!isPartnerOnline || focusBusy}
-                  aria-label={
-                    !isPartnerOnline
-                      ? 'Focus unavailable — buddy offline'
-                      : focusOutgoing
-                        ? 'Cancel Focus request'
-                        : 'Start Focus Mode'
-                  }
-                  title={
-                    !isPartnerOnline
-                      ? 'Buddy is offline'
-                      : focusOutgoing
-                        ? 'Cancel Focus request'
-                        : 'Start Focus Mode'
-                  }
-                  className="inline-flex items-center gap-1 h-9 px-2 text-sm font-medium rounded-sm bg-focus-primary text-white border border-focus-primary hover:bg-focus-primary-dark disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-focus-primary"
-                >
-                  <MapPinPlus size={14} aria-hidden="true" />
-                  <span className="hidden sm:inline">
-                    {focusOutgoing ? 'Cancel' : 'Focus'}
-                  </span>
-                </button>
               </header>
 
-              {/* Focus request outgoing banner. The incoming request is
-                  handled by the global FocusRequestPopover in AppShell,
-                  so we don't render the incoming banner here. */}
-              {focusOutgoing && activeConv && focusOutgoing.conversation_id === activeConv.id ? (
-                <div className="px-4 pt-3">
-                  <FocusRequestBanner
-                    variant="outgoing"
-                    request={focusOutgoing}
-                    partner={{
-                      id: activeConv.partner_id,
-                      full_name: activeConv.partner_name,
-                    }}
-                    busy={focusBusy}
-                    onCancel={() => cancelFocusRequest()}
-                  />
-                </div>
-              ) : null}
+              {/* Focus Mode removed 2026-10-16 — the Start Focus / Cancel
+                  button and the outgoing FocusRequestBanner are gone.
+                  The single source of truth for a buddy-tourist
+                  interaction is now this chat thread. */}
 
               {/* Pinned message banner */}
               {pinnedMessage ? (
@@ -2495,37 +2252,24 @@ function MessageBubble({
   const time = new Date(message.created_at)
   const timeLabel = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 
-  // System-event bubble (e.g. voice call log) — render as a centered,
-  // muted pill so it does not look like a normal user message.
-  if (message.message_type === 'call_event') {
+  // System event bubble — render as a centered, muted pill so the
+  // user reads it as "not a chat message, just a status update".
+  // (Originally Focus Mode's start/accept/decline/end system
+  // messages used MapPinPlus + focus-* tokens, but Focus Mode
+  // was removed 2026-10-16. The Info icon now plays that role
+  // for any future system message — e.g. trip join, role switch.)
+  if (message.message_type === 'call_event' || message.message_type === 'system') {
     return (
       <li className="flex items-center justify-center my-1">
         <span
           className="inline-flex items-center gap-2 px-3 py-1 text-[11px] font-medium text-muted bg-paper border border-border rounded-sm"
           title={new Date(message.created_at).toLocaleString('en-US')}
         >
-          <Phone size={11} aria-hidden="true" className="text-subtle" />
-          <span>{message.content}</span>
-          <span aria-hidden="true">·</span>
-          <time dateTime={message.created_at} className="font-mono tracking-tight">
-            {timeLabel}
-          </time>
-        </span>
-      </li>
-    )
-  }
-
-  // 2026-10-10 — Focus event system message. Same visual treatment
-  // as call_event so the user immediately reads it as "not a chat
-  // message, just a status update".
-  if (message.message_type === 'system') {
-    return (
-      <li className="flex items-center justify-center my-1">
-        <span
-          className="inline-flex items-center gap-2 px-3 py-1 text-[11px] font-medium text-focus-primary bg-focus-bg border border-focus-border rounded-sm"
-          title={new Date(message.created_at).toLocaleString('en-US')}
-        >
-          <MapPinPlus size={11} aria-hidden="true" className="text-focus-primary" />
+          {message.message_type === 'call_event' ? (
+            <Phone size={11} aria-hidden="true" className="text-subtle" />
+          ) : (
+            <Info size={11} aria-hidden="true" className="text-subtle" />
+          )}
           <span>{message.content}</span>
           <span aria-hidden="true">·</span>
           <time dateTime={message.created_at} className="font-mono tracking-tight">
