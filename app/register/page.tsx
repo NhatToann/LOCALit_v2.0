@@ -1032,11 +1032,6 @@ function TouristTags({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-section-title mb-1">Tell us about your trip</h2>
-        <p className="text-xs text-muted">So we can match you with the right buddies.</p>
-      </div>
-
-      <div>
         <label className="form-label" htmlFor="nationality">Where are you from?</label>
         <select
           id="nationality"
@@ -1134,11 +1129,6 @@ function BuddyTags({
 }) {
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-section-title mb-1">Set up your buddy profile</h2>
-        <p className="text-xs text-muted">Tourists see this on the buddy browse page.</p>
-      </div>
-
       <div>
         <label className="form-label" htmlFor="locationCity">City you cover</label>
         <input
