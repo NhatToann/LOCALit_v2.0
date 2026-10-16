@@ -5,8 +5,7 @@
  *
  * 2026-10-10: per user request, incoming chat messages now surface
  * as a small popover in the bottom-right of any authenticated
- * page — same pattern as the FocusRequestPopover. Clicking the
- * popover deep-links to /chat?conv=<id>.
+ * page. Clicking the popover deep-links to /chat?conv=<id>.
  *
  * What this is NOT:
  *   - Not a notification bell replacement. The bell is still the
@@ -153,8 +152,8 @@ export default function MessagePopover({ userId }: Props) {
           if (row.sender_id === userIdRef.current) return
           // Only show for conversations the user is a member of.
           if (!convIdsRef.current.includes(row.conversation_id)) return
-          // System / call_event rows are already surfaced by the
-          // focus popover + chat pills. Don't double-notify.
+          // System / call_event rows are already surfaced as
+          // centered pills inside the chat thread. Don't double-notify.
           if (
             row.message_type === 'system' ||
             row.message_type === 'call_event'

@@ -1,0 +1,77 @@
+▲ Next.js 16.3.6 (Turbopack)
+- Environments: .env.local, .env.production
+✓ Running next.config.ts took 58ms
+- Experiments (use with caution):
+  · optimizePackageImports
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 3.2s
+  Running TypeScript ...
+  Finished TypeScript in 8.5s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/41) ...
+  Generating static pages using 11 workers (10/41) 
+  Generating static pages using 11 workers (20/41) 
+  Generating static pages using 11 workers (30/41) 
+✓ Generating static pages using 11 workers (41/41) in 1087ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/admin/ensure-buckets
+├ ƒ /api/auth/create-profile
+├ ƒ /api/auth/redirect-diagnostics
+├ ƒ /api/auth/reset-otp/complete
+├ ƒ /api/auth/reset-otp/start
+├ ƒ /api/auth/reset-otp/verify
+├ ƒ /api/auth/signout
+├ ƒ /api/auth/signup/complete
+├ ƒ /api/auth/signup/resend-otp
+├ ƒ /api/auth/signup/start
+├ ƒ /api/auth/signup/verify-otp
+├ ƒ /api/connections
+├ ƒ /api/connections/[id]
+├ ƒ /api/connections/check
+├ ƒ /api/debug/voice-call-test
+├ ƒ /api/itinerary/from-template
+├ ƒ /api/livekit/token
+├ ƒ /api/newsletter/subscribe
+├ ƒ /api/profile/switch-role
+├ ƒ /api/reviews
+├ ƒ /api/swipe
+├ ƒ /api/swipe/liked
+├ ƒ /api/swipe/likes
+├ ƒ /api/swipe/matches
+├ ƒ /api/swipe/queue
+├ ƒ /api/swipe/saved-ids
+├ ƒ /api/weather
+├ ○ /browse
+├ ƒ /buddies/[id]
+├ ○ /chat
+├ ƒ /chat/[conversationId]
+├ ƒ /connections
+├ ○ /dashboard
+├ ○ /forgot-password
+├ ○ /itinerary
+├ ƒ /itinerary/[id]
+├ ○ /itinerary/new
+├ ƒ /itinerary/share/[token]
+├ ○ /likes
+├ ○ /login
+├ ○ /map
+├ ○ /matches
+├ ƒ /notifications
+├ ƒ /profile
+├ ○ /register
+├ ○ /reset-password
+├ ƒ /search
+├ ○ /swipe
+└ ƒ /tourists/[id]
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

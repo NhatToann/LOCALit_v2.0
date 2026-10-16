@@ -1,0 +1,21 @@
+-- 2026-10-15-notifications-realtime-publication.sql
+--
+-- Fix: `public.notifications` was missing from the `supabase_realtime`
+-- publication, so `postgres_changes` subscribers (e.g.
+-- <NotificationBell/>'s channel) never received INSERT/UPDATE/DELETE
+-- events. The DB trigger `notify_on_connection` correctly created
+-- notification rows, but the client never saw them in real time —
+-- users had to F5 to see the badge.
+--
+-- Symptom reported by user on 2026-10-15:
+--   "người a bấm request cho người b, notification không có gì cả"
+--
+-- Verified on production (script: scripts/diag-realtime-publication.mjs):
+--   supabase_realtime tables before: conversations, focus_requests,
+--     focus_sessions, itinerary_days, itinerary_stops, location_updates,
+--     matches, message_reactions, messages, pending_calls, swipes
+--   public.notifications in supabase_realtime: false
+--
+-- Migration is idempotent: re-running has no effect after the first time.
+
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;

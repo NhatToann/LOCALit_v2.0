@@ -106,21 +106,11 @@
   /* Card hover shadow — single subtle elevation */
   --shadow-card: 0 1px 1px rgba(15, 118, 110, 0.12);
   --shadow-card-hover: 0 4px 8px rgba(15, 118, 110, 0.18);
-
-  /* ============================================================
-     FOCUS MODE TOKENS — flat jade family
-     ============================================================ */
-  --focus-primary: #0F766E;
-  --focus-primary-dark: #115E59;
-  --focus-primary-light: #34D399;
-  --focus-deep: #134E4A;
-  --focus-darkest: #0A1F1D;
-  --focus-medium: #0D9488;
-  --focus-surface: #F0FDFA;
-  --focus-bg: #FFFFFF;
-  --focus-border: #A7F3D0;
-  --focus-text: #0A1F1D;
-  --focus-muted: #4B5563;
+  /* The FLAT shadow token. AGENTS.md "Banned without explicit
+   * justification" lists this as the ONLY allowed box-shadow
+   * value. Used by popovers, message reaction picker, chat
+   * action menus, etc. — never on cards/buttons/inputs. */
+  --shadow-focus: 0 0 0 1px rgba(15, 118, 110, 0.18), 0 4px 12px rgba(15, 118, 110, 0.10);
 }
 
 /*
@@ -173,18 +163,11 @@
   --color-board-bg: #F0FDFA;
   --shadow-card: 0 1px 1px rgba(15, 118, 110, 0.12);
   --shadow-card-hover: 0 4px 8px rgba(15, 118, 110, 0.18);
-
-  --focus-primary: #0F766E;
-  --focus-primary-dark: #115E59;
-  --focus-primary-light: #34D399;
-  --focus-deep: #134E4A;
-  --focus-darkest: #0A1F1D;
-  --focus-medium: #0D9488;
-  --focus-surface: #F0FDFA;
-  --focus-bg: #FFFFFF;
-  --focus-border: #A7F3D0;
-  --focus-text: #0A1F1D;
-  --focus-muted: #4B5563;
+  /* The FLAT shadow token. AGENTS.md "Banned without explicit
+   * justification" lists this as the ONLY allowed box-shadow
+   * value. Used by popovers, message reaction picker, chat
+   * action menus, etc. — never on cards/buttons/inputs. */
+  --shadow-focus: 0 0 0 1px rgba(15, 118, 110, 0.18), 0 4px 12px rgba(15, 118, 110, 0.10);
 }
 
 /* ============================================================
@@ -972,40 +955,6 @@
       padding-bottom: 6rem;
     }
   }
-
-  /* ============================================================
-     FOCUS MODE UTILITIES
-     ============================================================ */
-  .bg-focus-primary { background-color: var(--focus-primary); }
-  .bg-focus-primary-dark { background-color: var(--focus-primary-dark); }
-  .bg-focus-primary-light { background-color: var(--focus-primary-light); }
-  .bg-focus-medium { background-color: var(--focus-medium); }
-  .bg-focus-surface { background-color: var(--focus-surface); }
-  .bg-focus-bg { background-color: var(--focus-bg); }
-  .bg-focus-deep { background-color: var(--focus-deep); }
-  .bg-focus-darkest { background-color: var(--focus-darkest); }
-
-  .text-focus-primary { color: var(--focus-primary); }
-  .text-focus-primary-light { color: var(--focus-primary-light); }
-  .text-focus-text { color: var(--focus-text); }
-  .text-focus-darkest { color: var(--focus-darkest); }
-  .text-focus-muted { color: var(--focus-muted); }
-  .text-focus-deep { color: var(--focus-deep); }
-  .text-focus-medium { color: var(--focus-medium); }
-
-  .border-focus-primary { border-color: var(--focus-primary); }
-  .border-focus-border { border-color: var(--focus-border); }
-  .border-focus-medium { border-color: var(--focus-medium); }
-  .border-focus-text { border-color: var(--focus-text); }
-
-  .hover\:bg-focus-primary-dark:hover { background-color: var(--focus-primary-dark); }
-  .hover\:bg-focus-primary-light:hover { background-color: var(--focus-primary-light); }
-  .hover\:bg-focus-medium:hover { background-color: var(--focus-medium); }
-  .hover\:text-focus-primary:hover { color: var(--focus-primary); }
-  .hover\:text-focus-primary-dark:hover { color: var(--focus-primary-dark); }
-  .hover\:text-focus-deep:hover { color: var(--focus-deep); }
-  .hover\:border-focus-primary:hover { border-color: var(--focus-primary); }
-  .hover\:border-focus-primary-dark:hover { border-color: var(--focus-primary-dark); }
 
   /* ============================================================
      3-ROLE BUTTON UTILITIES (v5 recolor)

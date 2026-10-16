@@ -13,9 +13,6 @@ export type NotificationType =
   | 'connection_accepted'
   | 'connection_declined'
   | 'trip_update'
-  | 'focus_request'
-  | 'focus_accepted'
-  | 'focus_declined'
 
 export interface Notification {
   id: string
@@ -337,59 +334,8 @@ export interface NearbyUser {
   is_online: boolean
 }
 
-// ============================================================
-// Focus Mode (2026-10-09)
-// Shared trip session: live map + shared itinerary + focus chat.
-// A focus_request is a 5-minute request window; on accept, a
-// focus_session is created. When ended, the session becomes a
-// permanent entry in the user's "Travel history" on /profile.
-// ============================================================
-
-export type FocusRequestStatus =
-  | 'pending'
-  | 'accepted'
-  | 'declined'
-  | 'expired'
-  | 'cancelled'
-
-export interface FocusRequest {
-  id: string
-  requester_id: string
-  recipient_id: string
-  conversation_id: string | null
-  status: FocusRequestStatus
-  expires_at: string
-  created_at: string
-  // Hydrated on the client for the banner UI
-  requester?: Profile
-  recipient?: Profile
-}
-
-export type FocusEndReason = 'completed' | 'cancelled' | 'timeout'
-
-export interface FocusSession {
-  id: string
-  user_a_id: string
-  user_b_id: string
-  conversation_id: string | null
-  itinerary_id: string | null
-  started_at: string
-  ended_at: string | null
-  end_reason: FocusEndReason | null
-  // Hydrated
-  user_a?: Profile
-  user_b?: Profile
-  itinerary?: { id: string; title: string } | null
-}
-
-export interface TravelHistoryItem {
-  id: string
-  partnerId: string
-  partnerName: string
-  partnerAvatar: string | null
-  startedAt: string
-  endedAt: string
-  durationMinutes: number
-  itineraryId: string | null
-  itineraryTitle: string | null
-}
+// Focus Mode removed 2026-10-16 — the FocusRequest / FocusSession /
+// TravelHistoryItem types and the buddies.is_in_focus column are
+// gone. Trip history now lives in the messages table + a future
+// trips-history view; the focus_requests / focus_sessions tables
+// have been dropped in the same migration.

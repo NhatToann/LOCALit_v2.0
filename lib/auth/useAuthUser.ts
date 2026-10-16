@@ -22,7 +22,7 @@ export interface AuthUser {
  * WHY (2026-10-10)
  * `useAuthUser` is mounted SEVEN times on a single page: AuthAwareHeader,
  * GlobalIncomingCallWatcher, GlobalOnlineHeartbeat, GlobalPresenceMount,
- * GlobalFocusRequestPopover, GlobalMessagePopover, and AppShell itself
+ * GlobalMessagePopover, and AppShell itself
  * (for the `data-role` attribute on <main>). Each mount ran its own
  * effect and issued its own identical `profiles` query, so one
  * navigation to /tourists/<id> fired 20 identical requests inside a few
