@@ -1383,3 +1383,80 @@ re-pointed to it. Smoke test confirmed pending_payload now contains
 only `{ email, phone, full_name }` — `password_plain` and
 `password_hash` are no longer keys.
 
+---
+
+## Register Step 3 Session Extension (2026-10-17)
+
+The user's complaint: *"create account không hoạt động"* — the
+Create-account button at Step 3 didn't work.
+
+### Diagnosis
+
+`email_verifications.expires_at` is anchored to `/start` (15 min after
+the OTP is sent), not to `verified_at`. A user who verifies the OTP,
+then takes >15 min to fill the Step 3 profile form (e.g. typing a
+30+ char buddy bio), finds their row expired by the time they click
+"Create account". `/complete` returned `410 Verification expired.
+Please start over.`
+
+There was **no recovery path**: the only "fix" was going back to
+Step 0, losing all the password/phone/name the user had typed, and
+re-verifying the OTP from scratch.
+
+### Fix (3 layers, defense in depth)
+
+| Layer | File | Behaviour |
+|---|---|---|
+| Server helper | `utils/extend-signup-session.ts` | `extendSignupSession(signupId)` bumps `expires_at` by 15 min from now. Refuses rows that aren't verified yet (`403`) or are already consumed (`410`). |
+| Public route | `app/api/auth/signup/extend-session/route.ts` | `POST { signupId }` — explicit, 5/min/IP rate-limited. Returns `{ expiresAt }`. |
+| Auto-extend on verify | `app/api/auth/signup/verify-otp/route.ts` | After OTP succeeds, server extends the row and returns `expiresAt` so the client owns a fresh countdown. |
+| Auto-extend on complete | `app/api/auth/signup/complete/route.ts` | If a user with a verified+expired row reaches `/complete`, server extends and proceeds. Falling through on extend failure — a verified row's owner is legitimate. |
+| Visible UI | `app/register/page.tsx` `SessionTimer` | Renders a live `MM:SS` countdown on Step 3. Auto-extends silently at <60s left. Shows a red "Refresh session" button when 0s remain. |
+| Belt-and-suspenders retry | `app/register/page.tsx` `finalizeSignup` | If `/complete` ever returns 410 (stale edge before deploy rolled out), the client calls `/extend-session` and retries once before surfacing the error. |
+
+`utils/db-pg.ts → updateEmailVerification` patch type now includes
+`expires_at`.
+
+### Verification (against `localit-nhattoann.vercel.app`)
+
+```
+$ node scripts/diag-fix-verify.mjs
+auth.users    : email=darkluna.fix.1792...@gmail.com, full_name=Test User DarkLuna, role=tourist  ✓
+profiles      : id matches, role=tourist  ✓
+tourists      : nationality=United States, interests=[food, photography], languages=[English]  ✓
+email_verifications : verified_at + consumed_at both set  ✓
+```
+
+Browser test: navigated through Step 1 → Step 2 → Step 3, observed
+`SessionTimer` ticking `Time to finish: 14:51`, clicked Create account,
+landed on `/dashboard` (`Welcome back, darkluna.fix.1792...`).
+
+User's prior stuck row `f2b1254d-8ef2-4227-92bf-98b5f13fae9a`
+(`darklunatv@gmail.com`, originally expired 14 min after OTP verify)
+was rescued by calling `/extend-session` + `/complete` directly. New
+auth.users + profiles + tourists row created.
+
+### Pre-existing minor issue (NOT introduced by this fix)
+
+`on_auth_user_created` fires synchronously on the auth.users INSERT
+step (Step 1 of `createAuthUser`), but `raw_user_meta_data` is set in
+Step 2 (the UPDATE). The trigger reads `raw_user_meta_data->>'full_name'`
+which is still NULL → it inserts `'darklunatv'` (the email local-part)
+into `profiles.full_name`. The subsequent `upsertProfile` uses
+`ON CONFLICT (id) DO NOTHING`, so it never overwrites the wrong value.
+
+This shows up as `profiles.full_name = '<email-local-part>'` instead
+of the user's typed name. Two options for a future session:
+1. Set `raw_user_meta_data` in the initial INSERT (not UPDATE).
+2. Change `upsertProfile` to `ON CONFLICT (id) DO UPDATE SET ...`.
+
+### Future work
+
+- `profiles.full_name` sync race (above).
+- pg_cron cleanup for expired `email_verifications` rows.
+- "Resume signup" flow for users who refresh Step 1 mid-flow.
+
+Deployed to `localit-gv157mzth-nhattoann.vercel.app`; canonical
+aliases `localit-nhattoann.vercel.app` and `localit-vn.vercel.app`
+re-pointed to it.
+
