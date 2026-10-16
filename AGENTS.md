@@ -1323,3 +1323,63 @@ Deployed to `localit-687a72efo-nhattoann.vercel.app`; canonical
 aliases `localit-nhattoann.vercel.app` and `localit-vn.vercel.app`
 re-pointed to it.
 
+---
+
+## Signup OTP — Defer Password Until Step 3 (2026-10-16)
+
+The user reported: "không bấm create account được. nhưng từ khi nhập
+otp thì đã tạo tài khoản vào data rồi." Investigation showed:
+
+- `auth.users` was only created at `/complete` (correct), so the user's
+  initial read was a misread of the Supabase dashboard.
+- BUT `email_verifications.pending_payload` was carrying
+  `password_plain` (plaintext) + `password_hash` (bcrypt) from the
+  moment `/start` ran, up to **15 minutes** after the OTP was verified
+  if the user abandoned Step 3. Every half-completed signup left a
+  credential row in the DB for that window.
+- UX: the "Code verified ✓" state at Step 1 made the user think the
+  account existed. When they navigated away, the row looked like an
+  account in the Supabase dashboard but had no matching `auth.users`.
+
+### The fix
+
+`/api/auth/signup/start` no longer accepts `password` in the body and
+no longer stores any credential material in `email_verifications`. The
+`pending_payload` is now strictly `{ email, full_name, phone }` (and
+optional `role_hint`). The password lives in the browser's React
+state from Step 0 and is sent only in the final `/complete` body,
+where it is re-validated server-side (10-char + letter + non-letter,
+max 128).
+
+| File | Change |
+|---|---|
+| `utils/otp.ts` | Drop `password_plain` and `password_hash` from `PendingSignupPayload`. Update JSDoc. |
+| `app/api/auth/signup/start/route.ts` | Stop accepting password in body. Drop bcrypt call. pending_payload shrinks to `{ email, full_name, phone }`. |
+| `app/api/auth/signup/complete/route.ts` | Accept `password` in body, validate with `validatePassword` (server-side), pass to `createAuthUser`. |
+| `app/register/page.tsx` | `startSignup()` no longer sends password; `finalizeSignup()` adds `password: form.password` to the body. |
+| `docs/plans/2026-10-16-signup-defer-password-design.md` | New design doc — full rationale, edge cases, test plan. |
+
+### Why this is enough
+
+The only edge case the fix does NOT cover: a user who verifies the OTP,
+refreshes Step 1, and re-starts from Step 0 — they have to re-type
+their password at Step 0 (and re-verify the OTP). This was already the
+existing behaviour because the `signupId` is lost on reload. Pre-fix,
+the user re-typed the password at Step 0; post-fix, same. No UX
+regression.
+
+### Out of scope (tracked separately)
+
+- pg_cron cleanup for expired `email_verifications` rows (currently
+  expire by `expires_at` but linger in the table).
+- "Resume signup" flow that lets a returning user re-use a verified
+  row after F5.
+- Tightening the 15-min TTL — current value is fine, the only risk
+  was the password leak which is now gone.
+
+Deployed to `localit-pcee74r29-nhattoann.vercel.app`; canonical
+aliases `localit-nhattoann.vercel.app` and `localit-vn.vercel.app`
+re-pointed to it. Smoke test confirmed pending_payload now contains
+only `{ email, phone, full_name }` — `password_plain` and
+`password_hash` are no longer keys.
+
