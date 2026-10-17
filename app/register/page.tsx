@@ -379,6 +379,29 @@ function RegisterForm() {
     }))
   }
 
+  // 2026-10-17: when on Step 3, compute the first missing requirement so
+  // we can show a specific hint above the Create account button instead of
+  // leaving the user guessing why the button is greyed out. The previous
+  // version just disabled the button — which is exactly the "Create account
+  // doesn't work" complaint that came in today.
+  const step3Missing = useMemo(() => {
+    if (step !== 'profile') return null
+    if (form.role === 'tourist') {
+      if (!form.nationality) return 'Pick your country.'
+      if (!form.travelStyle) return 'Pick a travel style.'
+      if (form.interests.length === 0) return 'Pick at least one interest.'
+      if (form.languages.length === 0) return 'Pick at least one language.'
+      return null
+    }
+    if (!form.locationCity.trim()) return 'Tell us which city you cover.'
+    if (form.languages.length === 0) return 'Pick at least one language.'
+    if (form.specialties.length === 0) return 'Pick at least one specialty.'
+    if (form.bio.trim().length < 10) {
+      return `Add a short bio — at least 10 characters (you have ${form.bio.trim().length}).`
+    }
+    return null
+  }, [step, form])
+
   const stepReady = useMemo(() => {
     if (step === 'account') {
       const pwOk = validatePassword(form.password) === null
@@ -397,23 +420,10 @@ function RegisterForm() {
       return otp.every((d) => d !== '') && otp.join('').length === 6
     }
     if (step === 'profile') {
-      if (form.role === 'tourist') {
-        return (
-          form.nationality !== '' &&
-          form.travelStyle !== '' &&
-          form.interests.length > 0 &&
-          form.languages.length > 0
-        )
-      }
-      return (
-        form.locationCity.trim().length > 0 &&
-        form.languages.length > 0 &&
-        form.specialties.length > 0 &&
-        form.bio.trim().length >= 30
-      )
+      return step3Missing === null
     }
     return false
-  }, [step, form, otp])
+  }, [step, form, otp, step3Missing])
 
   // 2026-10-17: Step 3 session countdown + auto-extend.
   //   - Ticks every second while on Step 3 with an active session.
@@ -1132,11 +1142,25 @@ function RegisterForm() {
             <BuddyTags form={form} setForm={setForm} toggleSpecialty={toggleSpecialty} toggleLanguage={toggleLanguage} />
           )}
 
+          {/* 2026-10-17: surface the first missing requirement so the user
+              isn't stuck staring at a greyed-out "Create account" button. */}
+          {step3Missing ? (
+            <p
+              id="step3-missing-hint"
+              className="mt-4 text-xs text-warning inline-flex items-start gap-1.5"
+              role="status"
+              aria-live="polite"
+            >
+              <AlertTriangle size={12} aria-hidden="true" className="mt-0.5 shrink-0" />
+              <span>{step3Missing}</span>
+            </p>
+          ) : null}
+
           <button
             type="button"
             onClick={finalizeSignup}
             disabled={!stepReady || loading}
-            className="btn-buddy w-full h-11 mt-6 inline-flex items-center justify-center gap-1"
+            className="btn-buddy w-full h-11 mt-4 inline-flex items-center justify-center gap-1"
           >
             {loading ? 'Creating account…' : null}
             {!loading ? (
@@ -1340,7 +1364,7 @@ function BuddyTags({
       </div>
 
       <div>
-        <label className="form-label" htmlFor="bio">Short bio (≥ 30 characters)</label>
+        <label className="form-label" htmlFor="bio">Short bio (≥ 10 characters)</label>
         <textarea
           id="bio"
           className="form-input"
@@ -1349,8 +1373,8 @@ function BuddyTags({
           value={form.bio}
           onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))}
         />
-        <p className="form-hint text-muted">
-          {form.bio.trim().length} / 30
+        <p className={`form-hint ${form.bio.trim().length >= 10 ? 'text-muted' : 'text-danger'}`}>
+          {form.bio.trim().length} / 10 minimum
         </p>
       </div>
     </div>
