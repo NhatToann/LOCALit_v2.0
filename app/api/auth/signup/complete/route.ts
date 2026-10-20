@@ -26,16 +26,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { rateLimit, getClientIp, rateLimitResponse } from '@/utils/rate-limit'
 import { validatePassword } from '@/utils/password-validator'
-import { markSignupConsumed } from '@/utils/otp'
-import {
-  selectEmailVerification,
-  findProfileIdByEmail,
-  deleteProfileByEmail,
-  upsertProfile,
-  insertTourist,
-  insertBuddy,
-  createAuthUser,
-} from '@/utils/db-pg'
+import { getPool, selectEmailVerification, completeSignupAtomically } from '@/utils/db-pg'
 import { extendSignupSession } from '@/utils/extend-signup-session'
 
 type Role = 'tourist' | 'buddy'
@@ -133,49 +124,80 @@ export async function POST(req: NextRequest) {
   const cleanFullName = pending.full_name
   const passwordPlain = password  // comes from the body now (2026-10-16)
 
-  // ---- Double-check email is still free -------------------------------------
+  // ---- Create the account in ONE transaction on ONE connection --------------
   //
-  // DEV escape hatch: when OTP_PREVIEW_ALLOW_REUSED=1, delete any existing
-  // profile row that matches this email. This lets you re-register an
-  // existing email during testing without manually cleaning the DB first.
+  // 2026-10-20 rewrite. The previous version ran six sequential helpers, each
+  // opening its own TLS connection to the Supabase pooler (clash-check →
+  // createAuthUser → upsertProfile → insertTourist → markConsumed). Measured
+  // on production that cost 11.9 seconds for a single user click.
   //
-  // Production: reject duplicates (409) so sign-up remains a one-way door.
-  if (process.env.OTP_PREVIEW_ALLOW_REUSED === '1') {
-    console.warn(`[signup/complete] DEV: deleting existing profile for ${emailStr}`)
-    await deleteProfileByEmail(emailStr)
-  } else {
-    const clash = await findProfileIdByEmail(emailStr)
-    if (clash.data) {
-      // Race condition: someone registered the same email between /start and /complete.
-      return NextResponse.json(
-        { error: 'This email is now registered. Please sign in.' },
-        { status: 409 },
-      )
-    }
-  }
+  // completeSignupAtomically() does all six on one connection inside one BEGIN/
+  // COMMIT, which also gives us atomicity: a failure part-way can no longer
+  // leave an auth.users row with no profiles row.
+  //
+  // It also fixes the display-name bug. The on_auth_user_created trigger fires
+  // on the auth.users INSERT and, because our metadata was previously written
+  // by a separate UPDATE, it saw NULL metadata and used the email local-part
+  // as the name. The old upsertProfile then used ON CONFLICT DO NOTHING, so
+  // the wrong name stuck. Now raw_user_meta_data is passed IN the INSERT and
+  // the profiles upsert uses DO UPDATE, so the typed name always wins.
+  const allowReuse = process.env.OTP_PREVIEW_ALLOW_REUSED === '1'
+  const cleanPayload = sanitizePayload(role, profilePayload ?? {})
 
-  // ---- Create auth.users ----------------------------------------------------
-  // 2026-10-07: direct insert into auth.users + auth.identities via pg
-  // (utils/db-pg.createAuthUser). We previously hit the public
-  // /auth/v1/signup endpoint here, but on the free tier that endpoint
-  // triggers Supabase's project-wide email-send rate limit (4 emails/hr)
-  // and fails with `over_email_send_rate_limit`. Since we've already
-  // verified the email via our own OTP, there's no reason to ask GoTrue
-  // to send another confirmation email — we just create the row directly.
-  const authRes = await createAuthUser({
+  const result = await completeSignupAtomically({
+    signupId,
     email: emailStr,
     password: passwordPlain,
-    full_name: cleanFullName,
+    fullName: cleanFullName,
     role,
+    phone: pending.phone,
+    allowReuse,
+    tourist:
+      role === 'tourist'
+        ? {
+            nationality: (cleanPayload.nationality as string | null) ?? null,
+            date_of_birth: (cleanPayload.date_of_birth as string | null) ?? null,
+            travel_style: (cleanPayload.travel_style as string | null) ?? null,
+            interests: Array.isArray(cleanPayload.interests)
+              ? (cleanPayload.interests as string[]).filter((i) => typeof i === 'string').slice(0, 32)
+              : [],
+            languages: Array.isArray(cleanPayload.languages)
+              ? (cleanPayload.languages as string[]).filter((l) => typeof l === 'string').slice(0, 16)
+              : [],
+            budget_range:
+              typeof cleanPayload.budget_range === 'string' ? cleanPayload.budget_range : '50-100',
+            destination:
+              typeof cleanPayload.destination === 'string'
+                ? sanitize(String(cleanPayload.destination), 100)
+                : 'Da Nang',
+            arrival_date: (cleanPayload.arrival_date as string | null) ?? null,
+          }
+        : null,
+    buddy:
+      role === 'buddy'
+        ? {
+            location_city:
+              typeof cleanPayload.location_city === 'string'
+                ? sanitize(String(cleanPayload.location_city), 100)
+                : 'Da Nang',
+            languages: Array.isArray(cleanPayload.languages)
+              ? (cleanPayload.languages as string[]).filter((l) => typeof l === 'string').slice(0, 16)
+              : [],
+            specialties: Array.isArray(cleanPayload.specialties)
+              ? (cleanPayload.specialties as string[]).filter((s) => typeof s === 'string').slice(0, 32)
+              : [],
+            hourly_rate: Number(cleanPayload.hourly_rate) || 15,
+            bio: typeof cleanPayload.bio === 'string' ? sanitize(String(cleanPayload.bio), 500) : '',
+          }
+        : null,
   })
-  if (authRes.error || !authRes.data) {
-    const message = authRes.error?.message ?? 'unknown'
-    const code = authRes.error?.code
-    console.error(`[signup/complete] createAuthUser failed:`, message, code)
-    // Surface duplicate email as 409, anything else as 400 generic.
-    if (code === '23505') {
+
+  if (result.error || !result.data) {
+    const code = result.error?.code
+    console.error('[signup/complete] atomic signup failed:', result.error?.message, code)
+    if (code === 'EMAIL_TAKEN' || code === '23505') {
       return NextResponse.json(
-        { error: 'This email is already registered. Please sign in.' },
+        { error: 'This email is now registered. Please sign in.' },
         { status: 409 },
       )
     }
@@ -184,68 +206,11 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     )
   }
-  const userId = authRes.data.id
 
-  // ---- Defensive profiles upsert (pg-direct) --------------------------------
-  const profileRes = await upsertProfile({
-    id: userId,
-    email: emailStr,
-    full_name: cleanFullName,
-    role,
-  })
-  if (profileRes.error) {
-    console.warn('[signup/complete] profiles upsert warning:', profileRes.error.message)
-  }
+  // Warm the shared pool in the background so the NEXT signup request on this
+  // lambda instance starts with a live socket instead of paying a cold TLS
+  // handshake. Fire-and-forget: we must not delay the response on it.
+  getPool()?.query('SELECT 1').catch(() => {})
 
-  // ---- Role-specific row (pg-direct) ----------------------------------------
-  const cleanPayload = sanitizePayload(role, profilePayload ?? {})
-
-  if (role === 'tourist') {
-    const touristRes = await insertTourist({
-      id: userId,
-      nationality: (cleanPayload.nationality as string | null) ?? null,
-      date_of_birth: (cleanPayload.date_of_birth as string | null) ?? null,
-      travel_style: (cleanPayload.travel_style as string | null) ?? null,
-      interests: Array.isArray(cleanPayload.interests)
-        ? (cleanPayload.interests as string[]).filter((i) => typeof i === 'string').slice(0, 32)
-        : [],
-      languages: Array.isArray(cleanPayload.languages)
-        ? (cleanPayload.languages as string[]).filter((l) => typeof l === 'string').slice(0, 16)
-        : [],
-      budget_range:
-        typeof cleanPayload.budget_range === 'string' ? cleanPayload.budget_range : '50-100',
-      destination:
-        typeof cleanPayload.destination === 'string'
-          ? sanitize(String(cleanPayload.destination), 100)
-          : 'Da Nang',
-      arrival_date: (cleanPayload.arrival_date as string | null) ?? null,
-    })
-    if (touristRes.error) {
-      console.warn('[signup/complete] tourists insert warning:', touristRes.error.message)
-    }
-  } else {
-    const buddyRes = await insertBuddy({
-      id: userId,
-      location_city:
-        typeof cleanPayload.location_city === 'string'
-          ? sanitize(String(cleanPayload.location_city), 100)
-          : 'Da Nang',
-      languages: Array.isArray(cleanPayload.languages)
-        ? (cleanPayload.languages as string[]).filter((l) => typeof l === 'string').slice(0, 16)
-        : [],
-      specialties: Array.isArray(cleanPayload.specialties)
-        ? (cleanPayload.specialties as string[]).filter((s) => typeof s === 'string').slice(0, 32)
-        : [],
-      hourly_rate: Number(cleanPayload.hourly_rate) || 15,
-      bio: typeof cleanPayload.bio === 'string' ? sanitize(String(cleanPayload.bio), 500) : '',
-    })
-    if (buddyRes.error) {
-      console.warn('[signup/complete] buddies insert warning:', buddyRes.error.message)
-    }
-  }
-
-  // ---- Mark signup consumed (pg-direct) -------------------------------------
-  await markSignupConsumed(signupId)
-
-  return NextResponse.json({ userId, email: emailStr })
+  return NextResponse.json({ userId: result.data.userId, email: result.data.email })
 }

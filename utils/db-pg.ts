@@ -34,7 +34,7 @@
  *   - POSTGRES_DB    (default "postgres")
  */
 
-import { Client } from 'pg'
+import { Client, Pool } from 'pg'
 
 // Two ways to connect — depending on what's set in the env:
 //
@@ -83,6 +83,95 @@ export function createPgClient(): Client | null {
   return null
 }
 
+// ---------------------------------------------------------------------------
+//  CONNECTION POOL (2026-10-20)
+//
+// WHY THIS EXISTS
+//   Measured on production: POST /signup/complete took 11.9s and
+//   POST /signup/start took 6.9s. The cause was not the queries — it was the
+//   connection. Every helper above called createPgClient() + connect() + end(),
+//   so a single /complete request opened SIX sequential TLS handshakes to the
+//   Supabase pooler (selectEmailVerification → findProfileIdByEmail →
+//   createAuthUser → upsertProfile → insertTourist → markSignupConsumed).
+//   Local measurement: one connect() alone costs ~560ms from this machine,
+//   and more from a Vercel region far from the Supabase POP.
+//
+//   `pg.Pool` keeps warm sockets alive for the lifetime of the lambda
+//   instance, so a warm invocation pays ~0ms of handshake. Cold starts still
+//   pay once, then every subsequent request in the same instance is fast.
+//
+//   Pool sizing is deliberately small. A Vercel fluid-compute instance can
+//   briefly have several concurrent requests; 5 is enough to stop any single
+//   request from queueing behind itself, while staying far below Supabase's
+//   connection budget for the project.
+//
+//   Pooler-mode caveat: Supavisor in transaction mode does not support
+//   prepared statements. `pg` only uses those for `name:`-declared queries,
+//   which this codebase never does — every query is positional ($1, $2).
+// ---------------------------------------------------------------------------
+
+let _pool: Pool | null = null
+
+function poolOptions() {
+  if (POOLER_URL) {
+    const base = POOLER_URL.split('?')[0]
+    return {
+      connectionString: base,
+      ssl: { rejectUnauthorized: false },
+    }
+  }
+  if (HOST && PASSWORD) {
+    return {
+      host: HOST,
+      port: PORT,
+      user: USER,
+      password: PASSWORD,
+      database: DATABASE,
+      ssl: { rejectUnauthorized: false },
+    }
+  }
+  return null
+}
+
+/**
+ * Shared, lazily-created connection pool. Returns null when Postgres is not
+ * configured, which every caller already handles by falling back to the
+ * Supabase REST admin client.
+ */
+export function getPool(): Pool | null {
+  if (_pool) return _pool
+  const opts = poolOptions()
+  if (!opts) return null
+  _pool = new Pool({
+    ...opts,
+    max: 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
+  })
+  // A pooled connection can die while idle (Supabase restarts the DB, the
+  // pooler recycles it). Without this listener that surfaces as an
+  // unhandled 'error' event that kills the lambda. The pool discards the
+  // dead socket on its own; we only need to swallow the log.
+  _pool.on('error', (err) => {
+    console.error('[db-pg] idle client error:', err.message)
+  })
+  return _pool
+}
+
+/**
+ * Run a query on the shared pool. Drop-in replacement for the
+ * createPgClient()/connect()/query()/end() dance — same signature shape as
+ * `client.query` so callers can migrate by deleting four lines.
+ */
+export async function poolQuery<T extends Record<string, unknown> = Record<string, unknown>>(
+  text: string,
+  params?: unknown[],
+): Promise<{ rows: T[] }> {
+  const pool = getPool()
+  if (!pool) throw new Error('pg client not configured')
+  return pool.query<T>(text, params as never[])
+}
+
 export interface DbResult<T> {
   data: T | null
   error: { message: string; code?: string; details?: string } | null
@@ -114,11 +203,12 @@ export async function insertEmailVerification(args: {
   ip_address: string | null
   user_agent: string | null
 }): Promise<DbResult<{ id: string }>> {
-  const c = createPgClient()
-  if (!c) return { data: null, error: { message: 'pg client not configured' } }
+  // 2026-10-20: shared pool instead of a dedicated connect(). This runs on
+  // every /signup/start and /signup/resend-otp request.
+  const pool = getPool()
+  if (!pool) return { data: null, error: { message: 'pg client not configured' } }
   try {
-    await c.connect()
-    const { rows } = await c.query<{ id: string }>(
+    const { rows } = await pool.query<{ id: string }>(
       `INSERT INTO public.email_verifications
          (email, pending_payload, code_hash, expires_at, ip_address, user_agent)
        VALUES ($1, $2::jsonb, $3, $4, $5, $6)
@@ -136,19 +226,19 @@ export async function insertEmailVerification(args: {
   } catch (e) {
     const err = e as { message?: string; code?: string; detail?: string }
     return { data: null, error: { message: err.message ?? 'unknown', code: err.code, details: err.detail } }
-  } finally {
-    await c.end()
   }
 }
 
 export async function selectEmailVerification(
   id: string,
 ): Promise<DbResult<EmailVerificationRow>> {
-  const c = createPgClient()
-  if (!c) return { data: null, error: { message: 'pg client not configured' } }
+  // 2026-10-20: uses the shared pool. This helper sits on the hot path of
+  // both /verify-otp and /complete; a dedicated connect()+end() here cost a
+  // full TLS handshake for what is a single indexed lookup.
+  const pool = getPool()
+  if (!pool) return { data: null, error: { message: 'pg client not configured' } }
   try {
-    await c.connect()
-    const { rows } = await c.query<EmailVerificationRow>(
+    const { rows } = await pool.query<EmailVerificationRow>(
       `SELECT id, email, code_hash, expires_at, attempts, verified_at, consumed_at, pending_payload, ip_address, user_agent, created_at
        FROM public.email_verifications
        WHERE id = $1`,
@@ -159,8 +249,6 @@ export async function selectEmailVerification(
   } catch (e) {
     const err = e as { message?: string; code?: string; detail?: string }
     return { data: null, error: { message: err.message ?? 'unknown', code: err.code, details: err.detail } }
-  } finally {
-    await c.end()
   }
 }
 
@@ -173,10 +261,9 @@ export async function updateEmailVerification(
     expires_at: string | null
   }>,
 ): Promise<DbResult<{ id: string }>> {
-  const c = createPgClient()
-  if (!c) return { data: null, error: { message: 'pg client not configured' } }
+  const pool = getPool()
+  if (!pool) return { data: null, error: { message: 'pg client not configured' } }
   try {
-    await c.connect()
     const sets: string[] = []
     const params: unknown[] = []
     let p = 1
@@ -186,7 +273,7 @@ export async function updateEmailVerification(
     if ('expires_at' in patch) { sets.push(`expires_at = $${p++}`); params.push(patch.expires_at) }
     if (sets.length === 0) return { data: { id }, error: null }
     params.push(id)
-    const { rows } = await c.query<{ id: string }>(
+    const { rows } = await pool.query<{ id: string }>(
       `UPDATE public.email_verifications SET ${sets.join(', ')} WHERE id = $${p} RETURNING id`,
       params,
     )
@@ -195,17 +282,14 @@ export async function updateEmailVerification(
   } catch (e) {
     const err = e as { message?: string; code?: string; detail?: string }
     return { data: null, error: { message: err.message ?? 'unknown', code: err.code, details: err.detail } }
-  } finally {
-    await c.end()
   }
 }
 
 export async function consumeUnverifiedCodesForEmail(email: string): Promise<DbResult<{ count: number }>> {
-  const c = createPgClient()
-  if (!c) return { data: null, error: { message: 'pg client not configured' } }
+  const pool = getPool()
+  if (!pool) return { data: null, error: { message: 'pg client not configured' } }
   try {
-    await c.connect()
-    const { rowCount } = await c.query(
+    const { rowCount } = await pool.query(
       `UPDATE public.email_verifications
        SET consumed_at = NOW()
        WHERE email = $1 AND consumed_at IS NULL`,
@@ -215,8 +299,6 @@ export async function consumeUnverifiedCodesForEmail(email: string): Promise<DbR
   } catch (e) {
     const err = e as { message?: string; code?: string; detail?: string }
     return { data: null, error: { message: err.message ?? 'unknown', code: err.code, details: err.detail } }
-  } finally {
-    await c.end()
   }
 }
 
@@ -349,12 +431,11 @@ export async function deleteProfileByEmail(email: string): Promise<DbResult<{ co
 }
 
 export async function findProfileIdByEmail(email: string): Promise<DbResult<{ id: string }>> {
-  const c = createPgClient()
-  if (!c) return { data: null, error: { message: 'pg client not configured' } }
+  const pool = getPool()
+  if (!pool) return { data: null, error: { message: 'pg client not configured' } }
   try {
-    await c.connect()
-    const { rows } = await c.query<{ id: string }>(
-      `SELECT id FROM public.profiles WHERE email = $1 LIMIT 1`,
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM public.profiles WHERE lower(email) = lower($1) LIMIT 1`,
       [email],
     )
     if (rows.length === 0) return { data: null, error: { message: 'not found' } }
@@ -362,8 +443,6 @@ export async function findProfileIdByEmail(email: string): Promise<DbResult<{ id
   } catch (e) {
     const err = e as { message?: string; code?: string; detail?: string }
     return { data: null, error: { message: err.message ?? 'unknown', code: err.code, details: err.detail } }
-  } finally {
-    await c.end()
   }
 }
 
@@ -484,6 +563,216 @@ export async function createAuthUser(args: {
     await c.query('ROLLBACK').catch(() => {})
     const err = e as { message?: string; code?: string; detail?: string }
     return { data: null, error: { message: err.message ?? 'unknown', code: err.code, details: err.detail } }
+  } finally {
+    await c.end()
+  }
+}
+
+// ---------------------------------------------------------------------------
+//  ATOMIC SIGNUP (2026-10-20)
+//
+// WHY THIS EXISTS — two problems, one fix.
+//
+// PROBLEM 1 (slow): /complete used to call six helpers in sequence, each doing
+//   its own createPgClient() + connect() + end(). That is six sequential TLS
+//   handshakes to the Supabase pooler for ONE user action. Measured on
+//   production: /complete = 11.9s, /start = 6.9s.
+//
+// PROBLEM 2 (wrong display name): the `on_auth_user_created` trigger fires
+//   synchronously on the auth.users INSERT. At that moment
+//   `raw_user_meta_data` is still NULL (our createAuthUser sets it in a
+//   *separate* UPDATE statement), so the trigger falls back to the email
+//   local-part and writes profiles.full_name = 'darklunatv'. The subsequent
+//   upsertProfile used ON CONFLICT DO NOTHING, so it never corrected the
+//   wrong value. Net effect: the user typed "Nguyễn Văn A" and the site
+//   displayed "darklunatv".
+//
+// THE FIX: one transaction, one connection, and the profiles row is written
+//   with ON CONFLICT DO UPDATE so the real typed name always wins over
+//   whatever the trigger guessed. We also pass raw_user_meta_data in the very
+//   first INSERT so the trigger has the correct name from the start — belt
+//   and braces, so even a trigger-only read gets the right value.
+// ---------------------------------------------------------------------------
+
+export interface AtomicSignupArgs {
+  signupId: string
+  email: string
+  password: string
+  fullName: string
+  role: 'tourist' | 'buddy'
+  phone: string | null
+  /** Set when OTP_PREVIEW_ALLOW_REUSED=1: delete a stale profile row first. */
+  allowReuse: boolean
+  tourist: {
+    nationality: string | null
+    date_of_birth: string | null
+    travel_style: string | null
+    interests: string[]
+    languages: string[]
+    budget_range: string
+    destination: string
+    arrival_date: string | null
+  } | null
+  buddy: {
+    location_city: string
+    languages: string[]
+    specialties: string[]
+    hourly_rate: number
+    bio: string
+  } | null
+}
+
+export async function completeSignupAtomically(
+  args: AtomicSignupArgs,
+): Promise<DbResult<{ userId: string; email: string }>> {
+  const c = createPgClient()
+  if (!c) return { data: null, error: { message: 'pg client not configured' } }
+
+  const userId = crypto.randomUUID()
+  try {
+    await c.connect()
+    await c.query('BEGIN')
+
+    // --- 0. Dev escape hatch: clear a stale profile for this email ---------
+    if (args.allowReuse) {
+      await c.query(`DELETE FROM public.profiles WHERE lower(email) = lower($1)`, [args.email])
+    }
+
+    // --- 1. Re-check the email is still free --------------------------------
+    const clash = await c.query(`SELECT id FROM public.profiles WHERE lower(email) = lower($1) LIMIT 1`, [
+      args.email,
+    ])
+    if (clash.rows.length > 0) {
+      await c.query('ROLLBACK')
+      return { data: null, error: { message: 'email already registered', code: 'EMAIL_TAKEN' } }
+    }
+
+    // --- 2. auth.users INSERT — WITH metadata this time ---------------------
+    // FIX for the display-name bug: raw_user_meta_data is supplied here, in
+    // the INSERT, so the on_auth_user_created trigger reads the REAL typed
+    // name rather than falling back to the email local-part.
+    await c.query(
+      `INSERT INTO auth.users
+         (id, email, instance_id, aud, role, encrypted_password,
+          email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+          confirmation_token, email_change, email_change_token_new,
+          email_change_token_current, recovery_token, reauthentication_token,
+          phone_change, phone_change_token, is_anonymous, is_sso_user,
+          email_change_confirm_status, created_at, updated_at)
+       VALUES (
+         $1::uuid, $2, '00000000-0000-0000-0000-000000000000'::uuid,
+         'authenticated', 'authenticated',
+         crypt($3, gen_salt('bf')),
+         now(),
+         '{"provider":"email","providers":["email"]}'::jsonb,
+         jsonb_build_object('full_name', $4, 'role', $5),
+         '', '', '', '', '', '', '', false, false, 0, now(), now()
+       )`,
+      [userId, args.email, args.password, args.fullName, args.role],
+    )
+
+    // --- 3. auth.identities -------------------------------------------------
+    // Without this row GoTrue's sign-in cannot find a provider identity.
+    // No ::jsonb cast on the VALUES side: pg's parser mistakes the bcrypt
+    // `$2a$10$…` characters inside a jsonb literal for $N placeholders.
+    await c.query(
+      `INSERT INTO auth.identities
+         (id, user_id, identity_data, provider, provider_id,
+          last_sign_in_at, created_at, updated_at)
+       VALUES (
+         gen_random_uuid(), $1::uuid,
+         jsonb_build_object('sub', $1::text, 'email', $2::text,
+                            'email_verified', true, 'phone_verified', false),
+         'email', $2::text, now(), now(), now()
+       )
+       ON CONFLICT (provider, provider_id) DO UPDATE
+         SET last_sign_in_at = now(), updated_at = now()`,
+      [userId, args.email],
+    )
+
+    // --- 4. profiles — DO UPDATE so our real name always wins ---------------
+    // The trigger already inserted a row (with the email local-part). We
+    // overwrite it with the typed name, email and role. This is the actual
+    // fix the user reported: "nhập tên thật nhưng lại lấy mail ra làm tên".
+    await c.query(
+      `INSERT INTO public.profiles (id, email, full_name, role)
+       VALUES ($1::uuid, $2, $3, $4::user_role)
+       ON CONFLICT (id) DO UPDATE
+         SET email      = EXCLUDED.email,
+             full_name  = EXCLUDED.full_name,
+             role       = EXCLUDED.role,
+             updated_at = now()`,
+      [userId, args.email, args.fullName, args.role],
+    )
+
+    // --- 5. Role-specific row ------------------------------------------------
+    if (args.tourist) {
+      const t = args.tourist
+      await c.query(
+        `INSERT INTO public.tourists
+           (id, nationality, date_of_birth, travel_style, interests, languages,
+            budget_range, destination, arrival_date, is_visible)
+         VALUES ($1::uuid, $2, $3::date, $4, $5::text[], $6::text[],
+                 $7, $8, $9::date, true)
+         ON CONFLICT (id) DO UPDATE SET
+           nationality = EXCLUDED.nationality,
+           date_of_birth = EXCLUDED.date_of_birth,
+           travel_style = EXCLUDED.travel_style,
+           interests = EXCLUDED.interests,
+           languages = EXCLUDED.languages,
+           budget_range = EXCLUDED.budget_range,
+           destination = EXCLUDED.destination,
+           arrival_date = EXCLUDED.arrival_date,
+           is_visible = true`,
+        [
+          userId,
+          t.nationality,
+          t.date_of_birth,
+          t.travel_style,
+          t.interests,
+          t.languages,
+          t.budget_range,
+          t.destination,
+          t.arrival_date,
+        ],
+      )
+    } else if (args.buddy) {
+      const b = args.buddy
+      await c.query(
+        `INSERT INTO public.buddies
+           (id, location_city, languages, specialties, hourly_rate, bio, is_available)
+         VALUES ($1::uuid, $2, $3::text[], $4::text[], $5, $6, true)
+         ON CONFLICT (id) DO UPDATE SET
+           location_city = EXCLUDED.location_city,
+           languages = EXCLUDED.languages,
+           specialties = EXCLUDED.specialties,
+           hourly_rate = EXCLUDED.hourly_rate,
+           bio = EXCLUDED.bio,
+           is_available = true`,
+        [userId, b.location_city, b.languages, b.specialties, b.hourly_rate, b.bio],
+      )
+    }
+
+    // --- 6. Mark the signup row consumed ------------------------------------
+    await c.query(
+      `UPDATE public.email_verifications
+          SET consumed_at = now()
+        WHERE id = $1::uuid`,
+      [args.signupId],
+    )
+
+    await c.query('COMMIT')
+    return { data: { userId, email: args.email }, error: null }
+  } catch (e) {
+    await c.query('ROLLBACK').catch(() => {})
+    const err = e as { message?: string; code?: string; detail?: string }
+    // Surface the Postgres unique-violation code so the caller can map it to
+    // a 409 "already registered" instead of a generic 400.
+    const code = (err as { code?: string }).code ?? err.code
+    return {
+      data: null,
+      error: { message: err.message ?? 'unknown', code: code === '23505' ? '23505' : undefined, details: err.detail },
+    }
   } finally {
     await c.end()
   }
