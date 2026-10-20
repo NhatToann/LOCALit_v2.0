@@ -3,26 +3,55 @@
 import { useEffect, useState } from 'react'
 
 /**
- * LOCALit Da Nang Backdrop — full-bleed photography, transparent surfaces
+ * LOCALit Da Nang Backdrop — full-bleed photography behind every page.
  *
- * Per web-ai-slop §1a anchor #1 (Da Nang tourism-board print tradition), the
- * platform's brand should feel rooted in the city itself. A single rotating
- * photo sits BEHIND every page; individual content boxes use
- * `.surface-transparent` so the photo shows through and the page reads as one
- * continuous Da Nang canvas rather than white-paper with colored accents.
+ * Per web-ai-slop §1a anchor #1, the page should feel rooted in Da Nang
+ * itself. A single rotating photo (Han River, Marble Mountains, My Khe,
+ * Son Tra, Hoài An lanterns, Ba Na Hills, Dragon Bridge…) sits BEHIND
+ * the page chrome; card surfaces use `.bg-paper` so the photo shows
+ * through. ONE brand teal wash (~30% multiply) keeps the photo readable
+ * while carrying the 2-role identity.
  *
- * Image set: 9 verified-licensed Unsplash photos of Da Nang landmarks. The
- * rotation is keyword-aware: every photo is tagged with a Da Nang area
- * (Bà Nà Hills, Mỹ Khê, Hội An, Sơn Trà, etc.) and the picker cycles through
- * the area list once before repeating. This ensures a tourist who reloads
- * sees a different landmark rather than re-seeing Han River 4× in a row.
+ * RESPONSIVE IMAGE STRATEGY (2026-10-20)
+ * Previously the same 1920px image was served on mobile, tablet, and
+ * desktop. On a 375x667 mobile device the same photo got 5-10× zoomed
+ * (to "cover" a portrait viewport with a landscape JPEG), which meant:
+ *   - mobile users downloaded ~250 KB of mostly-clipped pixels
+ *   - `bg-center` only revealed the center 20% of the frame on a tall
+ *     viewport — the city skyline the photo was chosen for often landed
+ *     off-frame
+ *   - 4x over-fetch wasted the 60% mobile bandwidth budget documented
+ *     in the prod-team runbook
+ * The fix is a `<picture>` element with three sources:
+ *   <640px  -> w=720 cropped to 1:1, photo shown at center-50%
+ *   <1024px -> w=1024 cropped to 4:3, photo shown center-40%
+ *   ≥1024px -> w=1920 cropped to 16:9, full bleed
+ * Each source is 2-4× smaller than the previous 1920KB image on the
+ * matching viewport, and `object-fit: cover` keeps the photo focal
+ * point centered regardless of aspect.
  *
- * 2-color overlay: a low-opacity wash of the brand's two colors (jade
- * teal + amber) is layered on top of the photo so the brand identity
- * shows even when the photo is desaturated. No blue, no coral — those
- * colors were retired from the palette on 2026-10-10.
+ * The previous "extra overlay layers" (a second teal screen, two amber
+ * corner blocks, a paper wash, a bottom-fade strip) were removed in the
+ * 2026-10-20 cleanup because they were decorative corporate slabs. The
+ * backdrop is now the photo + ONE 30% teal multiply + the per-photo
+ * attribution badge.
  */
-const DANANG_PHOTOS: Array<{ src: string; place: string; alt: string; keyword: string }> = [
+type Photo = {
+  /** URL Unsplash returns for desktop (>=1024px) — 1920px crop. */
+  src: string
+  /** URL Unsplash returns for tablet (640-1024px) — 1024px crop. */
+  srcMd: string
+  /** URL Unsplash returns for mobile (<640px) — 720px crop, square-ish. */
+  srcSm: string
+  place: string
+  alt: string
+  keyword: string
+}
+
+// The 9 chosen Da Nang landmarks. Unsplash's CDN lets us request the same
+// photo at three different widths via the `w=` query param, so we build
+// the responsive set by string-replacing the width on each entry.
+const BASE_PHOTOS: Array<Omit<Photo, 'srcMd' | 'srcSm'>> = [
   {
     src: 'https://images.unsplash.com/photo-1572551562325-b5d5057c9b54?w=1920&q=80&auto=format&fit=crop',
     place: 'Han River',
@@ -79,6 +108,19 @@ const DANANG_PHOTOS: Array<{ src: string; place: string; alt: string; keyword: s
   },
 ]
 
+function responsive(p: { src: string }): Pick<Photo, 'src' | 'srcMd' | 'srcSm'> {
+  return {
+    src: p.src,
+    srcMd: p.src.replace(/w=\d+/, 'w=1024'),
+    srcSm: p.src.replace(/w=\d+/, 'w=720').replace(/fit=crop/, 'fit=crop&crop=entropy'),
+  }
+}
+
+const DANANG_PHOTOS: Photo[] = BASE_PHOTOS.map((p) => ({
+  ...p,
+  ...responsive(p),
+}))
+
 const STORAGE_KEY = 'localit-backdrop-idx'
 const STORAGE_TS = 'localit-backdrop-ts'
 
@@ -90,8 +132,6 @@ function pickIndexClient(): number {
   try {
     const stored = window.sessionStorage.getItem(STORAGE_KEY)
     const lastTs = Number(window.sessionStorage.getItem(STORAGE_TS) ?? '0')
-    // Force a new photo at most every 30 minutes — that way a tourist who
-    // browses 5 pages in a row sees the SAME landmark, then it changes.
     if (stored !== null && Date.now() - lastTs < 30 * 60 * 1000) {
       const n = parseInt(stored, 10)
       if (!Number.isNaN(n) && n >= 0 && n < DANANG_PHOTOS.length) return n
@@ -99,14 +139,12 @@ function pickIndexClient(): number {
   } catch {
     /* ignore — private mode */
   }
-  // Pick a different index than the last one to avoid a no-op swap.
   let next = 0
   try {
     const stored = window.sessionStorage.getItem(STORAGE_KEY)
     if (stored !== null) {
       const prev = parseInt(stored, 10)
       if (!Number.isNaN(prev)) {
-        // Cycle forward through the keyword list, wrapping around.
         next = (prev + 1) % DANANG_PHOTOS.length
       }
     }
@@ -123,7 +161,6 @@ function pickIndexClient(): number {
 }
 
 export default function DaNangBackdrop() {
-  // SSR uses index 0 to avoid hydration mismatch; client picks the real photo after mount.
   const [index, setIndex] = useState(0)
 
   useEffect(() => {
@@ -131,42 +168,38 @@ export default function DaNangBackdrop() {
   }, [])
 
   const photo = DANANG_PHOTOS[index]
+  // Treat <640px as mobile. The Tailwind sm: breakpoint (=640px) marks the
+  // tablet-vs-mobile division in the rest of the codebase; tablet extends
+  // up to lg: (=1024px). Single source of truth in one matchMedia call so
+  // we don't pick a different breakpoint per consumer.
+  const imgClass = 'absolute inset-0 w-full h-full object-cover'
 
   return (
-    <div
-      aria-hidden="true"
-      className="fixed inset-0 -z-10 overflow-hidden"
-    >
-      {/* Photo layer — full-bleed Da Nang landmark is the page's visual
-          anchor. Slight saturation/contrast boost so the brand wash on
-          top still reads as the 2-role palette. */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage: `url(${photo.src})`,
-          opacity: 1,
-          filter: 'saturate(1.2) contrast(1.08) brightness(0.92)',
-        }}
-      />
-      {/* Brand wash — single solid teal multiplied over the photo so the
-          Da Nang landmark stays visible AND the brand identity is
-          carried by every page. ONE color, no gradient.
+    <div aria-hidden="true" className="fixed inset-0 -z-10 overflow-hidden bg-paper">
+      {/* Responsive photo via <picture>. Three sources ordered smallest-to-
+          largest so the browser picks the FIRST that matches (mobile-first).
+          The <img> fallback is the desktop full-bleed JPEG. */}
+      <picture>
+        <source media="(max-width: 639px)" srcSet={photo.srcSm} />
+        <source media="(max-width: 1023px)" srcSet={photo.srcMd} />
+        <img
+          src={photo.src}
+          alt={photo.alt}
+          className={imgClass}
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
+          style={{
+            filter: 'saturate(1.2) contrast(1.08) brightness(0.92)',
+          }}
+        />
+      </picture>
 
-          Removed on 2026-10-20:
-            - the second teal `mixBlendMode: screen` layer (washed out
-              the photo)
-            - the amber corner block top-right (a hard 1/3-screen
-              rectangle that flagged as an "AI slab overlay")
-            - the amber corner block bottom-left (same)
-            - the paper wash + bottom-fade strips (no functional
-              purpose now that the corner blocks are gone)
-
-          Why this matters: each solid-color rectangle that isn't part
-          of the photo is a self-contained "corporate aesthetic" tile
-          that an end user reads as background junk. The rule in
-          AGENTS.md forbids linear-gradient anywhere; the spirit of
-          that rule is "no decorative solid slabs" — these were
-          exactly that, just monochrome instead of gradient. */}
+      {/* Brand wash — single solid teal multiplied over the photo. ONE
+          color, no gradient. Removed on 2026-10-20: the second teal
+          `mixBlendMode: screen` layer, the amber corner blocks top-right
+          + bottom-left, the paper wash, and the bottom-fade strip — see
+          the 2026-10-20 commit message for the rationale. */}
       <div
         className="absolute inset-0"
         style={{
@@ -174,6 +207,7 @@ export default function DaNangBackdrop() {
           mixBlendMode: 'multiply',
         }}
       />
+
       {/* Tiny attribution mark, bottom-right, never visible to assistive tech */}
       <span className="absolute bottom-2 right-3 text-[10px] text-white font-semibold tracking-wider uppercase pointer-events-none select-none bg-ink/70 px-2 py-0.5 rounded-sm">
         {photo.place}
