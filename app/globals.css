@@ -392,7 +392,15 @@
     line-height: 1.15;
     letter-spacing: -0.02em;
     font-weight: 600;
-    color: var(--color-ink);
+    /* 2026-10-20: white. Every H1 sits above the Da Nang photo
+       backdrop (or a teal-multiply wash derived from it); black
+       ink on the photo got washed out by the multi-plied jade
+       teal — the heading appeared blurred/softened. White at 96%
+       opacity gives full legibility on every photo in the rotation
+       (Hội An lanterns, Sơn Trà hills, Han River, Marble Mountains,
+       etc.). The reduced 96% opacity keeps it from looking too cold
+       against the saturated teal wash. */
+    color: rgba(255, 255, 255, 0.96);
   }
 
   @media (min-width: 768px) {
@@ -406,13 +414,43 @@
     line-height: 1.2;
     letter-spacing: -0.01em;
     font-weight: 600;
-    color: var(--color-ink);
+    /* Same rationale as text-page-title. The .text-section-title
+       selector is used on H2s both above the photo (Buddies
+       available now, Quick actions, My buddies, etc.) and INSIDE
+       card headers with bg-paper (itinerary list, profile).
+       Cards with a .text-section-title h2 must add `text-ink` to
+       override this rule for the white-on-paper case. */
+    color: rgba(255, 255, 255, 0.96);
   }
 
   @media (min-width: 768px) {
     .text-section-title {
       font-size: 1.875rem;
     }
+  }
+
+  /* Override heading colour back to ink when it sits inside a
+     opaque card surface. Without this, text-section-title inside
+     .bg-paper / .bg-surface would render white-on-white.
+     2026-10-20: matches any h1/h2/h3 tagged with one of our
+     heading classes (.text-page-title, .text-section-title,
+     tailwind `text-lg font-semibold`, `text-2xl font-semibold`).
+     A card surface is .bg-paper, .bg-surface, or one of the
+     `border-2 border-*-border` panels used as section headers.
+     To avoid touching every consumer we use a parent-class match:
+     if any direct ancestor has class `bg-paper` or `bg-surface`,
+     we revert to the ink colour. */
+  .bg-paper .text-page-title,
+  .bg-surface .text-page-title,
+  .bg-paper .text-section-title,
+  .bg-surface .text-section-title,
+  .bg-paper h1,
+  .bg-paper h2,
+  .bg-paper h3,
+  .bg-surface h1,
+  .bg-surface h2,
+  .bg-surface h3 {
+    color: var(--color-ink);
   }
 
   .text-eyebrow {
