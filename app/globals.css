@@ -961,6 +961,40 @@
      No blue, no coral. Two solid colors: jade teal and amber.
      Every variant is a single solid color — never a gradient.
      ============================================================ */
+
+  /* --- DISABLED STATE (2026-10-20) ---------------------------------------
+     Bug report: "Send verification code does nothing."
+     Root cause: the browser's default disabled styling is a UA-level
+     `opacity`/grayscale hint that our explicit `color: #FFFFFF` +
+     `background-color: var(--color-tourist)` overrode. The button rendered
+     at full jade with full-opacity white text and `cursor: pointer`, so it
+     LOOKED clickable — but `disabled` swallowed the click. Silent failure.
+     Fix: every button variant gets an explicit `:disabled` rule that desaturates
+     the surface, drops the cursor, and blocks pointer events, so a disabled
+     button is always visibly disabled.
+     -------------------------------------------------------------------- */
+  .btn-tourist:disabled,
+  .btn-buddy:disabled,
+  .btn-tourist-outline:disabled,
+  .btn-buddy-outline:disabled,
+  .btn-tourist-soft:disabled,
+  .btn-buddy-soft:disabled {
+    background-color: var(--color-border);
+    color: var(--color-muted);
+    border-color: var(--color-border);
+    cursor: not-allowed;
+    opacity: 0.65;
+    pointer-events: none;
+  }
+  .btn-tourist:disabled:hover,
+  .btn-buddy:disabled:hover,
+  .btn-tourist-outline:disabled:hover,
+  .btn-buddy-outline:disabled:hover,
+  .btn-tourist-soft:disabled:hover,
+  .btn-buddy-soft:disabled:hover {
+    background-color: var(--color-border);
+    border-color: var(--color-border);
+  }
   /* Tourist: jade teal — solid, no alpha */
   .btn-tourist {
     display: inline-flex; align-items: center; justify-content: center;

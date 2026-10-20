@@ -402,6 +402,22 @@ function RegisterForm() {
     return null
   }, [step, form])
 
+  // 2026-10-20: mirror of `step3Missing`, but for Step 1. The user reported
+  // "Send verification code does nothing" — the button was genuinely disabled
+  // (missing terms / short password / bad email) but the CSS made it look
+  // enabled, so there was no way to tell what was missing. List the first
+  // unmet requirement right above the button.
+  const step1Missing = useMemo(() => {
+    if (step !== 'account') return null
+    if (form.fullName.trim().length < 2) return 'Enter your full name.'
+    if (!validateEmail(form.email)) return 'Enter a valid email address.'
+    const pwErr = validatePassword(form.password)
+    if (pwErr) return pwErr
+    if (form.password !== form.confirmPassword) return 'Passwords do not match.'
+    if (!form.terms) return 'Tick the Terms of Service box to continue.'
+    return null
+  }, [step, form])
+
   const stepReady = useMemo(() => {
     if (step === 'account') {
       const pwOk = validatePassword(form.password) === null
@@ -949,10 +965,23 @@ function RegisterForm() {
               </span>
             </label>
 
+            {/* 2026-10-20: tell the user what is still missing instead of
+                leaving a greyed-out button that looks clickable. */}
+            {step1Missing ? (
+              <p
+                className="mt-3 text-xs text-warning inline-flex items-start gap-1.5"
+                role="status"
+                aria-live="polite"
+              >
+                <AlertTriangle size={12} aria-hidden="true" className="mt-0.5 shrink-0" />
+                <span>{step1Missing}</span>
+              </p>
+            ) : null}
+
             <button
               type="submit"
               disabled={!stepReady || loading}
-              className="btn-tourist w-full h-11 mt-5 inline-flex items-center justify-center gap-1"
+              className="btn-tourist w-full h-11 mt-4 inline-flex items-center justify-center gap-1"
             >
               {loading ? 'Sending code…' : null}
               {!loading ? (
