@@ -86,6 +86,79 @@ const CANONICAL_TAGS = [
   'artisan-craft',
 ] as const
 
+/**
+ * 2026-10-20 — row tag ranking.
+ *
+ * The tag cluster that sits between a person's name and their review
+ * score used to be `tags.slice(0, 3)` — a blind head-trim of whatever
+ * order the database happened to return. With a handful of people that
+ * looked arbitrary: two adjacent rows showed completely different tags
+ * with no relationship to each other, and the viewer had no way to tell
+ * "these two people both do street-food tours" from "these two tags
+ * happen to sort alphabetically."
+ *
+ * This helper does three things, in order:
+ *  1. Flattens the person's tags into ONE list. Buddy and tourist are
+ *     the same product surface — the only difference is which column
+ *     the tags live in (`buddies.specialties` vs `tourists.interests`).
+ *     They are merged here so a tourist who lists "street-food" and a
+ *     buddy whose specialty is "street-food" are treated identically.
+ *  2. Floats tags that appear in the viewer's own pool to the front, so
+ *     the shared interest is the first thing read. Matching is
+ *     case-insensitive because the seed data is inconsistent
+ *     ("Street Food" / "street-food" / "street food").
+ *  3. Returns everything else in its original order, so when nothing
+ *     matches, the display is exactly what it was before this change.
+ *
+ * Stable within each tier: `Array.prototype.sort` is spec-required to be
+ * stable in ES2019+, so matched tags keep their source order among
+ * themselves and non-matches keep theirs. No random reshuffle between
+ * renders, no layout jitter.
+ */
+function rankTags(tags: readonly string[], ownTags: readonly string[]): string[] {
+  const flat = (Array.isArray(tags) ? tags : [])
+    .filter((t): t is string => typeof t === 'string')
+    .map((t) => t.trim())
+    .filter(Boolean)
+  if (flat.length === 0) return []
+  // Fast path: nothing to match against, so ordering is a no-op.
+  const ownKeys = new Set(
+    ownTags
+      .filter((t): t is string => typeof t === 'string')
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean),
+  )
+  if (ownKeys.size === 0) return flat
+  return flat
+    .map((tag, i) => ({ tag, i, key: tag.toLowerCase() }))
+    .sort((a, b) => {
+      const aHit = ownKeys.has(a.key) ? 0 : 1
+      const bHit = ownKeys.has(b.key) ? 0 : 1
+      if (aHit !== bHit) return aHit - bHit
+      return a.i - b.i
+    })
+    .map((x) => x.tag)
+}
+
+/**
+ * Collapse a ranked tag list into the 4-tag display budget with an
+ * "+N" overflow chip. The user's request was explicit: at most 4 real
+ * tags per row, and when there are more, show a compact "+N" so the
+ * count is honest rather than silently dropped.
+ */
+function tagChipData(
+  tags: readonly string[],
+  ownTags: readonly string[],
+): { shown: string[]; overflow: number; matched: string[] } {
+  const ranked = rankTags(tags, ownTags)
+  const MAX = 4
+  const shown = ranked.slice(0, MAX)
+  const overflow = Math.max(0, ranked.length - MAX)
+  const ownKeys = new Set(ownTags.map((t) => t.trim().toLowerCase()))
+  const matched = shown.filter((t) => ownKeys.has(t.toLowerCase()))
+  return { shown, overflow, matched }
+}
+
 function readSaved(): string[] {
   if (typeof window === 'undefined') return []
   try {
@@ -123,6 +196,14 @@ function BrowseContent() {
   // the publisher's own row from the location_updates postgres_changes
   // stream (otherwise the map shows two pins for the same position).
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  // 2026-10-20: the signed-in user's own tag pool, used to float tags
+  // that MATCH them to the front of every row's tag cluster. Buddy and
+  // tourist are NOT differentiated here — the only difference between
+  // the two roles is which column holds their tags, so we read both
+  // and merge into one flat set. A tourist whose interests overlap a
+  // buddy's specialties gets the same "you both like street-food"
+  // highlight as two buddies who both list it as a specialty.
+  const [myTags, setMyTags] = useState<string[]>([])
 
   // Hydrate saved buddies from the database on mount. The old
   // localStorage cache is intentionally NOT migrated — saves made
@@ -253,7 +334,13 @@ function BrowseContent() {
         // filters to non-null lat/lng; safe_tourists_with_location
         // (created 2026-10-09) does the same for tourists so the
         // recommend list now covers both sides of the marketplace.
-        const [buddiesRes, touristsRes] = await Promise.all([
+        //
+        // 2026-10-20: a third query reads the signed-in user's OWN tag
+        // pool so row tags that match them float to the front. Buddy and
+        // tourist differ only in which column holds the tags, so we read
+        // `buddies.specialties` and `tourists.interests` in one go and
+        // merge — the ranking treats them identically from here on.
+        const [buddiesRes, touristsRes, myBuddyTagsRes, myTouristTagsRes] = await Promise.all([
           supabase
             .from('safe_buddies')
             .select('id, location_city, latitude, longitude, languages, specialties, hourly_rate, is_available, bio, profile:safe_profiles(full_name, avatar_url, is_online, role)')
@@ -268,7 +355,21 @@ function BrowseContent() {
             .not('latitude', 'is', null)
             .not('longitude', 'is', null)
             .neq('id', me),
+          supabase.from('buddies').select('specialties').eq('id', me).maybeSingle(),
+          supabase.from('tourists').select('interests').eq('id', me).maybeSingle(),
         ])
+
+        // Merge the user's two tag sources into one flat, deduped,
+        // lowercased pool. Stored tags are inconsistently cased across
+        // the seed data ("Street Food" vs "street-food"), so the
+        // comparison key is always lowercase.
+        const ownTagPool = [
+          ...((myBuddyTagsRes.data?.specialties as string[] | null) ?? []),
+          ...((myTouristTagsRes.data?.interests as string[] | null) ?? []),
+        ]
+          .filter(Boolean)
+          .map((t) => String(t).trim())
+        setMyTags(ownTagPool)
 
         const buddyData = (buddiesRes.data ?? []) as any[]
         const touristData = (touristsRes.data ?? []) as any[]
@@ -806,7 +907,13 @@ function BrowseContent() {
               const saved = savedBuddies.includes(b.id)
               const isBuddy = b.role === 'buddy'
               const profileHref = isBuddy ? `/buddies/${b.id}` : `/tourists/${b.id}`
+              // 2026-10-20: buddy and tourist are the same product
+              // surface — the only difference is which column the tags
+              // live in, so merge both into one list before ranking.
+              // Shared-with-you tags float to the front; the rest keep
+              // their source order. Capped at 4 with a "+N" chip.
               const tags = isBuddy ? b.specialties : b.interests
+              const chips = tagChipData(tags ?? [], myTags)
               return (
                 <li key={b.id}>
                   <button
@@ -858,12 +965,33 @@ function BrowseContent() {
                         {b.nationality ? <> · {b.nationality}</> : null}
                       </p>
                     </div>
-                    <div className="hidden md:flex flex-wrap gap-1 max-w-[200px]">
-                      {tags.slice(0, 3).map((tag) => (
-                        <span key={tag} className="badge badge-neutral text-xs">
-                          {tag}
+                    <div className="hidden md:flex flex-wrap gap-1 max-w-[220px]">
+                      {chips.shown.map((tag) => {
+                        const isMatch = chips.matched.includes(tag)
+                        return (
+                          <span
+                            key={tag}
+                            className={`badge text-xs ${
+                              isMatch ? 'badge-primary' : 'badge-neutral'
+                            }`}
+                            title={
+                              isMatch
+                                ? `You both list "${tag}"`
+                                : undefined
+                            }
+                          >
+                            {tag}
+                          </span>
+                        )
+                      })}
+                      {chips.overflow > 0 ? (
+                        <span
+                          className="badge badge-neutral text-xs"
+                          title={`${chips.overflow} more tag${chips.overflow === 1 ? '' : 's'} not shown`}
+                        >
+                          +{chips.overflow}
                         </span>
-                      ))}
+                      ) : null}
                     </div>
                     <div className="text-right hidden sm:block">
                       {isBuddy ? (
@@ -913,7 +1041,13 @@ function BrowseContent() {
                           </div>
                         ) : (
                           <div>
-                            <dt className="text-eyebrow text-muted mb-2">Interests</dt>
+                            {/* 2026-10-20: buddy and tourist are the same
+                                surface — the only difference is which
+                                column the tags live in. "Interests" reads
+                                as a second-class field next to
+                                "Specialties"; "Tags" covers both without
+                                implying the tourist side is lesser. */}
+                            <dt className="text-eyebrow text-muted mb-2">Tags</dt>
                             <dd className="flex flex-wrap gap-1">
                               {b.interests.map((i) => (
                                 <span key={i} className="badge badge-neutral text-xs">{i}</span>
