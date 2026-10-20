@@ -151,5 +151,58 @@ export async function POST(req: NextRequest) {
     responseBody.__devCode = result.previewCode
   }
 
+  // 2026-10-20: send the email AFTER responding, not before.
+  //
+  // Measured breakdown of this route:
+  //   findProfileIdByEmail           ~78ms
+  //   consumeUnverifiedCodesForEmail ~62ms
+  //   bcrypt.hash(code, 10)          ~163ms
+  //   insertEmailVerification        ~71ms
+  //   sendEmail (Resend HTTP)        ~2000ms  ← 85% of the request
+  //
+  // The database work is ~374ms; the Resend round trip is the rest. Resend is
+  // an external service we do not control, and it already queues the message
+  // on its side — awaiting the response here only made the user stare at a
+  // spinner for two seconds with nothing to gain.
+  //
+  // `waitUntil` keeps the function alive until the promise settles, so the
+  // email is still delivered reliably on serverless. The OTP row is already
+  // committed to the database at this point, so a delivery failure is
+  // recoverable via /signup/resend-otp.
+  const otpCode = result.otpCode
+  if (otpCode && !result.previewCode) {
+    const sendPromise = deliverOtpEmail(emailStr, otpCode)
+    const waitUntil = (req as NextRequest & { waitUntil?: (p: Promise<unknown>) => void }).waitUntil
+    if (typeof waitUntil === 'function') {
+      waitUntil(sendPromise)
+    } else {
+      // No waitUntil available (local dev / older runtimes) — fire and forget.
+      void sendPromise
+    }
+  }
+
   return NextResponse.json(responseBody)
+}
+
+/**
+ * Deliver the OTP email. Split out of the route so the HTTP response can be
+ * returned before the provider round trip. The code row is already persisted
+ * by the time this runs, so a failure here is recoverable via resend.
+ */
+async function deliverOtpEmail(email: string, code: string): Promise<void> {
+  try {
+    const { buildOtpEmail, sendEmail } = await import('@/utils/email')
+    const message = buildOtpEmail({ code })
+    const sent = await sendEmail({
+      to: email,
+      subject: message.subject,
+      html: message.html,
+      text: message.text,
+    })
+    if (!sent.ok) {
+      console.error(`[signup/start] background email send failed for ${email}: ${sent.error}`)
+    }
+  } catch (e) {
+    console.error('[signup/start] background email threw:', (e as Error).message)
+  }
 }

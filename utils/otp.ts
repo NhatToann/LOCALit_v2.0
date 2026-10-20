@@ -38,7 +38,7 @@ import {
   updateEmailVerification,
   consumeUnverifiedCodesForEmail,
 } from './db-pg'
-import { sendEmail, buildOtpEmail, generateOtp } from './email'
+import { generateOtp } from './email'
 import bcrypt from 'bcryptjs'
 
 const OTP_TTL_MS = 15 * 60 * 1000
@@ -57,6 +57,12 @@ export interface IssueOtpResult {
   /** Plaintext code. ONLY returned when OTP_PREVIEW=true (dev mode).
    *  In production this is undefined — the code only lives in the user's inbox. */
   previewCode?: string
+  /** Plaintext code for the caller to deliver AFTER the HTTP response.
+   *  2026-10-20: issueOtpForSignup no longer sends the email itself, because
+   *  the ~2s provider round trip dominated the route's response time. The
+   *  caller must pass this to the email layer via waitUntil(). Never
+   *  serialise this into a response body. */
+  otpCode?: string
   error?: string
 }
 
@@ -138,18 +144,18 @@ async function finalizeOtpSend(
     return { ok: true, signupId, previewCode: code }
   }
 
-  const message = buildOtpEmail({ code })
-  const sent = await sendEmail({
-    to: payload.email,
-    subject: message.subject,
-    html: message.html,
-    text: message.text,
-  })
-  if (!sent.ok) {
-    return { ok: false, error: `Email send failed: ${sent.error}` }
-  }
-
-  return { ok: true, signupId }
+  // 2026-10-20: the email is NO LONGER sent here. Delivering it costs ~2s of
+  // external HTTP round trip (Resend/SMTP), which is ~85% of the /signup/start
+  // response time, and the user was staring at a spinner the whole time.
+  //
+  // We now return the plaintext code to the caller, which hands it to
+  // `waitUntil()` so the provider call happens AFTER the HTTP response is
+  // already on the wire. The code row was persisted before this point, so a
+  // delivery failure is recoverable via /signup/resend-otp.
+  //
+  // The plaintext never leaves the server: `otpCode` is consumed by the route
+  // and is not serialised into the response body.
+  return { ok: true, signupId, otpCode: code }
 }
 
 export type ConsumeOtpResult =

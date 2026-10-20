@@ -61,5 +61,37 @@ export async function POST(req: NextRequest) {
 
   const responseBody: Record<string, unknown> = { ok: true, signupId: result.signupId }
   if (result.previewCode) responseBody.__devCode = result.previewCode
+
+  // 2026-10-20: issueOtpForSignup no longer sends the email itself (the
+  // provider round trip dominated the response time). Deliver it here, after
+  // the response, so "Resend code" is just as fast as the first send.
+  const otpCode = result.otpCode
+  const email = (data.pending_payload as { email?: string }).email
+  if (otpCode && !result.previewCode && typeof email === 'string') {
+    const sendPromise = (async () => {
+      try {
+        const { buildOtpEmail, sendEmail } = await import('@/utils/email')
+        const message = buildOtpEmail({ code: otpCode })
+        const sent = await sendEmail({
+          to: email,
+          subject: message.subject,
+          html: message.html,
+          text: message.text,
+        })
+        if (!sent.ok) {
+          console.error(`[signup/resend-otp] background send failed for ${email}: ${sent.error}`)
+        }
+      } catch (e) {
+        console.error('[signup/resend-otp] background email threw:', (e as Error).message)
+      }
+    })()
+    const waitUntil = (req as NextRequest & { waitUntil?: (p: Promise<unknown>) => void }).waitUntil
+    if (typeof waitUntil === 'function') {
+      waitUntil(sendPromise)
+    } else {
+      void sendPromise
+    }
+  }
+
   return NextResponse.json(responseBody)
 }
