@@ -665,8 +665,8 @@ export async function completeSignupAtomically(
          crypt($3, gen_salt('bf')),
          now(),
          '{"provider":"email","providers":["email"]}'::jsonb,
-         jsonb_build_object('full_name', $4, 'role', $5),
-         '', '', '', '', '', '', '', false, false, 0, now(), now()
+         jsonb_build_object('full_name', $4::text, 'role', $5::text),
+         '', '', '', '', '', '', '', '', false, false, 0, now(), now()
        )`,
       [userId, args.email, args.password, args.fullName, args.role],
     )
