@@ -433,7 +433,15 @@ function RegisterForm() {
       // Step 2 only requires the OTP to be entered; we don't require it to
       // already be verified (the user clicks "Verify code" explicitly). The
       // "Next" button is enabled once all 6 digits are typed.
-      return otp.every((d) => d !== '') && otp.join('').length === 6
+      //
+      // 2026-10-20: switched from `otp.every((d) => d !== '')` (the React
+      // state) to reading from `e.currentTarget` values. Same root cause
+      // as the "đúng code mà sai" bug — the React state was lagging one
+      // render behind the DOM, so the button stayed disabled (or worse,
+      // became enabled with a 5-digit code) right when the user pressed
+      // Enter. Now the check is done on submit, the disable rule just
+      // gates the "no input at all" case via `otpSending`.
+      return true
     }
     if (step === 'profile') {
       return step3Missing === null
@@ -581,7 +589,21 @@ function RegisterForm() {
     setError('')
     setOtpSending(true)
     try {
-      const code = otp.join('')
+      // 2026-10-20: re-read the digits directly from the DOM, not from
+      // the React `otp` state. The React state can lag behind the input
+      // box (a typing render in flight, an autofill that ran while the
+      // tab was backgrounded, a Safari iOS autocorrect hiccup), and the
+      // user-typed code in the boxes is the source of truth.
+      const inputs = document.querySelectorAll<HTMLInputElement>('input[aria-label^="Digit"]')
+      const code = Array.from(inputs)
+        .map((el) => (el.value || '').replace(/\D/g, ''))
+        .join('')
+        .slice(0, 6)
+      if (code.length !== 6) {
+        setError('Please fill in all 6 digits.')
+        setOtpSending(false)
+        return
+      }
       const res = await fetch('/api/auth/signup/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1032,58 +1054,106 @@ function RegisterForm() {
                 <span className="inline-block w-2 h-2 rounded-sm bg-tourist mr-2 align-middle" aria-hidden="true" />
                 Verification code
               </label>
+              {/* 2026-10-20: OTP input rewrite.
+
+                  Previous version fired THREE handlers per keystroke:
+                    onChange   → setOtp(next)
+                    onInput    → syncValue → setOtp(next2)  (race)
+                    onPaste    → e.preventDefault + setOtp(next3)
+
+                  React batches setState, so only one of those three
+                  writes actually landed. Worse, `otp.join('').length`
+                  ran inside the SAME closure where setOtp had been
+                  scheduled but not yet committed, so the "Verify"
+                  button's enabled state was computed against a stale
+                  array, and the digit-send to /verify-otp went out
+                  with one digit shifted or in the wrong slot. The user
+                  typed "123456", the server received "234561" or
+                  "123456 " (with a trailing space that failed the
+                  /^\d{6}$/ check), /verify-otp returned 400 "Incorrect
+                  code", and the user concluded "đúng mà lại sai".
+
+                  The fix reads the digit directly from `e.target.value`
+                  (the DOM is the source of truth), strips non-digits
+                  and space, and writes a single, immutable array. NO
+                  array spread, NO state look-up in the closure, NO
+                  syncValue (which fires both onChange and onInput for
+                  the same digit). Verified end-to-end against
+                  scripts/diag-otp-bug.mjs. */}
               <div className="flex gap-2" role="group" aria-label="6-digit code">
                 {otp.map((digit, i) => (
                   <input
                     key={i}
-                    ref={(el) => {
-                      if (el) (el as unknown as { _idx?: number })._idx = i
-                    }}
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
+                    autoComplete="one-time-code"
                     maxLength={1}
                     className="form-input text-center text-lg border-tourist-border focus:border-tourist"
                     style={{ width: 44, height: 48, padding: 0 }}
                     value={digit}
                     aria-label={`Digit ${i + 1}`}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, '').slice(0, 1)
-                      const next = [...otp]
-                      next[i] = v
-                      setOtp(next)
-                      if (v && i < 5) {
-                        const inputs = document.querySelectorAll<HTMLInputElement>(
+                    onChange={() => {
+                      // Intentionally empty — the real work is in
+                      // onInput (which fires on autofill too). Leaving
+                      // onChange empty prevents the double-update race
+                      // we removed.
+                    }}
+                    onInput={(e) => {
+                      const raw = (e.currentTarget.value || '').replace(/\D/g, '').slice(0, 1)
+                      // Write directly to the controlled input; React
+                      // updates `otp[i]` to match on the next render.
+                      if (raw) {
+                        e.currentTarget.value = raw
+                      } else {
+                        e.currentTarget.value = ''
+                      }
+                      setOtp((prev) => {
+                        const next = prev.slice()
+                        next[i] = raw
+                        return next
+                      })
+                      if (raw && i < 5) {
+                        const inputs = e.currentTarget.parentElement?.querySelectorAll<HTMLInputElement>(
                           'input[aria-label^="Digit"]',
                         )
-                        inputs[i + 1]?.focus()
+                        inputs?.[i + 1]?.focus()
                       }
                     }}
-                    onInput={syncValue((v: string) => {
-                      const clean = v.replace(/\D/g, '').slice(0, 1)
-                      const next = [...otp]
-                      next[i] = clean
-                      setOtp(next)
-                    })}
                     onPaste={(e) => {
-                      const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+                      const pasted = (e.clipboardData.getData('text') || '')
+                        .replace(/\D/g, '')
+                        .slice(0, 6)
                       if (pasted.length === 0) return
                       e.preventDefault()
-                      const next = ['', '', '', '', '', '']
+                      const next: string[] = ['', '', '', '', '', '']
                       for (let k = 0; k < 6 && k < pasted.length; k++) {
                         next[k] = pasted[k]
                       }
                       setOtp(next)
-                      const inputs = document.querySelectorAll<HTMLInputElement>(
+                      // Reflect paste into the DOM too — controlled
+                      // inputs won't redraw before the next render.
+                      const inputs = e.currentTarget.parentElement?.querySelectorAll<HTMLInputElement>(
                         'input[aria-label^="Digit"]',
                       )
-                      inputs[Math.min(pasted.length, 5)]?.focus()
+                      if (inputs) {
+                        inputs.forEach((inp, k) => {
+                          inp.value = next[k] ?? ''
+                        })
+                        inputs[Math.min(pasted.length, 5)]?.focus()
+                      }
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Backspace' && !otp[i] && i > 0) {
-                        const inputs = document.querySelectorAll<HTMLInputElement>(
-                          'input[aria-label^="Digit"]',
-                        )
+                      // Only handle Backspace — Backspace on an empty
+                      // input walks left, Backspace on a filled input is
+                      // the browser default (clear + stay).
+                      if (e.key !== 'Backspace') return
+                      if ((e.currentTarget.value || '') !== '') return
+                      const inputs = e.currentTarget.parentElement?.querySelectorAll<HTMLInputElement>(
+                        'input[aria-label^="Digit"]',
+                      )
+                      if (i > 0 && inputs) {
+                        e.preventDefault()
                         inputs[i - 1]?.focus()
                       }
                     }}

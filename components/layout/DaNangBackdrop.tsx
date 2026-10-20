@@ -137,9 +137,9 @@ export default function DaNangBackdrop() {
       aria-hidden="true"
       className="fixed inset-0 -z-10 overflow-hidden"
     >
-      {/* Photo layer — full opacity so the Da Nang landmark is the page's
-          visual anchor. Slight saturation/contrast boost so the 4-color
-          wash on top still reads as 4 distinct colors. */}
+      {/* Photo layer — full-bleed Da Nang landmark is the page's visual
+          anchor. Slight saturation/contrast boost so the brand wash on
+          top still reads as the 2-role palette. */}
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{
@@ -148,55 +148,30 @@ export default function DaNangBackdrop() {
           filter: 'saturate(1.2) contrast(1.08) brightness(0.92)',
         }}
       />
-      {/* 2-color brand wash — jade teal as the dominant tint, amber
-          as a corner accent. No blue, no coral. Two solid color
-          layers (one full-screen, one corner) so the brand identity
-          shows without a linear-gradient on any single element. */}
+      {/* Brand wash — single solid teal multiplied over the photo so the
+          Da Nang landmark stays visible AND the brand identity is
+          carried by every page. ONE color, no gradient.
+
+          Removed on 2026-10-20:
+            - the second teal `mixBlendMode: screen` layer (washed out
+              the photo)
+            - the amber corner block top-right (a hard 1/3-screen
+              rectangle that flagged as an "AI slab overlay")
+            - the amber corner block bottom-left (same)
+            - the paper wash + bottom-fade strips (no functional
+              purpose now that the corner blocks are gone)
+
+          Why this matters: each solid-color rectangle that isn't part
+          of the photo is a self-contained "corporate aesthetic" tile
+          that an end user reads as background junk. The rule in
+          AGENTS.md forbids linear-gradient anywhere; the spirit of
+          that rule is "no decorative solid slabs" — these were
+          exactly that, just monochrome instead of gradient. */}
       <div
         className="absolute inset-0"
-        style={{
-          backgroundColor: 'rgba(15, 118, 110, 0.35)',
-          mixBlendMode: 'multiply',
-        }}
-      />
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundColor: 'rgba(15, 118, 110, 0.18)',
-          mixBlendMode: 'screen',
-        }}
-      />
-      {/* Amber corner accent — solid color, positioned in the
-          top-right so the buddy/amber role has a visible presence
-          on every page without a gradient. */}
-      <div
-        className="absolute top-0 right-0 w-1/3 h-1/3"
-        style={{
-          backgroundColor: 'rgba(217, 119, 6, 0.22)',
-          mixBlendMode: 'multiply',
-        }}
-      />
-      <div
-        className="absolute bottom-0 left-0 w-1/4 h-1/4"
-        style={{
-          backgroundColor: 'rgba(217, 119, 6, 0.18)',
-          mixBlendMode: 'screen',
-        }}
-      />
-      {/* Light paper wash so white surface cards stay readable. Reduced to
-          15% so the 2-color wash + photo stay vivid. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundColor: 'rgba(240, 253, 244, 0.15)',
-        }}
-      />
-      {/* Bottom-fade so footer reads on a darker strip without a hard
-          edge. Single solid teal, no gradient. */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-32"
         style={{
           backgroundColor: 'rgba(15, 118, 110, 0.30)',
+          mixBlendMode: 'multiply',
         }}
       />
       {/* Tiny attribution mark, bottom-right, never visible to assistive tech */}

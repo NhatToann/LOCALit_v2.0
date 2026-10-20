@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/auth'
-import { readUserIdFromToken } from '@/utils/supabase/client-binding'
+import { readJwtClaimsSync, readUserIdFromToken } from '@/utils/supabase/client-binding'
 
 export interface AuthUser {
   userId: string
@@ -41,7 +41,34 @@ export interface AuthUser {
  */
 type Listener = (user: AuthUser | null) => void
 
-let cached: AuthUser | null = null
+// 2026-10-20: SYNCHRONOUS seed from the JWT.
+//
+// Why: every reload used to flash the guest nav (Sign in / Create account)
+// for 200-500 ms because `useAuthUser` initialised with `cached` = null,
+// waited for `ensureLoaded()` to round-trip profiles, then re-rendered the
+// header. The `role` attribute on <main>, the "Welcome back, John" heading,
+// and the "Open account menu" avatar all popped in after the page was
+// already painted.
+//
+// The JWT itself carries GoTrue's `sub` (user id) AND the `user_metadata`
+// we set on signup (full_name, role). Decoding it costs ~0 ms and is read
+// synchronously from the auth cookie. The cached value that powers the
+// FIRST render now contains the right role/name, so the header shows the
+// signed-in nav on frame 1 — the only frame a user sees.
+// The profile query still runs to fetch the avatar, but that field does
+// not change the chrome layout, so a null avatar during the first 200 ms
+// is invisible.
+let cached: AuthUser | null = (() => {
+  const claims = readJwtClaimsSync()
+  if (!claims?.userId || !claims.role) return null
+  if (claims.role !== 'tourist' && claims.role !== 'buddy') return null
+  return {
+    userId: claims.userId,
+    role: claims.role,
+    fullName: claims.fullName ?? undefined,
+    avatarUrl: undefined,
+  }
+})()
 /** `undefined` = never loaded; `null` = loaded, signed out. */
 let resolved = false
 let inflight: Promise<AuthUser | null> | null = null
@@ -70,20 +97,39 @@ function publish(user: AuthUser | null) {
 async function fetchProfile(userId: string): Promise<AuthUser | null> {
   try {
     const supabase = createClient()
+    // 2026-10-20: only need the avatar_url — full_name + role are already
+    // on the cached value from the JWT (see the seed at module top), and
+    // re-reading them from profiles was costing one query per page
+    // session. The cache stays null only for the AVATAR, which is the
+    // only field that benefits from a fresh read.
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name, role, avatar_url')
+      .select('avatar_url')
       .eq('id', userId)
       .single()
 
-    if (!profile || (profile.role !== 'tourist' && profile.role !== 'buddy')) {
-      return null
+    // If for some reason the JWT-derived cache wasn't set (older token,
+    // missing user_metadata), fall back to the full profile read so we
+    // can still render SOMETHING coherent.
+    const cachedHere = cached
+    if (!cachedHere) {
+      const { data: full } = await supabase
+        .from('profiles')
+        .select('full_name, role, avatar_url')
+        .eq('id', userId)
+        .single()
+      if (!full || (full.role !== 'tourist' && full.role !== 'buddy')) return null
+      return {
+        userId,
+        role: full.role,
+        fullName: full.full_name ?? undefined,
+        avatarUrl: full.avatar_url ?? undefined,
+      }
     }
+
     return {
-      userId,
-      role: profile.role,
-      fullName: profile.full_name ?? undefined,
-      avatarUrl: profile.avatar_url ?? undefined,
+      ...cachedHere,
+      avatarUrl: profile?.avatar_url ?? cachedHere.avatarUrl,
     }
   } catch {
     return null
@@ -103,6 +149,13 @@ function ensureLoaded() {
     // /login and GlobalOnlineHeartbeat kept firing `set_online_status`
     // with no session -> 401 on every beat. We must actively CLEAR.
     if (!myId) {
+      publish(null)
+      return null
+    }
+    // 2026-10-20: if the cached entry was seeded from the JWT, an
+    // anonymous visitor must NOT see this user — re-publish as null.
+    const seeded = readJwtClaimsSync()
+    if (!seeded?.userId || seeded.userId !== myId) {
       publish(null)
       return null
     }
@@ -174,7 +227,17 @@ export function useAuthUser(): AuthUser | null {
 
 /** Test/reset helper — clears the shared cache without touching storage. */
 export function __resetAuthUserCache() {
-  cached = null
+  cached = (() => {
+    const claims = readJwtClaimsSync()
+    if (!claims?.userId || !claims.role) return null
+    if (claims.role !== 'tourist' && claims.role !== 'buddy') return null
+    return {
+      userId: claims.userId,
+      role: claims.role,
+      fullName: claims.fullName ?? undefined,
+      avatarUrl: undefined,
+    }
+  })()
   resolved = false
   inflight = null
 }

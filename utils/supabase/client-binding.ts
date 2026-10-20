@@ -102,6 +102,12 @@ export function readAccessToken(): string | null {
  *
  * Returns null when signed out or when the token cannot be decoded.
  */
+/**
+ * Synchronous identity read from the JWT (cookie OR localStorage).
+ *
+ * Returns null when signed out OR when the token is missing / malformed /
+ * lacks GoTrue's standard `sub` claim. Never throws.
+ */
 export function readUserIdFromToken(): string | null {
   const token = readAccessToken()
   if (!token) return null
@@ -112,6 +118,50 @@ export function readUserIdFromToken(): string | null {
     const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
     const json = JSON.parse(atob(padded))
     return typeof json?.sub === 'string' ? json.sub : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Synchronous decode of the JWT payload. Pulls the metadata that the
+ * user_metadata GoTrue stores on sign-in (full_name, role) so a
+ * re-render of the header right after a page refresh doesn't flash
+ * the guest nav for ~300 ms before the profile query lands.
+ *
+ * Returns `null` when there is no token OR the payload is too old/missing
+ * the custom claims (we DO still render via the profile query in that
+ * edge case — this is just an opportunity to skip it, not a requirement).
+ *
+ * Never throws.
+ */
+export interface SyncJwtClaims {
+  userId: string
+  email: string | null
+  fullName: string | null
+  role: 'tourist' | 'buddy' | 'admin' | null
+}
+
+export function readJwtClaimsSync(): SyncJwtClaims | null {
+  const session = readSessionFromCookie() ?? readSessionFromLocalStorage()
+  if (!session?.access_token) return null
+  try {
+    const payload = session.access_token.split('.')[1]
+    if (!payload) return null
+    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
+    const json = JSON.parse(atob(padded))
+    const sub = typeof json?.sub === 'string' ? json.sub : null
+    if (!sub) return null
+    const meta = (json?.user_metadata ?? {}) as { full_name?: unknown; role?: unknown }
+    const fullName = typeof meta.full_name === 'string' ? meta.full_name : null
+    const roleRaw = typeof meta.role === 'string' ? meta.role.toLowerCase() : null
+    const role =
+      roleRaw === 'tourist' || roleRaw === 'buddy' || roleRaw === 'admin'
+        ? (roleRaw as 'tourist' | 'buddy' | 'admin')
+        : null
+    const email = typeof json?.email === 'string' ? json.email : null
+    return { userId: sub, email, fullName, role }
   } catch {
     return null
   }
