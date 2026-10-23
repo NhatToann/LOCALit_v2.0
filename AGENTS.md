@@ -1615,3 +1615,88 @@ second page. Screenshots land in `scripts/screenshots/`.
 Deployed to `localit-jkc52tdpn-nhattoann.vercel.app`; canonical
 aliases `localit-nhattoann.vercel.app` and `localit-vn.vercel.app`
 re-pointed to it.
+
+---
+
+## Backdrop v2 — Real Photos, Translucent Scrim, Ink Headings (2026-10-23)
+
+The first backdrop pass replaced dead Unsplash URLs with repo-local
+crops, but three defects survived into production. All three are now
+fixed and guarded by `scripts/smoke-backdrop.mjs`.
+
+### 1. The photos
+
+`asset/` holds the four new Da Nang photographs (CC BY-SA 4.0 / CC BY
+2.0 / CC BY 4.0 / CC BY 3.0, all Wikimedia Commons).
+`scripts/build-backdrop-photos.mjs` writes three crops per photo into
+`public/photos/{desktop,tablet,mobile}/`. `lib/photos.ts` is the
+registry: `id`, `base`, `landmark`, `alt`.
+
+`han-river` and `dragon-bridge` deliberately SHARE
+`landmark: 'dragon-bridge'` — they show the same subject, so the hero
+filter must exclude both from the backdrop rotation.
+
+Credits live in `public/photos/ATTRIBUTION.md` and are linked from the
+footer ("Photo credits"). The middleware matcher only excluded image
+extensions, so `/photos/*.md` used to be bounced to `/login` — fixed by
+adding `pathname.startsWith('/photos/')` to `isPublicRoute`.
+
+### 2. The hero scrim was opaque
+
+The hero painted `var(--color-primary-900)` (fully opaque) over the
+site-wide backdrop when the photo pool held a single image. It is now
+`--color-hero-scrim: rgb(19 78 74 / 78%)` — ONE solid color, no
+gradient, no blur — and the photography reads through it.
+
+The 78% figure is measured, not chosen: `scripts/smoke-backdrop.mjs`
+replays the whole layer stack on a canvas (paper base → photo with its
+CSS filter → brand wash → scrim) and reports the worst-case WCAG ratio
+against the hero copy. At 62% it measured 3.82:1 (below AA); at 78%
+it measures 6.8:1.
+
+### 3. Page headings were invisible
+
+`.text-page-title` and `.text-section-title` were BOTH white, sized
+for the OLD heavy multi-plied teal wash. That wash is gone — the
+backdrop is now a light, desaturated photo texture — and white text
+over it measured as little as **1.33:1**. Every page H1 above the
+photo (`/browse`, `/map`, `/search`, `/dashboard`) was effectively
+invisible.
+
+Both classes now use `color: var(--color-ink)` (13.49:1 on the real
+production photos). The homepage hero keeps its white heading because
+it carries its own `.hero-scrim` and sets `text-paper` as a Tailwind
+utility, which wins over the component layer.
+
+`scripts/smoke-backdrop.mjs` now measures the composited backdrop
+pixels behind every `h1`/`h2` on `/browse` and fails below 4.5:1.
+
+### Pitfalls to remember
+
+> **A color that was correct under one backdrop is wrong under
+> another.** The white headings were measured against the old teal
+> wash, not against the current photo texture. When the backdrop
+> changes, EVERY color that sits on it has to be re-measured — do not
+> assume a token that used to work still works.
+
+> **The Vercel CLI uploads the working directory, not the git tree.**
+> A long-running dev session grew `.next/dev/logs/next-development.log`
+> to 351 MB and the Turbopack cache to 122 MB per file, which failed
+> the deploy with `File size limit exceeded (100 MB)`. `.vercelignore`
+> now excludes `.next/`, `node_modules/`, `.git/` and local logs.
+> Symptom: a deploy fails on file size even though `git status` is
+> clean.
+
+> **A concurrent `npm install` wedges the dev server.** `node_modules`
+> is mutated under the running Turbopack process, the server accepts
+> the TCP connection but never responds, and Playwright's `networkidle`
+> wait times out. Symptom: `curl` returns `status=000 time=60s` while
+> `Test-NetConnection` says the port is open. Fix: stop the dev
+> server, let the install finish, restart.
+
+> **`.vercelignore` does not exist by default in this repo** — create
+> it before the first deploy that runs after a long dev session.
+
+Deployed to `localit-1dmnbkfop-nhattoann.vercel.app`; canonical
+aliases `localit-nhattoann.vercel.app` and `localit-vn.vercel.app`
+re-pointed to it.
