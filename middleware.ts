@@ -42,7 +42,12 @@ export async function middleware(request: NextRequest) {
     pathname === '/browse' ||
     pathname === '/map' ||
     pathname.startsWith('/buddies/') || // public buddy profile pages
-    pathname.startsWith('/tourists/') // public tourist profile pages (same as /buddies)
+    pathname.startsWith('/tourists/') || // public tourist profile pages (same as /buddies)
+    // Static photo credits. The middleware matcher lets .md files
+    // through (it only excludes the image extensions), so without
+    // this a guest clicking "Photo credits" in the footer gets
+    // bounced to /login instead of reading the CC BY-SA attribution.
+    pathname.startsWith('/photos/')
   const isVerifyEmailRoute = pathname.startsWith('/verify-email')
 
   // If on auth pages while logged in, redirect to dashboard.
