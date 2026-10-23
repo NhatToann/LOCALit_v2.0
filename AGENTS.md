@@ -724,6 +724,51 @@ vercel alias set <latest-hash>-nhattoann.vercel.app localit-vn.vercel.app
 Otherwise tests against the canonical URL hit stale code. Use
 `vercel ls --prod` to find the latest hash.
 
+### `vercel --prod` "Not authorized" — add `--scope` (2026-10-23)
+
+⚠️ On 2026-10-23 a plain `vercel --prod --yes` failed with:
+
+```json
+{ "status": "error", "reason": "deploy_failed", "message": "Not authorized" }
+```
+
+The token was **valid** — `vercel whoami` returned `nhattoann`,
+`vercel project ls` listed `localit`, and `vercel ls --prod`
+listed 6 recent Ready production deploys. Only the deploy
+mutation was rejected.
+
+**Fix: always pass `--scope nhattoann`.**
+
+```powershell
+vercel --prod --yes --scope nhattoann
+vercel alias set <hash>-nhattoann.vercel.app localit-nhattoann.vercel.app --scope nhattoann
+vercel alias set <hash>-nhattoann.vercel.app localit-vn.vercel.app --scope nhattoann
+```
+
+**Diagnostic order when "Not authorized" appears** — each command
+narrows whether it's the token, the link, or the scope:
+1. `vercel whoami` — token valid?
+2. `vercel project ls` — can it read the project?
+3. `vercel ls --prod` — can it read deployments?
+4. `vercel --prod --yes --scope nhattoann` — retry with scope.
+
+If steps 1-3 pass but 4 fails, the token is missing a deploy
+scope grant. `vercel logout` + `vercel login` refreshes it.
+
+**Verify a deploy actually changed the served HTML:** the auth
+pages (`/login` etc.) render only a Suspense fallback in SSR
+because `LoginForm` uses `useSearchParams`, so `vercel curl` will
+NOT show the heading markup even on a correct deploy. Use the
+browser and read the computed style instead:
+
+```javascript
+const h1 = document.querySelector('h1')
+({ cls: h1.className, color: getComputedStyle(h1).color })
+```
+
+Note: a live session makes middleware bounce `/login` →
+`/dashboard`. Use `/login?switch=1` to render the form.
+
 ### Callee-side CallModal (2026-09-30)
 
 The callee (`/chat?call=<pendingCallId>`) on accepting an incoming
