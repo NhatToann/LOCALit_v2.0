@@ -3,67 +3,22 @@
   "note": "Regenerate with: node scripts/build-backdrop-photos.mjs",
   "photos": [
     {
-      "base": "dragon-bridge",
-      "source": "3840x2550",
+      "base": "song-han-2",
+      "landmark": "son-tra",
+      "place": "Sơn Trà",
+      "alt": "Coastline and green hills of the Sơn Trà peninsula near Da Nang",
+      "source": "800x600",
       "desktop": {
-        "path": "/photos/desktop/dragon-bridge.jpg",
-        "bytes": 128039
+        "path": "/photos/desktop/song-han-2.webp",
+        "bytes": 95678
       },
       "tablet": {
-        "path": "/photos/tablet/dragon-bridge.jpg",
-        "bytes": 66126
+        "path": "/photos/tablet/song-han-2.webp",
+        "bytes": 57940
       },
       "mobile": {
-        "path": "/photos/mobile/dragon-bridge.jpg",
-        "bytes": 43938
-      }
-    },
-    {
-      "base": "han-river",
-      "source": "3840x1826",
-      "desktop": {
-        "path": "/photos/desktop/han-river.jpg",
-        "bytes": 352325
-      },
-      "tablet": {
-        "path": "/photos/tablet/han-river.jpg",
-        "bytes": 137144
-      },
-      "mobile": {
-        "path": "/photos/mobile/han-river.jpg",
-        "bytes": 86231
-      }
-    },
-    {
-      "base": "marble-mountains",
-      "source": "1800x1118",
-      "desktop": {
-        "path": "/photos/desktop/marble-mountains.jpg",
-        "bytes": 260613
-      },
-      "tablet": {
-        "path": "/photos/tablet/marble-mountains.jpg",
-        "bytes": 110346
-      },
-      "mobile": {
-        "path": "/photos/mobile/marble-mountains.jpg",
-        "bytes": 75178
-      }
-    },
-    {
-      "base": "my-khe-beach",
-      "source": "3840x2509",
-      "desktop": {
-        "path": "/photos/desktop/my-khe-beach.jpg",
-        "bytes": 541173
-      },
-      "tablet": {
-        "path": "/photos/tablet/my-khe-beach.jpg",
-        "bytes": 179304
-      },
-      "mobile": {
-        "path": "/photos/mobile/my-khe-beach.jpg",
-        "bytes": 114990
+        "path": "/photos/mobile/song-han-2.webp",
+        "bytes": 38252
       }
     }
   ]

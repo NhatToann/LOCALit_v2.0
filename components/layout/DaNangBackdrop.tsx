@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { PHOTOS, HERO_BASE, photoByBase, type Photo } from '@/lib/photos'
+import { BACKDROP_PHOTOS, type Photo } from '@/lib/photos'
 
 /**
  * LOCALit Da Nang Backdrop — full-bleed photography behind every page.
@@ -54,16 +54,18 @@ const STORAGE_TS = 'localit-backdrop-ts'
 /**
  * Photos eligible for the backdrop rotation.
  *
- * The hero's LANDMARK is excluded, not just its filename. `han-river.jpg`
- * and `dragon-bridge.jpg` are two different files but the same subject —
- * both show the Dragon Bridge — so filtering by filename alone still put
- * the same scene twice on one page. Comparing the `landmark` field is
- * what actually prevents that.
+ * The hero's LANDMARK is excluded, not just its filename. Two different
+ * files can show the same subject — the Dragon Bridge at night, and
+ * the Han River shot that also frames it — so filtering by filename
+ * alone would still put the same scene twice on one page. Comparing
+ * the `landmark` field is what actually prevents that.
+ *
+ * When the pool holds only ONE photo there is nothing left for the
+ * backdrop once the hero has taken it, so `BACKDROP_PHOTOS` (in
+ * `lib/photos.ts`) hands the single photo to the backdrop and the
+ * hero falls back to a solid brand teal.
  */
-const HERO_LANDMARK = photoByBase(HERO_BASE)?.landmark
-const BACKDROP_PHOTOS: Photo[] = PHOTOS.filter(
-  (p) => p.landmark !== HERO_LANDMARK,
-)
+const ROTATION_PHOTOS: Photo[] = BACKDROP_PHOTOS
 
 /**
  * Pick a RANDOM photo, but never the same one twice in a row — the
@@ -77,7 +79,7 @@ function pickIndexClient(): number {
   const stored = safeRead(STORAGE_KEY)
   const lastTs = Number(safeRead(STORAGE_TS) ?? '0')
   const prev = stored !== null ? parseInt(stored, 10) : NaN
-  const hasPrev = !Number.isNaN(prev) && prev >= 0 && prev < BACKDROP_PHOTOS.length
+  const hasPrev = !Number.isNaN(prev) && prev >= 0 && prev < ROTATION_PHOTOS.length
 
   // Within the freshness window, keep showing the current photo.
   if (hasPrev && Date.now() - lastTs < 30 * 60 * 1000) {
@@ -85,9 +87,9 @@ function pickIndexClient(): number {
   }
 
   // Otherwise pick at random, avoiding an immediate repeat.
-  let next = Math.floor(Math.random() * BACKDROP_PHOTOS.length)
-  if (hasPrev && BACKDROP_PHOTOS.length > 1 && next === prev) {
-    next = (next + 1) % BACKDROP_PHOTOS.length
+  let next = Math.floor(Math.random() * ROTATION_PHOTOS.length)
+  if (hasPrev && ROTATION_PHOTOS.length > 1 && next === prev) {
+    next = (next + 1) % ROTATION_PHOTOS.length
   }
 
   try {
@@ -115,7 +117,7 @@ export default function DaNangBackdrop() {
     setIndex(pickIndexClient())
   }, [])
 
-  const photo = BACKDROP_PHOTOS[index] ?? BACKDROP_PHOTOS[0]
+  const photo = ROTATION_PHOTOS[index] ?? ROTATION_PHOTOS[0]
   const imgClass = 'absolute inset-0 w-full h-full object-cover'
 
   return (
@@ -127,28 +129,30 @@ export default function DaNangBackdrop() {
 
       {/* Responsive photo via <picture>. Three sources ordered smallest-to-
           largest so the browser picks the FIRST that matches (mobile-first).
-          The <img> fallback is the desktop full-bleed JPEG. */}
-      <picture>
-        <source media="(max-width: 639px)" srcSet={`/photos/mobile/${photo.base}.jpg`} />
-        <source media="(max-width: 1023px)" srcSet={`/photos/tablet/${photo.base}.jpg`} />
-        <img
-          src={`/photos/desktop/${photo.base}.jpg`}
-          alt={photo.alt}
-          className={imgClass}
-          loading="eager"
-          decoding="async"
-          fetchPriority="high"
-          style={{
-            // The backdrop is a TEXTURE, not a feature. It must stay
-            // quiet enough that no content competes with it. The photo
-            // is heavily desaturated, lightened toward the paper tone,
-            // and then the wash below pulls it toward the brand teal.
-            // Opacity 0.16 keeps it at "barely there" strength.
-            filter: 'saturate(0.35) contrast(0.9) brightness(1.12)',
-            opacity: 0.16,
-          }}
-        />
-      </picture>
+          The <img> fallback is the desktop full-bleed crop. */}
+      {photo && (
+        <picture>
+          <source media="(max-width: 639px)" srcSet={`/photos/mobile/${photo.base}.webp`} />
+          <source media="(max-width: 1023px)" srcSet={`/photos/tablet/${photo.base}.webp`} />
+          <img
+            src={`/photos/desktop/${photo.base}.webp`}
+            alt={photo.alt}
+            className={imgClass}
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
+            style={{
+              // The backdrop is a TEXTURE, not a feature — it must stay
+              // quiet enough that no content competes with it, but it
+              // still has to be VISIBLE. The photo is desaturated and
+              // lightened toward the paper tone, then the wash below
+              // pulls it toward the brand teal.
+              filter: 'saturate(0.45) contrast(0.95) brightness(1.06)',
+              opacity: 0.24,
+            }}
+          />
+        </picture>
+      )}
 
       {/* Brand wash — a single solid teal multiplied over the photo. ONE
           color, no gradient. Removed on 2026-10-20: the second teal
@@ -158,15 +162,17 @@ export default function DaNangBackdrop() {
       <div
         className="absolute inset-0"
         style={{
-          backgroundColor: 'rgba(15, 118, 110, 0.10)',
+          backgroundColor: 'rgba(15, 118, 110, 0.12)',
           mixBlendMode: 'multiply',
         }}
       />
 
       {/* Tiny attribution mark, bottom-right, never visible to assistive tech */}
-      <span className="absolute bottom-2 right-3 text-[10px] text-ink/60 font-semibold tracking-wider uppercase pointer-events-none select-none">
-        {photo.place}
-      </span>
+      {photo && (
+        <span className="absolute bottom-2 right-3 text-[10px] text-ink/60 font-semibold tracking-wider uppercase pointer-events-none select-none">
+          {photo.place}
+        </span>
+      )}
     </div>
   )
 }

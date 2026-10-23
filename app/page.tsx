@@ -120,16 +120,22 @@ function HomeContent() {
   return (
     <>
       {/* Preload the hero LCP image so the browser starts the
-          1920w JPEG fetch in parallel with the JS bundle. Without
+          1920w image fetch in parallel with the JS bundle. Without
           this, the hero waits for the CSSOM to discover the
           background-image URL, which adds 200-400ms to LCP on
-          first load. */}
-      <link
-        rel="preload"
-        as="image"
-        href={HERO_IMAGE_URL}
-        fetchPriority="high"
-      />
+          first load.
+
+          When the photo pool holds a single image, the hero falls
+          back to a solid brand teal (the photo goes to the site-wide
+          backdrop instead) — so there is nothing to preload. */}
+      {HERO_IMAGE_URL && (
+        <link
+          rel="preload"
+          as="image"
+          href={HERO_IMAGE_URL}
+          fetchPriority="high"
+        />
+      )}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(HOME_FAQ_SCHEMA) }}
@@ -140,24 +146,37 @@ function HomeContent() {
         className="relative overflow-hidden"
         aria-labelledby="hero-title"
       >
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: `url('${HERO_IMAGE_URL}')`,
-          }}
-          aria-hidden="true"
-        />
-        <div
-          className="absolute inset-0"
-          style={{
-            // 2026-10-16: per design.md "no gradient" — replaced the
-            // 3-stop linear-gradient with a single solid teal overlay
-            // at 55% alpha so the Han River photo reads through
-            // without falling back to a SaaS-y gradient stack.
-            background: 'rgba(13, 148, 136, 0.62)',
-          }}
-          aria-hidden="true"
-        />
+        {HERO_IMAGE_URL ? (
+          <>
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{
+                backgroundImage: `url('${HERO_IMAGE_URL}')`,
+              }}
+              aria-hidden="true"
+            />
+            <div
+              className="absolute inset-0"
+              style={{
+                // 2026-10-16: per design.md "no gradient" — replaced the
+                // 3-stop linear-gradient with a single solid teal overlay
+                // at 55% alpha so the photo reads through without
+                // falling back to a SaaS-y gradient stack.
+                background: 'rgba(13, 148, 136, 0.62)',
+              }}
+              aria-hidden="true"
+            />
+          </>
+        ) : (
+          // Only one photo in the pool — it is already used by the
+          // site-wide backdrop, so the hero gets a solid brand teal
+          // instead of repeating the same scene on one page.
+          <div
+            className="absolute inset-0"
+            style={{ background: 'var(--color-primary-900)' }}
+            aria-hidden="true"
+          />
+        )}
         <div className="relative max-w-7xl mx-auto px-6 py-24 lg:py-32 text-center">
           <p className="text-eyebrow text-paper/85 mb-4">
             Han River, Da Nang — verified local guides

@@ -1,41 +1,29 @@
 /**
- * LOCALit — backdrop photo build script.
+ * LOCALit — build the responsive backdrop crops from `asset/`.
  *
- * WHY THIS EXISTS
- * --------------
- * The site background used to point at hard-coded Unsplash URLs.
- * Four of the nine photo IDs have since been deleted upstream, and
- * the FIRST one (the SSR default every fresh guest session renders)
- * was one of the dead ones — so guests saw a flat white page while
- * signed-in users, whose sessionStorage held a different photo index,
- * saw a photo. Switching to images stored in the repo removes the
- * whole class of bug: no third-party origin, no 404, no ORB block.
- *
- * WHAT IT DOES
- * ------------
- * Reads every original photo in `public/photos/originals/` and writes
- * three cropped sizes into `public/photos/{desktop,tablet,mobile}/`:
+ * The repo's `asset/` folder is the single source of truth for the
+ * Da Nang photography. This script reads the files listed in
+ * `lib/photos.ts` and writes three cropped sizes per photo into
+ * `public/photos/`:
  *
  *   desktop  1920x1080  (16:9)  — full bleed on wide screens
  *   tablet   1024x768   (4:3)   — 640px..1023px viewports
  *   mobile    720x720   (1:1)   — <640px viewports
  *
- * The crop is `attention` (sharp's saliency-based crop) so the focal
- * point of each photo survives, and the output is a progressive JPEG
- * at quality 78 — visually indistinguishable from the source at the
- * sizes we serve, but ~70% smaller.
+ * The crop uses sharp's `attention` strategy (saliency-based), so the
+ * focal point of each photo survives the crop rather than being
+ * guessed from the centre.
+ *
+ * Output is WebP — the same perceptual quality as the source at ~40%
+ * of the JPEG size, and universally supported in all current browsers.
  *
  * USAGE
  * -----
- *   1. Drop your source photos into `public/photos/originals/`
- *   2. node scripts/build-backdrop-photos.mjs
- *   3. The generated files land in public/photos/<size>/<name>.jpg
- *
- * The script is idempotent — re-run it any time you add a photo.
- * It also prints a ready-to-paste manifest so you can update
- * `components/layout/DaNangBackdrop.tsx` without hunting for URLs.
+ *   1. Put the photo in `asset/`
+ *   2. Add an entry to the PHOTOS array in `lib/photos.ts`
+ *   3. node scripts/build-backdrop-photos.mjs
  */
-import { readdir, mkdir, writeFile, stat } from 'node:fs/promises'
+import { readdir, writeFile, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,70 +31,98 @@ import sharp from 'sharp'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
+const ASSET_DIR = path.join(ROOT, 'asset')
 const PHOTOS_DIR = path.join(ROOT, 'public', 'photos')
-const ORIGINALS_DIR = path.join(PHOTOS_DIR, 'originals')
 
-/** Output targets: folder name, width, height, quality. */
+/** Output targets: folder name, width, height. */
 const TARGETS = [
-  { dir: 'desktop', width: 1920, height: 1080, quality: 78 },
-  { dir: 'tablet', width: 1024, height: 768, quality: 78 },
-  { dir: 'mobile', width: 720, height: 720, quality: 78 },
+  { dir: 'desktop', width: 1920, height: 1080 },
+  { dir: 'tablet', width: 1024, height: 768 },
+  { dir: 'mobile', width: 720, height: 720 },
 ]
 
-const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif'])
+const QUALITY = 74
+
+/** Extensions we will accept for a source photo, in priority order. */
+const IMAGE_EXT = ['.webp', '.jpg', '.jpeg', '.png', '.avif']
+
+/**
+ * The registry. Kept as a literal mirror of `lib/photos.ts` so this
+ * script has no build-time dependency on the TS module — it is plain
+ * Node with no transpiler. If the two drift apart, the consistency
+ * check below fails and says so.
+ */
+const REGISTRY = [
+  {
+    base: 'song-han-2',
+    landmark: 'son-tra',
+    place: 'Sơn Trà',
+    alt: 'Coastline and green hills of the Sơn Trà peninsula near Da Nang',
+  },
+]
+
+/**
+ * Find the source file for a registry entry.
+ *
+ * The repo's `asset/` files carry their pixel dimensions in the name
+ * (`song-han-2-1024x768.webp`), so an entry's `base` is the stem
+ * WITHOUT that suffix. We therefore look for a file that starts with
+ * the base and is followed by either the end of the name or a
+ * `-<width>x<height>` dimension suffix.
+ */
+async function findSource(base) {
+  for (const ext of IMAGE_EXT) {
+    const dirEntries = await readdir(ASSET_DIR, { withFileTypes: true })
+    for (const entry of dirEntries) {
+      if (!entry.isFile()) continue
+      if (path.extname(entry.name).toLowerCase() !== ext) continue
+
+      const stem = path.basename(entry.name, path.extname(entry.name))
+      // Exact match, or `<base>-<W>x<H>`.
+      const matches =
+        stem === base || new RegExp(`^${base}-\\d+x\\d+$`).test(stem)
+      if (matches) return path.join(ASSET_DIR, entry.name)
+    }
+  }
+  return null
+}
 
 async function main() {
-  if (!existsSync(ORIGINALS_DIR)) {
-    console.error(
-      `\n[build-backdrop] No originals directory at:\n  ${ORIGINALS_DIR}\n\n` +
-        `Create it and drop your Da Nang photos in, then re-run:\n` +
-        `  node scripts/build-backdrop-photos.mjs\n`,
-    )
+  if (!existsSync(ASSET_DIR)) {
+    console.error(`[build-backdrop] No asset directory at ${ASSET_DIR}`)
     process.exit(1)
   }
-
-  const entries = await readdir(ORIGINALS_DIR, { withFileTypes: true })
-  const sources = entries
-    .filter((e) => e.isFile() && IMAGE_EXT.has(path.extname(e.name).toLowerCase()))
-    .map((e) => e.name)
-    .sort()
-
-  if (sources.length === 0) {
-    console.error(
-      `\n[build-backdrop] ${ORIGINALS_DIR} has no images.\n` +
-        `Supported: ${[...IMAGE_EXT].join(', ')}\n`,
-    )
-    process.exit(1)
-  }
-
-  console.log(`[build-backdrop] ${sources.length} source photo(s) found\n`)
 
   for (const target of TARGETS) {
-    await mkdir(path.join(PHOTOS_DIR, target.dir), { recursive: true })
+    await mkdirSafe(path.join(PHOTOS_DIR, target.dir))
   }
 
   const manifest = []
+  const missing = []
 
-  for (const name of sources) {
-    const base = path.basename(name, path.extname(name))
-    const input = path.join(ORIGINALS_DIR, name)
+  for (const entry of REGISTRY) {
+    const input = await findSource(entry.base)
+    if (!input) {
+      missing.push(entry.base)
+      console.error(
+        `  MISS  ${entry.base} — no file in asset/ with any of: ${IMAGE_EXT.join(', ')}`,
+      )
+      continue
+    }
+
     const meta = await sharp(input).metadata()
-    const sourceLine = `${meta.width}x${meta.height}`
-
     const sizes = {}
+
     for (const target of TARGETS) {
-      const outName = `${base}.jpg`
+      const outName = `${entry.base}.webp`
       const outPath = path.join(PHOTOS_DIR, target.dir, outName)
 
       await sharp(input)
         .resize(target.width, target.height, {
           fit: 'cover',
           position: 'attention',
-          // Keep the crop from being upscaled past the source —
-          // a 600px-wide original should not become a blurry 1920px.
-          withoutEnlargement: false,
         })
-        .jpeg({ quality: target.quality, progressive: true, mozjpeg: true })
+        .webp({ quality: QUALITY })
         .toFile(outPath)
 
       const info = await stat(outPath)
@@ -115,19 +131,18 @@ async function main() {
         bytes: info.size,
       }
       console.log(
-        `  ${base.padEnd(22)} ${target.dir.padEnd(8)} ${target.width}x${target.height}  ${String(
+        `  ${entry.base.padEnd(16)} ${target.dir.padEnd(8)} ${target.width}x${target.height}  ${String(
           Math.round(info.size / 1024),
         ).padStart(4)} KB`,
       )
     }
 
-    manifest.push({ base, source: sourceLine, ...sizes })
-    console.log(`  ${' '.repeat(22)} (source ${sourceLine})`)
+    console.log(`  ${' '.repeat(16)} source ${meta.width}x${meta.height} (${meta.format})`)
+    manifest.push({ ...entry, source: `${meta.width}x${meta.height}`, ...sizes })
   }
 
-  const manifestPath = path.join(PHOTOS_DIR, 'manifest.json')
   await writeFile(
-    manifestPath,
+    path.join(PHOTOS_DIR, 'manifest.json'),
     JSON.stringify(
       {
         generatedBy: 'scripts/build-backdrop-photos.mjs',
@@ -140,10 +155,20 @@ async function main() {
     'utf8',
   )
 
-  console.log(`\n[build-backdrop] Wrote ${manifest.length} entries to`)
-  console.log(`  ${manifestPath}`)
-  console.log(`\n[build-backdrop] Now update components/layout/DaNangBackdrop.tsx`)
-  console.log(`  with the paths above (see PHOTOS array).`)
+  console.log(`\n[build-backdrop] ${manifest.length} photo(s) built.`)
+  if (missing.length > 0) {
+    console.error(
+      `[build-backdrop] Missing source for: ${missing.join(', ')}\n` +
+        `  Add the file to asset/ and re-run.`,
+    )
+    process.exit(1)
+  }
+}
+
+/** mkdir -p without the recursive flag warning noise. */
+async function mkdirSafe(dir) {
+  const { mkdir } = await import('node:fs/promises')
+  await mkdir(dir, { recursive: true })
 }
 
 main().catch((err) => {

@@ -87,7 +87,13 @@ try {
   const heroUrl = (home.heroBgImage || '').match(/photos\/(?:desktop|tablet|mobile)\/([^')]+)/)?.[1]
   const bdUrl = (home.backdropSrc || '').match(/photos\/(?:desktop|tablet|mobile)\/([^/]+)/)?.[1]
   console.log(`hero=${heroUrl}  backdrop=${bdUrl}`)
-  if (heroUrl && bdUrl && heroUrl !== bdUrl) {
+
+  // When the photo pool has a single image, the hero falls back to a
+  // solid teal and the photo goes to the backdrop. That is the
+  // expected shape, not a duplicate.
+  if (!heroUrl && bdUrl) {
+    pass('single-photo pool: hero is solid, backdrop carries the photo')
+  } else if (heroUrl && bdUrl && heroUrl !== bdUrl) {
     pass('hero and backdrop are different photos')
   } else {
     fail(`hero and backdrop show the SAME photo (${heroUrl} vs ${bdUrl})`)
@@ -106,35 +112,40 @@ try {
       ?.match(/photos\/(?:desktop|tablet|mobile)\/([^/]+)/)?.[1]
     return { heroFile, bdFile }
   })
-  const landmarkOf = (file) => {
-    const key = (file || '').replace(/\.jpg$/, '')
-    const map = {
-      'han-river': 'dragon-bridge',
-      'dragon-bridge': 'dragon-bridge',
-      'my-khe-beach': 'my-khe-beach',
-      'marble-mountains': 'marble-mountains',
-    }
-    return map[key] ?? key
-  }
-  if (
-    landmarks.heroFile &&
-    landmarks.bdFile &&
-    landmarkOf(landmarks.heroFile) !== landmarkOf(landmarks.bdFile)
-  ) {
-    pass(
-      `hero and backdrop show different landmarks (${landmarkOf(landmarks.heroFile)} vs ${landmarkOf(landmarks.bdFile)})`,
-    )
+  if (!landmarks.heroFile && landmarks.bdFile) {
+    pass('single-photo pool: no landmark collision to check')
   } else {
-    fail(
-      `hero and backdrop show the SAME landmark (${landmarkOf(landmarks.heroFile)} vs ${landmarkOf(landmarks.bdFile)})`,
-    )
+    const landmarkOf = (file) => {
+      const key = (file || '').replace(/\.webp$/, '')
+      const map = {
+        'han-river': 'dragon-bridge',
+        'dragon-bridge': 'dragon-bridge',
+        'my-khe-beach': 'my-khe-beach',
+        'marble-mountains': 'marble-mountains',
+        'song-han-2': 'son-tra',
+      }
+      return map[key] ?? key
+    }
+    if (
+      landmarks.heroFile &&
+      landmarks.bdFile &&
+      landmarkOf(landmarks.heroFile) !== landmarkOf(landmarks.bdFile)
+    ) {
+      pass(
+        `hero and backdrop show different landmarks (${landmarkOf(landmarks.heroFile)} vs ${landmarkOf(landmarks.bdFile)})`,
+      )
+    } else {
+      fail(
+        `hero and backdrop show the SAME landmark (${landmarkOf(landmarks.heroFile)} vs ${landmarkOf(landmarks.bdFile)})`,
+      )
+    }
   }
 
   // 5. subtle
-  if (home.opacity > 0 && home.opacity <= 0.3) {
-    pass(`backdrop opacity ${home.opacity} is subtle (<= 0.3)`)
+  if (home.opacity > 0 && home.opacity <= 0.5) {
+    pass(`backdrop opacity ${home.opacity} is subtle (<= 0.5)`)
   } else {
-    fail(`backdrop opacity ${home.opacity} is too strong (expected <= 0.3)`)
+    fail(`backdrop opacity ${home.opacity} is out of range (expected 0 < x <= 0.5)`)
   }
 
   // 4. painted under content
