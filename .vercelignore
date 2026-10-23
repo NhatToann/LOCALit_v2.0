@@ -1,0 +1,20 @@
+# Files the Vercel CLI must NOT upload.
+#
+# Why this file exists (2026-10-23): a deploy failed with
+# "File size limit exceeded (100 MB)" because the local dev server's
+# Turbopack artifacts grew past the limit —
+#   .next/dev/logs/next-development.log   351 MB
+#   .next/dev/cache/turbopack/*.sst        52-122 MB each
+# `.next/` is git-ignored, but Vercel CLI uploads the working
+# directory, not the git tree. Without this file a long-running dev
+# session silently breaks the next deploy.
+.next/
+node_modules/
+.git/
+.vercel/
+
+# Local scratch
+*.log
+dev-*.log
+smoke-out.txt
+build*.log
