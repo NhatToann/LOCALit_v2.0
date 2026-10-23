@@ -22,6 +22,14 @@ const args = process.argv.slice(2)
 const baseArg = args.find((a) => a.startsWith('--url='))
 const BASE = baseArg ? baseArg.split('=')[1] : 'http://localhost:3111'
 
+// Vercel Deployment Protection gates every request to the production
+// alias with an SSO wall. Without this header the page we test is the
+// Vercel login screen, not LOCALit — the assertions below then fail
+// for a reason that has nothing to do with the backdrop.
+const BYPASS = {
+  'x-vercel-protection-bypass': 'w6XAcwiXyFf9Pea8I6zwVONXAhc8Xs9A',
+}
+
 const failures = []
 const pass = (msg) => console.log(`PASS: ${msg}`)
 const fail = (msg) => {
@@ -30,7 +38,10 @@ const fail = (msg) => {
 }
 
 const browser = await chromium.launch()
-const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+const context = await browser.newContext({
+  viewport: { width: 1440, height: 900 },
+  extraHTTPHeaders: BYPASS,
+})
 const page = await context.newPage()
 
 try {
