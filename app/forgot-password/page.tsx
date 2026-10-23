@@ -123,7 +123,7 @@ function ForgotPasswordForm() {
         >
           <KeyRound size={24} />
         </span>
-        <h1 className="text-page-title">Forgot password?</h1>
+        <h1 className="text-page-title text-ink">Forgot password?</h1>
         <p className="text-sm text-muted mt-2 max-w-sm mx-auto">
           Enter your email and we&apos;ll send you a 6-digit code to set a new
           password.

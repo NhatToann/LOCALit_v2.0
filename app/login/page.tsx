@@ -169,7 +169,7 @@ function LoginForm() {
       </div>
 
       <header className="mb-6 text-center">
-        <h1 className="text-page-title">Sign in</h1>
+        <h1 className="text-page-title text-ink">Sign in</h1>
         <p className="text-sm text-muted mt-2">
           Welcome back. Continue your Da Nang trip with a verified local buddy.
         </p>

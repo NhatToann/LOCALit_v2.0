@@ -247,7 +247,7 @@ function ResetPasswordFlow() {
           >
             <KeyRound size={24} />
           </span>
-          <h1 className="text-page-title">Reset your password</h1>
+          <h1 className="text-page-title text-ink">Reset your password</h1>
           <p className="text-sm text-muted mt-2">
             Enter your email and we&apos;ll send you a 6-digit code to set a new
             password.
@@ -324,7 +324,7 @@ function ResetPasswordFlow() {
         >
           {verified ? <Lock size={24} /> : <Mail size={24} />}
         </span>
-        <h1 className="text-page-title">
+        <h1 className="text-page-title text-ink">
           {verified ? 'Choose a new password' : 'Enter your reset code'}
         </h1>
         <p className="text-sm text-muted mt-2">
