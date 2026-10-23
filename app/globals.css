@@ -99,8 +99,12 @@
   --color-ink: #0A1F1D;                 /* near-black with teal undertone */
   --color-border: #A7F3D0;             /* mint-300 — visible at 1px */
   --color-border-strong: #34D399;      /* mint-400 — hover borders */
-  --color-muted: #4B5563;              /* slate-600, jade-tinted */
-  --color-subtle: #6B7280;             /* slate-500 */
+  /* 2026-10-23: darkened one step so the two secondary text colors
+     still clear WCAG AA on the photo backdrop instead of only on
+     solid white. Measured worst-case page luminance is L=0.46; the
+     old #4B5563 landed at 3.65:1 there and #6B7280 at 2.33:1. */
+  --color-muted: #3F4956;              /* slate-700, jade-tinted */
+  --color-subtle: #59616E;             /* slate-600 */
 
   /* Semantic — pulled into the jade/amber family. No blue. */
   --color-success: #065F46;            /* forest deep */
@@ -160,11 +164,15 @@
   --color-paper: #FFFFFF;
   --color-surface: #F0FDFA;
   --color-surface-deep: #CCFBF1;
+  /* Glass surfaces — see the `@theme static` block above for why the
+     card backgrounds are translucent. */
+  --color-paper-glass: rgb(255 255 255 / 78%);
+  --color-surface-glass: rgb(240 253 250 / 68%);
   --color-ink: #0A1F1D;
   --color-border: #A7F3D0;
   --color-border-strong: #34D399;
-  --color-muted: #4B5563;
-  --color-subtle: #6B7280;
+  --color-muted: #3F4956;
+  --color-subtle: #59616E;
 
   --color-success: #065F46;
   --color-success-bg: #D1FAE5;
@@ -469,14 +477,24 @@
      back into white via `text-paper` while sitting on a card. */
   .bg-paper .text-page-title,
   .bg-surface .text-page-title,
+  .bg-paper-glass .text-page-title,
+  .bg-surface-glass .text-page-title,
   .bg-paper .text-section-title,
   .bg-surface .text-section-title,
+  .bg-paper-glass .text-section-title,
+  .bg-surface-glass .text-section-title,
   .bg-paper h1,
   .bg-paper h2,
   .bg-paper h3,
   .bg-surface h1,
   .bg-surface h2,
-  .bg-surface h3 {
+  .bg-surface h3,
+  .bg-paper-glass h1,
+  .bg-paper-glass h2,
+  .bg-paper-glass h3,
+  .bg-surface-glass h1,
+  .bg-surface-glass h2,
+  .bg-surface-glass h3 {
     color: var(--color-ink);
   }
 

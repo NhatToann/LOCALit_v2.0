@@ -141,7 +141,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     role === 'tourist' || role === 'buddy' || role === 'admin' ? role : undefined
 
   if (isAuthPage) {
-    return <>{children}</>;
+    // 2026-10-23: the auth pages are the GUEST entry point, and they
+    // were the one branch that rendered NO backdrop at all — a guest
+    // landing on /login saw a flat white page while a signed-in user
+    // saw the Da Nang photography. The user asked for the photo
+    // backdrop on every role, guest included, so the backdrop goes
+    // here too. The pages keep their own chrome (no header/footer) —
+    // only the photo layer is added.
+    return (
+      <>
+        <DaNangBackdrop />
+        {children}
+      </>
+    );
   }
 
   if (inRoleLayout) {

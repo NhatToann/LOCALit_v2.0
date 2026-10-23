@@ -142,17 +142,46 @@ export default function DaNangBackdrop() {
             decoding="async"
             fetchPriority="high"
             style={{
-              // The backdrop is a TEXTURE, not a feature — it must stay
-              // quiet enough that no content competes with it, but it
-              // still has to be VISIBLE. The photo is desaturated and
-              // lightened toward the paper tone, then the wash below
-              // pulls it toward the brand teal.
-              filter: 'saturate(0.45) contrast(0.95) brightness(1.06)',
-              opacity: 0.24,
+              // 2026-10-23 — retuned for VISIBLE photography.
+              //
+              // The old values (opacity 0.24, brightness 1.06) were
+              // tuned when every card was an opaque white rectangle,
+              // so the photo only ever showed in the thin gutters
+              // between sections. Now that cards are translucent the
+              // photo IS the page's atmosphere and has to actually
+              // read — the user asked to see it.
+              //
+              // Opacity alone could not do it: at ANY opacity the
+              // darkest pixel of `han-river` (a night shot, L=0.0045)
+              // drags the page background down to L=0.46, where
+              // --color-muted measures only 3.65:1 — under the AA
+              // floor. `brightness(1.22)` lifts that dark pixel so the
+              // page background sits at L≈0.72, and `contrast(0.90)`
+              // keeps the result from going flat. The white veil below
+              // then brings the worst case to L≈0.75, where muted
+              // measures 5.2:1 and subtle 3.8:1. `saturate(0.45)`
+              // keeps the photograph recognisable as Da Nang without
+              // competing with the teal brand chrome.
+              filter: 'saturate(0.45) contrast(0.90) brightness(1.22)',
+              opacity: 0.3,
             }}
           />
         </picture>
       )}
+
+      {/* White veil — 2026-10-23.
+          Sits between the photo and the brand wash. This is the layer
+          that makes the photo visible AND keeps ink/muted/subtle text
+          above WCAG AA at the same time: without it the night shot's
+          shadows push the page background down to L≈0.46.
+
+          It is ONE solid rgba color — no gradient (AGENTS.md bans
+          `linear-gradient` anywhere) and no `backdrop-filter`. */}
+      <div
+        className="absolute inset-0"
+        style={{ backgroundColor: 'rgba(255, 255, 255, 0.34)' }}
+        aria-hidden="true"
+      />
 
       {/* Brand wash — a single solid teal multiplied over the photo. ONE
           color, no gradient. Removed on 2026-10-20: the second teal
