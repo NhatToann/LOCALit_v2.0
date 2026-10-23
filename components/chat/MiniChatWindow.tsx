@@ -212,7 +212,10 @@ export default function MiniChatWindow() {
     if (active && open) loadMessages(active.id)
   }, [active, open, loadMessages])
 
-  const { messages } = useMessageStream(active?.id ?? null, initialMessages as unknown as import('@/lib/types').Message[], [])
+  // NOTE: do not pass a fresh `[]` literal here — the hook reseeds on
+  // identity change, which caused an infinite render loop. The default
+  // parameter (EMPTY_REACTIONS) is a stable reference.
+  const { messages } = useMessageStream(active?.id ?? null, initialMessages as unknown as import('@/lib/types').Message[])
 
   async function sendDraft(e: React.FormEvent) {
     e.preventDefault()

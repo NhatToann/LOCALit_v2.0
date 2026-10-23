@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/utils/supabase/auth'
 import type { Message, MessageReaction } from '@/lib/types'
 
+const EMPTY_REACTIONS: MessageReaction[] = []
+
 /**
  * useMessageStream — subscribe to INSERT / UPDATE / DELETE on messages,
  * plus message_reactions, for a single conversation.
@@ -12,10 +14,28 @@ import type { Message, MessageReaction } from '@/lib/types'
  * @returns { messages, reactionsByMessage, refetch }
  *   reactionsByMessage is grouped as { [message_id]: MessageReaction[] }
  */
+/**
+ * Shallow-by-key comparison for message/reaction arrays.
+ *
+ * The reseed effects below must NOT rely on reference identity: some
+ * callers pass a fresh array literal on every render (e.g.
+ * `useMessageStream(id, msgs, [])` in MiniChatWindow), which made the
+ * effect fire on every render -> setState -> re-render -> new array
+ * -> infinite loop ("Maximum update depth exceeded").
+ */
+function sameById<T extends { id: string }>(a: T[], b: T[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]?.id !== b[i]?.id) return false
+  }
+  return true
+}
+
 export function useMessageStream(
   conversationId: string | null,
   initial: Message[],
-  initialReactions: MessageReaction[] = [],
+  initialReactions: MessageReaction[] = EMPTY_REACTIONS,
 ) {
   const [messages, setMessages] = useState<Message[]>(initial)
   const [reactions, setReactions] = useState<MessageReaction[]>(initialReactions)
@@ -43,14 +63,14 @@ export function useMessageStream(
   // those live in FocusChat's `localAppends` queue.
   const lastInitialRef = useRef<Message[] | null>(null)
   useEffect(() => {
-    if (initial !== lastInitialRef.current) {
+    if (!sameById(initial, lastInitialRef.current ?? [])) {
       setMessages(initial)
       lastInitialRef.current = initial
     }
   }, [initial])
   const lastInitialReactionsRef = useRef<MessageReaction[] | null>(null)
   useEffect(() => {
-    if (initialReactions !== lastInitialReactionsRef.current) {
+    if (!sameById(initialReactions, lastInitialReactionsRef.current ?? [])) {
       setReactions(initialReactions)
       lastInitialReactionsRef.current = initialReactions
     }
