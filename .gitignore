@@ -80,3 +80,11 @@ auth-cookie-*.txt
 # Local Playwright screenshots from one-off probes (kept locally for
 # reference, not part of the build artifacts)
 /scripts/screenshots/
+
+# Backdrop photo SOURCE files. The originals are 2-4 MB each and are
+# only needed to regenerate the cropped sizes. The generated files in
+# public/photos/{desktop,tablet,mobile}/ ARE committed — they are what
+# the site serves. Regenerate with:
+#   node scripts/fetch-backdrop-sources.mjs
+#   node scripts/build-backdrop-photos.mjs
+/public/photos/originals/

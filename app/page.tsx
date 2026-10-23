@@ -21,8 +21,13 @@ export const metadata: Metadata = {
 // page-level <head> via the metadata.other field. The browser
 // starts fetching the 1920w JPEG as soon as it parses the HTML,
 // in parallel with the JS bundle download.
-export const HERO_IMAGE_URL =
-  'https://images.unsplash.com/photo-1572551562325-b5d5057c9b54?w=1920&q=80&auto=format&fit=crop'
+//
+// 2026-10-23: switched from a hard-coded Unsplash CDN URL to the
+// local asset in public/photos/desktop/. The Unsplash ID had been
+// deleted upstream, so the hero rendered a flat teal block with no
+// photo at all. Local assets are same-origin (no ORB block), cannot
+// 404 silently, and ship on the site's own connection.
+export const HERO_IMAGE_URL = '/photos/desktop/han-river.jpg'
 
 const HOME_FAQ_SCHEMA = {
   '@context': 'https://schema.org',
