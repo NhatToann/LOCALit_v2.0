@@ -1505,3 +1505,113 @@ Deployed to `localit-gv157mzth-nhattoann.vercel.app`; canonical
 aliases `localit-nhattoann.vercel.app` and `localit-vn.vercel.app`
 re-pointed to it.
 
+
+---
+
+## Backdrop Photos — asset/ Is The Source Of Truth (2026-10-23)
+
+### The original bug
+
+`components/layout/DaNangBackdrop.tsx` pointed at hard-coded Unsplash
+CDN URLs. **Four of the nine photo IDs had been deleted upstream**,
+and the FIRST one — index 0, what SSR always renders — was one of the
+dead ones.
+
+Symptom was asymmetric, which is what made it confusing:
+
+- **Guests** (fresh session, `sessionStorage` empty) → SSR renders
+  index 0 → dead URL → `naturalWidth: 0` → flat white page.
+- **Signed-in users** (their `sessionStorage` held a different index) →
+  a live photo.
+
+### The fix, in three parts
+
+**1. Photos come from `asset/`, not a CDN.**
+
+`asset/` is the project's own image library. It is the single source of
+truth. `scripts/build-backdrop-photos.mjs` reads it and writes three
+crops per photo into `public/photos/`:
+
+```
+public/photos/desktop/<base>.webp   1920x1080  (16:9)
+public/photos/tablet/<base>.webp    1024x768   (4:3)
+public/photos/mobile/<base>.webp     720x720   (1:1)
+```
+
+`lib/photos.ts` is the REGISTRY — it gives each asset a place name, an
+alt text, and a landmark. The pixel data stays in `asset/`; the
+registry holds only metadata. Adding a photo means: drop the file in
+`asset/`, add an entry to `lib/photos.ts`, run the build script.
+
+Asset filenames carry their pixel dimensions
+(`song-han-2-1024x768.webp`), so the build script matches the registry
+stem (`song-han-2`) against `<base>-<W>x<H>`.
+
+**2. `<body>` must be transparent.**
+
+The backdrop was invisible even though the image loaded fine. `body`
+had `background-color: var(--color-paper)` (opaque `#FFFFFF`), and a
+`z-index: -10` element still paints BEHIND its parent's background.
+`html` and `body` are now `transparent`; the paper tone is painted by
+a base layer INSIDE the backdrop instead.
+
+**3. The hero and the backdrop must not show the same scene.**
+
+Two different files can show the same subject. The registry therefore
+carries a `landmark` field, and the backdrop rotation excludes the
+hero's landmark — filtering by filename alone was not enough.
+
+### Single-photo fallback
+
+With only ONE photo in the pool, the hero and the backdrop would show
+the same scene on one page. So:
+
+- `PHOTOS.length === 1` → `HERO_BASE` is `null`, the hero renders a
+  solid brand teal (`--color-primary-900`), and the single photo
+  carries the site-wide backdrop.
+- `PHOTOS.length >= 2` → the hero takes the first photo and the
+  backdrop rotates through the rest.
+
+Add a second photo to `asset/` and the hero becomes a photo again,
+automatically.
+
+### Texture strength
+
+The backdrop is a texture, not a feature, but it must still be
+visible. Current values:
+
+```
+opacity 0.24   (was 0.16 — user asked for 50% more presence)
+filter  saturate(0.45) contrast(0.95) brightness(1.06)
+wash    rgba(15, 118, 110, 0.12), mixBlendMode multiply
+```
+
+### Verification
+
+```bash
+node scripts/build-backdrop-photos.mjs   # regenerate the crops
+node scripts/smoke-backdrop.mjs          # 7 assertions
+```
+
+The smoke test asserts: image loaded, `body`/`html` transparent,
+backdrop at `z-index: -10`, hero and backdrop do not collide, opacity
+in range, content paints over the backdrop, and the photo loads on a
+second page. Screenshots land in `scripts/screenshots/`.
+
+### Pitfall to remember
+
+> **`naturalWidth: 0` means the image element exists but the fetch
+> failed.** The fastest signal that a background photo is dead:
+> ```javascript
+> document.querySelector('div.fixed.inset-0.-z-10 img').naturalWidth
+> ```
+> Note that `vercel curl` cannot diagnose this class of bug — the auth
+> pages render only a Suspense fallback in SSR. Use the browser.
+
+> **`z-index: -10` does NOT escape an opaque parent background.**
+> The element goes behind the parent's background, not in front of it.
+> Any full-bleed background layer requires a transparent `<body>`.
+
+Deployed to `localit-jkc52tdpn-nhattoann.vercel.app`; canonical
+aliases `localit-nhattoann.vercel.app` and `localit-vn.vercel.app`
+re-pointed to it.
