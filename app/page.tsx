@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { Section } from '@/components/ui/Section';
+import { HERO_IMAGE_URL } from '@/lib/photos';
 
 export const metadata: Metadata = {
   title: 'LOCALit — Da Nang Local Buddies, $15 to $45 per hour',
@@ -27,7 +28,15 @@ export const metadata: Metadata = {
 // deleted upstream, so the hero rendered a flat teal block with no
 // photo at all. Local assets are same-origin (no ORB block), cannot
 // 404 silently, and ship on the site's own connection.
-export const HERO_IMAGE_URL = '/photos/desktop/han-river.jpg'
+//
+// The URL comes from lib/photos.ts so the hero and the global
+// backdrop always agree on the filename — that shared module is also
+// what lets the backdrop exclude the hero's photo from its rotation.
+// 2026-10-23: the URL comes from lib/photos.ts so the hero and the
+// global backdrop always agree on the filename — that shared module is
+// also what lets the backdrop exclude the hero's photo from its
+// rotation, so the same scene never appears twice on one page.
+export { HERO_IMAGE_URL } from '@/lib/photos'
 
 const HOME_FAQ_SCHEMA = {
   '@context': 'https://schema.org',
