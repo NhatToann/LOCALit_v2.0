@@ -3,9 +3,80 @@
   "note": "Regenerate with: node scripts/build-backdrop-photos.mjs",
   "photos": [
     {
+      "base": "han-river",
+      "landmark": "dragon-bridge",
+      "alt": "Dragon Bridge and the Han River night skyline in Da Nang",
+      "source": "1920x1080",
+      "desktop": {
+        "path": "/photos/desktop/han-river.webp",
+        "bytes": 287982
+      },
+      "tablet": {
+        "path": "/photos/tablet/han-river.webp",
+        "bytes": 122914
+      },
+      "mobile": {
+        "path": "/photos/mobile/han-river.webp",
+        "bytes": 80200
+      }
+    },
+    {
+      "base": "dragon-bridge",
+      "landmark": "dragon-bridge",
+      "alt": "Dragon Bridge lit up at night in Da Nang",
+      "source": "1920x1080",
+      "desktop": {
+        "path": "/photos/desktop/dragon-bridge.webp",
+        "bytes": 62816
+      },
+      "tablet": {
+        "path": "/photos/tablet/dragon-bridge.webp",
+        "bytes": 31136
+      },
+      "mobile": {
+        "path": "/photos/mobile/dragon-bridge.webp",
+        "bytes": 20130
+      }
+    },
+    {
+      "base": "marble-mountains",
+      "landmark": "marble-mountains",
+      "alt": "Limestone peaks of Marble Mountains near Da Nang",
+      "source": "1920x1080",
+      "desktop": {
+        "path": "/photos/desktop/marble-mountains.webp",
+        "bytes": 184898
+      },
+      "tablet": {
+        "path": "/photos/tablet/marble-mountains.webp",
+        "bytes": 89110
+      },
+      "mobile": {
+        "path": "/photos/mobile/marble-mountains.webp",
+        "bytes": 64492
+      }
+    },
+    {
+      "base": "my-khe-beach",
+      "landmark": "my-khe-beach",
+      "alt": "My Khe Beach with the Son Tra hills behind it",
+      "source": "1920x1080",
+      "desktop": {
+        "path": "/photos/desktop/my-khe-beach.webp",
+        "bytes": 497632
+      },
+      "tablet": {
+        "path": "/photos/tablet/my-khe-beach.webp",
+        "bytes": 200632
+      },
+      "mobile": {
+        "path": "/photos/mobile/my-khe-beach.webp",
+        "bytes": 130310
+      }
+    },
+    {
       "base": "song-han-2",
       "landmark": "son-tra",
-      "place": "Sơn Trà",
       "alt": "Coastline and green hills of the Sơn Trà peninsula near Da Nang",
       "source": "800x600",
       "desktop": {

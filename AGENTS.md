@@ -1538,10 +1538,10 @@ public/photos/tablet/<base>.webp    1024x768   (4:3)
 public/photos/mobile/<base>.webp     720x720   (1:1)
 ```
 
-`lib/photos.ts` is the REGISTRY — it gives each asset a place name, an
-alt text, and a landmark. The pixel data stays in `asset/`; the
-registry holds only metadata. Adding a photo means: drop the file in
-`asset/`, add an entry to `lib/photos.ts`, run the build script.
+`lib/photos.ts` is the REGISTRY — it gives each asset an alt text and
+a landmark. The pixel data stays in `asset/`; the registry holds only
+metadata. Adding a photo means: drop the file in `asset/`, add an
+entry to `lib/photos.ts`, run the build script.
 
 Asset filenames carry their pixel dimensions
 (`song-han-2-1024x768.webp`), so the build script matches the registry

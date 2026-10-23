@@ -126,6 +126,15 @@ export default function Footer() {
                     llms.txt
                   </a>
                 </li>
+                {/* CC BY-SA 3.0/4.0 require the photographer, license and
+                    source be credited wherever the image is used. The credits
+                    live in a plain .md file so they stay readable without JS;
+                    this link is what makes them reachable. */}
+                <li>
+                  <a href="/photos/ATTRIBUTION.md" className="text-muted hover:text-ink transition-colors duration-150">
+                    Photo credits
+                  </a>
+                </li>
               </ul>
             </div>
           </div>

@@ -78,6 +78,21 @@
   --color-primary-hover: #115E59;       /* deepened */
   --color-primary-700: #0D9488;         /* brighter accent */
   --color-primary-900: #134E4A;         /* deep ink */
+  /* Hero scrim (2026-10-23). The homepage hero sits ON TOP of the
+     site-wide Da Nang backdrop (fixed, z-index -10). It used to
+     paint an OPAQUE `var(--color-primary-900)` rectangle, which
+     covered the photo entirely — a dead teal block over a photo
+     nobody could see.
+     Still ONE solid color, no gradient, no blur. The alpha is set by
+     the measured worst case, not by taste: at 62% the composited
+     backdrop under white hero text landed at 3.82:1, below the
+     WCAG AA 4.5:1 floor (`scripts/smoke-backdrop.mjs` samples the
+     real photo and replays the whole layer stack). 78% measures
+     5.14:1 worst case while the Sơn Trà photo still reads through
+     at a visible strength. Used together with the hero's own photo
+     layer when the pool holds 2+ images; with a single image the
+     scrim alone tints whatever the backdrop shows. */
+  --color-hero-scrim: rgb(19 78 74 / 78%);
   --color-paper: #FFFFFF;              /* pure white card / page */
   --color-surface: #F0FDFA;            /* mint-tinted card surface */
   --color-surface-deep: #CCFBF1;       /* deeper mint for emphasis cards */
@@ -138,6 +153,10 @@
   --color-primary-hover: #115E59;
   --color-primary-700: #0D9488;
   --color-primary-900: #134E4A;
+  /* Translucent deep teal over the homepage hero. See the `@theme
+     static` definition above for why the hero can no longer be the
+     opaque primary-900 block, and for the measured alpha. */
+  --color-hero-scrim: rgb(19 78 74 / 78%);
   --color-paper: #FFFFFF;
   --color-surface: #F0FDFA;
   --color-surface-deep: #CCFBF1;

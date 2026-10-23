@@ -166,13 +166,6 @@ export default function DaNangBackdrop() {
           mixBlendMode: 'multiply',
         }}
       />
-
-      {/* Tiny attribution mark, bottom-right, never visible to assistive tech */}
-      {photo && (
-        <span className="absolute bottom-2 right-3 text-[10px] text-ink/60 font-semibold tracking-wider uppercase pointer-events-none select-none">
-          {photo.place}
-        </span>
-      )}
     </div>
   )
 }

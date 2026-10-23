@@ -4,18 +4,18 @@
  * SOURCE OF TRUTH
  * ---------------
  * The photos live in the repo's `asset/` folder — the project's own
- * image library. This module is the REGISTRY that gives each file a
- * name, a place, and a landmark. The pixel data itself is not here;
+ * image library. This module is the REGISTRY that gives each file an
+ * id, a landmark, and an alt text. The pixel data itself is not here;
  * `scripts/build-backdrop-photos.mjs` reads `asset/` and writes the
  * responsive crops into `public/photos/`.
  *
  * WHY A REGISTRY AND NOT AN AUTO-SCAN
  * -----------------------------------
- * A photo needs a human-readable place name and an alt text that
- * describes what is actually in the frame. Guessing those from a
- * filename produces wrong labels, so every photo is declared here
- * explicitly. If you add a file to `asset/`, add an entry here too —
- * the build script will warn you if one is missing.
+ * A photo needs alt text that describes what is actually in the frame,
+ * plus a landmark so the same scene is never shown twice on one page.
+ * Guessing those from a filename produces wrong labels, so every photo
+ * is declared here explicitly. If you add a file to `asset/`, add an
+ * entry here too — the build script will warn you if one is missing.
  *
  * THE LANDMARK FIELD
  * ------------------
@@ -25,6 +25,16 @@
  * field is what lets the code exclude the hero's scene from the
  * backdrop rotation so the same bridge never appears twice on one
  * page.
+ *
+ * Two files therefore SHARE one landmark value rather than carrying
+ * two names for the same scene: `han-river` and `dragon-bridge` both
+ * declare `landmark: 'dragon-bridge'`. Do not "fix" these into two
+ * distinct values — the hero filter below compares landmark strings
+ * for equality, so distinct names would let the bridge back into the
+ * rotation and put it on screen next to the hero.
+ *
+ * `scripts/smoke-backdrop.mjs` independently encodes the same rule
+ * with a filename-to-landmark map, and treats the two as identical.
  *
  * GENERATED FILES
  * ---------------
@@ -47,18 +57,40 @@ export type Photo = {
    * the same scene and never shown together.
    */
   landmark: string
-  /** Where the photo was taken — shown in the corner badge. */
-  place: string
   /** Describes what is actually in the frame. */
   alt: string
 }
 
 export const PHOTOS: Photo[] = [
   {
+    id: 'han-river',
+    base: 'han-river',
+    // Shared landmark with `dragon-bridge` — see the note above.
+    landmark: 'dragon-bridge',
+    alt: 'Dragon Bridge and the Han River night skyline in Da Nang',
+  },
+  {
+    id: 'dragon-bridge',
+    base: 'dragon-bridge',
+    landmark: 'dragon-bridge',
+    alt: 'Dragon Bridge lit up at night in Da Nang',
+  },
+  {
+    id: 'marble-mountains',
+    base: 'marble-mountains',
+    landmark: 'marble-mountains',
+    alt: 'Limestone peaks of Marble Mountains near Da Nang',
+  },
+  {
+    id: 'my-khe-beach',
+    base: 'my-khe-beach',
+    landmark: 'my-khe-beach',
+    alt: 'My Khe Beach with the Son Tra hills behind it',
+  },
+  {
     id: 'song-han-2',
     base: 'song-han-2',
     landmark: 'son-tra',
-    place: 'Sơn Trà',
     alt: 'Coastline and green hills of the Sơn Trà peninsula near Da Nang',
   },
 ]
@@ -66,11 +98,15 @@ export const PHOTOS: Photo[] = [
 /**
  * The homepage hero photo.
  *
- * When the pool holds only ONE photo, there is nothing left for the
- * backdrop once the hero has taken it. Rather than showing the same
- * scene twice, the hero falls back to a solid brand teal and the
- * single photo goes to the site-wide backdrop. Add a second photo to
- * `asset/` and the hero becomes a photo again automatically.
+ * The hero takes `PHOTOS[0]`, so the pool is ordered by how well the
+ * opening frame works as a full-bleed banner: `han-river` (the
+ * fireworks-night skyline) leads, and the rest follow.
+ *
+ * When the pool ever drops back to a single photo, there would be
+ * nothing left for the backdrop once the hero had taken it. Rather
+ * than showing the same scene twice, the hero then falls back to a
+ * solid brand teal and the single photo goes to the site-wide
+ * backdrop. `PHOTOS.length >= 2` below makes that automatic.
  */
 export const HERO_BASE: string | null =
   PHOTOS.length >= 2 ? (PHOTOS[0]?.base ?? null) : null

@@ -146,37 +146,35 @@ function HomeContent() {
         className="relative overflow-hidden"
         aria-labelledby="hero-title"
       >
-        {HERO_IMAGE_URL ? (
-          <>
-            <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{
-                backgroundImage: `url('${HERO_IMAGE_URL}')`,
-              }}
-              aria-hidden="true"
-            />
-            <div
-              className="absolute inset-0"
-              style={{
-                // 2026-10-16: per design.md "no gradient" — replaced the
-                // 3-stop linear-gradient with a single solid teal overlay
-                // at 55% alpha so the photo reads through without
-                // falling back to a SaaS-y gradient stack.
-                background: 'rgba(13, 148, 136, 0.62)',
-              }}
-              aria-hidden="true"
-            />
-          </>
-        ) : (
-          // Only one photo in the pool — it is already used by the
-          // site-wide backdrop, so the hero gets a solid brand teal
-          // instead of repeating the same scene on one page.
+        {HERO_IMAGE_URL && (
           <div
-            className="absolute inset-0"
-            style={{ background: 'var(--color-primary-900)' }}
+            className="absolute inset-0 bg-cover bg-center hero-photo"
+            style={{
+              backgroundImage: `url('${HERO_IMAGE_URL}')`,
+            }}
             aria-hidden="true"
           />
         )}
+        {/* Scrim — ONE solid semi-transparent teal over the photo, never
+            a gradient (AGENTS.md bans `linear-gradient` anywhere) and
+            never `backdrop-filter`. Its only job is contrast: the hero
+            copy is paper-white on top of it.
+            2026-10-23: when the pool holds a single photo the hero has no
+            image of its own, so this used to be an OPAQUE
+            `var(--color-primary-900)` rectangle that covered the
+            site-wide Da Nang backdrop completely — a flat teal block
+            sitting on a photo nobody could see. Dropping the alpha lets
+            the photo read through; the 78% value is what
+            `scripts/smoke-backdrop.mjs` measured as the lowest alpha
+            that keeps white text past WCAG AA on the real photo.
+            The `hero-photo` / `hero-scrim` class hooks are what the
+            smoke test targets — do not select these layers by position,
+            the hero's optional photo layer changes which child is first. */}
+        <div
+          className="absolute inset-0 hero-scrim"
+          style={{ backgroundColor: 'var(--color-hero-scrim)' }}
+          aria-hidden="true"
+        />
         <div className="relative max-w-7xl mx-auto px-6 py-24 lg:py-32 text-center">
           <p className="text-eyebrow text-paper/85 mb-4">
             Han River, Da Nang — verified local guides
@@ -202,13 +200,6 @@ function HomeContent() {
               Earn $15–$45/hour as a buddy
             </a>
           </div>
-          <p className="text-sm text-paper/80">
-            Or{' '}
-            <a href="/register?role=buddy" className="underline underline-offset-4 hover:text-paper">
-              list your services
-            </a>
-            .
-          </p>
         </div>
       </section>
 

@@ -52,7 +52,12 @@ try {
   const home = await page.evaluate(() => {
     const bd = document.querySelector('div.fixed.inset-0.-z-10')
     const img = bd?.querySelector('img')
-    const hero = document.querySelector('section[aria-labelledby="hero-title"] > div')
+    // Target the layers BY CLASS, never by position. The hero renders an
+    // optional photo layer followed by the scrim, so `> div:first-child`
+    // is the photo when the pool holds 2+ images and the scrim when it
+    // holds one — the old positional selector silently read the wrong
+    // element and reported a false "scrim is opaque" failure.
+    const heroPhoto = document.querySelector('.hero-photo')
     return {
       backdropSrc: img?.getAttribute('src') ?? null,
       naturalWidth: img?.naturalWidth ?? -1,
@@ -61,7 +66,7 @@ try {
       bodyBg: getComputedStyle(document.body).backgroundColor,
       htmlBg: getComputedStyle(document.documentElement).backgroundColor,
       bdZ: bd ? getComputedStyle(bd).zIndex : null,
-      heroBgImage: hero ? getComputedStyle(hero).backgroundImage : null,
+      heroBgImage: heroPhoto ? getComputedStyle(heroPhoto).backgroundImage : null,
     }
   })
 
@@ -110,11 +115,153 @@ try {
     fail(`hero and backdrop show the SAME photo (${heroUrl} vs ${bdUrl})`)
   }
 
+  // 2c. the hero scrim must be TRANSLUCENT, not an opaque block.
+  // 2026-10-23 regression guard: on a single-photo pool the hero used
+  // to paint `background: var(--color-primary-900)` — fully opaque —
+  // straight over the photo, so the Da Nang photography was completely
+  // hidden behind the hero.
+  const scrim = await page.evaluate(() => {
+    const el = document.querySelector('.hero-scrim')
+    if (!el) return null
+    const cs = getComputedStyle(el)
+    return { bg: cs.backgroundColor, bgImage: cs.backgroundImage }
+  })
+  const alphaOf = (c) => {
+    const m = (c || '').match(/rgba?\(([^)]+)\)/)
+    if (!m) return 1
+    const parts = m[1].split(/[,\s/]+/).filter(Boolean).map(Number)
+    return parts.length === 4 ? parts[3] : 1
+  }
+  const scrimAlpha = alphaOf(scrim?.bg)
+  if (scrim && scrimAlpha > 0 && scrimAlpha < 1) {
+    pass(`hero scrim is translucent (alpha ${scrimAlpha}) — the photo reads through`)
+  } else {
+    fail(`hero scrim is OPAQUE (${scrim?.bg}) — it hides the photo underneath`)
+  }
+  if ((scrim?.bgImage ?? 'none') === 'none') {
+    pass('hero scrim is ONE solid color (no gradient, per AGENTS.md)')
+  } else {
+    fail(`hero scrim has a background-image (${scrim?.bgImage}) — must be a solid color`)
+  }
+
+  // 2d. paper-white hero text must stay readable on the composited
+  // result. Samples the REAL photos (same-origin, so canvas is
+  // allowed), replays the whole layer stack and reports the worst-case
+  // WCAG ratio against #FFFFFF.
+  //
+  // The stack depends on the pool shape:
+  //   2+ photos -> hero photo layer (opaque) + scrim on top. The site
+  //                backdrop is NOT visible through the hero at all.
+  //   1 photo   -> no hero photo, so the stack is paper base ->
+  //                backdrop photo (with its CSS filter) -> brand wash
+  //                -> scrim, and the backdrop IS what shows through.
+  // The hero sits at the top of the page, so the photo's upper half is
+  // the region the text actually lands on.
+  const contrast = await page.evaluate(async () => {
+    const bdRoot = document.querySelector('div.fixed.inset-0.-z-10')
+    const bd = bdRoot?.querySelector('img')
+    const scrimEl = document.querySelector('.hero-scrim')
+    if (!scrimEl) return null
+
+    const scrimCs = getComputedStyle(scrimEl)
+    const heroPhotoEl = document.querySelector('.hero-photo')
+    const heroUrl = heroPhotoEl
+      ? (getComputedStyle(heroPhotoEl).backgroundImage.match(/url\(["']?([^"')]+)["']?\)/) ?? [])[1]
+      : null
+
+    // Load the hero photo through a detached <img> — a background-image
+    // is not paintable via drawImage, but the same bytes are.
+    let heroImg = null
+    if (heroUrl) {
+      heroImg = await new Promise((resolve) => {
+        const im = new Image()
+        im.onload = () => resolve(im)
+        im.onerror = () => resolve(null)
+        im.src = heroUrl
+      })
+    }
+
+    const c = document.createElement('canvas')
+    c.width = 64
+    c.height = 32
+    const ctx = c.getContext('2d', { willReadFrequently: true })
+    const srcH = (img) => img.naturalHeight * 0.5
+    const paint = (img) => {
+      ctx.filter = 'none'
+      ctx.globalAlpha = 1
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.drawImage(img, 0, 0, img.naturalWidth, srcH(img), 0, 0, c.width, c.height)
+    }
+
+    if (heroImg && heroImg.naturalWidth) {
+      // Hero has its own opaque photo: that IS the backdrop for the
+      // hero region. Sample it unfiltered — no opacity, no filter.
+      paint(heroImg)
+    } else if (bd && bd.naturalWidth) {
+      // Single-photo pool: replay the site-wide backdrop stack.
+      const bdCs = getComputedStyle(bd)
+      const paper = bdRoot.querySelector('div')
+      ctx.fillStyle = getComputedStyle(paper).backgroundColor
+      ctx.fillRect(0, 0, c.width, c.height)
+      // Chromium honours `ctx.filter`, so the sample is the tone the
+      // visitor actually sees.
+      ctx.filter = bdCs.filter && bdCs.filter !== 'none' ? bdCs.filter : 'none'
+      ctx.globalAlpha = Number(bdCs.opacity)
+      paint(bd)
+      ctx.globalCompositeOperation = 'multiply'
+      ctx.fillStyle = 'rgba(15, 118, 110, 0.12)'
+      ctx.fillRect(0, 0, c.width, c.height)
+    } else {
+      return null
+    }
+
+    ctx.filter = 'none'
+    ctx.globalAlpha = 1
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.fillStyle = scrimCs.backgroundColor
+    ctx.fillRect(0, 0, c.width, c.height)
+
+    const { data } = ctx.getImageData(0, 0, c.width, c.height)
+    const lin = (v) => {
+      v /= 255
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+    }
+    let worst = Infinity
+    let worstPx = null
+    for (let i = 0; i < data.length; i += 4) {
+      const L = 0.2126 * lin(data[i]) + 0.7152 * lin(data[i + 1]) + 0.0722 * lin(data[i + 2])
+      const ratio = 1.05 / (L + 0.05)
+      if (ratio < worst) {
+        worst = ratio
+        worstPx = [data[i], data[i + 1], data[i + 2]]
+      }
+    }
+    return {
+      worst: Number(worst.toFixed(2)),
+      worstPx,
+      source: heroUrl ? 'hero photo' : 'site-wide backdrop',
+    }
+  })
+  console.log(
+    `worst-case white-on-hero contrast: ${contrast?.worst}:1 at rgb(${contrast?.worstPx}) (${contrast?.source})`,
+  )
+  if (contrast && contrast.worst >= 4.5) {
+    pass(`white hero text clears WCAG AA (${contrast.worst}:1 worst case)`)
+  } else {
+    fail(`white hero text contrast is ${contrast?.worst}:1 — below the 4.5:1 AA floor`)
+  }
+
+  // hero screenshot — the visual proof that the photo reads through
+  await page
+    .locator('section[aria-labelledby="hero-title"]')
+    .screenshot({ path: 'scripts/screenshots/hero-translucent.png' })
+  console.log('screenshot: scripts/screenshots/hero-translucent.png')
+
   // 2b. ...and not the same LANDMARK either. Two files of the same
   // subject (the Dragon Bridge at night, shot from two angles) still
   // read as a duplicated image to a visitor.
   const landmarks = await page.evaluate(() => {
-    const hero = document.querySelector('section[aria-labelledby="hero-title"] > div')
+    const hero = document.querySelector('.hero-photo')
     const heroStyle = hero ? getComputedStyle(hero).backgroundImage : ''
     const heroFile = heroStyle.match(/photos\/(?:desktop|tablet|mobile)\/([^')]+)/)?.[1]
     const bdFile = document

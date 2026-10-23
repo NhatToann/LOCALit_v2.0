@@ -54,9 +54,31 @@ const IMAGE_EXT = ['.webp', '.jpg', '.jpeg', '.png', '.avif']
  */
 const REGISTRY = [
   {
+    base: 'han-river',
+    // Shared landmark with `dragon-bridge` — the hero filter in
+    // lib/photos.ts compares landmark strings for equality, so the two
+    // files must declare the SAME value to stay mutually exclusive.
+    landmark: 'dragon-bridge',
+    alt: 'Dragon Bridge and the Han River night skyline in Da Nang',
+  },
+  {
+    base: 'dragon-bridge',
+    landmark: 'dragon-bridge',
+    alt: 'Dragon Bridge lit up at night in Da Nang',
+  },
+  {
+    base: 'marble-mountains',
+    landmark: 'marble-mountains',
+    alt: 'Limestone peaks of Marble Mountains near Da Nang',
+  },
+  {
+    base: 'my-khe-beach',
+    landmark: 'my-khe-beach',
+    alt: 'My Khe Beach with the Son Tra hills behind it',
+  },
+  {
     base: 'song-han-2',
     landmark: 'son-tra',
-    place: 'Sơn Trà',
     alt: 'Coastline and green hills of the Sơn Trà peninsula near Da Nang',
   },
 ]
