@@ -432,6 +432,70 @@ try {
     }
   }
 
+  // ---------- 7. card surfaces are TRANSLUCENT ----------
+  //
+  // 2026-10-23 regression guard. Every card used to paint an opaque
+  // white / mint rectangle, so the Da Nang photo backdrop was
+  // invisible behind a wall of solid cards — the user asked for the
+  // photo to read through the div backgrounds.
+  //
+  // The glass utilities must (a) actually be emitted by Tailwind —
+  // registering the token in `:root` alone does NOT generate the
+  // utility class — and (b) carry a real alpha below 1.
+  const glass = await page.evaluate(() => {
+    const els = [
+      ...document.querySelectorAll('[class*="bg-paper-glass"]'),
+      ...document.querySelectorAll('[class*="bg-surface-glass"]'),
+    ]
+    const alphaOf = (c) => {
+      const m = (c || '').match(/rgba?\(([^)]+)\)/)
+      if (!m) return null
+      const p = m[1].split(/[,\s/]+/).filter(Boolean).map(Number)
+      return p.length === 4 ? p[3] : 1
+    }
+    return {
+      count: els.length,
+      alphas: els.slice(0, 6).map((e) => ({
+        cls: e.className.slice(0, 60),
+        bg: getComputedStyle(e).backgroundColor,
+        alpha: alphaOf(getComputedStyle(e).backgroundColor),
+      })),
+    }
+  })
+  console.log('\n--- glass card surfaces ---')
+  console.log(JSON.stringify(glass, null, 2))
+  if (glass.count === 0) {
+    fail('no glass card surfaces found — the Tailwind utility was not emitted')
+  } else {
+    const opaque = glass.alphas.filter((a) => a === null || a >= 1)
+    if (opaque.length === 0) {
+      pass(
+        `${glass.count} card surface(s) are translucent (alphas ${glass.alphas.map((a) => a.alpha).join(', ')})`,
+      )
+    } else {
+      for (const a of opaque) {
+        fail(`card surface "${a.cls}" is opaque (${a.bg}) — it hides the backdrop`)
+      }
+    }
+  }
+
+  // ---------- 8. the auth pages render the backdrop for GUESTS ----------
+  //
+  // The auth branch in AppShell was the only one that mounted no
+  // photo layer, so a guest landing on /login saw a flat white page
+  // while a signed-in user saw the Da Nang photography.
+  await page.goto(`${BASE}/login?switch=1`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1500)
+  const auth = await page.evaluate(() => {
+    const img = document.querySelector('div.fixed.inset-0.-z-10 img')
+    return { naturalWidth: img?.naturalWidth ?? -1 }
+  })
+  if (auth.naturalWidth > 0) {
+    pass(`/login renders the Da Nang backdrop for guests (naturalWidth=${auth.naturalWidth})`)
+  } else {
+    fail(`/login has NO backdrop for guests (naturalWidth=${auth.naturalWidth})`)
+  }
+
   await page.screenshot({ path: 'scripts/screenshots/verify-backdrop.png', fullPage: false })
   console.log('\nscreenshot: scripts/screenshots/verify-backdrop.png')
 } finally {
