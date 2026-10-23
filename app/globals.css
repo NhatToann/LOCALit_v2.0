@@ -96,6 +96,21 @@
   --color-paper: #FFFFFF;              /* pure white card / page */
   --color-surface: #F0FDFA;            /* mint-tinted card surface */
   --color-surface-deep: #CCFBF1;       /* deeper mint for emphasis cards */
+  /* GLASS SURFACES (2026-10-23)
+     The Da Nang photo backdrop sits at z-index -10. Every card that
+     used `bg-paper` (opaque #FFFFFF) or `bg-surface` (opaque mint)
+     hid that photo completely, so the photography was invisible
+     behind a wall of white rectangles. These two tokens are the
+     translucent twins used by card surfaces: the photo reads through
+     them, and the ink text on top still clears WCAG AA because the
+     backdrop carries its own white veil above the photo.
+
+     `bg-paper` and `bg-surface` KEEP their solid values on purpose:
+     they are still right for form inputs, chips, pills, buttons and
+     floating overlays, where a see-through background would hurt
+     legibility or let content behind them show through. */
+  --color-paper-glass: rgb(255 255 255 / 78%);
+  --color-surface-glass: rgb(240 253 250 / 68%);
   --color-ink: #0A1F1D;                 /* near-black with teal undertone */
   --color-border: #A7F3D0;             /* mint-300 — visible at 1px */
   --color-border-strong: #34D399;      /* mint-400 — hover borders */
