@@ -810,7 +810,7 @@ function RegisterForm() {
       <Stepper step={step} />
 
       {step === 'account' ? (
-        <section className="bg-paper border-2 border-tourist-border rounded-sm p-6">
+        <section className="bg-paper-glass border-2 border-tourist-border rounded-sm p-6">
           <header className="mb-5">
             <h1 className="text-section-title">Create your account</h1>
             <p className="text-sm text-muted mt-1">
@@ -1018,7 +1018,7 @@ function RegisterForm() {
       ) : null}
 
       {step === 'verify-otp' ? (
-        <section className="bg-paper border-2 border-tourist-border rounded-sm p-6">
+        <section className="bg-paper-glass border-2 border-tourist-border rounded-sm p-6">
           <header className="mb-5 pb-4 border-b border-border">
             <div className="flex items-center gap-2 text-tourist mb-2">
               <Mail size={18} aria-hidden="true" />
@@ -1202,7 +1202,7 @@ function RegisterForm() {
       ) : null}
 
       {step === 'profile' ? (
-        <section className="bg-paper border-2 border-buddy-border rounded-sm p-6">
+        <section className="bg-paper-glass border-2 border-buddy-border rounded-sm p-6">
           <header className="mb-5 pb-4 border-b border-buddy-border">
             <div className="flex items-center gap-2 text-buddy-ink mb-2">
               <span className="text-eyebrow font-bold">Step 3 of 3</span>

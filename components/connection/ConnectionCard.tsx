@@ -89,7 +89,7 @@ export default function ConnectionCard({ row, viewerId }: Props) {
 
   if (!partner) {
     return (
-      <li className="border border-border bg-surface rounded-sm p-4 text-sm text-muted">
+      <li className="border border-border bg-surface-glass rounded-sm p-4 text-sm text-muted">
         Unknown partner (id: {row.partner_id})
       </li>
     )
@@ -126,7 +126,7 @@ export default function ConnectionCard({ row, viewerId }: Props) {
   })()
 
   return (
-    <li className="border border-border bg-surface rounded-sm p-4 flex flex-wrap items-center gap-4">
+    <li className="border border-border bg-surface-glass rounded-sm p-4 flex flex-wrap items-center gap-4">
       <Link
         href={partner.role === 'buddy' ? `/buddies/${partner.id}` : `/tourists/${partner.id}`}
         className="flex items-center gap-3 min-w-0 flex-1"

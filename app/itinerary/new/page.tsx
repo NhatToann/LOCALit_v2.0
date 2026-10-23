@@ -143,7 +143,7 @@ export default function NewTripPage() {
                     onClick={() => selectTemplate(tpl)}
                     aria-pressed={active}
                     className={[
-                      'w-full text-left p-4 border rounded-sm bg-surface transition-colors',
+                      'w-full text-left p-4 border rounded-sm bg-surface-glass transition-colors',
                       active
                         ? 'border-primary ring-1 ring-primary'
                         : 'border-border hover:border-border-strong',
@@ -190,7 +190,7 @@ export default function NewTripPage() {
 
         {/* Selected detail + form */}
         <aside aria-label="Selected template" className="lg:sticky lg:top-6 self-start">
-          <div className="border border-border rounded-sm bg-surface p-5">
+          <div className="border border-border rounded-sm bg-surface-glass p-5">
             <div className="flex items-center gap-3 mb-3">
               <span className="inline-flex items-center justify-center w-10 h-10 rounded-sm bg-primary text-paper">
                 <Icon size={20} aria-hidden />

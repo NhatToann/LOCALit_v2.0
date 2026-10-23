@@ -611,7 +611,7 @@ function BrowseContent() {
       {/* Filters */}
       <section
         aria-label="Filters"
-        className="mb-6 border border-border rounded-sm bg-surface p-4"
+        className="mb-6 border border-border rounded-sm bg-surface-glass p-4"
       >
         {hasSearch ? (
           <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-border text-sm">
@@ -747,7 +747,7 @@ function BrowseContent() {
           hero section 1:1. */}
       <section
         aria-labelledby="buddies-map-title"
-        className="map-frame mb-6 border border-border rounded-sm overflow-hidden bg-surface"
+        className="map-frame mb-6 border border-border rounded-sm overflow-hidden bg-surface-glass"
         style={{ position: 'relative', zIndex: 0, isolation: 'isolate' }}
       >
         <div className="px-6 py-4 border-b border-border flex flex-wrap items-end justify-between gap-3">
@@ -814,7 +814,7 @@ function BrowseContent() {
             selfUserId={currentUserId}
           />
           {selectedBuddy ? (
-            <div className="absolute bottom-3 left-3 right-3 md:left-auto md:right-3 md:w-80 bg-surface border border-border rounded-sm p-4 z-aside">
+            <div className="absolute bottom-3 left-3 right-3 md:left-auto md:right-3 md:w-80 bg-surface-glass border border-border rounded-sm p-4 z-aside">
               <button
                 type="button"
                 onClick={() => setSelectedMapId(null)}
@@ -880,7 +880,7 @@ function BrowseContent() {
             <div className="loading-spinner mx-auto" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="border border-border rounded-sm p-12 text-center bg-surface">
+          <div className="border border-border rounded-sm p-12 text-center bg-surface-glass">
             <Users size={48} className="mx-auto text-subtle mb-3" aria-hidden="true" />
             <h3 className="text-lg font-semibold mb-2">
               {activeFilter === 'saved'
@@ -900,7 +900,7 @@ function BrowseContent() {
             </Link>
           </div>
         ) : (
-          <ul className="divide-y divide-border border border-border rounded-sm bg-surface">
+          <ul className="divide-y divide-border border border-border rounded-sm bg-surface-glass">
             {filtered.map((b) => {
               const expanded = expandedBuddyId === b.id
               const dist = haversineKm(userLocation, { lat: b.latitude, lng: b.longitude })
@@ -1017,7 +1017,7 @@ function BrowseContent() {
                   </button>
 
                   {expanded ? (
-                    <div className="px-6 pb-6 pt-2 bg-paper border-t border-border">
+                    <div className="px-6 pb-6 pt-2 bg-paper-glass border-t border-border">
                       {b.bio ? (
                         <p className="text-sm text-ink leading-relaxed mb-4 max-w-prose">{b.bio}</p>
                       ) : null}

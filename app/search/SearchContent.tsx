@@ -229,7 +229,7 @@ export default function SearchContent({
       {/* Search box + sort */}
       <section
         aria-label="Search controls"
-        className="mb-6 border border-border rounded-sm bg-surface p-4"
+        className="mb-6 border border-border rounded-sm bg-surface-glass p-4"
       >
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 mb-3">
           <div className="relative">
@@ -308,7 +308,7 @@ export default function SearchContent({
           {results.length === 0 ? (
             <EmptyState params={params} />
           ) : (
-            <ul className="divide-y divide-border border border-border rounded-sm bg-surface" data-testid="search-results">
+            <ul className="divide-y divide-border border border-border rounded-sm bg-surface-glass" data-testid="search-results">
               {results.map((r) => (
                 <li key={r.id} data-testid="search-result-row">
                   <SearchResultRow
@@ -328,7 +328,7 @@ export default function SearchContent({
 
 function EmptyState({ params }: { params: BuddySearchParams }) {
   return (
-    <div className="border border-border rounded-sm p-12 text-center bg-surface">
+    <div className="border border-border rounded-sm p-12 text-center bg-surface-glass">
       <Sparkles size={36} className="mx-auto text-subtle mb-3" aria-hidden="true" />
       <h3 className="text-lg font-semibold mb-2">No buddies matched.</h3>
       <p className="text-sm text-muted mb-4 max-w-prose mx-auto">

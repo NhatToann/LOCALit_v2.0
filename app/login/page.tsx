@@ -187,7 +187,7 @@ function LoginForm() {
 
       <form
         onSubmit={handleSubmit}
-        className="bg-paper border-2 border-tourist-border rounded-sm p-6"
+        className="bg-paper-glass border-2 border-tourist-border rounded-sm p-6"
         noValidate
       >
         <div className="form-group">

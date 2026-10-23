@@ -125,7 +125,7 @@ function ConnectionPageBody({
   return (
     <div className="container-page py-8">
       {/* ── Hero ── */}
-      <header className="border border-border rounded-sm bg-surface p-5 mb-5">
+      <header className="border border-border rounded-sm bg-surface-glass p-5 mb-5">
         <div className="flex flex-wrap items-start gap-5">
           <span
             className="flex items-center justify-center w-20 h-20 rounded-full text-3xl font-semibold text-paper shrink-0 overflow-hidden"
@@ -240,7 +240,7 @@ function ConnectionPageBody({
 
       {/* ── About ── */}
       {p.bio || b.bio ? (
-        <section className="mb-5 border border-border rounded-sm bg-surface p-5">
+        <section className="mb-5 border border-border rounded-sm bg-surface-glass p-5">
           <h2 className="text-eyebrow text-muted mb-2">About</h2>
           {p.bio ? (
             <p className="text-sm text-ink leading-relaxed max-w-prose">{p.bio}</p>
@@ -316,7 +316,7 @@ function ConnectionPageBody({
       </div>
 
       {/* ── Availability strip ── */}
-      <section className="mb-5 border border-border rounded-sm bg-surface p-4">
+      <section className="mb-5 border border-border rounded-sm bg-surface-glass p-4">
         <h2 className="text-eyebrow text-muted mb-2">Availability</h2>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
           <span className={`inline-flex items-center gap-1.5 font-medium ${b.is_available ? 'text-success' : 'text-muted'}`}>
@@ -355,7 +355,7 @@ function Card({
   children: React.ReactNode
 }) {
   return (
-    <section className="border border-border rounded-sm bg-surface p-4">
+    <section className="border border-border rounded-sm bg-surface-glass p-4">
       <h2 className="text-eyebrow text-muted mb-2 flex items-center gap-1.5">
         {Icon ? <Icon size={12} aria-hidden="true" /> : null}
         {title}
@@ -435,7 +435,7 @@ function ConnectionExplainerSection() {
   if (!s) return null
   if (s.state.hasConnection) {
     return (
-      <section className="mb-5 border border-border bg-surface rounded-sm p-4">
+      <section className="mb-5 border border-border bg-surface-glass rounded-sm p-4">
         <h2 className="text-section-title flex items-center gap-2 mb-2">
           <Handshake size={16} aria-hidden="true" />
           Your connection
@@ -456,7 +456,7 @@ function ConnectionExplainerSection() {
     )
   }
   return (
-    <section className="mb-5 border border-border bg-surface rounded-sm p-4">
+    <section className="mb-5 border border-border bg-surface-glass rounded-sm p-4">
       <h2 className="text-section-title flex items-center gap-2 mb-2">
         <Handshake size={16} aria-hidden="true" />
         How Connect works

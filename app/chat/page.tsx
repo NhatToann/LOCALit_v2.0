@@ -1620,7 +1620,7 @@ function ChatInner() {
     return (
       <div className="container-page py-12">
         <h1 className="text-page-title mb-6">Messages</h1>
-        <div className="border border-border rounded-sm p-12 bg-surface">
+        <div className="border border-border rounded-sm p-12 bg-surface-glass">
           <EmptyState
             icon={MessageCircle}
             title="No conversations yet"
@@ -1686,7 +1686,7 @@ function ChatInner() {
       </div>
 
       <div
-        className="border border-border rounded-sm bg-surface overflow-hidden grid grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-[280px_1fr_300px]"
+        className="border border-border rounded-sm bg-surface-glass overflow-hidden grid grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-[280px_1fr_300px]"
         style={{ minHeight: 560 }}
       >
         {/* LEFT — Conversation list */}
@@ -1860,7 +1860,7 @@ function ChatInner() {
               {/* Messages */}
               <div
                 ref={scrollContainerRef}
-                className="flex-1 overflow-y-auto p-4 bg-paper space-y-1"
+                className="flex-1 overflow-y-auto p-4 bg-paper-glass space-y-1"
                 aria-live="polite"
                 style={{ maxHeight: 'calc(100vh - 320px)' }}
               >
@@ -2076,7 +2076,7 @@ function ChatInner() {
         {/* RIGHT — Buddy / Quick actions */}
         {activeConv ? (
           <aside
-            className="hidden lg:flex flex-col border-l border-border overflow-y-auto p-4 gap-4 bg-surface"
+            className="hidden lg:flex flex-col border-l border-border overflow-y-auto p-4 gap-4 bg-surface-glass"
             aria-label="Conversation details"
           >
             <div className="flex flex-col items-center text-center">

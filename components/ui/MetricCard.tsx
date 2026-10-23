@@ -38,7 +38,7 @@ export function MetricCard({
 }) {
   const t = TONE_CLASSES[tone]
   return (
-    <article className={`border-2 ${t.border} bg-paper rounded-sm p-6`}>
+    <article className={`border-2 ${t.border} bg-paper-glass rounded-sm p-6`}>
       <p
         className="text-5xl font-medium text-ink mb-3"
         style={{

@@ -262,7 +262,7 @@ function ResetPasswordFlow() {
         ) : null}
 
         <form
-          className="border border-border rounded-sm bg-surface p-6"
+          className="border border-border rounded-sm bg-surface-glass p-6"
           noValidate
           onSubmit={(e) => {
             e.preventDefault()
@@ -451,7 +451,7 @@ function ResetPasswordFlow() {
             e.preventDefault()
             savePassword()
           }}
-          className="border border-border rounded-sm bg-surface p-6"
+          className="border border-border rounded-sm bg-surface-glass p-6"
           noValidate
         >
           <div className="form-group">

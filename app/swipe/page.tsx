@@ -310,7 +310,7 @@ function InterestsStep({
         </div>
       ) : null}
 
-      <fieldset className="border border-border rounded-sm bg-surface p-6 mb-6">
+      <fieldset className="border border-border rounded-sm bg-surface-glass p-6 mb-6">
         <legend className="text-sm font-semibold text-ink px-2">Your interests</legend>
         <div className="flex flex-wrap gap-2">
           {options.map((slug) => {
@@ -429,7 +429,7 @@ function DeckStep({
 
       <div className="mx-auto" style={{ maxWidth: 420 }}>
         {loading ? (
-          <div className="aspect-[3/4] border border-border rounded-sm bg-surface flex items-center justify-center">
+          <div className="aspect-[3/4] border border-border rounded-sm bg-surface-glass flex items-center justify-center">
             <div className="loading-spinner" />
           </div>
         ) : top ? (
@@ -510,7 +510,7 @@ function SwipeCard({
           touchAction: 'none',
           cursor: drag.active ? 'grabbing' : 'grab',
         }}
-        className="relative aspect-[3/4] border border-border rounded-sm bg-surface shadow-sm overflow-hidden select-none"
+        className="relative aspect-[3/4] border border-border rounded-sm bg-surface-glass shadow-sm overflow-hidden select-none"
       >
         {/* LIKE / PASS overlays */}
         <div
@@ -656,7 +656,7 @@ function SwipeCard({
 
 function EmptyDeck({ onEditInterests }: { onEditInterests: () => void }) {
   return (
-    <div className="aspect-[3/4] border border-border rounded-sm bg-surface p-8 flex flex-col items-center justify-center text-center">
+    <div className="aspect-[3/4] border border-border rounded-sm bg-surface-glass p-8 flex flex-col items-center justify-center text-center">
       <Sparkles size={48} className="text-primary mb-4" aria-hidden="true" />
       <h2 className="text-xl font-semibold mb-2">You have seen everyone</h2>
       <p className="text-sm text-muted mb-4 max-w-sm">

@@ -76,7 +76,7 @@ export default function SearchFilters({ facets, current, onChange }: Props) {
   const totalCount = facets?.total ?? 0
 
   return (
-    <div className="border border-border rounded-sm bg-surface p-4 sticky top-4">
+    <div className="border border-border rounded-sm bg-surface-glass p-4 sticky top-4">
       <h2 className="text-sm font-semibold text-ink mb-3">Filters</h2>
       <p className="text-xs text-muted mb-4" aria-live="polite">
         {totalCount} matching {totalCount === 1 ? 'buddy' : 'buddies'}

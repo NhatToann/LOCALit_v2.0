@@ -272,7 +272,7 @@ export default function ReviewSection({
       : 0
 
   return (
-    <section aria-labelledby="reviews-heading" className="border border-border rounded-sm bg-surface p-5">
+    <section aria-labelledby="reviews-heading" className="border border-border rounded-sm bg-surface-glass p-5">
       <header className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-border">
         <h2 id="reviews-heading" className="text-section-title">
           Reviews
@@ -315,7 +315,7 @@ export default function ReviewSection({
             e.preventDefault()
             void submit()
           }}
-          className="border border-border rounded-sm bg-paper p-4 mb-4 space-y-3"
+          className="border border-border rounded-sm bg-paper-glass p-4 mb-4 space-y-3"
         >
           <div>
             <span className="block text-sm font-medium text-ink mb-1.5">

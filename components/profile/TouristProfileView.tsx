@@ -128,7 +128,7 @@ function SwitchRoleSection({
   }
 
   return (
-    <section className="mb-6 border border-border rounded-sm p-4 bg-paper">
+    <section className="mb-6 border border-border rounded-sm p-4 bg-paper-glass">
       <h3 className="text-sm font-semibold text-ink mb-1">Switch account role</h3>
       <p className="text-xs text-muted mb-3 max-w-prose">
         {fullName}, your account is currently a{' '}
@@ -560,7 +560,7 @@ export default function TouristProfileView() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
         {/* Sidebar */}
-        <aside className="border border-border rounded-sm bg-surface p-5 h-fit">
+        <aside className="border border-border rounded-sm bg-surface-glass p-5 h-fit">
           <div className="flex flex-col items-center text-center pb-5 border-b border-border">
             <div className="relative group">
               <Avatar name={profile.full_name} src={profile.avatar_url} size="xl" />
@@ -635,7 +635,7 @@ export default function TouristProfileView() {
         </aside>
 
         {/* Main column */}
-        <main className="border border-border rounded-sm bg-surface p-6">
+        <main className="border border-border rounded-sm bg-surface-glass p-6">
           {error ? (
             <div className="alert alert-error mb-4" role="alert">
               <AlertTriangle size={16} aria-hidden="true" />
@@ -880,7 +880,7 @@ export default function TouristProfileView() {
               </header>
 
               {itineraries.length === 0 ? (
-                <div className="border border-border rounded-sm p-8 bg-paper text-center">
+                <div className="border border-border rounded-sm p-8 bg-paper-glass text-center">
                   <p className="text-sm text-muted">No itineraries yet. Plan your first Da Nang trip.</p>
                 </div>
               ) : (

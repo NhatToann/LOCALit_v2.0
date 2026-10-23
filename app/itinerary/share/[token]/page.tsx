@@ -103,7 +103,7 @@ export default function SharedItineraryPage({ params }: PageProps) {
         Read-only trip · Powered by LOCALit
       </p>
 
-      <header className="border border-border rounded-sm bg-surface p-5">
+      <header className="border border-border rounded-sm bg-surface-glass p-5">
         <h1 className="text-page-title mb-1">{itin.title}</h1>
         <p className="text-sm text-muted inline-flex flex-wrap items-center gap-x-2 gap-y-1">
           <MapPin size={12} aria-hidden /> {itin.destination}

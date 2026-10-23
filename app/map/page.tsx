@@ -141,7 +141,7 @@ export default function MapPage() {
       ) : null}
 
       <div
-        className="map-frame relative border border-border rounded-sm overflow-hidden bg-surface"
+        className="map-frame relative border border-border rounded-sm overflow-hidden bg-surface-glass"
         style={{ position: 'relative', zIndex: 0, isolation: 'isolate', height: 'calc(100vh - 360px)', minHeight: 420 }}
       >
         <MapView
@@ -158,7 +158,7 @@ export default function MapPage() {
             popups z=700, control z=800) so the marker icons never
             occlude the legend dots. See app/globals.css → .z-legend */}
         <aside
-          className="absolute bottom-4 left-4 z-legend bg-surface border border-border rounded-sm p-3 text-xs"
+          className="absolute bottom-4 left-4 z-legend bg-surface-glass border border-border rounded-sm p-3 text-xs"
           aria-label="Map legend"
         >
           <p className="text-eyebrow text-muted mb-2">
@@ -207,7 +207,7 @@ export default function MapPage() {
             legend never visually overlaps the detail card. */}
         {selected ? (
           <aside
-            className="absolute top-4 right-4 z-aside w-72 bg-surface border border-border rounded-sm p-4"
+            className="absolute top-4 right-4 z-aside w-72 bg-surface-glass border border-border rounded-sm p-4"
             aria-label={`Selected buddy ${selected.name}`}
           >
             <button

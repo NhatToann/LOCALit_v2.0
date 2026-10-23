@@ -84,7 +84,7 @@ export default function TouristPublicView({
   return (
     <div className="container-page py-8">
       {/* ── Hero ── */}
-      <header className="border border-border rounded-sm bg-surface p-5 mb-5">
+      <header className="border border-border rounded-sm bg-surface-glass p-5 mb-5">
         <div className="flex flex-wrap items-start gap-5">
           <span
             className="flex items-center justify-center w-20 h-20 rounded-full text-3xl font-semibold text-paper shrink-0 overflow-hidden"
@@ -190,7 +190,7 @@ export default function TouristPublicView({
 
       {/* ── About ── */}
       {p.bio ? (
-        <section className="mb-5 border border-border rounded-sm bg-surface p-5">
+        <section className="mb-5 border border-border rounded-sm bg-surface-glass p-5">
           <h2 className="text-eyebrow text-muted mb-2">About</h2>
           <p className="text-sm text-ink leading-relaxed max-w-prose">{p.bio}</p>
         </section>
@@ -273,7 +273,7 @@ function Card({
   children: React.ReactNode
 }) {
   return (
-    <section className="border border-border rounded-sm bg-surface p-4">
+    <section className="border border-border rounded-sm bg-surface-glass p-4">
       <h2 className="text-eyebrow text-muted mb-2 flex items-center gap-1.5">
         {Icon ? <Icon size={12} aria-hidden="true" /> : null}
         {title}

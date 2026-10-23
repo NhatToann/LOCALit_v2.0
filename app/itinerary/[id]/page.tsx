@@ -530,7 +530,7 @@ export default function ItineraryDetailPage() {
       ) : null}
 
       {shareOpen && canEdit ? (
-        <div className="border border-border rounded-sm bg-surface p-4 max-w-2xl">
+        <div className="border border-border rounded-sm bg-surface-glass p-4 max-w-2xl">
           <h2 className="text-sm font-semibold mb-2 inline-flex items-center gap-1">
             <Share2 size={13} aria-hidden /> Share link
           </h2>

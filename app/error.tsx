@@ -18,7 +18,7 @@ export default function Error({
 
   return (
     <main className="container-page py-16">
-      <div className="max-w-[480px] mx-auto border border-border rounded-sm bg-surface p-8 text-center">
+      <div className="max-w-[480px] mx-auto border border-border rounded-sm bg-surface-glass p-8 text-center">
         <AlertTriangle
           className="mx-auto mb-4 text-warning"
           size={48}

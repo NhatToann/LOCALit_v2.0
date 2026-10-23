@@ -95,7 +95,7 @@ export default function ItineraryListPage() {
       ) : null}
 
       {items.length === 0 ? (
-        <div className="border border-dashed border-border rounded-sm bg-paper p-12 text-center">
+        <div className="border border-dashed border-border rounded-sm bg-paper-glass p-12 text-center">
           <Inbox size={20} className="mx-auto text-muted mb-2" aria-hidden />
           <h2 className="text-base font-semibold mb-1">No trips yet</h2>
           <p className="text-sm text-muted max-w-md mx-auto mb-4">
@@ -122,7 +122,7 @@ export default function ItineraryListPage() {
               <li key={itin.id}>
                 <Link
                   href={`/itinerary/${itin.id}`}
-                  className="block p-4 border border-border rounded-sm bg-surface hover:border-border-strong transition-colors"
+                  className="block p-4 border border-border rounded-sm bg-surface-glass hover:border-border-strong transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <h2 className="text-base font-semibold text-ink truncate flex-1">{itin.title}</h2>

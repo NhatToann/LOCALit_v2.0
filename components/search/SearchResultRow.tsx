@@ -139,7 +139,7 @@ export default function SearchResultRow({ result, saved, onToggleSave }: Props) 
       </button>
 
       {expanded ? (
-        <div className="px-5 pb-5 pt-2 bg-paper border-t border-border">
+        <div className="px-5 pb-5 pt-2 bg-paper-glass border-t border-border">
           <dl className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
               <dt className="text-eyebrow text-muted mb-1">Match signals</dt>

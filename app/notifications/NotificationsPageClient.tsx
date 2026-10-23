@@ -262,7 +262,7 @@ export default function NotificationsPageClient({ userId, initialRows, initialUn
         </div>
       </header>
 
-      <fieldset className="border border-border rounded-sm bg-surface p-5 mb-6">
+      <fieldset className="border border-border rounded-sm bg-surface-glass p-5 mb-6">
         <legend className="px-2 text-[11px] uppercase tracking-wide text-muted">Filters</legend>
         <div className="flex flex-wrap gap-2">
           {FILTERS.map((f) => (
@@ -293,7 +293,7 @@ export default function NotificationsPageClient({ userId, initialRows, initialUn
       </fieldset>
 
       {visible.length === 0 ? (
-        <fieldset className="border border-dashed border-border rounded-sm bg-paper p-8 text-center">
+        <fieldset className="border border-dashed border-border rounded-sm bg-paper-glass p-8 text-center">
           <Inbox size={28} className="mx-auto text-subtle mb-2" aria-hidden="true" />
           <p className="text-sm font-medium text-ink">No notifications match these filters.</p>
           <p className="text-xs text-muted mt-1">
@@ -303,7 +303,7 @@ export default function NotificationsPageClient({ userId, initialRows, initialUn
           </p>
         </fieldset>
       ) : (
-        <fieldset className="border border-border rounded-sm bg-surface p-0">
+        <fieldset className="border border-border rounded-sm bg-surface-glass p-0">
           <legend className="px-2 text-[11px] uppercase tracking-wide text-muted">Activity</legend>
           <ul role="list" className="divide-y divide-border">
             {visible.map((n) => {

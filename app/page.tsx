@@ -272,7 +272,7 @@ function HomeContent() {
           ].map((item) => (
             <li
               key={item.step}
-              className={`border-l-4 ${item.cls} rounded-sm p-6 bg-paper border border-border`}
+              className={`border-l-4 ${item.cls} rounded-sm p-6 bg-paper-glass border border-border`}
             >
               <span className={item.badgeCls}>Step {item.step}</span>
               <h3 className="text-xl font-semibold text-ink mt-3 mb-3">{item.title}</h3>
@@ -300,14 +300,14 @@ function HomeContent() {
           and urgent states use the same jade family at different depths.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-4xl">
-          <article className="border-2 border-tourist rounded-sm p-5 bg-paper">
+          <article className="border-2 border-tourist rounded-sm p-5 bg-paper-glass">
             <span className="role-badge-tourist">Tourist</span>
             <p className="text-eyebrow text-tourist mt-3 mb-1">xanh lục · jade teal</p>
             <p className="text-sm text-ink leading-relaxed">
               Travelers browsing Da Nang. Jade teal — calm, exploratory.
             </p>
           </article>
-          <article className="border-2 border-buddy rounded-sm p-5 bg-paper">
+          <article className="border-2 border-buddy rounded-sm p-5 bg-paper-glass">
             <span className="role-badge-buddy">Buddy</span>
             <p className="text-eyebrow text-buddy mt-3 mb-1">vàng · amber</p>
             <p className="text-sm text-ink leading-relaxed">
@@ -326,7 +326,7 @@ function HomeContent() {
           Pricing, languages, safety, and how day trips work. Four answers, no
           filler.
         </p>
-        <dl className="faq-list max-w-3xl bg-paper border border-border p-6 rounded-sm">
+        <dl className="faq-list max-w-3xl bg-paper-glass border border-border p-6 rounded-sm">
           {HOME_FAQ_VISIBLE.map((item, i) => (
             <div
               key={item.q}

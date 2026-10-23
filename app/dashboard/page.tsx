@@ -277,7 +277,7 @@ export default function DashboardPage() {
       {/* Featured map */}
       <section
         aria-labelledby="dashboard-map-title"
-        className="mb-8 border-2 border-tourist-border rounded-sm overflow-hidden bg-paper"
+        className="mb-8 border-2 border-tourist-border rounded-sm overflow-hidden bg-paper-glass"
       >
         <div className="px-6 py-4 border-b border-border flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -380,7 +380,7 @@ export default function DashboardPage() {
               info: 'text-info',
             }
             return (
-              <li key={i} className="border-2 border-tourist-border rounded-sm p-4 bg-paper">
+              <li key={i} className="border-2 border-tourist-border rounded-sm p-4 bg-paper-glass">
                 <div className={`mb-3 ${toneClasses[s.tone]}`}>
                   <Icon size={20} aria-hidden="true" />
                 </div>
@@ -410,7 +410,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Itineraries */}
-        <section className="lg:col-span-2 border-2 border-tourist-border rounded-sm bg-paper" aria-labelledby="itineraries-title">
+        <section className="lg:col-span-2 border-2 border-tourist-border rounded-sm bg-paper-glass" aria-labelledby="itineraries-title">
           <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-3">
             <div>
               <h2 id="itineraries-title" className="text-lg font-semibold">
@@ -503,7 +503,7 @@ export default function DashboardPage() {
         </section>
 
         {/* My buddies */}
-        <section className="border-2 border-buddy-border rounded-sm bg-paper" aria-labelledby="buddies-title">
+        <section className="border-2 border-buddy-border rounded-sm bg-paper-glass" aria-labelledby="buddies-title">
           <header className="px-6 py-4 border-b border-border flex items-center justify-between gap-3">
             <div>
               <h2 id="buddies-title" className="text-lg font-semibold">
@@ -630,7 +630,7 @@ function QuickAction({
     <li>
       <Link
         href={href}
-        className="flex items-start gap-3 p-4 border border-border rounded-sm bg-surface hover:border-border-strong transition-colors duration-150"
+        className="flex items-start gap-3 p-4 border border-border rounded-sm bg-surface-glass hover:border-border-strong transition-colors duration-150"
       >
         <span className="text-muted mt-0.5">
           <IconCmp size={20} aria-hidden="true" />

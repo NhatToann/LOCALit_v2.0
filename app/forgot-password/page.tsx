@@ -203,7 +203,7 @@ function ForgotPasswordForm() {
       ) : (
         <form
           onSubmit={handleSubmit}
-          className="border border-border rounded-sm bg-surface p-6"
+          className="border border-border rounded-sm bg-surface-glass p-6"
           noValidate
         >
           <div className="form-group">

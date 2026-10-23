@@ -189,7 +189,7 @@ export default function LikesPage() {
           <div className="loading-spinner mx-auto" />
         </div>
       ) : likes.length === 0 ? (
-        <div className="border border-border rounded-sm bg-surface p-12 text-center">
+        <div className="border border-border rounded-sm bg-surface-glass p-12 text-center">
           <Inbox size={48} className="mx-auto text-subtle mb-3" aria-hidden="true" />
           <h2 className="text-lg font-semibold mb-2">No likes yet</h2>
           <p className="text-sm text-muted mb-4 max-w-md mx-auto">
@@ -208,7 +208,7 @@ export default function LikesPage() {
           {likes.map((like) => (
             <li
               key={like.swipe_id}
-              className="border border-border rounded-sm bg-surface overflow-hidden flex flex-col"
+              className="border border-border rounded-sm bg-surface-glass overflow-hidden flex flex-col"
             >
               <div
                 className="h-32 flex items-center justify-center text-paper"
