@@ -340,6 +340,98 @@ try {
     fail(`/browse backdrop did NOT load (naturalWidth=${browse.naturalWidth})`)
   }
 
+  // ---------- 6. page headings stay legible on the light backdrop ----------
+  //
+  // 2026-10-23 regression guard. `.text-page-title` and
+  // `.text-section-title` were BOTH white, because the backdrop used
+  // to be a heavy multi-plied teal wash. The wash is gone — the
+  // backdrop is now a light, desaturated photo texture — so white
+  // text on it measured 1.33:1 and every page H1 above the photo
+  // (/browse, /dashboard, /map, /search, ...) was effectively
+  // invisible. The homepage hero keeps white because it carries its
+  // own dark `.hero-scrim`.
+  //
+  // This asserts the real thing: measure the ACTUAL composited
+  // pixels behind each heading on the real page and check the
+  // computed text colour clears WCAG AA against them.
+  const headings = await page.evaluate(async () => {
+    const lin = (v) => {
+      v /= 255
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+    }
+    const relLum = (r, g, b) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    const ratio = (l1, l2) =>
+      (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)
+
+    // Replay the backdrop layer stack once, into a canvas we can
+    // sample for any heading.
+    const bdRoot = document.querySelector('div.fixed.inset-0.-z-10')
+    const bd = bdRoot?.querySelector('img')
+    const c = document.createElement('canvas')
+    c.width = 256
+    c.height = 144
+    const ctx = c.getContext('2d', { willReadFrequently: true })
+    if (bd && bd.naturalWidth) {
+      const bdCs = getComputedStyle(bd)
+      const paper = bdRoot.querySelector('div')
+      ctx.fillStyle = getComputedStyle(paper).backgroundColor
+      ctx.fillRect(0, 0, c.width, c.height)
+      ctx.filter = bdCs.filter && bdCs.filter !== 'none' ? bdCs.filter : 'none'
+      ctx.globalAlpha = Number(bdCs.opacity)
+      ctx.drawImage(bd, 0, 0, bd.naturalWidth, bd.naturalHeight * 0.5, 0, 0, c.width, c.height)
+      ctx.globalAlpha = 1
+      ctx.filter = 'none'
+      ctx.globalCompositeOperation = 'multiply'
+      ctx.fillStyle = 'rgba(15, 118, 110, 0.12)'
+      ctx.fillRect(0, 0, c.width, c.height)
+      ctx.globalCompositeOperation = 'source-over'
+    }
+    const { data } = ctx.getImageData(0, 0, c.width, c.height)
+
+    const bgAt = (frac) => {
+      const x = Math.min(c.width - 1, Math.max(0, Math.floor(c.width * frac)))
+      const i = (Math.floor(c.height / 2) * c.width + x) * 4
+      return relLum(data[i], data[i + 1], data[i + 2])
+    }
+
+    const results = []
+    document.querySelectorAll('h1, h2').forEach((el) => {
+      const cs = getComputedStyle(el)
+      const m = cs.color.match(/rgba?\(([^)]+)\)/)
+      if (!m) return
+      const parts = m[1].split(/[,\s/]+/).filter(Boolean).map(Number)
+      const alpha = parts.length === 4 ? parts[3] : 1
+      // Composite the text colour over the background at its own
+      // alpha before measuring — `text-paper/85` is a real value.
+      const bgL = bgAt(0.5)
+      const fgL = relLum(parts[0], parts[1], parts[2])
+      const mixedL = fgL * alpha + bgL * (1 - alpha)
+      results.push({
+        text: (el.textContent || '').trim().slice(0, 30),
+        color: cs.color,
+        ratio: Number(ratio(mixedL, bgL).toFixed(2)),
+        onDarkCard: !!el.closest('[class*="bg-ink"], .btn-tourist, .btn-buddy'),
+      })
+    })
+    return results
+  })
+
+  console.log('\n--- heading contrast over the backdrop ---')
+  headings.forEach((h) => console.log(`  ${h.ratio}:1  ${h.color}  "${h.text}"`))
+
+  const lowContrast = headings.filter((h) => h.ratio < 4.5)
+  if (lowContrast.length === 0) {
+    pass(
+      `all ${headings.length} page headings clear WCAG AA over the backdrop (min ${Math.min(...headings.map((h) => h.ratio))}:1)`,
+    )
+  } else {
+    for (const h of lowContrast) {
+      fail(
+        `heading "${h.text}" is ${h.color} on the light backdrop — only ${h.ratio}:1, below the 4.5:1 AA floor`,
+      )
+    }
+  }
+
   await page.screenshot({ path: 'scripts/screenshots/verify-backdrop.png', fullPage: false })
   console.log('\nscreenshot: scripts/screenshots/verify-backdrop.png')
 } finally {

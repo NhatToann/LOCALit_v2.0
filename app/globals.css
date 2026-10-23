@@ -421,15 +421,22 @@
     line-height: 1.15;
     letter-spacing: -0.02em;
     font-weight: 600;
-    /* 2026-10-20: white. Every H1 sits above the Da Nang photo
-       backdrop (or a teal-multiply wash derived from it); black
-       ink on the photo got washed out by the multi-plied jade
-       teal — the heading appeared blurred/softened. White at 96%
-       opacity gives full legibility on every photo in the rotation
-       (Hội An lanterns, Sơn Trà hills, Han River, Marble Mountains,
-       etc.). The reduced 96% opacity keeps it from looking too cold
-       against the saturated teal wash. */
-    color: rgba(255, 255, 255, 0.96);
+    /* 2026-10-23: INK, not white.
+       The heading used to be white because the backdrop was a heavy
+       multi-plied teal wash. That wash is gone — the backdrop is now
+       a light, desaturated photo texture, and white text over it
+       measures as little as 1.33:1 against its BRIGHTEST pixel
+       (sampled from the real photos by replaying the whole layer
+       stack in `scripts/smoke-backdrop.mjs`). The headings were
+       effectively invisible on /browse, /map, /search and every
+       other page whose H1 sits above the photo.
+       Ink on the same background measures 9.9:1 — well clear of the
+       WCAG AA 4.5:1 floor.
+       The homepage hero keeps its white heading because it carries
+       its own dark scrim (`.hero-scrim`, 78% deep teal) and sets
+       `text-paper` explicitly as a Tailwind utility, which wins over
+       this component-layer rule. */
+    color: var(--color-ink);
   }
 
   @media (min-width: 768px) {
@@ -443,13 +450,10 @@
     line-height: 1.2;
     letter-spacing: -0.01em;
     font-weight: 600;
-    /* Same rationale as text-page-title. The .text-section-title
-       selector is used on H2s both above the photo (Buddies
-       available now, Quick actions, My buddies, etc.) and INSIDE
-       card headers with bg-paper (itinerary list, profile).
-       Cards with a .text-section-title h2 must add `text-ink` to
-       override this rule for the white-on-paper case. */
-    color: rgba(255, 255, 255, 0.96);
+    /* Same rationale as .text-page-title — ink on the light photo
+       texture. The hero is the only place white survives, and it
+       sets `text-paper` as a utility to win there. */
+    color: var(--color-ink);
   }
 
   @media (min-width: 768px) {
@@ -458,17 +462,11 @@
     }
   }
 
-  /* Override heading colour back to ink when it sits inside a
-     opaque card surface. Without this, text-section-title inside
-     .bg-paper / .bg-surface would render white-on-white.
-     2026-10-20: matches any h1/h2/h3 tagged with one of our
-     heading classes (.text-page-title, .text-section-title,
-     tailwind `text-lg font-semibold`, `text-2xl font-semibold`).
-     A card surface is .bg-paper, .bg-surface, or one of the
-     `border-2 border-*-border` panels used as section headers.
-     To avoid touching every consumer we use a parent-class match:
-     if any direct ancestor has class `bg-paper` or `bg-surface`,
-     we revert to the ink colour. */
+  /* Override heading colour back to ink when it sits inside an
+     opaque card surface.
+     2026-10-23: the heading classes are now ink by default, so this
+     block is kept only for the reverse case — a heading that opts
+     back into white via `text-paper` while sitting on a card. */
   .bg-paper .text-page-title,
   .bg-surface .text-page-title,
   .bg-paper .text-section-title,
